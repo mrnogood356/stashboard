@@ -46,6 +46,10 @@ import {
   type DropInWatchState,
   type DropInWatchStatusDto,
 } from './download-handoff.model';
+import {
+  trimTrailingSeparators,
+  trimTrailingSeparatorsKeepFirst,
+} from '../path-separators';
 
 /** How often the category's folder is looked at when nothing is settling. */
 const WATCH_INTERVAL_MS = 2 * 60_000;
@@ -382,7 +386,9 @@ export class DownloadDropInService {
       });
       return null;
     }
-    const folder = folders.category?.replace(/(.)[\\/]+$/, '$1') ?? null;
+    const folder = folders.category
+      ? trimTrailingSeparatorsKeepFirst(folders.category)
+      : null;
     const sabFolder = folders.sabCategory;
     const where = { folder, sabFolder };
     if (!folders.found) {
@@ -474,7 +480,7 @@ export class DownloadDropInService {
     });
     const mapped = (value: string) =>
       mapPath(value, settings.sabPathFrom, settings.sabPathTo);
-    const clean = (entry: string) => entry.replace(/[\\/]+$/, '');
+    const clean = (entry: string) => trimTrailingSeparators(entry);
     // What each of SABnzbd's own jobs is, to say why it's left alone.
     const kinds = await this.sabJobKinds(settings, history, queue);
     const jobs: Array<{ path: string; detail: string }> = [

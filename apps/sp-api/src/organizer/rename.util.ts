@@ -4,6 +4,7 @@ import {
   unknownWhisparrTokens,
   whisparrQuality,
 } from './whisparr-naming.util';
+import { trimSeparators, trimTrailingSeparators } from '../path-separators';
 
 /** Placeholders you can use in a rename pattern. */
 export const RENAME_TOKENS = [
@@ -266,7 +267,7 @@ export function splitPath(path: string): SplitPath {
 /** The library folder a file lives in (the deepest one, when they nest). */
 export function findRoot(path: string, roots: string[]): string | null {
   const matches = roots
-    .map((root) => root.replace(/[\\/]+$/, ''))
+    .map((root) => trimTrailingSeparators(root))
     .filter(
       (root) =>
         root && (path.startsWith(`${root}/`) || path.startsWith(`${root}\\`)),
@@ -278,9 +279,7 @@ export function joinPath(separator: '/' | '\\', ...parts: string[]): string {
   return parts
     .filter((part, index) => part.length > 0 || index === 0)
     .map((part, index) =>
-      index === 0
-        ? part.replace(/[\\/]+$/, '')
-        : part.replace(/^[\\/]+|[\\/]+$/g, ''),
+      index === 0 ? trimTrailingSeparators(part) : trimSeparators(part),
     )
     .join(separator);
 }

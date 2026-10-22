@@ -30,6 +30,7 @@ import {
   whisparrQuality,
   type WhisparrNamingOptions,
 } from './whisparr-naming.util';
+import { trimTrailingSeparators } from '../path-separators';
 
 // The organizer's decisions that need no I/O: where a file goes, which
 // matches are sure, and the small helpers both share.
@@ -189,7 +190,7 @@ export function withoutRepeatedPrefix(
     return { root, folders };
   }
   const separator = root.includes('\\') && !root.includes('/') ? '\\' : '/';
-  let parts = root.replace(/[\\/]+$/, '').split(/[\\/]/);
+  let parts = trimTrailingSeparators(root).split(/[\\/]/);
   const endsWithPrefix = (list: string[]) =>
     list.length > prefix.length &&
     prefix.every(
@@ -338,13 +339,13 @@ export function pickTargetRoot(
   chosen: string | null | undefined,
   roots: string[],
 ): string | null {
-  const wanted = (chosen ?? '').trim().replace(/[\\/]+$/, '');
+  const wanted = trimTrailingSeparators((chosen ?? '').trim());
   if (!wanted) {
     return null;
   }
   return (
     roots
-      .map((root) => root.replace(/[\\/]+$/, ''))
+      .map((root) => trimTrailingSeparators(root))
       .find((root) => root === wanted) ?? null
   );
 }

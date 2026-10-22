@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
+import { trimTrailingSeparators } from '../path-separators';
 
 /** The video types Stash scans by default. */
 export const VIDEO =
@@ -57,7 +58,7 @@ export class LibraryFolderWatcher {
   async check(roots: string[], now = Date.now()): Promise<string[]> {
     const firstLook = !this.ready;
     const seen = new Set<string>();
-    const stack = roots.map((root) => root.replace(/[\\/]+$/, '') || root);
+    const stack = roots.map((root) => trimTrailingSeparators(root) || root);
     while (stack.length > 0 && seen.size < MAX_FOLDERS) {
       const folder = stack.pop()!;
       if (seen.has(folder)) {
