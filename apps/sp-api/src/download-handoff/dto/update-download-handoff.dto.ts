@@ -40,4 +40,9 @@ export class UpdateDownloadHandoffDto {
   @IsOptional()
   @IsBoolean()
   dropIns?: boolean;
+
+  /** Also bring in downloads added to the category in SABnzbd by hand. */
+  @IsOptional()
+  @IsBoolean()
+  sabManualJobs?: boolean;
 }

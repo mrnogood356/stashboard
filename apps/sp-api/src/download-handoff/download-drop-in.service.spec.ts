@@ -734,4 +734,79 @@ describe('DownloadDropInService', () => {
     );
     await expect(service.watch()).resolves.toBeUndefined();
   });
+
+  describe('SABnzbd’s own downloads, left alone here', () => {
+    /** What the “Left alone” list says about the job folder “Release”. */
+    const saysAboutRelease = async (entries: SabnzbdHistoryEntry[]) => {
+      await write(path.join(sabFolder, 'Release', 'Release.mkv'));
+      sabnzbd.history.mockResolvedValue(entries);
+      await service.check(Date.now());
+      const skipped = service
+        .status()
+        .skipped.find((entry) => entry.name === 'Release');
+      expect(skipped?.reason).toBe('sab-job');
+      return skipped?.detail ?? '';
+    };
+    let followed: Array<{ nzoId: string; source: string }>;
+
+    beforeEach(() => {
+      followed = [];
+      prisma.downloadHandoff.findMany = jest.fn(
+        ({ where }: { where?: { nzoId?: { in: string[] } } }) =>
+          Promise.resolve(
+            where?.nzoId
+              ? followed.filter((row) => where.nzoId!.in.includes(row.nzoId))
+              : handoffs,
+          ),
+      );
+      settings.sabManualJobs = true;
+      settings.sabManualSince = new Date(Date.now() - 3600_000);
+    });
+
+    it('says Finished downloads brings in one added in SABnzbd by hand', async () => {
+      await expect(
+        saysAboutRelease([historyEntry({ completedAt: new Date() })]),
+      ).resolves.toBe('SABnzbd download — brought in by Finished downloads.');
+      // It isn't taken from here.
+      expect(dropIns).toHaveLength(0);
+    });
+
+    it('says so for one picked up already, and for Stashboard’s own', async () => {
+      followed = [{ nzoId: 'SABnzbd_nzo_1', source: 'sabnzbd-manual' }];
+      await expect(
+        saysAboutRelease([historyEntry({ completedAt: new Date() })]),
+      ).resolves.toBe('SABnzbd download — brought in by Finished downloads.');
+      followed = [{ nzoId: 'SABnzbd_nzo_1', source: 'stashboard' }];
+      await expect(saysAboutRelease([historyEntry()])).resolves.toBe(
+        'Sent to SABnzbd by Stashboard; Finished downloads takes care of it.',
+      );
+    });
+
+    it('stays left alone with a hint when the option is off', async () => {
+      settings.sabManualJobs = false;
+      const detail = await saysAboutRelease([
+        historyEntry({ completedAt: new Date() }),
+      ]);
+      expect(detail).toContain('left alone');
+      expect(detail).toContain(
+        'turn on “Also bring in downloads I add to this category in SABnzbd myself”',
+      );
+    });
+
+    it('says why one finished before the option was turned on is left alone', async () => {
+      await expect(
+        saysAboutRelease([
+          historyEntry({ completedAt: new Date(Date.now() - 2 * 3600_000) }),
+        ]),
+      ).resolves.toContain('finished before');
+    });
+
+    it('says a failed one is left alone', async () => {
+      await expect(
+        saysAboutRelease([
+          historyEntry({ status: 'Failed', completedAt: new Date() }),
+        ]),
+      ).resolves.toContain('not finished there; left alone');
+    });
+  });
 });

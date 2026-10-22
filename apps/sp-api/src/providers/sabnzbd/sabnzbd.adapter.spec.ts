@@ -203,6 +203,7 @@ describe('SabnzbdAdapter', () => {
                     status: 'Completed',
                     storage: '/downloads/complete/stashboard-downloads/Release',
                     fail_message: '',
+                    completed: 1792656000,
                   },
                   { name: 'no id' },
                 ],
@@ -233,6 +234,7 @@ describe('SabnzbdAdapter', () => {
         status: 'Completed',
         storage: '/downloads/complete/stashboard-downloads/Release',
         failMessage: null,
+        completedAt: new Date(1792656000 * 1000),
       },
     ]);
     expect(calledUrl().searchParams.get('category')).toBe('stashboard');

@@ -18,8 +18,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   SabnzbdAdapter,
   SabnzbdAdapterBaseConfig,
+  SabnzbdHistoryEntry,
+  SabnzbdQueueEntry,
 } from '../providers/sabnzbd/sabnzbd.adapter';
 import { StashAdapter } from '../providers/stash/stash.adapter';
+import { manualCutoff, manualSkipReason } from './download-handoff.adopt';
 import {
   type DropInSkipReason,
   isInside,
@@ -34,6 +37,7 @@ import {
 } from './download-handoff.service';
 import {
   DEFAULT_HANDOFF_CATEGORY,
+  MANUAL_HANDOFF_SOURCE,
   type DownloadDropInDto,
   type DropInSkippedDto,
   type DropInSkippedReason,
@@ -63,6 +67,21 @@ const RECENT_LIMIT = 20;
 
 const MAPPING_HINT =
   'Make sure that folder is mounted into Stashboard’s container. If Stashboard sees it at a different path than SABnzbd does, set “Path in SABnzbd” and “Same folder in Stashboard” in Settings → Integrations → SABnzbd → Finished downloads.';
+
+const MANUAL_SWITCH =
+  '“Also bring in downloads I add to this category in SABnzbd myself”';
+
+/** Why one of SABnzbd's own jobs in the folder is left alone here. */
+const SAB_JOB_DETAILS = {
+  sent: 'Sent to SABnzbd by Stashboard; Finished downloads takes care of it.',
+  manual: 'SABnzbd download — brought in by Finished downloads.',
+  manualQueued:
+    'SABnzbd download, not finished there yet — brought in by Finished downloads once SABnzbd is done with it.',
+  manualBefore: `SABnzbd download that finished before ${MANUAL_SWITCH} was turned on, so it’s left alone.`,
+  manualOff: `SABnzbd’s own download, left alone. To bring in downloads you add to this category in SABnzbd yourself, turn on ${MANUAL_SWITCH} in Settings → Integrations → SABnzbd → Finished downloads.`,
+  other:
+    'SABnzbd’s own download (in its queue or history), not finished there; left alone.',
+} as const;
 
 const SKIP_DETAILS: Record<DropInSkipReason, string> = {
   'sab-job':
@@ -95,7 +114,8 @@ interface WatchStatus {
  * pattern folder once matched.
  *
  * Never touched: SABnzbd's own downloads (anything in its queue or history
- * for the category, or tracked as a finished download), files still being
+ * for the category, or tracked as a finished download; ones added in SABnzbd
+ * by hand are Finished downloads' to bring in), files still being
  * written, samples and links. A copied file is remembered, so it isn't
  * brought in twice. Off by default.
  *
@@ -454,24 +474,52 @@ export class DownloadDropInService {
     });
     const mapped = (value: string) =>
       mapPath(value, settings.sabPathFrom, settings.sabPathTo);
-    const skip = [
-      ...history.flatMap((entry) => (entry.storage ? [entry.storage] : [])),
-      ...tracked.flatMap((row) => (row.sabPath ? [row.sabPath] : [])),
-    ]
-      .map(mapped)
+    const clean = (entry: string) => entry.replace(/[\\/]+$/, '');
+    // What each of SABnzbd's own jobs is, to say why it's left alone.
+    const kinds = await this.sabJobKinds(settings, history, queue);
+    const jobs: Array<{ path: string; detail: string }> = [
+      ...history.flatMap((entry) =>
+        entry.storage
+          ? [
+              {
+                path: clean(mapped(entry.storage)),
+                detail: kinds.get(entry.nzoId) ?? SAB_JOB_DETAILS.other,
+              },
+            ]
+          : [],
+      ),
+      ...tracked.flatMap((row) =>
+        row.sabPath
+          ? [{ path: clean(mapped(row.sabPath)), detail: SAB_JOB_DETAILS.sent }]
+          : [],
+      ),
       // A job's folder once it's done is named after the job.
-      .concat(
-        queue.flatMap((entry) =>
-          entry.name ? [path.join(folder, entry.name)] : [],
-        ),
-      )
-      .concat(settings.destination ? [settings.destination] : [])
-      .map((entry) => entry.replace(/[\\/]+$/, ''))
+      ...queue.flatMap((entry) =>
+        entry.name
+          ? [
+              {
+                path: clean(path.join(folder, entry.name)),
+                detail: kinds.get(entry.nzoId) ?? SAB_JOB_DETAILS.other,
+              },
+            ]
+          : [],
+      ),
+    ];
+    const skip = jobs
+      .map((job) => job.path)
+      .concat(settings.destination ? [clean(settings.destination)] : [])
       // Never the whole folder, or anything holding it.
       .filter((entry) => entry && !isInside(folder, entry));
     const scan = await scanDropInFolder(folder, skip);
     const skipped: DropInSkippedDto[] = scan.skipped.map((entry) =>
-      skippedDto(entry.path, entry.reason, SKIP_DETAILS[entry.reason]),
+      skippedDto(
+        entry.path,
+        entry.reason,
+        entry.reason === 'sab-job'
+          ? (jobs.find((job) => job.path && isInside(entry.path, job.path))
+              ?.detail ?? SKIP_DETAILS[entry.reason])
+          : SKIP_DETAILS[entry.reason],
+      ),
     );
     const known = new Map(
       scan.videos.length === 0
@@ -521,6 +569,74 @@ export class DownloadDropInService {
     }
     this.skipped = skipped;
     return { folder, sabFolder, files: fresh, skipped };
+  }
+
+  /**
+   * Why each of SABnzbd's own jobs in the category is left alone here, by
+   * SABnzbd's id: sent by Stashboard, or added in SABnzbd by hand and then
+   * brought in by Finished downloads (or not, and why).
+   */
+  private async sabJobKinds(
+    settings: DownloadHandoffSettings,
+    history: SabnzbdHistoryEntry[],
+    queue: SabnzbdQueueEntry[],
+  ): Promise<Map<string, string>> {
+    const ids = [...history, ...queue].map((entry) => entry.nzoId);
+    const followed = new Map(
+      ids.length === 0
+        ? []
+        : (
+            await this.prisma.downloadHandoff.findMany({
+              where: { nzoId: { in: ids } },
+              select: { nzoId: true, source: true },
+            })
+          ).map((row) => [row.nzoId, row.source]),
+    );
+    const on = settings.sabManualJobs;
+    const tracked = new Set(followed.keys());
+    const cutoff = manualCutoff(settings);
+    const kinds = new Map<string, string>();
+    const followedDetail = (id: string) =>
+      followed.get(id) === MANUAL_HANDOFF_SOURCE
+        ? SAB_JOB_DETAILS.manual
+        : SAB_JOB_DETAILS.sent;
+    for (const entry of queue) {
+      kinds.set(
+        entry.nzoId,
+        followed.has(entry.nzoId)
+          ? followedDetail(entry.nzoId)
+          : on
+            ? SAB_JOB_DETAILS.manualQueued
+            : SAB_JOB_DETAILS.manualOff,
+      );
+    }
+    for (const entry of history) {
+      if (followed.has(entry.nzoId)) {
+        kinds.set(entry.nzoId, followedDetail(entry.nzoId));
+        continue;
+      }
+      if (!on) {
+        kinds.set(entry.nzoId, SAB_JOB_DETAILS.manualOff);
+        continue;
+      }
+      const reason = manualSkipReason(entry, {
+        category: settings.category,
+        cutoff,
+        tracked,
+      });
+      kinds.set(
+        entry.nzoId,
+        reason === null
+          ? SAB_JOB_DETAILS.manual
+          : reason === 'before-cutoff' || reason === 'no-completed-time'
+            ? SAB_JOB_DETAILS.manualBefore
+            : reason === 'not-completed' &&
+                entry.status.toLowerCase() !== 'failed'
+              ? SAB_JOB_DETAILS.manualQueued
+              : SAB_JOB_DETAILS.other,
+      );
+    }
+    return kinds;
   }
 
   /** First sight of a file: said once, in the log and in Activity. */
@@ -734,20 +850,11 @@ export class DownloadDropInService {
       return;
     }
 
-    let outcome: string;
-    let identified = false;
-    try {
-      const result = await this.organizer.identifyNewScenes([sceneId]);
-      identified = !result.left.includes(sceneId);
-      outcome = identified
-        ? 'Identified and linked to its catalog scene.'
-        : result.proposed.includes(sceneId)
-          ? 'Found a likely match: check it in Library Tools → Check these matches.'
-          : 'No match found yet; it’s with the unmatched scenes in Library Tools.';
-    } catch (error) {
-      outcome = `Couldn’t identify it: ${messageOf(error)}`;
+    const { identified, outcome, error } =
+      await this.handoff.identifyScene(sceneId);
+    if (error) {
       this.logger.warn(
-        `Couldn't identify drop-in ${row.sourcePath} (Stash scene ${sceneId}): ${messageOf(error)}`,
+        `Couldn't identify drop-in ${row.sourcePath} (Stash scene ${sceneId}): ${error}`,
       );
     }
     const placed = identified

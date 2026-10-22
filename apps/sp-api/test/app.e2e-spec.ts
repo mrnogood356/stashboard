@@ -382,6 +382,84 @@ describe('Stashboard API (e2e)', () => {
       .expect(400);
   });
 
+  it('brings in downloads added in SABnzbd by default, and follows them without a scene', async () => {
+    const login = await request(server)
+      .post('/api/auth/login')
+      .send(admin)
+      .expect(201);
+    const cookie = sessionCookie(login);
+
+    // On by default (the migration's default); no cutoff until it first runs.
+    const settings = await request(server)
+      .get('/api/downloads/handoff')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(settings.body).toMatchObject({
+      sabManualJobs: true,
+      sabManualSince: null,
+    });
+
+    const saved = await request(server)
+      .put('/api/downloads/handoff')
+      .set('Cookie', cookie)
+      .send({ sabManualJobs: false })
+      .expect(200);
+    expect(saved.body).toMatchObject({ sabManualJobs: false });
+    // The cutoff is Stashboard's to set.
+    await request(server)
+      .put('/api/downloads/handoff')
+      .set('Cookie', cookie)
+      .send({ sabManualSince: '2020-01-01T00:00:00.000Z' })
+      .expect(400);
+    await request(server)
+      .put('/api/downloads/handoff')
+      .set('Cookie', cookie)
+      .send({ sabManualJobs: 'yes' })
+      .expect(400);
+
+    // A job added in SABnzbd by hand: no catalog scene, remembered by its id.
+    const prisma = app.get(PrismaService);
+    const manual = {
+      nzoId: 'SABnzbd_nzo_e2e_manual',
+      source: 'sabnzbd-manual',
+      sceneId: null,
+      provider: null,
+      releaseTitle: 'Manual.Release',
+      status: 'completed',
+      finalPath: '/data/downloads/Manual.Release.mkv',
+    };
+    await prisma.downloadHandoff.create({ data: manual });
+    await expect(
+      prisma.downloadHandoff.create({ data: manual }),
+    ).rejects.toMatchObject({ code: 'P2002' });
+    const sent = await prisma.downloadHandoff.create({
+      data: {
+        nzoId: 'SABnzbd_nzo_e2e_sent',
+        sceneId: 'scene-1',
+        provider: 'STASHDB',
+        releaseTitle: 'Sent.Release',
+      },
+    });
+    expect(sent.source).toBe('stashboard');
+
+    const processing = await request(server)
+      .get('/api/downloads/processing')
+      .set('Cookie', cookie)
+      .expect(200);
+    const items = processing.body.handoffs as Array<Record<string, unknown>>;
+    expect(
+      items.find((item) => item.releaseTitle === 'Manual.Release'),
+    ).toMatchObject({
+      source: 'sabnzbd-manual',
+      sceneId: null,
+      provider: null,
+      stage: 'linking',
+    });
+    expect(
+      items.find((item) => item.releaseTitle === 'Sent.Release'),
+    ).toMatchObject({ source: 'stashboard', sceneId: 'scene-1' });
+  });
+
   it('ends the session on logout', async () => {
     const login = await request(server)
       .post('/api/auth/login')

@@ -15,6 +15,7 @@ function handoff(overrides: Partial<DownloadHandoff> = {}): DownloadHandoff {
   return {
     id: 'h1',
     nzoId: 'SABnzbd_nzo_1',
+    source: 'stashboard',
     sceneId: 'scene-1',
     provider: 'STASHDB',
     releaseTitle: 'Release.1080p',
@@ -174,6 +175,28 @@ describe('handoffItem', () => {
     expect(
       handoffItem(handoff({ status: 'failed', error: 'Nope' }), null),
     ).toMatchObject({ stage: 'failed', detail: 'Nope', canRetry: true });
+  });
+
+  it('shows a download added in SABnzbd by hand with the same steps, waiting to be identified', () => {
+    const manual = handoff({
+      source: 'sabnzbd-manual',
+      sceneId: null,
+      provider: null,
+      status: 'completed',
+      finalPath: '/library/M.mp4',
+    });
+    expect(handoffItem(manual, null)).toMatchObject({
+      source: 'sabnzbd-manual',
+      sceneId: null,
+      provider: null,
+      stage: 'linking',
+      detail:
+        'Moved to /library/M.mp4; waiting for Stash to pick it up and identify it.',
+    });
+    expect(
+      handoffItem({ ...manual, status: 'failed', error: 'Nope' }, null),
+    ).toMatchObject({ stage: 'failed', canRetry: true });
+    expect(handoffItem(handoff(), null).source).toBe('stashboard');
   });
 
   it('still shows a download when SABnzbd can’t be asked', () => {

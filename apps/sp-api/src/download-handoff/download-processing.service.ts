@@ -11,6 +11,7 @@ import { DownloadDropInService, toDropInDto } from './download-drop-in.service';
 import { DownloadHandoffService, toDto } from './download-handoff.service';
 import {
   DEFAULT_HANDOFF_CATEGORY,
+  MANUAL_HANDOFF_SOURCE,
   OPEN_HANDOFF_STATUSES,
   type HandoffStatus,
   type ProcessingDropInDto,
@@ -33,8 +34,8 @@ interface LiveSab {
 
 /**
  * The Processing page: everything moving through the download pipeline in
- * one place. Downloads sent to SABnzbd (with SABnzbd's progress while it
- * has them), then moving, waiting for Stash and linking; and drop-ins, with
+ * one place. Downloads sent to SABnzbd, or added there by hand and picked
+ * up (with SABnzbd's progress while it has them), then moving, waiting for Stash and linking; and drop-ins, with
  * what the folder watcher is doing.
  */
 @Injectable()
@@ -176,7 +177,7 @@ export function handoffItem(
       return item(
         'linking',
         row.error ??
-          `Moved to ${row.finalPath ?? 'the library'}; waiting for Stash to pick it up and link it.`,
+          `Moved to ${row.finalPath ?? 'the library'}; waiting for Stash to pick it up and ${row.source === MANUAL_HANDOFF_SOURCE ? 'identify' : 'link'} it.`,
       );
     default:
       break;

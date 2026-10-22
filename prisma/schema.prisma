@@ -466,33 +466,45 @@ model LogSettings {
 /// Finished downloads: releases "Find downloads" sends to SABnzbd are moved
 /// into the library once they finish, then linked and renamed. Off by default.
 model DownloadHandoffSettings {
-  key         String   @id @default("GLOBAL")
-  enabled     Boolean  @default(false)
+  key            String    @id @default("GLOBAL")
+  enabled        Boolean   @default(false)
   /// SABnzbd category Stashboard sends to and watches; nothing else is touched.
-  category    String   @default("stashboard")
+  category       String    @default("stashboard")
   /// Folder inside one of Stash's library folders finished files go to.
-  destination String?
+  destination    String?
   /// Where SABnzbd sees its downloads, e.g. /downloads …
-  sabPathFrom String?
+  sabPathFrom    String?
   /// … and where Stashboard sees the same folder, e.g. /mnt/downloads.
-  sabPathTo   String?
+  sabPathTo      String?
   /// "move" or "copy"; usenet has no seeding, so move by default.
-  importMode  String   @default("move")
+  importMode     String    @default("move")
   /// Also bring in video files put straight into the category's folder.
-  dropIns     Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  dropIns        Boolean   @default(false)
+  /// Also bring in downloads added to the category in SABnzbd by hand (not
+  /// sent by Stashboard), once SABnzbd has finished them.
+  sabManualJobs  Boolean   @default(true)
+  /// Only those SABnzbd finished at or after this are brought in: when the
+  /// option was turned on, or 24 hours before its first run after upgrading.
+  /// Null until then.
+  sabManualSince DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
-/// One release sent to SABnzbd for a catalog scene, followed until it's in the library.
+/// One release sent to SABnzbd for a catalog scene (or added there by hand
+/// under Stashboard's category), followed until it's in the library.
 model DownloadHandoff {
   id           String    @id @default(cuid())
-  /// SABnzbd's id for the download; only these are ever acted on.
+  /// SABnzbd's id for the download; only these are ever acted on, and each
+  /// is brought in once.
   nzoId        String    @unique
-  /// The catalog scene it was downloaded for.
-  sceneId      String
-  /// STASHDB or FANSDB.
-  provider     String
+  /// "stashboard" (sent by Find downloads) or "sabnzbd-manual" (added in
+  /// SABnzbd by hand under Stashboard's category, picked up once finished).
+  source       String    @default("stashboard")
+  /// The catalog scene it was downloaded for; null when added in SABnzbd.
+  sceneId      String?
+  /// STASHDB or FANSDB; null when added in SABnzbd.
+  provider     String?
   releaseTitle String
   /// sent | downloading | completed | imported | failed | ignored
   status       String    @default("sent")

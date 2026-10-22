@@ -21,6 +21,8 @@ export interface SabnzbdHistoryEntry {
   /** The finished download's folder, as SABnzbd sees it. */
   storage: string | null;
   failMessage: string | null;
+  /** When SABnzbd finished with it (its "completed" time); null when it doesn't say. */
+  completedAt?: Date | null;
 }
 
 /** One download still in SABnzbd's queue. */
@@ -212,6 +214,8 @@ export class SabnzbdAdapter {
       const row = (slot ?? {}) as Record<string, unknown>;
       const nzoId = readString(row.nzo_id);
       const status = readString(row.status);
+      // Seconds since 1970, as a number (or, in some versions, a string).
+      const completed = Number(row.completed ?? NaN);
       return nzoId && status
         ? [
             {
@@ -221,6 +225,10 @@ export class SabnzbdAdapter {
               status,
               storage: readString(row.storage),
               failMessage: readString(row.fail_message),
+              completedAt:
+                Number.isFinite(completed) && completed > 0
+                  ? new Date(completed * 1000)
+                  : null,
             },
           ]
         : [];
