@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.1](https://github.com/mrnogood356/stashboard/compare/v1.0.0...v1.0.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **api:** drop bracketed groups from release titles in one pass ([99295b8](https://github.com/mrnogood356/stashboard/commit/99295b82c938d5e8dcbc48ef42977cd30fa7a9ad))
+* **api:** drop bracketed groups from release titles in one pass ([4c2ba52](https://github.com/mrnogood356/stashboard/commit/4c2ba52bdc86bbb402fc8a34e462f7ad7277262d))
+* **api:** trim path separators and quotes without backtracking regexes ([7ccf545](https://github.com/mrnogood356/stashboard/commit/7ccf545c88679955594361b30d7a0074ed0aca4d))
+* **api:** trim path separators and quotes without backtracking regexes ([9e69bf9](https://github.com/mrnogood356/stashboard/commit/9e69bf95879dad7d22cad41ebc0dc44818dd1743))
+
 ## [1.0.0](https://github.com/mrnogood356/stashboard/compare/v0.2.0...v1.0.0) (2026-10-22)
 
 
