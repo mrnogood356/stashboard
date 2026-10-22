@@ -1,1 +1,31 @@
 # Changelog
+
+## [1.0.0](https://github.com/mrnogood356/stashboard/compare/v0.2.0...v1.0.0) (2026-10-22)
+
+
+### Features
+
+* **api:** keep-me-signed-in sessions and Face ID sign-in ([5427cb8](https://github.com/mrnogood356/stashboard/commit/5427cb8c7f53c3ac21ef0016a3cd1abf177097d2))
+* **downloads:** bring in SABnzbd jobs added by hand to Stashboard's category ([6754ea1](https://github.com/mrnogood356/stashboard/commit/6754ea1aed8960c73064c8722ff0a4f00540911d))
+* **downloads:** bring in SABnzbd jobs added by hand to Stashboard's category ([fd85d04](https://github.com/mrnogood356/stashboard/commit/fd85d044e52a938226e028a6208351b83f9e03bd))
+* new icon, and the two dependency updates Dependabot couldn't make ([e769e92](https://github.com/mrnogood356/stashboard/commit/e769e92a79580bc2e20b0ec8be958675614ec76c))
+* redesigned sign-in with keep-me-signed-in and Face ID ([020902f](https://github.com/mrnogood356/stashboard/commit/020902fe821ce83a177f4049fc137218bc6791f5))
+* Stashboard ([c54c967](https://github.com/mrnogood356/stashboard/commit/c54c96753f6e75876a76fdf70d0c607f423e323c))
+* **web:** add See all links to search result sections ([2c3c36d](https://github.com/mrnogood356/stashboard/commit/2c3c36da54c1cf53ef40b12889c38f103a5fe270))
+* **web:** new Stashboard icon ([e5541e9](https://github.com/mrnogood356/stashboard/commit/e5541e9854b5b8e6ab41e90d83206f0d3a61f593))
+* **web:** redesign the sign-in and first-run pages ([5bef6cf](https://github.com/mrnogood356/stashboard/commit/5bef6cfcc4a95f8576715811c4399eb3e30610a8))
+* **web:** replace the settings tab row with a grouped section picker ([bfc3c78](https://github.com/mrnogood356/stashboard/commit/bfc3c789a88007e122d08935689a6b4c14175317))
+* **web:** Settings opens on grouped cards like Library tools ([8c5fd68](https://github.com/mrnogood356/stashboard/commit/8c5fd68526dcc889b62449465ce66cf4f5e9e40b))
+* **web:** Settings opens on grouped cards like Library tools ([8383be7](https://github.com/mrnogood356/stashboard/commit/8383be74c7fefd7f7e7ead4af1b7128d7c236ae3))
+* **web:** switch and label for downloads added in SABnzbd ([6cdc83e](https://github.com/mrnogood356/stashboard/commit/6cdc83e99825d0ae10251e17647620a8b4a931e7))
+
+
+### Bug Fixes
+
+* **downloads:** retry failed identification and page SABnzbd history for manual jobs ([dd2eb49](https://github.com/mrnogood356/stashboard/commit/dd2eb49f6c6e5081ed95895601df2a9463217403))
+* **web:** theme native select option lists and use p-select for acquisition sort ([acbce8c](https://github.com/mrnogood356/stashboard/commit/acbce8c5af172c317caefb7487008c79a18b6315))
+* **web:** themed dropdowns, settings section picker, search "See all" ([0df44ff](https://github.com/mrnogood356/stashboard/commit/0df44ff250338a0af5a19d72fb78f490b96b3837))
+* **web:** use the app icon for the sidebar logo ([c3a15b5](https://github.com/mrnogood356/stashboard/commit/c3a15b50b31c2b8ca749f67c713527b7ba40a6bb))
+* **web:** use the app icon for the sidebar logo ([b8b7630](https://github.com/mrnogood356/stashboard/commit/b8b76301608a567c6b808d60938e8c570e8542bc))
+
+## Changelog
