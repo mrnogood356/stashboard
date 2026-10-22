@@ -203,6 +203,7 @@ describe('SabnzbdAdapter', () => {
                     status: 'Completed',
                     storage: '/downloads/complete/stashboard-downloads/Release',
                     fail_message: '',
+                    completed: 1792656000,
                   },
                   { name: 'no id' },
                 ],
@@ -233,9 +234,13 @@ describe('SabnzbdAdapter', () => {
         status: 'Completed',
         storage: '/downloads/complete/stashboard-downloads/Release',
         failMessage: null,
+        completedAt: new Date(1792656000 * 1000),
       },
     ]);
     expect(calledUrl().searchParams.get('category')).toBe('stashboard');
+    expect(calledUrl().searchParams.has('start')).toBe(false);
+    await adapter.history(config, 'stashboard', 200);
+    expect(calledUrl(1).searchParams.get('start')).toBe('200');
     await expect(adapter.queue(config, 'stashboard')).resolves.toEqual([
       {
         nzoId: 'SABnzbd_nzo_2',

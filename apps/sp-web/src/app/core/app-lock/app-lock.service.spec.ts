@@ -26,6 +26,9 @@ describe('AppLockService', () => {
   const beacon = vi.fn().mockReturnValue(true);
 
   let phone = true;
+  // Tests share one window (isolate: false), so put matchMedia back afterwards
+  // or later specs get this stub, which has no addEventListener.
+  const originalMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
 
   beforeEach(() => {
     phone = true;
@@ -54,6 +57,11 @@ describe('AppLockService', () => {
     setVisibility('visible');
     http.match(() => true).forEach((req) => req.flush(status()));
     TestBed.resetTestingModule();
+    if (originalMatchMedia) {
+      Object.defineProperty(window, 'matchMedia', originalMatchMedia);
+    } else {
+      delete (window as { matchMedia?: unknown }).matchMedia;
+    }
   });
 
   async function load(value: AppLockStatus): Promise<void> {

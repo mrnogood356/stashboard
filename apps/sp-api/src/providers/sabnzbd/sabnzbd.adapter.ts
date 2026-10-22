@@ -21,6 +21,8 @@ export interface SabnzbdHistoryEntry {
   /** The finished download's folder, as SABnzbd sees it. */
   storage: string | null;
   failMessage: string | null;
+  /** When SABnzbd finished with it (its "completed" time); null when it doesn't say. */
+  completedAt?: Date | null;
 }
 
 /** One download still in SABnzbd's queue. */
@@ -50,7 +52,8 @@ export interface SabnzbdCategoryFolders {
 
 const UPLOAD_TIMEOUT_MS = 60_000;
 /** History and queue are read a page at a time; this is plenty for one category. */
-const LIST_LIMIT = 200;
+export const SABNZBD_LIST_LIMIT = 200;
+const LIST_LIMIT = SABNZBD_LIST_LIMIT;
 
 /**
  * Talks to SABnzbd's API: checks the connection and its categories, adds an
@@ -198,10 +201,12 @@ export class SabnzbdAdapter {
   async history(
     config: SabnzbdAdapterBaseConfig,
     category: string,
+    start = 0,
   ): Promise<SabnzbdHistoryEntry[]> {
     const payload = await this.call(config, 'history', {
       category,
       limit: String(LIST_LIMIT),
+      ...(start > 0 ? { start: String(start) } : {}),
     });
     const slots = (payload as { history?: { slots?: unknown } } | null)?.history
       ?.slots;
@@ -212,6 +217,8 @@ export class SabnzbdAdapter {
       const row = (slot ?? {}) as Record<string, unknown>;
       const nzoId = readString(row.nzo_id);
       const status = readString(row.status);
+      // Seconds since 1970, as a number (or, in some versions, a string).
+      const completed = Number(row.completed ?? NaN);
       return nzoId && status
         ? [
             {
@@ -221,6 +228,10 @@ export class SabnzbdAdapter {
               status,
               storage: readString(row.storage),
               failMessage: readString(row.fail_message),
+              completedAt:
+                Number.isFinite(completed) && completed > 0
+                  ? new Date(completed * 1000)
+                  : null,
             },
           ]
         : [];

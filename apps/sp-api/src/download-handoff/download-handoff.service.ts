@@ -13,6 +13,7 @@ import {
   DownloadHandoffSettings,
   IntegrationStatus,
 } from '@prisma/client';
+import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { jobHeartbeats } from '../about/job-heartbeats';
 import { ActivityService } from '../activity/activity.service';
@@ -27,6 +28,7 @@ import {
 } from '../providers/catalog/catalog-provider.util';
 import {
   SabnzbdAdapter,
+  SABNZBD_LIST_LIMIT,
   SabnzbdAdapterBaseConfig,
   SabnzbdHistoryEntry,
 } from '../providers/sabnzbd/sabnzbd.adapter';
@@ -34,9 +36,11 @@ import {
   StashAdapter,
   StashAdapterBaseConfig,
 } from '../providers/stash/stash.adapter';
+import { manualCutoff, manualSkipReason } from './download-handoff.adopt';
 import {
   findMainVideo,
   HandoffFileError,
+  isInside,
   type JobFolderCleanup,
   placeVideo,
   removeJobFolder,
@@ -44,11 +48,13 @@ import {
 import {
   DEFAULT_HANDOFF_CATEGORY,
   HANDOFF_SETTINGS_KEY,
+  MANUAL_HANDOFF_SOURCE,
   OPEN_HANDOFF_STATUSES,
   type DownloadHandoffDto,
   type DownloadHandoffSettingsDto,
   type DownloadHandoffSettingsUpdate,
   type HandoffImportMode,
+  type HandoffSource,
   type HandoffStatus,
 } from './download-handoff.model';
 
@@ -60,9 +66,13 @@ const MAX_OPEN = 50;
 const SCAN_TIMEOUT_MS = 30 * 60_000;
 /** Checks in a row Stash may miss the moved file (or linking may fail) before giving up. */
 const MAX_LINK_ATTEMPTS = 5;
+/** SABnzbd's folders for a download it's still unpacking, or that failed. */
+const SAB_WORK_FOLDER = /^_(UNPACK|FAILED)_/i;
 /** Not in SABnzbd's queue or history this long after sending: it was removed there. */
 const FORGOTTEN_AFTER_MS = 3 * 24 * 3600_000;
 const RECENT_LIMIT = 20;
+/** Pages of SABnzbd history read when looking for jobs added by hand. */
+const MAX_HISTORY_PAGES = 10;
 
 /**
  * Finished downloads: "Find downloads" sends usenet releases to SABnzbd
@@ -71,14 +81,22 @@ const RECENT_LIMIT = 20;
  * scans it, and it's linked to the exact catalog scene it was downloaded for,
  * renamed, and given previews.
  *
- * Only downloads Stashboard sent itself (by SABnzbd's id) are ever touched;
- * everything else in SABnzbd, even in the same category, is left alone, and
- * nothing in SABnzbd is ever deleted, retried or paused. Off by default.
+ * Downloads added to the same category in SABnzbd by hand are picked up
+ * too once SABnzbd has finished them, unless "Also bring in downloads I add
+ * to this category in SABnzbd myself" is off (see adoptManualJobs): those
+ * have no catalog scene, so they're identified against the catalog instead,
+ * like drop-ins.
+ *
+ * Only downloads followed by SABnzbd's id are ever touched; everything else
+ * in SABnzbd is left alone, and nothing in SABnzbd is ever deleted, retried
+ * or paused. Off by default.
  */
 @Injectable()
 export class DownloadHandoffService {
   private readonly logger = new Logger(DownloadHandoffService.name);
   private watching = false;
+  /** The last problem picking up SABnzbd's own downloads, said once. */
+  private manualProblem: string | null = null;
   /** Used by tests to avoid real waiting. */
   sleep: (ms: number) => Promise<void> = (ms) =>
     new Promise((resolve) => setTimeout(resolve, ms));
@@ -135,6 +153,11 @@ export class DownloadHandoffService {
         : null;
     }
     const enabled = update.enabled ?? current.enabled;
+    const sabManualJobs = update.sabManualJobs ?? current.sabManualJobs;
+    // Turned on now (either switch): only what SABnzbd finishes from here on
+    // is picked up, so its history isn't swept.
+    const manualTurnedOn =
+      enabled && sabManualJobs && !(current.enabled && current.sabManualJobs);
     if (enabled && !destination) {
       throw new BadRequestException(
         'Pick the folder finished downloads go to first.',
@@ -156,11 +179,18 @@ export class DownloadHandoffService {
           ? { importMode: update.importMode }
           : {}),
         ...(update.dropIns !== undefined ? { dropIns: update.dropIns } : {}),
+        sabManualJobs,
+        ...(manualTurnedOn ? { sabManualSince: new Date() } : {}),
       },
     });
     this.logger.log(
-      `Finished downloads settings saved: ${saved.enabled ? 'on' : 'off'}, category “${saved.category}”, destination ${saved.destination ?? 'not set'}, ${importModeOf(saved.importMode)} mode, drop-ins ${saved.dropIns ? 'on' : 'off'}.`,
+      `Finished downloads settings saved: ${saved.enabled ? 'on' : 'off'}, category “${saved.category}”, destination ${saved.destination ?? 'not set'}, ${importModeOf(saved.importMode)} mode, drop-ins ${saved.dropIns ? 'on' : 'off'}, downloads added in SABnzbd ${saved.sabManualJobs ? 'on' : 'off'}.`,
     );
+    if (manualTurnedOn) {
+      this.logger.log(
+        `Downloads added to SABnzbd’s “${saved.category}” category by hand are brought in once SABnzbd finishes them, from now on.`,
+      );
+    }
     return this.toSettingsDto(saved);
   }
 
@@ -372,6 +402,15 @@ export class DownloadHandoffService {
 
   /** One pass over the open downloads; exposed for tests. */
   async checkOpen(): Promise<void> {
+    const settings = await this.getSettings();
+    if (settings.enabled && settings.sabManualJobs && settings.destination) {
+      // Picked up first, so they're moved in on this same check.
+      await this.adoptManualJobs(settings).catch((error: unknown) =>
+        this.logger.warn(
+          `Looking for downloads added in SABnzbd failed: ${messageOf(error)}`,
+        ),
+      );
+    }
     const open = await this.prisma.downloadHandoff.findMany({
       where: { status: { in: OPEN_HANDOFF_STATUSES } },
       orderBy: { createdAt: 'asc' },
@@ -380,7 +419,6 @@ export class DownloadHandoffService {
     if (open.length === 0) {
       return;
     }
-    const settings = await this.getSettings();
     // Turned off: nothing is moved until it's turned back on.
     if (!settings.enabled) {
       this.logger.debug(
@@ -412,6 +450,116 @@ export class DownloadHandoffService {
         ),
       );
     }
+  }
+
+  /**
+   * Picks up downloads added to Stashboard's category in SABnzbd by hand
+   * (not sent by Stashboard), once SABnzbd has finished them: they're
+   * followed from then on like the ones Stashboard sent (moved in, found by
+   * Stash, identified against the catalog, given previews, put in their
+   * pattern folder, SABnzbd's folder tidied away). Which ones: see
+   * manualSkipReason. Only when the category has a folder of its own with a
+   * folder per download, so nothing else SABnzbd finishes can be taken.
+   * Returns how many were picked up.
+   */
+  async adoptManualJobs(
+    settings: DownloadHandoffSettings,
+    now = Date.now(),
+  ): Promise<number> {
+    const config = await this.sabConfig();
+    if (!config) {
+      return 0;
+    }
+    let cutoff = settings.sabManualSince;
+    if (!cutoff) {
+      // First run (just upgraded): the last day only, not the whole history.
+      cutoff = manualCutoff(settings, now);
+      await this.prisma.downloadHandoffSettings.update({
+        where: { key: HANDOFF_SETTINGS_KEY },
+        data: { sabManualSince: cutoff },
+      });
+      this.logger.log(
+        `Bringing in downloads added to SABnzbd’s “${settings.category}” category by hand, finished since ${cutoff.toISOString()}.`,
+      );
+    }
+    const history = await this.historySince(config, settings.category, cutoff);
+    const completed = history.filter(
+      (entry) => entry.status.toLowerCase() === 'completed',
+    );
+    if (completed.length === 0) {
+      return 0;
+    }
+    const tracked = new Set(
+      (
+        await this.prisma.downloadHandoff.findMany({
+          where: { nzoId: { in: completed.map((entry) => entry.nzoId) } },
+          select: { nzoId: true },
+        })
+      ).map((row) => row.nzoId),
+    );
+    const options = { category: settings.category, cutoff, tracked };
+    const fresh = completed.filter(
+      (entry) => manualSkipReason(entry, options) === null,
+    );
+    if (fresh.length === 0) {
+      return 0;
+    }
+    const layout = manualLayoutProblem(
+      await this.sabFolders(config, settings),
+      settings.category,
+    );
+    if (layout) {
+      if (this.manualProblem !== layout) {
+        this.manualProblem = layout;
+        this.logger.warn(
+          `Not bringing in ${fresh.length} download(s) added in SABnzbd: ${layout}`,
+        );
+        await this.activity?.record({
+          kind: 'download',
+          title: 'Can’t bring in downloads added in SABnzbd',
+          detail: layout,
+          status: 'failed',
+        });
+      }
+      return 0;
+    }
+    this.manualProblem = null;
+
+    let adopted = 0;
+    for (const entry of fresh) {
+      const releaseTitle = entry.name?.trim() || entry.nzoId;
+      try {
+        await this.prisma.downloadHandoff.create({
+          data: {
+            nzoId: entry.nzoId,
+            source: MANUAL_HANDOFF_SOURCE,
+            sceneId: null,
+            provider: null,
+            releaseTitle,
+            status: 'sent',
+          },
+        });
+      } catch (error) {
+        // Picked up meanwhile (its id is remembered): nothing to do.
+        if (codeOf(error) === 'P2002') {
+          continue;
+        }
+        throw error;
+      }
+      adopted += 1;
+      this.logger.log(
+        `Picked up “${releaseTitle}” (job ${entry.nzoId}), added to SABnzbd’s “${settings.category}” category by hand; bringing it into the library.`,
+      );
+      await this.activity?.record({
+        kind: 'download',
+        title: `Picked up “${releaseTitle}” from SABnzbd`,
+        detail: [
+          `Added in SABnzbd under “${settings.category}”, not sent by Stashboard.`,
+          `It goes to ${settings.destination ?? 'your library'} and is identified against the catalog.`,
+        ].join('\n'),
+      });
+    }
+    return adopted;
   }
 
   private async checkWithSabnzbd(
@@ -557,6 +705,16 @@ export class DownloadHandoffService {
       settings.sabPathTo,
     );
     try {
+      if (row.source === MANUAL_HANDOFF_SOURCE) {
+        const problem = await this.manualFolderProblem(
+          config,
+          settings,
+          folder,
+        );
+        if (problem) {
+          throw new HandoffFileError(problem);
+        }
+      }
       const video = await findMainVideo(folder);
       if (!video) {
         throw new HandoffFileError(
@@ -592,6 +750,52 @@ export class DownloadHandoffService {
       await this.fail(row, messageOf(error), { sabPath: entry.storage });
       return null;
     }
+  }
+
+  /**
+   * Why a download added in SABnzbd by hand can't be taken from this folder;
+   * null when it can: a real folder of its own strictly inside the
+   * category's folder (never that folder itself, never SABnzbd's completed
+   * folder or anything holding it), and not one SABnzbd is still working in.
+   */
+  private async manualFolderProblem(
+    config: SabnzbdAdapterBaseConfig,
+    settings: DownloadHandoffSettings,
+    folder: string,
+  ): Promise<string | null> {
+    const folders = await this.sabFolders(config, settings);
+    const layout = manualLayoutProblem(folders, settings.category);
+    if (layout || !folders.category) {
+      return layout ?? 'SABnzbd didn’t say where its downloads go.';
+    }
+    const stat = await fs.lstat(folder).catch(() => null);
+    if (!stat) {
+      return `Stashboard can’t see ${folder}. If it sees SABnzbd’s folders at a different path, check the folder mapping.`;
+    }
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      return `${folder} isn’t a download’s own folder; left it alone.`;
+    }
+    const [real, category, completed] = await Promise.all([
+      fs.realpath(folder).catch(() => null),
+      fs.realpath(folders.category).catch(() => null),
+      folders.completed
+        ? fs.realpath(folders.completed).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+    if (!real || !category) {
+      return `Stashboard can’t see SABnzbd’s “${settings.category}” folder (${folders.category}). Check the folder mapping.`;
+    }
+    if (
+      real === category ||
+      !isInside(real, category) ||
+      (completed && isInside(completed, real))
+    ) {
+      return `${folder} isn’t a download’s own folder inside SABnzbd’s “${settings.category}” folder (${folders.category}); left it alone.`;
+    }
+    if (SAB_WORK_FOLDER.test(path.basename(real))) {
+      return `SABnzbd is still working in ${folder}; left it alone.`;
+    }
+    return null;
   }
 
   /**
@@ -707,12 +911,17 @@ export class DownloadHandoffService {
       return;
     }
 
+    const catalogSceneId = row.sceneId;
+    if (row.source === MANUAL_HANDOFF_SOURCE || !catalogSceneId) {
+      await this.importManual(config, row, sceneId, finalPath);
+      return;
+    }
     const provider = providerOf(row.provider);
     let linked: { title: string | null };
     try {
       linked = await this.organizer.linkDownloadedScene(sceneId, {
         provider,
-        sceneId: row.sceneId,
+        sceneId: catalogSceneId,
       });
     } catch (error) {
       await this.retryLater(
@@ -737,7 +946,7 @@ export class DownloadHandoffService {
     });
     const label = getCatalogProviderLabel(provider);
     this.logger.log(
-      `Imported “${linked.title ?? row.releaseTitle}” into the library as Stash scene ${sceneId}, linked to ${label} scene ${row.sceneId}${placed.to !== finalPath ? `, placed in ${placed.to}` : ''}.`,
+      `Imported “${linked.title ?? row.releaseTitle}” into the library as Stash scene ${sceneId}, linked to ${label} scene ${catalogSceneId}${placed.to !== finalPath ? `, placed in ${placed.to}` : ''}.`,
     );
     if (placed.reason) {
       this.logger.warn(placed.reason);
@@ -750,10 +959,125 @@ export class DownloadHandoffService {
       detail: [
         `${row.sabPath ?? row.releaseTitle} → ${finalPath}`,
         ...placedLines(finalPath, placed),
-        `Linked to ${label} scene ${row.sceneId}.`,
+        `Linked to ${label} scene ${catalogSceneId}.`,
       ].join('\n'),
       ...(placed.reason ? { status: 'partial' as const } : {}),
     });
+  }
+
+  /**
+   * SABnzbd's history for a category, newest first, read a page at a time
+   * until it reaches jobs finished before the cutoff, so a long gap between
+   * checks doesn't push eligible jobs past the first page.
+   */
+  private async historySince(
+    config: SabnzbdAdapterBaseConfig,
+    category: string,
+    cutoff: Date,
+  ): Promise<SabnzbdHistoryEntry[]> {
+    const entries: SabnzbdHistoryEntry[] = [];
+    for (let page = 0; page < MAX_HISTORY_PAGES; page += 1) {
+      const slots = await this.sabnzbd.history(
+        config,
+        category,
+        entries.length,
+      );
+      entries.push(...slots);
+      const oldest = slots.at(-1)?.completedAt;
+      if (
+        slots.length < SABNZBD_LIST_LIMIT ||
+        (oldest && oldest.getTime() < cutoff.getTime())
+      ) {
+        break;
+      }
+    }
+    return entries;
+  }
+
+  /**
+   * A download added in SABnzbd by hand, now in Stash: there's no catalog
+   * scene it was sent for, so it's identified the way new files and
+   * drop-ins are (a fingerprint match is saved, a likely one waits in
+   * "Check these matches"); matched, it goes into its pattern folder.
+   */
+  private async importManual(
+    config: StashAdapterBaseConfig,
+    row: DownloadHandoff,
+    sceneId: string,
+    finalPath: string,
+  ): Promise<void> {
+    const result = await this.identifyScene(sceneId);
+    if (result.error) {
+      // Tried again on the next checks, like a failed link.
+      await this.retryLater(
+        row,
+        `Moved to ${finalPath}, but identifying it failed: ${result.error}`,
+        sceneId,
+      );
+      return;
+    }
+    const placed = result.identified
+      ? await this.placeInFolder(sceneId, finalPath)
+      : { to: finalPath, reason: null };
+    await this.generatePreviews(config, sceneId);
+
+    await this.prisma.downloadHandoff.update({
+      where: { id: row.id },
+      data: {
+        status: 'imported',
+        stashSceneId: sceneId,
+        finalPath: placed.to,
+        error: null,
+        finishedAt: new Date(),
+      },
+    });
+    this.logger.log(
+      `Imported “${row.releaseTitle}” (added in SABnzbd) into the library as Stash scene ${sceneId}${placed.to !== finalPath ? `, placed in ${placed.to}` : ''}: ${result.outcome}`,
+    );
+    if (placed.reason) {
+      this.logger.warn(placed.reason);
+    }
+    await this.activity?.record({
+      kind: 'download',
+      title: `Downloaded “${row.releaseTitle}” into your library`,
+      detail: [
+        `${row.sabPath ?? row.releaseTitle} → ${finalPath}`,
+        ...placedLines(finalPath, placed),
+        result.outcome,
+        'Added in SABnzbd, not sent by Stashboard.',
+      ].join('\n'),
+      ...(placed.reason ? { status: 'partial' as const } : {}),
+    });
+  }
+
+  /**
+   * Identifies one new Stash scene against the catalog, the way new files
+   * are. Never throws: what happened comes back in plain words.
+   */
+  async identifyScene(sceneId: string): Promise<{
+    identified: boolean;
+    outcome: string;
+    error: string | null;
+  }> {
+    try {
+      const result = await this.organizer.identifyNewScenes([sceneId]);
+      const identified = !result.left.includes(sceneId);
+      return {
+        identified,
+        outcome: identified
+          ? 'Identified and linked to its catalog scene.'
+          : result.proposed.includes(sceneId)
+            ? 'Found a likely match: check it in Library Tools → Check these matches.'
+            : 'No match found yet; it’s with the unmatched scenes in Library Tools.',
+        error: null,
+      };
+    } catch (error) {
+      return {
+        identified: false,
+        outcome: `Couldn’t identify it: ${messageOf(error)}`,
+        error: messageOf(error),
+      };
+    }
   }
 
   /**
@@ -956,6 +1280,8 @@ export class DownloadHandoffService {
       sabPathTo: settings.sabPathTo,
       importMode: importModeOf(settings.importMode),
       dropIns: settings.dropIns,
+      sabManualJobs: settings.sabManualJobs,
+      sabManualSince: settings.sabManualSince?.toISOString() ?? null,
       dropInFolder: folders?.category ?? null,
       sabnzbdReady: sab !== null,
       libraryRoots,
@@ -978,6 +1304,31 @@ export interface SabFolders {
   ownFolder: boolean;
   /** Each download gets a folder of its own. */
   jobFolders: boolean;
+}
+
+/**
+ * Why SABnzbd's folders for the category don't allow picking up downloads
+ * added there by hand; null when they do. Each download needs a folder of
+ * its own inside a folder of the category's own, so nothing else SABnzbd
+ * finishes (other categories, the shared completed folder) can be taken.
+ */
+export function manualLayoutProblem(
+  folders: Pick<SabFolders, 'found' | 'category' | 'ownFolder' | 'jobFolders'>,
+  category: string,
+): string | null {
+  if (!folders.found) {
+    return `SABnzbd has no “${category}” category.`;
+  }
+  if (!folders.category) {
+    return `SABnzbd didn’t say where its “${category}” downloads go.`;
+  }
+  if (!folders.ownFolder) {
+    return `SABnzbd’s “${category}” category has no folder of its own, so its downloads land in the shared Completed Download Folder with everything else. Give it a folder in SABnzbd (Settings → Categories).`;
+  }
+  if (!folders.jobFolders) {
+    return `SABnzbd’s “${category}” folder ends in “*”, so its downloads don’t get folders of their own. Remove the “*” in SABnzbd (Settings → Categories).`;
+  }
+  return null;
 }
 
 /** True when folder is one of Stash's library folders or inside one. */
@@ -1003,8 +1354,9 @@ export function placedLines(
 export function toDto(row: DownloadHandoff): DownloadHandoffDto {
   return {
     id: row.id,
+    source: sourceOf(row.source),
     sceneId: row.sceneId,
-    provider: providerOf(row.provider),
+    provider: row.provider ? providerOf(row.provider) : null,
     releaseTitle: row.releaseTitle,
     status: row.status as HandoffStatus,
     error: row.error,
@@ -1015,8 +1367,12 @@ export function toDto(row: DownloadHandoff): DownloadHandoffDto {
   };
 }
 
-function providerOf(value: string): CatalogProviderKey {
-  return (CATALOG_PROVIDER_KEYS as readonly string[]).includes(value)
+function sourceOf(value: string): HandoffSource {
+  return value === MANUAL_HANDOFF_SOURCE ? MANUAL_HANDOFF_SOURCE : 'stashboard';
+}
+
+function providerOf(value: string | null): CatalogProviderKey {
+  return value && (CATALOG_PROVIDER_KEYS as readonly string[]).includes(value)
     ? (value as CatalogProviderKey)
     : 'STASHDB';
 }
@@ -1037,6 +1393,11 @@ function nzbFileName(given: string | null, title: string): string {
     .trim()
     .slice(0, 200);
   return `${base || 'download'}.nzb`;
+}
+
+function codeOf(error: unknown): string | null {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === 'string' ? code : null;
 }
 
 function messageOf(error: unknown): string {

@@ -49,6 +49,9 @@
                 <p class="item-title">{{ entry.releaseTitle }}</p>
                 <span class="stage">{{ stageLabel(entry.stage) }}</span>
               </div>
+              @if (entry.source === 'sabnzbd-manual') {
+                <span class="source-tag" data-testid="added-in-sab">Added in SABnzbd</span>
+              }
               <ol class="steps" aria-label="Steps">
                 @for (step of steps; track step.stage; let i = $index) {
                   <li [attr.data-state]="stepState(entry, i)" [attr.title]="step.label">
@@ -107,6 +110,9 @@
                 <p class="item-title">{{ entry.releaseTitle }}</p>
                 <span class="stage">{{ stageLabel(entry.stage) }}</span>
               </div>
+              @if (entry.source === 'sabnzbd-manual') {
+                <span class="source-tag" data-testid="added-in-sab">Added in SABnzbd</span>
+              }
               @if (entry.detail) {
                 <p class="detail">{{ entry.detail }}</p>
               }

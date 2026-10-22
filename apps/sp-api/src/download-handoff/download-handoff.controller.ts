@@ -34,6 +34,7 @@ export class DownloadHandoffController {
       sabPathTo: body.sabPathTo,
       importMode: body.importMode,
       dropIns: body.dropIns,
+      sabManualJobs: body.sabManualJobs,
     });
   }
 

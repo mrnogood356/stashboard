@@ -27,6 +27,14 @@ export const OPEN_HANDOFF_STATUSES: HandoffStatus[] = [
 
 export type HandoffImportMode = 'move' | 'copy';
 
+/**
+ * Where a followed download came from: sent by Find downloads, or added in
+ * SABnzbd by hand under Stashboard's category and picked up once finished.
+ */
+export const HANDOFF_SOURCES = ['stashboard', 'sabnzbd-manual'] as const;
+export type HandoffSource = (typeof HANDOFF_SOURCES)[number];
+export const MANUAL_HANDOFF_SOURCE: HandoffSource = 'sabnzbd-manual';
+
 export interface DownloadHandoffSettingsDto {
   enabled: boolean;
   category: string;
@@ -36,6 +44,16 @@ export interface DownloadHandoffSettingsDto {
   importMode: HandoffImportMode;
   /** Also bring in videos put straight into the category's folder. */
   dropIns: boolean;
+  /**
+   * Also bring in downloads added to the category in SABnzbd by hand, once
+   * SABnzbd has finished them.
+   */
+  sabManualJobs: boolean;
+  /**
+   * Only those SABnzbd finished at or after this are brought in; null until
+   * the option first runs.
+   */
+  sabManualSince: string | null;
   /**
    * The category's folder as Stashboard sees it (SABnzbd's setting, through
    * the folder mapping); null when SABnzbd can't be asked or doesn't say.
@@ -55,6 +73,7 @@ export interface DownloadHandoffSettingsUpdate {
   sabPathTo?: string;
   importMode?: HandoffImportMode;
   dropIns?: boolean;
+  sabManualJobs?: boolean;
 }
 
 export const DROP_IN_STATUSES = [
@@ -214,8 +233,10 @@ export interface ProcessingDto {
 
 export interface DownloadHandoffDto {
   id: string;
-  sceneId: string;
-  provider: CatalogProviderKey;
+  source: HandoffSource;
+  /** The catalog scene it was sent for; null when added in SABnzbd. */
+  sceneId: string | null;
+  provider: CatalogProviderKey | null;
   releaseTitle: string;
   status: HandoffStatus;
   /** Why it failed, or what it's waiting for. */

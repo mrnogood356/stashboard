@@ -40,6 +40,7 @@ describe('DownloadHandoffController', () => {
       destination: '/data/downloads',
       importMode: 'copy',
       dropIns: true,
+      sabManualJobs: false,
     });
     await controller.update(body);
     expect(service.updateSettings).toHaveBeenCalledWith({
@@ -50,6 +51,7 @@ describe('DownloadHandoffController', () => {
       sabPathTo: undefined,
       importMode: 'copy',
       dropIns: true,
+      sabManualJobs: false,
     });
   });
 
@@ -94,5 +96,13 @@ describe('DownloadHandoffController', () => {
     await expect(validate({ importMode: 'hardlink' })).rejects.toThrow();
     await expect(validate({ deleteFromSab: true })).rejects.toThrow();
     await expect(validate({ dropIns: 'yes' })).rejects.toThrow();
+    await expect(validate({ sabManualJobs: 'on' })).rejects.toThrow();
+    // The cutoff is Stashboard's to set, never the client's.
+    await expect(
+      validate({ sabManualSince: '2020-01-01T00:00:00Z' }),
+    ).rejects.toThrow();
+    await expect(validate({ sabManualJobs: true })).resolves.toMatchObject({
+      sabManualJobs: true,
+    });
   });
 });

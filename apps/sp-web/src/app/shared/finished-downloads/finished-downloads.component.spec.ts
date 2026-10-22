@@ -18,6 +18,8 @@ function settings(overrides: Partial<DownloadHandoffSettings> = {}): DownloadHan
     sabPathTo: '/mnt/downloads',
     importMode: 'move',
     dropIns: false,
+    sabManualJobs: true,
+    sabManualSince: '2026-10-21T10:00:00.000Z',
     dropInFolder: '/mnt/downloads/complete/stashboard-downloads',
     sabnzbdReady: true,
     libraryRoots: ['/data'],
@@ -104,6 +106,7 @@ describe('FinishedDownloadsComponent', () => {
       sabPathTo: '/mnt/downloads',
       importMode: 'copy',
       dropIns: false,
+      sabManualJobs: true,
     });
     expect(notifications.success).toHaveBeenCalledWith('Finished downloads is on');
   });
@@ -123,6 +126,30 @@ describe('FinishedDownloadsComponent', () => {
     fixture.detectChanges();
 
     expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ dropIns: true }));
+  });
+
+  it('shows the switch for downloads added in SABnzbd next to drop-ins, and saves it', async () => {
+    const { fixture, root, api, input } = await render();
+    api.update.mockReturnValue(of(settings({ sabManualJobs: false })));
+
+    const toggle = input('sabManualJobs') as HTMLInputElement;
+    expect(toggle.checked).toBe(true);
+    const row = toggle.closest('.sab-manual');
+    expect(row?.previousElementSibling?.querySelector('input[name="dropIns"]')).not.toBeNull();
+    expect(text(row)).toContain(
+      'Also bring in downloads I add to this category in SABnzbd myself Downloads you add in SABnzbd under “stashboard” are moved in',
+    );
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change'));
+    (root.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+
+    expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ sabManualJobs: false }));
+  });
+
+  it('shows it off when it was turned off', async () => {
+    const { input } = await render({ loaded: settings({ sabManualJobs: false }) });
+    expect((input('sabManualJobs') as HTMLInputElement).checked).toBe(false);
   });
 
   it('names the category when SABnzbd doesn’t say where its folder is', async () => {

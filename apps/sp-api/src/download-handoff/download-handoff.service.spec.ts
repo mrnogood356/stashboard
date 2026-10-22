@@ -46,6 +46,7 @@ describe('DownloadHandoffService', () => {
   ): DownloadHandoff => ({
     id: `h${rows.length + 1}`,
     nzoId: 'SABnzbd_nzo_ours',
+    source: 'stashboard',
     sceneId: 'fdb-scene-1',
     provider: 'FANSDB',
     releaseTitle: 'Jane.Doe.Beach.Day.1080p',
@@ -759,6 +760,363 @@ describe('DownloadHandoffService', () => {
       });
       expect(prisma.downloadHandoff.update).not.toHaveBeenCalled();
       await expect(service.retry('nope')).rejects.toThrow('isn’t listed');
+    });
+  });
+
+  describe('downloads added in SABnzbd by hand', () => {
+    const manualFolder = () => path.join(sabFolder, 'Manual.Release');
+    const manualVideo = () => path.join(manualFolder(), 'Manual.Release.mkv');
+    const manualEntry = (overrides: Partial<SabnzbdHistoryEntry> = {}) =>
+      historyEntry({
+        nzoId: 'SABnzbd_nzo_manual',
+        name: 'Manual.Release',
+        storage: '/downloads/complete/stashboard-downloads/Manual.Release',
+        completedAt: new Date(),
+        ...overrides,
+      });
+    const manualRows = () =>
+      rows.filter((entry) => entry.source === 'sabnzbd-manual');
+
+    beforeEach(() => {
+      settings.sabManualJobs = true;
+      settings.sabManualSince = new Date(Date.now() - 3600_000);
+      organizer.identifyNewScenes = jest.fn().mockResolvedValue({
+        linked: [],
+        matched: ['77'],
+        proposed: [],
+        left: [],
+      });
+      organizer.placeInSceneFolder.mockResolvedValue({
+        to: path.join(destination, 'Studio', 'Manual', 'Manual.mkv'),
+        reason: null,
+      });
+    });
+
+    it('picks up a finished one, moves it in, identifies it and tidies SABnzbd’s folder', async () => {
+      await write(manualVideo(), 5_000);
+      await write(path.join(manualFolder(), 'Manual.Release.nfo'));
+      sabnzbd.history.mockResolvedValue([manualEntry()]);
+
+      await service.checkOpen();
+
+      expect(manualRows()).toHaveLength(1);
+      const [adopted] = manualRows();
+      expect(adopted).toMatchObject({
+        nzoId: 'SABnzbd_nzo_manual',
+        sceneId: null,
+        provider: null,
+        releaseTitle: 'Manual.Release',
+        status: 'imported',
+        stashSceneId: '77',
+        sabPath: '/downloads/complete/stashboard-downloads/Manual.Release',
+        finalPath: path.join(destination, 'Studio', 'Manual', 'Manual.mkv'),
+      });
+      const placed = path.join(destination, 'Manual.Release.mkv');
+      expect(await exists(placed)).toBe(true);
+      // SABnzbd's folder for it is only leftovers now: gone.
+      expect(await exists(manualFolder())).toBe(false);
+      // No catalog scene was asked for, so it's identified, not linked.
+      expect(organizer.linkDownloadedScene).not.toHaveBeenCalled();
+      expect(organizer.identifyNewScenes).toHaveBeenCalledWith(['77']);
+      expect(organizer.placeInSceneFolder).toHaveBeenCalledWith(
+        '77',
+        placed,
+        destination,
+      );
+      expect(stash.startLibraryTask).toHaveBeenCalledWith(
+        expect.anything(),
+        'generate',
+        ['77'],
+      );
+      const titles = activity.record.mock.calls.map(
+        ([entry]) => (entry as { title: string }).title,
+      );
+      expect(titles).toEqual([
+        'Picked up “Manual.Release” from SABnzbd',
+        'Downloaded “Manual.Release” into your library',
+      ]);
+      expect(activity.record).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          detail: expect.stringContaining('Added in SABnzbd'),
+        }),
+      );
+    });
+
+    it('never picks up the same job twice', async () => {
+      await write(manualVideo(), 5_000);
+      sabnzbd.history.mockResolvedValue([manualEntry()]);
+      await service.checkOpen();
+      await service.checkOpen();
+      expect(prisma.downloadHandoff.create).toHaveBeenCalledTimes(1);
+      expect(manualRows()).toHaveLength(1);
+    });
+
+    it('treats a job picked up meanwhile (same id) as already done', async () => {
+      sabnzbd.history.mockResolvedValue([manualEntry()]);
+      prisma.downloadHandoff.create.mockRejectedValueOnce(
+        Object.assign(new Error('Unique constraint failed'), {
+          code: 'P2002',
+        }),
+      );
+      await expect(
+        service.adoptManualJobs({ ...settings } as never),
+      ).resolves.toBe(0);
+    });
+
+    it('leaves Stashboard’s own downloads to be linked to their scene', async () => {
+      rows.push(handoff({ id: 'h1' }));
+      await write(
+        path.join(sabFolder, 'Jane.Doe.Beach.Day.1080p', 'Jane.mkv'),
+        500,
+      );
+      sabnzbd.history.mockResolvedValue([
+        historyEntry({ completedAt: new Date() }),
+      ]);
+      await service.checkOpen();
+      expect(manualRows()).toHaveLength(0);
+      expect(row()).toMatchObject({ status: 'imported', source: 'stashboard' });
+      expect(organizer.linkDownloadedScene).toHaveBeenCalled();
+      expect(organizer.identifyNewScenes).not.toHaveBeenCalled();
+    });
+
+    it('leaves failed, unfinished, other-category and older jobs alone', async () => {
+      const old = new Date(Date.now() - 2 * 3600_000);
+      sabnzbd.history.mockResolvedValue([
+        manualEntry({ nzoId: 'a', status: 'Failed', failMessage: 'CRC' }),
+        manualEntry({ nzoId: 'b', status: 'Extracting' }),
+        manualEntry({ nzoId: 'c', status: 'Verifying' }),
+        manualEntry({ nzoId: 'd', category: 'xxx' }),
+        manualEntry({ nzoId: 'e', completedAt: old }),
+        manualEntry({ nzoId: 'f', completedAt: null }),
+        manualEntry({ nzoId: 'g', storage: null }),
+      ]);
+      await write(manualVideo(), 5_000);
+      await service.checkOpen();
+      expect(prisma.downloadHandoff.create).not.toHaveBeenCalled();
+      expect(await exists(manualVideo())).toBe(true);
+    });
+
+    it('starts from the last day on its first run, and remembers that', async () => {
+      settings.sabManualSince = null;
+      const recent = manualEntry({
+        nzoId: 'recent',
+        completedAt: new Date(Date.now() - 2 * 3600_000),
+      });
+      const old = manualEntry({
+        nzoId: 'old',
+        name: 'Old.Release',
+        storage: '/downloads/complete/stashboard-downloads/Old.Release',
+        completedAt: new Date(Date.now() - 30 * 3600_000),
+      });
+      sabnzbd.history.mockResolvedValue([recent, old]);
+      await write(manualVideo(), 5_000);
+      await write(path.join(sabFolder, 'Old.Release', 'Old.mkv'), 5_000);
+
+      const before = Date.now();
+      await service.checkOpen();
+
+      const since = settings.sabManualSince as Date;
+      expect(since).toBeInstanceOf(Date);
+      expect(since.getTime()).toBeGreaterThanOrEqual(before - 24 * 3600_000);
+      expect(since.getTime()).toBeLessThanOrEqual(Date.now() - 24 * 3600_000);
+      expect(manualRows().map((entry) => entry.nzoId)).toEqual(['recent']);
+      expect(await exists(path.join(sabFolder, 'Old.Release', 'Old.mkv'))).toBe(
+        true,
+      );
+    });
+
+    it('does nothing with the option off, or with Finished downloads off', async () => {
+      sabnzbd.history.mockResolvedValue([manualEntry()]);
+      settings.sabManualJobs = false;
+      await service.checkOpen();
+      settings.sabManualJobs = true;
+      settings.enabled = false;
+      await service.checkOpen();
+      expect(sabnzbd.history).not.toHaveBeenCalled();
+      expect(prisma.downloadHandoff.create).not.toHaveBeenCalled();
+    });
+
+    it('takes nothing when the category shares SABnzbd’s completed folder, saying so once', async () => {
+      sabnzbd.categoryFolders.mockResolvedValue({
+        completed: '/downloads/complete',
+        category: '/downloads/complete',
+        found: true,
+        ownFolder: false,
+        jobFolders: true,
+      });
+      sabnzbd.history.mockResolvedValue([manualEntry()]);
+      await write(manualVideo(), 5_000);
+      await service.checkOpen();
+      await service.checkOpen();
+      expect(prisma.downloadHandoff.create).not.toHaveBeenCalled();
+      expect(await exists(manualVideo())).toBe(true);
+      expect(activity.record).toHaveBeenCalledTimes(1);
+      expect(activity.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Can’t bring in downloads added in SABnzbd',
+          status: 'failed',
+        }),
+      );
+    });
+
+    it('never takes the category’s whole folder', async () => {
+      // SABnzbd claims the job is the category folder itself.
+      sabnzbd.history.mockResolvedValue([
+        manualEntry({ storage: '/downloads/complete/stashboard-downloads' }),
+      ]);
+      await write(manualVideo(), 5_000);
+      await service.checkOpen();
+      expect(manualRows()[0]).toMatchObject({ status: 'failed' });
+      expect(manualRows()[0].error).toContain('isn’t a download’s own folder');
+      expect(await exists(manualVideo())).toBe(true);
+    });
+
+    it('tries identifying again later when it fails, instead of calling it done', async () => {
+      organizer.identifyNewScenes.mockRejectedValue(
+        new Error('StashDB is down'),
+      );
+      await write(manualVideo(), 5_000);
+      sabnzbd.history.mockResolvedValue([manualEntry()]);
+      await service.checkOpen();
+      expect(manualRows()[0]).toMatchObject({
+        status: 'completed',
+        attempts: 1,
+        stashSceneId: '77',
+      });
+      expect(manualRows()[0].error).toContain(
+        'identifying it failed: StashDB is down',
+      );
+
+      organizer.identifyNewScenes.mockResolvedValue({
+        linked: [],
+        matched: ['77'],
+        proposed: [],
+        left: [],
+      });
+      await service.checkOpen();
+      expect(manualRows()[0]).toMatchObject({
+        status: 'imported',
+        error: null,
+      });
+    });
+
+    it('reads further back in SABnzbd’s history until it passes the cutoff', async () => {
+      const recent = Array.from({ length: 200 }, (_, i) =>
+        historyEntry({
+          nzoId: `SABnzbd_nzo_sent_${i}`,
+          status: 'Failed',
+          completedAt: new Date(),
+        }),
+      );
+      sabnzbd.history
+        .mockResolvedValueOnce(recent)
+        .mockResolvedValueOnce([manualEntry()])
+        .mockResolvedValue([]);
+      await write(manualVideo(), 5_000);
+      await service.checkOpen();
+      expect(sabnzbd.history).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        'stashboard',
+        200,
+      );
+      expect(manualRows()).toHaveLength(1);
+    });
+
+    it('stops reading history once it reaches jobs older than the cutoff', async () => {
+      const old = Array.from({ length: 200 }, (_, i) =>
+        historyEntry({
+          nzoId: `SABnzbd_nzo_old_${i}`,
+          completedAt: new Date(Date.now() - 7 * 24 * 3600_000),
+        }),
+      );
+      sabnzbd.history.mockResolvedValue(old);
+      await service.checkOpen();
+      const manualCalls = sabnzbd.history.mock.calls.filter(
+        (call) => (call[2] ?? 0) > 0,
+      );
+      expect(manualCalls).toHaveLength(0);
+      expect(manualRows()).toHaveLength(0);
+    });
+
+    it('leaves it unplaced when there’s only a likely match, saying so', async () => {
+      organizer.identifyNewScenes.mockResolvedValue({
+        linked: [],
+        matched: [],
+        proposed: ['77'],
+        left: ['77'],
+      });
+      await write(manualVideo(), 5_000);
+      sabnzbd.history.mockResolvedValue([manualEntry()]);
+      await service.checkOpen();
+      expect(manualRows()[0]).toMatchObject({
+        status: 'imported',
+        finalPath: path.join(destination, 'Manual.Release.mkv'),
+      });
+      expect(organizer.placeInSceneFolder).not.toHaveBeenCalled();
+      expect(activity.record).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          detail: expect.stringContaining('Check these matches'),
+        }),
+      );
+    });
+
+    it('can be tried again after failing', async () => {
+      service.watch = jest.fn().mockResolvedValue(undefined);
+      rows.push(
+        handoff({
+          id: 'm1',
+          nzoId: 'SABnzbd_nzo_manual',
+          source: 'sabnzbd-manual',
+          sceneId: null,
+          provider: null,
+          releaseTitle: 'Manual.Release',
+          status: 'failed',
+          error: 'No video file in …',
+        }),
+      );
+      sabnzbd.history.mockResolvedValue([manualEntry()]);
+      await write(manualVideo(), 5_000);
+      await expect(service.retry('m1')).resolves.toMatchObject({
+        status: 'sent',
+        source: 'sabnzbd-manual',
+        sceneId: null,
+      });
+      await service.checkOpen();
+      expect(row('m1')).toMatchObject({ status: 'imported' });
+      expect(prisma.downloadHandoff.create).not.toHaveBeenCalled();
+    });
+
+    describe('the setting', () => {
+      it('shows it, and starts from now when it’s turned on', async () => {
+        settings.sabManualJobs = false;
+        const before = Date.now();
+        const saved = await service.updateSettings({ sabManualJobs: true });
+        expect(saved.sabManualJobs).toBe(true);
+        expect(Date.parse(saved.sabManualSince!)).toBeGreaterThanOrEqual(
+          before,
+        );
+      });
+
+      it('keeps the cutoff when saved while already on, and when turned off', async () => {
+        const since = settings.sabManualSince as Date;
+        await service.updateSettings({ importMode: 'copy' });
+        expect(settings.sabManualSince).toBe(since);
+        const saved = await service.updateSettings({ sabManualJobs: false });
+        expect(saved).toMatchObject({
+          sabManualJobs: false,
+          sabManualSince: since.toISOString(),
+        });
+      });
+
+      it('starts from now when Finished downloads itself is turned on', async () => {
+        settings.enabled = false;
+        const before = Date.now();
+        await service.updateSettings({ enabled: true });
+        expect(
+          (settings.sabManualSince as Date).getTime(),
+        ).toBeGreaterThanOrEqual(before);
+      });
     });
   });
 });
