@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Public } from './decorators/public.decorator';
 import { AuthService } from './auth.service';
@@ -6,6 +14,7 @@ import { type AuthStatusResponse } from './auth.types';
 import { BootstrapAdminDto } from './dto/bootstrap-admin.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { PasskeyLoginDto } from './dto/passkey-login.dto';
 
 @Controller('api/auth')
 export class AuthController {
@@ -38,6 +47,23 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<AuthStatusResponse> {
     return this.authService.login(dto, request, response);
+  }
+
+  @Public()
+  @Post('login/passkey/options')
+  @HttpCode(200)
+  passkeyLoginOptions(@Req() request: Request) {
+    return this.authService.passkeyLoginOptions(request);
+  }
+
+  @Public()
+  @Post('login/passkey')
+  loginWithPasskey(
+    @Body() dto: PasskeyLoginDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<AuthStatusResponse> {
+    return this.authService.loginWithPasskey(dto, request, response);
   }
 
   @Public()

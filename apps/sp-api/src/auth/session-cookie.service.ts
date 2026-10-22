@@ -5,7 +5,13 @@ import type { Response } from 'express';
 @Injectable()
 export class SessionCookieService {
   readonly cookieName = 'stashboard_session';
+  /** "Keep me signed in": the cookie and the session last a month from the last visit. */
   readonly sessionTtlMs = 30 * 24 * 60 * 60 * 1000;
+  /**
+   * Not kept signed in: the cookie ends with the browser, and the session
+   * ends after this long without a visit even if the browser stays open.
+   */
+  readonly shortSessionTtlMs = 12 * 60 * 60 * 1000;
   private readonly sessionSecret: string;
   private readonly secureCookie: boolean;
 
@@ -41,13 +47,22 @@ export class SessionCookieService {
     return sessionId;
   }
 
+  sessionTtlFor(persistent: boolean): number {
+    return persistent ? this.sessionTtlMs : this.shortSessionTtlMs;
+  }
+
+  /**
+   * A persistent session's cookie expires with it; any other gets no expiry,
+   * so the browser drops it when it closes.
+   */
   setSessionCookie(
     response: Response,
     sessionId: string,
     expiresAt: Date,
+    persistent = true,
   ): void {
     response.cookie(this.cookieName, `${sessionId}.${this.sign(sessionId)}`, {
-      expires: expiresAt,
+      ...(persistent ? { expires: expiresAt } : {}),
       httpOnly: true,
       sameSite: 'lax',
       secure: this.secureCookie,

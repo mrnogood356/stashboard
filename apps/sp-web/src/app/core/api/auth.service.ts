@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, tap } from 'rxjs';
+import { Observable, firstValueFrom, tap } from 'rxjs';
 import { AuthStateStore } from './auth-state.store';
 import {
   type AuthStatusResponse,
@@ -34,6 +34,26 @@ export class AuthService {
     return this.http
       .post<AuthStatusResponse>('/api/auth/login', payload)
       .pipe(tap((status) => this.authStateStore.sync(status)));
+  }
+
+  /**
+   * Signs in with Face ID / Touch ID, using a passkey added for App Lock.
+   * Rejects with the browser's error when the person cancels.
+   */
+  async loginWithPasskey(rememberMe: boolean): Promise<AuthStatusResponse> {
+    const { startAuthentication } = await import('@simplewebauthn/browser');
+    const optionsJSON = await firstValueFrom(
+      this.http.post<Parameters<typeof startAuthentication>[0]['optionsJSON']>(
+        '/api/auth/login/passkey/options',
+        {},
+      ),
+    );
+    const response = await startAuthentication({ optionsJSON });
+    const status = await firstValueFrom(
+      this.http.post<AuthStatusResponse>('/api/auth/login/passkey', { response, rememberMe }),
+    );
+    this.authStateStore.sync(status);
+    return status;
   }
 
   logout(): Observable<AuthStatusResponse> {

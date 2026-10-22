@@ -96,6 +96,24 @@ describe('SessionCookieService', () => {
     });
   });
 
+  it('gives a session not kept signed in a cookie that ends with the browser', () => {
+    process.env.SESSION_SECRET = 'secret-a';
+    const cookie = jest.fn();
+    const service = new SessionCookieService();
+    service.setSessionCookie(
+      { cookie } as unknown as Response,
+      'session-1',
+      new Date(Date.now() + 60_000),
+      false,
+    );
+    const options = cookie.mock.calls[0][2] as Record<string, unknown>;
+    expect(options).not.toHaveProperty('expires');
+    expect(options).not.toHaveProperty('maxAge');
+    expect(options).toMatchObject({ httpOnly: true, sameSite: 'lax' });
+    expect(service.sessionTtlFor(false)).toBe(12 * 60 * 60 * 1000);
+    expect(service.sessionTtlFor(true)).toBe(service.sessionTtlMs);
+  });
+
   it('refuses to start without a secret outside tests', () => {
     delete process.env.SESSION_SECRET;
     process.env.NODE_ENV = 'production';

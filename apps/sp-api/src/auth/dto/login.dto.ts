@@ -1,5 +1,11 @@
 import { Transform } from 'class-transformer';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class LoginDto {
   @Transform(({ value }: { value: unknown }) =>
@@ -14,4 +20,12 @@ export class LoginDto {
   @MinLength(1)
   @MaxLength(128)
   password!: string;
+
+  /**
+   * "Keep me signed in". Off: the cookie lasts until the browser closes and
+   * the session ends after 12 hours away. Left out, as older apps do: on.
+   */
+  @IsOptional()
+  @IsBoolean()
+  rememberMe?: boolean;
 }
