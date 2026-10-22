@@ -15,6 +15,7 @@ import {
   WhisparrMovieSummary,
   WhisparrRootFolderOption,
 } from '../providers/whisparr/whisparr.adapter';
+import { trimTrailingSeparators } from '../path-separators';
 
 export type HandoffSkip =
   | 'not-catalog'
@@ -581,9 +582,9 @@ export class WhisparrHandoffService {
     }
     const toWhisparr = (path: string) =>
       mapPath(path, settings.whisparrPathFrom, settings.whisparrPathTo);
-    const whisparrDestination = toWhisparr(destination).replace(/[\\/]+$/, '');
+    const whisparrDestination = trimTrailingSeparators(toWhisparr(destination));
     const roots = libraryRoots.map((root) =>
-      toWhisparr(root.replace(/[\\/]+$/, '')),
+      toWhisparr(trimTrailingSeparators(root)),
     );
     const movies = await this.whisparr.listMovies(whisparrConfig);
     const moving = movies.filter((movie) => {
@@ -733,14 +734,14 @@ export class WhisparrHandoffService {
     }
     const toWhisparr = (path: string) =>
       mapPath(path, settings.whisparrPathFrom, settings.whisparrPathTo);
-    const whisparrDestination = toWhisparr(destination).replace(/[\\/]+$/, '');
+    const whisparrDestination = trimTrailingSeparators(toWhisparr(destination));
     const nestedRoot = `${whisparrDestination}/${lastSegment(whisparrDestination)}`;
     const roots = libraryRoots.map((root) =>
-      toWhisparr(root.replace(/[\\/]+$/, '')),
+      toWhisparr(trimTrailingSeparators(root)),
     );
     const movies = await this.whisparr.listMovies(whisparrConfig);
     const whisparrRoot = libraryBase
-      ? toWhisparr(libraryBase).replace(/[\\/]+$/, '')
+      ? trimTrailingSeparators(toWhisparr(libraryBase))
       : whisparrDestination;
     const plan: RepairPlan = {
       whisparrDestination,
@@ -832,7 +833,7 @@ export class WhisparrHandoffService {
     if (
       (withFiles.length || pathOnly.length) &&
       !roots.some((root) =>
-        samePath(root.path.replace(/[\\/]+$/, ''), rootFolder),
+        samePath(trimTrailingSeparators(root.path), rootFolder),
       )
     ) {
       await this.whisparr.addRootFolder(whisparrConfig, rootFolder);
@@ -940,7 +941,7 @@ export class WhisparrHandoffService {
     const roots = await this.whisparr.getRootFolders(whisparrConfig);
     if (
       !roots.some((root) =>
-        samePath(root.path.replace(/[\\/]+$/, ''), plan.whisparrDestination),
+        samePath(trimTrailingSeparators(root.path), plan.whisparrDestination),
       )
     ) {
       await this.whisparr.addRootFolder(
@@ -1175,8 +1176,8 @@ export function mapPath(
   from: string | null | undefined,
   to: string | null | undefined,
 ): string {
-  const source = (from ?? '').trim().replace(/[\\/]+$/, '');
-  const target = (to ?? '').trim().replace(/[\\/]+$/, '');
+  const source = trimTrailingSeparators((from ?? '').trim());
+  const target = trimTrailingSeparators((to ?? '').trim());
   if (
     !source ||
     !(
@@ -1232,12 +1233,7 @@ function parentOf(path: string): string | null {
 }
 
 function lastSegment(path: string): string {
-  return (
-    path
-      .replace(/[\\/]+$/, '')
-      .split(/[\\/]/)
-      .pop() ?? ''
-  );
+  return trimTrailingSeparators(path).split(/[\\/]/).pop() ?? '';
 }
 
 function isInside(path: string, folder: string): boolean {

@@ -169,7 +169,7 @@ function tokenize(value: string): string[] {
       .replace(/([a-z])([A-Z])/g, '$1 $2')
       .toLowerCase()
       .split(/[^\p{L}\p{N}']+/u)
-      .map((word) => word.replace(/^'+|'+$/g, ''))
+      .map(trimQuotes)
       .filter(
         (word) =>
           word.length >= 2 &&
@@ -268,4 +268,17 @@ export function scoreByName(
     confidence: clamped >= 0.7 ? 'strong' : clamped >= 0.45 ? 'likely' : 'weak',
     reasons,
   };
+}
+
+/** The word without ' at either end; a loop, as `/'+$/` backtracks on long runs. */
+function trimQuotes(word: string): string {
+  let start = 0;
+  let end = word.length;
+  while (start < end && word[start] === "'") {
+    start += 1;
+  }
+  while (end > start && word[end - 1] === "'") {
+    end -= 1;
+  }
+  return word.slice(start, end);
 }

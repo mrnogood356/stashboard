@@ -58,6 +58,7 @@ import {
   normalizeFolder,
   pickTargetRoot,
 } from './organizer-plan.util';
+import { trimTrailingSeparators } from '../path-separators';
 
 /**
  * What every part of the organizer shares: its settings, the background
@@ -272,7 +273,7 @@ export abstract class OrganizerCore {
       const roots = await this.stash.getLibraryRoots(config);
       const keep = new Set(
         (await this.protectedFolders(config, settings)).map((folder) =>
-          folder.replace(/[\\/]+$/, ''),
+          trimTrailingSeparators(folder),
         ),
       );
       const candidates = new Set<string>();
@@ -282,7 +283,7 @@ export abstract class OrganizerCore {
           continue;
         }
         foldersLeftBehind(from, root)
-          .filter((folder) => !keep.has(folder.replace(/[\\/]+$/, '')))
+          .filter((folder) => !keep.has(trimTrailingSeparators(folder)))
           .forEach((folder) => candidates.add(folder));
       }
       // Deepest first; each is removed only if nothing real is left in it.

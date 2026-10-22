@@ -60,6 +60,7 @@ import {
 } from './organizer-plan.util';
 import { OrganizerCore } from './organizer-core';
 import type { NewActivity } from '../activity/activity.model';
+import { trimSeparators, trimTrailingSeparators } from '../path-separators';
 
 /**
  * The organizer's file work: renaming and undo, moving unmatched files,
@@ -303,7 +304,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
     const keep = await this.protectedFolders(config, settings);
     const found = new Set<string>();
     for (const root of roots) {
-      (await findEmptyFolders(root.replace(/[\\/]+$/, ''), keep)).forEach(
+      (await findEmptyFolders(trimTrailingSeparators(root), keep)).forEach(
         (folder) => found.add(folder),
       );
     }
@@ -336,7 +337,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
     const keep = await this.protectedFolders(config, settings);
     const all: string[] = [];
     for (const root of roots) {
-      all.push(...(await findEmptyFolders(root.replace(/[\\/]+$/, ''), keep)));
+      all.push(...(await findEmptyFolders(trimTrailingSeparators(root), keep)));
     }
     const checked = await this.withoutGalleries(config, [...new Set(all)]);
     if (checked.error) {
@@ -559,7 +560,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
     }
     const pattern = [naming.folderFormat, naming.fileFormat]
       .filter((part): part is string => !!part)
-      .map((part) => part.replace(/^[\\/]+|[\\/]+$/g, ''))
+      .map((part) => trimSeparators(part))
       .join('/');
     const problem = validatePattern(pattern);
     return { ...naming, pattern: problem ? null : pattern, problem };
@@ -630,7 +631,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
     const roots = await this.stash.getLibraryRoots(config);
     const base =
       pickTargetRoot(settings.renameRoot, roots) ??
-      roots.map((root) => root.replace(/[\\/]+$/, ''))[0];
+      roots.map((root) => trimTrailingSeparators(root))[0];
     if (!base) {
       return null;
     }
@@ -1502,7 +1503,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
     if (!scene || !file) {
       return stay('Stash doesn’t list the file for that scene any more.');
     }
-    const base = destination.replace(/[\\/]+$/, '');
+    const base = trimTrailingSeparators(destination);
     // This file, not another copy the scene may have, and the destination
     // as the folder the pattern starts from. Whisparr's files are left
     // alone by renames, but this one is a download of our own.

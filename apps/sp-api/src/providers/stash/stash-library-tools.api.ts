@@ -10,6 +10,7 @@ import {
   type StashSceneMatchInput,
 } from './stash.types';
 import { StashGraphqlClient } from './stash-graphql.client';
+import { trimTrailingSeparators } from '../../path-separators';
 
 /**
  * Stash's library tasks (scan, identify, generate, clean, jobs), duplicates,
@@ -106,7 +107,7 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
   ): Promise<string | null> {
     const unique = [
       ...new Set(
-        paths.map((path) => path.replace(/[\\/]+$/, '')).filter(Boolean),
+        paths.map((path) => trimTrailingSeparators(path)).filter(Boolean),
       ),
     ];
     if (unique.length === 0) {
@@ -144,7 +145,7 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
   ): Promise<string | null> {
     const paths = [
       ...new Set(
-        folders.map((path) => path.replace(/[\\/]+$/, '')).filter(Boolean),
+        folders.map((path) => trimTrailingSeparators(path)).filter(Boolean),
       ),
     ];
     if (paths.length === 0) {

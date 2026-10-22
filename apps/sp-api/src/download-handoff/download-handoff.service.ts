@@ -57,6 +57,7 @@ import {
   type HandoffSource,
   type HandoffStatus,
 } from './download-handoff.model';
+import { trimTrailingSeparators } from '../path-separators';
 
 /** How often SABnzbd is asked about open downloads. */
 const WATCH_INTERVAL_MS = 2 * 60_000;
@@ -196,7 +197,7 @@ export class DownloadHandoffService {
 
   /** A folder inside one of Stash's library folders, or a plain refusal. */
   private async checkDestination(value: string): Promise<string> {
-    const wanted = value.trim().replace(/[\\/]+$/, '');
+    const wanted = trimTrailingSeparators(value.trim());
     if (
       !/^([\\/]|[a-z]:[\\/])/i.test(wanted) ||
       wanted.split(/[\\/]/).some((part) => part === '..' || part === '.')
@@ -1333,9 +1334,9 @@ export function manualLayoutProblem(
 
 /** True when folder is one of Stash's library folders or inside one. */
 export function insideLibrary(folder: string, roots: string[]): boolean {
-  const clean = folder.replace(/[\\/]+$/, '');
+  const clean = trimTrailingSeparators(folder);
   return (
-    roots.some((root) => root.replace(/[\\/]+$/, '') === clean) ||
+    roots.some((root) => trimTrailingSeparators(root) === clean) ||
     findRoot(clean, roots) !== null
   );
 }
@@ -1382,7 +1383,7 @@ function importModeOf(value: string): HandoffImportMode {
 }
 
 function cleanFolder(value: string): string | null {
-  return value.trim().replace(/[\\/]+$/, '') || null;
+  return trimTrailingSeparators(value.trim()) || null;
 }
 
 /** A name SABnzbd accepts for the uploaded file; it has to end in .nzb. */

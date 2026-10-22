@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { VIDEO } from '../automation/folder-watch.util';
 import { isJunk } from '../organizer/folder-cleanup.util';
 import { isSamplePath } from '../playback/sample.util';
+import { trimTrailingSeparators } from '../path-separators';
 
 /** A finished download is one release: never walk deeper or wider than this. */
 const MAX_DEPTH = 4;
@@ -236,7 +237,7 @@ export async function removeJobFolder(options: {
   categoryFolder: string;
   completedFolder?: string | null;
 }): Promise<JobFolderCleanup> {
-  const folder = options.folder.replace(/[\\/]+$/, '') || options.folder;
+  const folder = trimTrailingSeparators(options.folder) || options.folder;
   const kept = (reason: string, videos: string[] = []): JobFolderCleanup => ({
     result: 'kept',
     folder,
@@ -389,7 +390,7 @@ export async function scanDropInFolder(
   categoryFolder: string,
   skip: string[] = [],
 ): Promise<DropInScan> {
-  const base = categoryFolder.replace(/[\\/]+$/, '') || categoryFolder;
+  const base = trimTrailingSeparators(categoryFolder) || categoryFolder;
   const videos: string[] = [];
   const skipped: DropInScan['skipped'] = [];
   const leave = (full: string, reason: DropInSkipReason) => {

@@ -37,6 +37,7 @@ import {
   SetupFixAction,
   SetupFixResult,
 } from './setup-check.types';
+import { trimSeparators, trimTrailingSeparators } from '../path-separators';
 
 type CheckBody = Omit<SetupCheck, 'id' | 'title'>;
 
@@ -611,7 +612,7 @@ export class SetupCheckService {
       naming.standardSceneFormat,
     ]
       .filter((part): part is string => typeof part === 'string' && !!part)
-      .map((part) => part.trim().replace(/^[\\/]+|[\\/]+$/g, ''))
+      .map((part) => trimSeparators(part.trim()))
       .join('/');
     if (
       pattern === whisparrPattern ||
@@ -933,7 +934,7 @@ function hostOf(url: string): string | null {
 }
 
 function trimSlash(path: string): string {
-  return path.replace(/[\\/]+$/, '') || path;
+  return trimTrailingSeparators(path) || path;
 }
 
 /** True when path is one of the roots or inside one. */

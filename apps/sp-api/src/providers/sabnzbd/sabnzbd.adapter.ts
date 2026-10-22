@@ -5,6 +5,10 @@ import {
   ProviderResponseError,
   readJsonResponse,
 } from '../provider-response';
+import {
+  trimTrailingSeparators,
+  trimTrailingSeparatorsKeepFirst,
+} from '../../path-separators';
 
 export interface SabnzbdAdapterBaseConfig {
   baseUrl: string;
@@ -113,11 +117,13 @@ export class SabnzbdAdapter {
       this.call(config, 'get_config', { section: 'misc' }),
       this.call(config, 'get_config', { section: 'categories' }),
     ]);
-    const completeDir =
-      readString(
-        (misc as { config?: { misc?: { complete_dir?: unknown } } } | null)
-          ?.config?.misc?.complete_dir,
-      )?.replace(/(.)[\\/]+$/, '$1') ?? null;
+    const rawCompleteDir = readString(
+      (misc as { config?: { misc?: { complete_dir?: unknown } } } | null)
+        ?.config?.misc?.complete_dir,
+    );
+    const completeDir = rawCompleteDir
+      ? trimTrailingSeparatorsKeepFirst(rawCompleteDir)
+      : null;
     const list = (categories as { config?: { categories?: unknown } } | null)
       ?.config?.categories;
     const entry = Array.isArray(list)
@@ -130,7 +136,10 @@ export class SabnzbdAdapter {
     const rawDir = readString(entry?.dir);
     const jobFolders = !rawDir?.endsWith('*');
     const dir =
-      readString(rawDir?.replace(/\*+$/, '').replace(/(.)[\\/]+$/, '$1')) ??
+      (rawDir &&
+        readString(
+          trimTrailingSeparatorsKeepFirst(rawDir.replace(/\*+$/, '')),
+        )) ??
       null;
     const flags = {
       found: entry !== undefined,
@@ -146,7 +155,7 @@ export class SabnzbdAdapter {
     return {
       completed: completeDir,
       category: dir
-        ? `${completeDir.replace(/[\\/]+$/, '')}/${dir.replace(/^[\\/]+/, '')}`
+        ? `${trimTrailingSeparators(completeDir)}/${dir.replace(/^[\\/]+/, '')}`
         : completeDir,
       ...flags,
     };
