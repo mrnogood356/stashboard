@@ -63,19 +63,10 @@
 }
 
 .brand-mark {
-  display: grid;
-  place-items: center;
+  display: block;
   width: 2rem;
   height: 2rem;
-  border-radius: 9px;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 80%, #fff), var(--accent));
-  color: var(--accent-contrast);
-  box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 35%, transparent);
-}
-
-.brand-mark i {
-  font-size: 0.8rem;
-  margin-left: 0.12rem;
+  flex: 0 0 auto;
 }
 
 .collapse-btn {
