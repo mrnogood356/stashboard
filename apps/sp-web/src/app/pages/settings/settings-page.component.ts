@@ -1,85 +1,27 @@
-import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
-import { SettingsNavItem } from './settings-nav';
-import { SettingsSectionPickerComponent } from './settings-section-picker.component';
+import { Component, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { filter, map } from 'rxjs/operators';
 
 @Component({
   selector: 'app-settings-page',
-  imports: [RouterOutlet, SettingsSectionPickerComponent],
+  imports: [RouterLink, RouterOutlet],
   templateUrl: './settings-page.component.html',
   styleUrl: './settings-page.component.scss',
 })
 export class SettingsPageComponent {
-  /**
-   * Every Settings section, in order. The section picker groups them; a new
-   * section added here without a group still shows, under "More".
-   */
-  protected readonly navItems: SettingsNavItem[] = [
-    {
-      label: 'Overview',
-      group: 'setup',
-      route: '/settings',
-      exact: true,
-    },
-    {
-      label: 'Integrations',
-      group: 'setup',
-      route: '/settings/integrations',
-    },
-    {
-      label: 'Indexing',
-      group: 'setup',
-      route: '/settings/indexing',
-    },
-    {
-      label: 'Notifications',
-      group: 'behaviour',
-      route: '/settings/notifications',
-    },
-    {
-      label: 'Automation',
-      group: 'behaviour',
-      route: '/settings/automation',
-    },
-    {
-      label: 'Hidden',
-      group: 'behaviour',
-      route: '/settings/hidden',
-    },
-    {
-      label: 'Setup check',
-      group: 'setup',
-      route: '/settings/setup-check',
-    },
-    {
-      label: 'Appearance',
-      group: 'look',
-      route: '/settings/appearance',
-    },
-    {
-      label: 'Playback',
-      group: 'behaviour',
-      route: '/settings/playback',
-    },
-    {
-      label: 'Privacy',
-      group: 'look',
-      route: '/settings/privacy',
-    },
-    {
-      label: 'Account',
-      group: 'look',
-      route: '/settings/account',
-    },
-    {
-      label: 'About & health',
-      group: 'system',
-      route: '/settings/about',
-    },
-    {
-      label: 'Logs',
-      group: 'system',
-      route: '/settings/logs',
-    },
-  ];
+  private readonly router = inject(Router);
+
+  /** True on /settings itself, where the section cards are; sections get a back link. */
+  protected readonly atHome = toSignal(
+    this.router.events.pipe(
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      map(() => isSettingsHome(this.router.url)),
+    ),
+    { initialValue: isSettingsHome(this.router.url) },
+  );
+}
+
+function isSettingsHome(url: string): boolean {
+  return url.split(/[?#]/)[0].replace(/\/+$/, '') === '/settings';
 }
