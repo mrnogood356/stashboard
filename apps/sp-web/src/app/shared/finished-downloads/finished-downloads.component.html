@@ -3,7 +3,8 @@
   <p class="lead">
     Off unless you turn it on. Then Find downloads sends usenet releases to SABnzbd in its own
     category, and Stashboard moves each finished video into your library, links it to the scene and
-    puts it in its own folder named by your rename pattern. Nothing else in SABnzbd is touched.
+    puts it in its own folder named by your rename pattern. Nothing outside that category in SABnzbd
+    is touched.
   </p>
 
   @if (!sabnzbdReady) {
@@ -44,7 +45,10 @@
           [value]="category()"
           (input)="category.set(inputValue($event))"
         />
-        <span class="hint">Only downloads Stashboard sends here are moved.</span>
+        <span class="hint">
+          Downloads Stashboard sends here are moved in; ones you add here in SABnzbd yourself too,
+          if that’s on below. Nothing in other categories is touched.
+        </span>
       </label>
 
       <label>
@@ -132,6 +136,23 @@
           Videos you drop into
           {{ dropInFolder() ?? 'SABnzbd’s “' + category() + '” folder' }}
           are moved in and identified like new files; SABnzbd’s own downloads are left alone.
+        </span>
+      </div>
+
+      <div class="drop-ins sab-manual">
+        <label class="switch-row">
+          <input
+            type="checkbox"
+            name="sabManualJobs"
+            [disabled]="!loaded()"
+            [checked]="sabManualJobs()"
+            (change)="setSabManualJobs($event)"
+          />
+          <span>Also bring in downloads I add to this category in SABnzbd myself</span>
+        </label>
+        <span class="hint">
+          Downloads you add in SABnzbd under “{{ category() }}” are moved in and identified like new
+          files once SABnzbd has finished them: only ones it finishes after this is turned on.
         </span>
       </div>
 

@@ -36,6 +36,8 @@ export class FinishedDownloadsComponent implements OnInit {
   protected readonly importMode = signal<'move' | 'copy'>('move');
   protected readonly libraryRoots = signal<string[]>([]);
   protected readonly dropIns = signal(false);
+  /** Also bring in downloads added to the category in SABnzbd by hand. */
+  protected readonly sabManualJobs = signal(true);
   /** SABnzbd's folder for the category, as Stashboard sees it. */
   protected readonly dropInFolder = signal<string | null>(null);
 
@@ -50,6 +52,7 @@ export class FinishedDownloadsComponent implements OnInit {
         this.importMode.set(settings.importMode);
         this.libraryRoots.set(settings.libraryRoots);
         this.dropIns.set(settings.dropIns);
+        this.sabManualJobs.set(settings.sabManualJobs);
         this.dropInFolder.set(settings.dropInFolder);
         this.loaded.set(true);
       },
@@ -72,6 +75,7 @@ export class FinishedDownloadsComponent implements OnInit {
         sabPathTo: this.sabPathTo().trim(),
         importMode: this.importMode(),
         dropIns: this.dropIns(),
+        sabManualJobs: this.sabManualJobs(),
       })
       .subscribe({
         next: (saved) => {
@@ -108,5 +112,9 @@ export class FinishedDownloadsComponent implements OnInit {
 
   protected setDropIns(event: Event): void {
     this.dropIns.set((event.target as HTMLInputElement).checked);
+  }
+
+  protected setSabManualJobs(event: Event): void {
+    this.sabManualJobs.set((event.target as HTMLInputElement).checked);
   }
 }

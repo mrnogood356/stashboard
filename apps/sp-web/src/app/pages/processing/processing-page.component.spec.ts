@@ -18,6 +18,7 @@ const NOW = '2026-10-22T10:00:00.000Z';
 function handoff(overrides: Partial<ProcessingHandoff> = {}): ProcessingHandoff {
   return {
     id: 'h1',
+    source: 'stashboard',
     sceneId: 'scene-1',
     provider: 'STASHDB',
     releaseTitle: 'Jane.Doe.Beach.Day.1080p',
@@ -163,6 +164,58 @@ describe('ProcessingPageComponent', () => {
 
     (item?.querySelector('button') as HTMLButtonElement).click();
     expect(api.ignore).toHaveBeenCalledWith('h1');
+  });
+
+  it('labels downloads added in SABnzbd by hand, with the same steps and retry', async () => {
+    const { root, api, fixture } = await render(
+      processing({
+        handoffs: [
+          handoff({
+            id: 'm1',
+            source: 'sabnzbd-manual',
+            sceneId: null,
+            provider: null,
+            releaseTitle: 'Manual.Release',
+            status: 'completed',
+            stage: 'linking',
+            progress: null,
+            timeLeft: null,
+            detail: 'Moved to /data/Manual.mkv; waiting for Stash to pick it up and identify it.',
+          }),
+          handoff(),
+        ],
+        recentHandoffs: [
+          handoff({
+            id: 'm2',
+            source: 'sabnzbd-manual',
+            sceneId: null,
+            provider: null,
+            releaseTitle: 'Other.Manual',
+            status: 'failed',
+            stage: 'failed',
+            progress: null,
+            detail: 'No video file in …',
+            canRetry: true,
+            canIgnore: false,
+          }),
+        ],
+      }),
+    );
+
+    const [manual, sent] = [...root.querySelectorAll('[data-testid="handoff"]')];
+    expect(text(manual.querySelector('[data-testid="added-in-sab"]'))).toBe('Added in SABnzbd');
+    expect(sent.querySelector('[data-testid="added-in-sab"]')).toBeNull();
+    const steps = [...manual.querySelectorAll('.steps li')].map((step) =>
+      step.getAttribute('data-state'),
+    );
+    expect(steps).toEqual(['done', 'done', 'done', 'done', 'current', 'todo']);
+    expect(text(manual)).toContain('identify it');
+
+    const failed = root.querySelector('[data-testid="recent-handoff"]');
+    expect(text(failed?.querySelector('[data-testid="added-in-sab"]'))).toBe('Added in SABnzbd');
+    (failed?.querySelector('button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(api.retryHandoff).toHaveBeenCalledWith('m2');
   });
 
   it('says why the drop-in folder isn’t watched, with both paths and a link to settings', async () => {

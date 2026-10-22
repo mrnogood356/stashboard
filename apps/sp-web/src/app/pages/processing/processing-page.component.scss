@@ -92,6 +92,19 @@
   white-space: nowrap;
 }
 
+/* Added in SABnzbd by hand, not sent by Stashboard. */
+.source-tag {
+  justify-self: start;
+  max-width: 100%;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 0.72rem;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
 [data-stage='downloading'] .stage,
 [data-stage='unpacking'] .stage,
 [data-stage='moving'] .stage {

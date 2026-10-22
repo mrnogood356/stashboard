@@ -81,6 +81,7 @@ describe('ProcessingCardComponent', () => {
           handoffs: [
             {
               id: 'h1',
+              source: 'stashboard',
               sceneId: 's',
               provider: 'STASHDB',
               releaseTitle: 'Jane.Doe.Beach.Day.1080p',

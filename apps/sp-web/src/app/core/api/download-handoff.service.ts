@@ -15,6 +15,10 @@ export interface DownloadHandoffSettings {
   importMode: 'move' | 'copy';
   /** Also bring in videos put straight into the category's folder. */
   dropIns: boolean;
+  /** Also bring in downloads added to the category in SABnzbd by hand. */
+  sabManualJobs: boolean;
+  /** Only those SABnzbd finished since then are brought in; null until it first runs. */
+  sabManualSince: string | null;
   /** That folder as Stashboard sees it; null when SABnzbd doesn't say. */
   dropInFolder: string | null;
   /** SABnzbd is added and passed its test. */
@@ -31,6 +35,7 @@ export interface DownloadHandoffSettingsUpdate {
   sabPathTo?: string;
   importMode?: 'move' | 'copy';
   dropIns?: boolean;
+  sabManualJobs?: boolean;
 }
 
 export type DropInStatus = 'placed' | 'imported' | 'failed';
@@ -48,10 +53,15 @@ export interface DownloadDropIn {
   updatedAt: string;
 }
 
+/** Sent by Find downloads, or added in SABnzbd by hand and picked up. */
+export type HandoffSource = 'stashboard' | 'sabnzbd-manual';
+
 export interface DownloadHandoff {
   id: string;
-  sceneId: string;
-  provider: CatalogProviderType;
+  source: HandoffSource;
+  /** The catalog scene it was sent for; null when added in SABnzbd. */
+  sceneId: string | null;
+  provider: CatalogProviderType | null;
   releaseTitle: string;
   status: HandoffStatus;
   /** Why it failed, or what it's waiting for. */
