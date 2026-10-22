@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Stashboard</title>
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <!-- Installable: add to home screen and open full-screen like an app. -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#0b0b0d" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Stashboard" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <!-- Paints the saved theme (Settings → Appearance) before the app loads, so
+         there's no flash of the wrong colours. -->
+    <script src="theme-boot.js"></script>
+  </head>
+  <body>
+    <app-root></app-root>
+    <!-- Covers the screen when the app goes to the background, so the app
+         switcher shows this instead of what you were looking at. Plain HTML so
+         it appears instantly, before Angular does anything. -->
+    <div id="privacy-cover" aria-hidden="true">
+      <img src="icons/icon-192.png" alt="" width="84" height="84" />
+    </div>
+  </body>
+</html>

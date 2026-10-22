@@ -1,0 +1,136 @@
+<main class="app-page-shell">
+  <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
+  <h1 class="page-title">Duplicates</h1>
+  <p class="page-lede">
+    Copies of the same video in your library. The best copy (highest quality) is marked; remove the
+    others to free up space.
+  </p>
+
+  <div class="segmented" role="tablist" aria-label="How close a match">
+    @for (option of accuracyOptions; track option.value) {
+      <button
+        type="button"
+        role="tab"
+        [class.active]="accuracy() === option.value"
+        [attr.aria-selected]="accuracy() === option.value"
+        (click)="setAccuracy(option.value)"
+      >
+        {{ option.label }}
+      </button>
+    }
+  </div>
+
+  <div class="notice">
+    <i class="pi pi-info-circle" aria-hidden="true"></i>
+    <span>
+      This uses the video fingerprints Stash makes when it runs Generate. If something you know is a
+      copy doesn't show up, run
+      <a routerLink="/tools/jobs">Generate</a> first.
+    </span>
+  </div>
+
+  @if (loading()) {
+    <p class="muted loading" role="status">
+      <span class="spinner" aria-hidden="true"></span> Comparing your library…
+    </p>
+  } @else if (error(); as message) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle" aria-hidden="true"></i><span>{{ message }}</span>
+    </div>
+  } @else if (groups().length === 0) {
+    <div class="empty">
+      <i class="pi pi-check-circle" aria-hidden="true"></i>
+      <p>No duplicates found.</p>
+    </div>
+  } @else {
+    <p class="muted summary">
+      {{ groups().length }} {{ groups().length === 1 ? 'set' : 'sets' }} of copies
+    </p>
+  }
+
+  <div class="groups">
+    @for (group of groups(); track group.suggestedKeepId) {
+      <section class="group panel">
+        @for (scene of group.scenes; track scene.id) {
+          <article class="copy" [class.best]="scene.id === group.suggestedKeepId">
+            <a
+              class="thumb"
+              [routerLink]="['/library/scene', scene.id]"
+              [queryParams]="{ returnTo: currentUrl() }"
+              [attr.aria-label]="'Open ' + scene.title"
+            >
+              @if (scene.imageUrl) {
+                <img [src]="scene.imageUrl" alt="" loading="lazy" />
+              }
+              @if (scene.id === group.suggestedKeepId) {
+                <span class="best-badge"
+                  ><i class="pi pi-star-fill" aria-hidden="true"></i> Best copy</span
+                >
+              }
+            </a>
+            <p class="copy-title">{{ scene.title }}</p>
+            <p class="muted copy-file" [title]="scene.file?.path ?? ''">
+              {{ scene.file?.basename ?? 'Unknown file' }}
+            </p>
+            <dl class="specs">
+              <div>
+                <dt>Quality</dt>
+                <dd>{{ resolution(scene) }}</dd>
+              </div>
+              <div>
+                <dt>Size</dt>
+                <dd>{{ size(scene.file?.size) }}</dd>
+              </div>
+              <div>
+                <dt>Bit rate</dt>
+                <dd>{{ bitRate(scene.file?.bitRate) }}</dd>
+              </div>
+              <div>
+                <dt>Length</dt>
+                <dd>{{ duration(scene.file?.duration) }}</dd>
+              </div>
+              <div>
+                <dt>Codec</dt>
+                <dd>{{ (scene.file?.videoCodec ?? '—').toUpperCase() }}</dd>
+              </div>
+              <div>
+                <dt>Plays</dt>
+                <dd>{{ scene.playCount }}</dd>
+              </div>
+            </dl>
+            @if (scene.id !== group.suggestedKeepId) {
+              <button type="button" class="btn small danger" (click)="askDelete(scene)">
+                <i class="pi pi-trash" aria-hidden="true"></i> Remove this copy
+              </button>
+            } @else {
+              <p class="keep-note">Keep this one</p>
+            }
+          </article>
+        }
+      </section>
+    }
+  </div>
+
+  @if (pending(); as scene) {
+    <div class="sheet-backdrop" (click)="cancelDelete()" aria-hidden="true"></div>
+    <section class="sheet" role="dialog" aria-modal="true" aria-label="Remove this copy">
+      <h2>Remove this copy?</h2>
+      <p class="muted">
+        {{ scene.file?.basename ?? scene.title }} · {{ resolution(scene) }} ·
+        {{ size(scene.file?.size) }}
+      </p>
+      <button
+        type="button"
+        class="btn danger wide"
+        [disabled]="deleting()"
+        (click)="confirmDelete(true)"
+      >
+        <i class="pi pi-trash" aria-hidden="true"></i> Delete the file from disk
+      </button>
+      <button type="button" class="btn wide" [disabled]="deleting()" (click)="confirmDelete(false)">
+        Remove from Stash only (keep the file)
+      </button>
+      <button type="button" class="btn wide ghost" (click)="cancelDelete()">Cancel</button>
+    </section>
+  }
+</main>

@@ -1,0 +1,168 @@
+:host {
+  display: block;
+}
+
+.hidden-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: 1rem;
+  max-width: 56rem;
+}
+
+h2,
+p {
+  margin: 0;
+}
+
+.section-head {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.lede,
+.muted {
+  color: var(--text-muted);
+}
+
+.muted {
+  font-size: 0.84rem;
+}
+
+.card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: 1.1rem;
+  padding: 1rem;
+  border-radius: 18px;
+}
+
+.field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+legend,
+.field-label {
+  padding: 0;
+  margin-bottom: 0.2rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.text-input {
+  width: 100%;
+  height: 2.75rem;
+  padding: 0 0.8rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 70%, transparent);
+  background: var(--app-control-bg, var(--surface-elevated));
+  color: var(--text-primary);
+  font: inherit;
+  /* 16px or more, so iOS doesn't zoom in on focus. */
+  font-size: max(16px, 1rem);
+}
+
+.chips,
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 100%;
+  padding: 0.25rem 0.3rem 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  border: 1px solid var(--chip-border);
+  color: var(--chip-text);
+  font-size: 0.88rem;
+}
+
+.chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip-remove {
+  display: inline-grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.suggestion span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.25rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 50%, transparent);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  max-width: 100%;
+}
+
+.status {
+  font-weight: 600;
+  color: var(--success-text);
+}
+
+.status.error {
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.button {
+  height: 2.5rem;
+  padding: 0 1.1rem;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

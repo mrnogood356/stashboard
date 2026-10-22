@@ -1,0 +1,137 @@
+<app-scene-card-shell
+  [item]="item"
+  [variant]="shellVariant()"
+  [primaryLink]="primaryLink()"
+  [studioBadgeLink]="studioBadgeLink()"
+  [playCommands]="playCommands()"
+  [playQueryParams]="playQueryParams"
+  [progress]="progress"
+  [previewUrl]="previewUrl()"
+>
+  @if (statusIcon(); as statusIcon) {
+    <app-scene-status-badge
+      sceneCardTopRight
+      class="status-icon"
+      [status]="statusIcon"
+      mode="icon"
+    ></app-scene-status-badge>
+  }
+
+  @if (menuActions.length > 0) {
+    <div sceneCardTopRight class="card-menu">
+      <button
+        type="button"
+        class="card-menu-trigger"
+        [attr.aria-label]="'More options for ' + item.title"
+        [attr.aria-expanded]="menuOpen"
+        (click)="toggleMenu($event)"
+      >
+        <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+      </button>
+      @if (menuOpen) {
+        <ul class="card-menu-list" role="menu">
+          @for (action of menuActions; track action.id) {
+            <li>
+              <button type="button" role="menuitem" (click)="chooseAction(action.id, $event)">
+                <i [class]="action.icon" aria-hidden="true"></i>
+                {{ action.label }}
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  }
+
+  @for (badge of topBadges; track badge.label) {
+    <span sceneCardTopRight class="top-badge">{{ badge.label }}</span>
+  }
+
+  <div sceneCardMediaFooter class="media-footer">
+    @if (variant === 'rail') {
+      <h3 class="media-title">{{ item.title }}</h3>
+    } @else {
+      <h2 class="media-title">{{ item.title }}</h2>
+    }
+
+    <div class="media-meta-row">
+      <p class="media-date">
+        @if (item.studio) {
+          @if (studioBadgeLink(); as studioLink) {
+            @if (studioLink.kind === 'router') {
+              <a
+                class="studio-badge-link media-studio"
+                [routerLink]="studioLink.commands"
+                [queryParams]="studioLink.queryParams ?? null"
+                [attr.aria-label]="studioLink.ariaLabel"
+                (click)="$event.stopPropagation()"
+                >{{ item.studio }}</a
+              >
+            }
+          } @else {
+            <span class="media-studio">{{ item.studio }}</span>
+          }
+        }
+        @if (item.studio && item.releaseDate) {
+          <span class="media-dot" aria-hidden="true">·</span>
+        }
+        @if (item.releaseDate) {
+          <time [attr.datetime]="item.releaseDate">{{ formatDate(item.releaseDate) }}</time>
+        } @else if (!item.studio) {
+          <span class="media-date-placeholder">No date</span>
+        }
+      </p>
+
+      <div class="media-action">
+        @if (requestable) {
+          <button type="button" class="request-cta" (click)="requestScene($event)">Request</button>
+        } @else if (footerLinkText(); as label) {
+          @if (footerLinkIsExternal()) {
+            <a
+              class="footer-link"
+              [attr.href]="footerExternalHref()"
+              target="_blank"
+              rel="noopener noreferrer"
+              (click)="$event.stopPropagation()"
+            >
+              {{ label }}
+            </a>
+          } @else if (footerLinkRouterCommands(); as commands) {
+            <a
+              class="footer-link"
+              [routerLink]="commands"
+              [queryParams]="footerLinkQueryParams()"
+              (click)="$event.stopPropagation()"
+            >
+              {{ label }}
+            </a>
+          }
+        } @else if (footerBadgeText(); as footerBadgeText) {
+          <span class="footer-pill">{{ footerBadgeText }}</span>
+        } @else if (canFindDownloads()) {
+          <button
+            type="button"
+            class="request-cta search-cta"
+            [attr.aria-label]="'Find downloads for ' + item.title"
+            (click)="findDownloads($event)"
+          >
+            <i class="pi pi-download" aria-hidden="true"></i> Find
+          </button>
+        } @else if (canSearchReleases()) {
+          <button
+            type="button"
+            class="request-cta search-cta"
+            [attr.aria-label]="'Pick a release for ' + item.title"
+            (click)="searchReleases($event)"
+          >
+            <i class="pi pi-search" aria-hidden="true"></i> Search
+          </button>
+        } @else {
+          @if (footerStatus(); as footerStatus) {
+            <app-scene-status-badge class="footer-status-badge" [status]="footerStatus" />
+          }
+        }
+      </div>
+    </div>
+  </div>
+</app-scene-card-shell>

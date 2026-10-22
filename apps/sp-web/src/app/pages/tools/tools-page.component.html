@@ -1,0 +1,83 @@
+<main class="app-page-shell">
+  <h1 class="page-title">Library tools</h1>
+  <p class="page-lede">Keep your Stash library tidy from your phone.</p>
+
+  <h2 class="group-title">Tidy up</h2>
+  <div class="tool-grid">
+    <a class="tool panel" routerLink="/tools/fix">
+      <i class="pi pi-check-square" aria-hidden="true"></i>
+      <span class="tool-title">Fix my library</span>
+      <span class="tool-detail">
+        @if (counts(); as counts) {
+          @if (toFix(counts) === 0) {
+            All clear
+          } @else {
+            {{ counts.unmatched }} not matched · {{ counts.untagged }} without tags ·
+            {{ counts.unorganized }} not organized
+          }
+        } @else {
+          Scenes that need matching, tags or a check
+        }
+      </span>
+    </a>
+    <a class="tool panel" routerLink="/tools/organize">
+      <i class="pi pi-link" aria-hidden="true"></i>
+      <span class="tool-title">Match &amp; rename</span>
+      <span class="tool-detail">
+        @if (counts(); as counts) {
+          {{
+            counts.unmatched === 0 ? 'Every scene is matched' : counts.unmatched + ' not matched'
+          }}
+          · tidy file names and folders
+        } @else {
+          Match unorganized scenes to StashDB and tidy file names
+        }
+      </span>
+    </a>
+    <a class="tool panel" routerLink="/tools/duplicates">
+      <i class="pi pi-clone" aria-hidden="true"></i>
+      <span class="tool-title">Duplicates</span>
+      <span class="tool-detail">Find copies of the same video and keep the best one</span>
+    </a>
+    <a class="tool panel" routerLink="/tools/samples">
+      <i class="pi pi-filter-slash" aria-hidden="true"></i>
+      <span class="tool-title">Samples</span>
+      <span class="tool-detail">Find sample clips left over from downloads and remove them</span>
+    </a>
+  </div>
+
+  <h2 class="group-title">Stash</h2>
+  <div class="tool-grid">
+    <a class="tool panel" routerLink="/tools/activity">
+      <i class="pi pi-history" aria-hidden="true"></i>
+      <span class="tool-title">Activity</span>
+      <span class="tool-detail">Everything Stashboard did, with Undo for renames</span>
+    </a>
+    <a class="tool panel" routerLink="/tools/jobs">
+      <i class="pi pi-cog" aria-hidden="true"></i>
+      <span class="tool-title">Stash jobs</span>
+      <span class="tool-detail">
+        @if (jobs(); as jobs) {
+          {{
+            jobs.length === 0
+              ? 'Stash is idle'
+              : jobs.length + (jobs.length === 1 ? ' job running' : ' jobs running')
+          }}
+        } @else {
+          Scan, Generate, Identify, Auto tag and Clean up
+        }
+      </span>
+    </a>
+  </div>
+
+  @if (feedOn()) {
+    <h2 class="group-title">Watch</h2>
+    <div class="tool-grid">
+      <a class="tool panel" routerLink="/feed">
+        <i class="pi pi-mobile" aria-hidden="true"></i>
+        <span class="tool-title">Swipe feed</span>
+        <span class="tool-detail">Preview clips from your library, one after another</span>
+      </a>
+    </div>
+  }
+</main>

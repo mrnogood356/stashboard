@@ -1,0 +1,776 @@
+<main class="app-page-shell app-page-shell--xl">
+  <header class="home-header">
+    <h1>Home</h1>
+
+    <nav class="home-quick-links" aria-label="Home shortcuts">
+      <a
+        class="quick-link"
+        [routerLink]="['/performers']"
+        aria-label="Performers"
+        title="Performers"
+      >
+        <i class="pi pi-users" aria-hidden="true"></i>
+        <span>Performers</span>
+      </a>
+      <a class="quick-link" [routerLink]="['/studios']" aria-label="Studios" title="Studios">
+        <i class="pi pi-building" aria-hidden="true"></i>
+        <span>Studios</span>
+      </a>
+      <button
+        type="button"
+        class="quick-link"
+        [class.active]="editorOpen()"
+        [attr.aria-pressed]="editorOpen()"
+        aria-label="Customize Home"
+        title="Customize Home"
+        (click)="editorOpen() ? cancelEditor() : openEditor()"
+      >
+        <i class="pi pi-sliders-h" aria-hidden="true"></i>
+        <span>Customize</span>
+      </button>
+    </nav>
+  </header>
+
+  <app-needs-you-card />
+  <app-processing-card />
+
+  @if (pageAlert(); as alert) {
+    <section class="home-alert app-page-alert" data-testid="home-readiness-alert" role="status">
+      <div class="app-page-alert__copy">
+        <p class="eyebrow">{{ alert.eyebrow }}</p>
+        <h2>{{ alert.title }}</h2>
+        <p>{{ alert.message }}</p>
+      </div>
+
+      <div class="home-alert-actions app-action-row">
+        <a class="hero-link" [routerLink]="['/settings/integrations']">Repair integrations</a>
+        <a class="hero-link secondary" [routerLink]="['/settings/indexing']">Open indexing</a>
+      </div>
+    </section>
+  }
+
+  @if (loading()) {
+    <div class="rail-stack" role="status" aria-live="polite" aria-label="Loading your Home rails">
+      @for (r of skeletonRails; track r) {
+        <div class="skeleton-rail" aria-hidden="true">
+          <div class="skeleton-line skeleton-title"></div>
+          <div class="rail-track">
+            @for (c of skeletonCards; track c) {
+              <div class="skeleton-card"></div>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  } @else if (configError()) {
+    <section class="home-state error-state app-state-block">
+      <h2>Home could not be loaded</h2>
+      <p>{{ configError() }}</p>
+      <button type="button" class="state-button" (click)="loadHome()">Retry</button>
+    </section>
+  } @else {
+    @if (editorOpen()) {
+      <section class="editor-shell app-section-panel" aria-label="Customize Home rails">
+        <div class="editor-head app-section-head">
+          <div>
+            <p class="eyebrow">Customize Home</p>
+            <h2>Reorder built-ins and add custom Catalog or Stash scene rails</h2>
+          </div>
+          <div class="editor-actions app-action-row">
+            <button type="button" class="state-button secondary" (click)="cancelEditor()">
+              Close
+            </button>
+            <button
+              type="button"
+              class="state-button"
+              [disabled]="!hasDraftChanges() || savingRails()"
+              (click)="saveRails()"
+            >
+              {{ savingRails() ? 'Saving...' : 'Save Order & Enabled State' }}
+            </button>
+          </div>
+        </div>
+
+        <p class="editor-note">
+          Built-in rails stay fixed to their saved favorites or library query. Custom rails save
+          their filter definition immediately when you create or edit them. Enable/disable and
+          ordering changes are staged until you save this editor.
+        </p>
+
+        @if (saveError(); as saveError) {
+          <p class="editor-error">{{ saveError }}</p>
+        }
+        @if (deleteError(); as deleteError) {
+          <p class="editor-error">{{ deleteError }}</p>
+        }
+
+        <div class="editor-toolbar app-action-row">
+          <button
+            type="button"
+            class="state-button"
+            [disabled]="!canMutateCustomRails()"
+            (click)="openCreateRailForm()"
+          >
+            Add Rail
+          </button>
+          @if (!canMutateCustomRails()) {
+            <span class="toolbar-hint"
+              >Save or cancel ordering changes before editing custom rails.</span
+            >
+          }
+        </div>
+
+        <div class="editor-list">
+          @for (rail of draftRails(); track rail.id; let i = $index) {
+            <article class="editor-item">
+              <div class="editor-item-copy">
+                <div class="editor-item-headline">
+                  <span class="rail-kind-pill">{{ kindLabel(rail) }}</span>
+                  <h3>{{ rail.title }}</h3>
+                </div>
+                <p>{{ rail.subtitle || 'No subtitle' }}</p>
+                <div class="editor-summary-line">
+                  <span>{{ sourceLabel(rail.source) }}</span>
+                  <span>{{ rail.config.sort }}</span>
+                  <span>{{ rail.config.direction }}</span>
+                  <span>Limit {{ rail.config.limit }}</span>
+                  @if (isStashRail(rail) && rail.config.titleQuery) {
+                    <span>Title contains "{{ rail.config.titleQuery }}"</span>
+                  }
+                  @if (railFavoritesValue(rail); as favorites) {
+                    <span>{{ favorites }}</span>
+                  }
+                  @if (railLocalFavoritesValue(rail); as localFavorites) {
+                    <span>{{ localFavorites }}</span>
+                  }
+                  @if (railTagCount(rail) > 0) {
+                    <span>{{ railTagCount(rail) }} tags</span>
+                  }
+                  @if (railStudioCount(rail) > 0) {
+                    <span>{{ railStudioCount(rail) }} studios</span>
+                  }
+                </div>
+              </div>
+
+              <div class="editor-item-controls app-action-row">
+                <label class="rail-toggle app-action-row">
+                  <input
+                    type="checkbox"
+                    [checked]="rail.enabled"
+                    (change)="setDraftRailEnabled(rail.id, $any($event.target).checked)"
+                  />
+                  <span>{{ rail.enabled ? 'Enabled' : 'Disabled' }}</span>
+                </label>
+
+                <div class="move-controls app-action-row">
+                  <button
+                    type="button"
+                    class="mini-button"
+                    [disabled]="!canMoveDraftRail(i, 'up')"
+                    (click)="moveDraftRail(i, 'up')"
+                  >
+                    Move Up
+                  </button>
+                  <button
+                    type="button"
+                    class="mini-button"
+                    [disabled]="!canMoveDraftRail(i, 'down')"
+                    (click)="moveDraftRail(i, 'down')"
+                  >
+                    Move Down
+                  </button>
+                  @if (rail.editable) {
+                    <button
+                      type="button"
+                      class="mini-button"
+                      [disabled]="!canMutateCustomRails()"
+                      (click)="openEditRailForm(rail)"
+                    >
+                      Edit
+                    </button>
+                  }
+                  @if (rail.deletable) {
+                    <button
+                      type="button"
+                      class="mini-button danger"
+                      [disabled]="!canMutateCustomRails() || isDeletingRail(rail.id)"
+                      (click)="deleteCustomRail(rail)"
+                    >
+                      {{ isDeletingRail(rail.id) ? 'Deleting...' : 'Delete' }}
+                    </button>
+                  }
+                </div>
+              </div>
+            </article>
+          }
+        </div>
+
+        @if (railFormOpen() && railForm(); as form) {
+          <section class="rail-form-shell app-section-panel app-control-shell">
+            <div class="rail-form-head app-section-head">
+              <div>
+                <p class="eyebrow">{{ editingRailId() ? 'Edit Rail' : 'Add Rail' }}</p>
+                <h3>
+                  {{
+                    editingRailId()
+                      ? 'Update custom Home scene rail'
+                      : 'Create a custom Home scene rail'
+                  }}
+                </h3>
+              </div>
+              <div class="editor-actions app-action-row">
+                <button type="button" class="state-button secondary" (click)="closeRailForm()">
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  class="state-button"
+                  [disabled]="railFormSaving()"
+                  (click)="saveRailForm()"
+                >
+                  {{
+                    railFormSaving() ? 'Saving...' : editingRailId() ? 'Update Rail' : 'Create Rail'
+                  }}
+                </button>
+              </div>
+            </div>
+
+            @if (railFormError(); as railFormError) {
+              <p class="editor-error">{{ railFormError }}</p>
+            }
+
+            <div class="rail-form-grid">
+              <div class="control-field app-control-field">
+                <span id="home-rail-source-label" class="app-control-label">Source</span>
+                <p-select
+                  inputId="home-rail-source"
+                  ariaLabelledBy="home-rail-source-label"
+                  [ngModel]="form.source"
+                  (ngModelChange)="updateRailSource($event)"
+                  [options]="sourceOptions"
+                  optionLabel="label"
+                  optionValue="value"
+                  [appendTo]="'body'"
+                  panelStyleClass="app-overlay-panel"
+                  [disabled]="!!editingRailId()"
+                />
+              </div>
+
+              @if (editingRailId()) {
+                <p class="editor-note source-note">
+                  Source is fixed after creation. Create a new rail if you want to switch between
+                  Catalog and Stash.
+                </p>
+              }
+
+              <label class="control-field app-control-field">
+                <span class="app-control-label">Title</span>
+                <input
+                  class="app-control-input"
+                  type="text"
+                  [ngModel]="form.title"
+                  (ngModelChange)="updateRailForm('title', $event)"
+                  [placeholder]="
+                    form.source === 'STASH'
+                      ? 'Newest Library Scenes, Recently Updated Library...'
+                      : 'Weekend queue, New tags, Favorite studios...'
+                  "
+                />
+              </label>
+
+              <label class="control-field app-control-field">
+                <span class="app-control-label">Subtitle</span>
+                <input
+                  class="app-control-input"
+                  type="text"
+                  [ngModel]="form.subtitle"
+                  (ngModelChange)="updateRailForm('subtitle', $event)"
+                  placeholder="Optional context for this rail"
+                />
+              </label>
+
+              <label class="control-field checkbox-field compact-toggle app-control-field">
+                <span class="app-control-label">Enabled</span>
+                <label class="toggle-inline">
+                  <input
+                    type="checkbox"
+                    [ngModel]="form.enabled"
+                    (ngModelChange)="updateRailForm('enabled', $event)"
+                  />
+                  <span>{{ form.enabled ? 'Enabled' : 'Disabled' }}</span>
+                </label>
+              </label>
+
+              <label class="control-field app-control-field">
+                <span class="app-control-label">Item Limit</span>
+                <input
+                  class="app-control-input"
+                  type="number"
+                  min="6"
+                  max="30"
+                  step="1"
+                  [ngModel]="form.limit"
+                  (ngModelChange)="updateRailForm('limit', $event)"
+                />
+              </label>
+
+              <div class="control-field app-control-field">
+                <span id="home-rail-sort-label" class="app-control-label">Sort</span>
+                <p-select
+                  inputId="home-rail-sort"
+                  ariaLabelledBy="home-rail-sort-label"
+                  [ngModel]="form.sort"
+                  (ngModelChange)="updateRailForm('sort', $event)"
+                  [options]="railFormSortOptions()"
+                  optionLabel="label"
+                  optionValue="value"
+                  [appendTo]="'body'"
+                  panelStyleClass="app-overlay-panel"
+                />
+              </div>
+
+              <div class="control-field app-control-field">
+                <span id="home-rail-direction-label" class="app-control-label">Direction</span>
+                <p-select
+                  inputId="home-rail-direction"
+                  ariaLabelledBy="home-rail-direction-label"
+                  [ngModel]="form.direction"
+                  (ngModelChange)="updateRailForm('direction', $event)"
+                  [options]="directionOptions"
+                  optionLabel="label"
+                  optionValue="value"
+                  [appendTo]="'body'"
+                  panelStyleClass="app-overlay-panel"
+                />
+              </div>
+
+              @if (form.source === 'STASHDB') {
+                <div class="control-field app-control-field">
+                  <span id="home-rail-favorites-label" class="app-control-label">Favorites</span>
+                  <p-select
+                    inputId="home-rail-favorites"
+                    ariaLabelledBy="home-rail-favorites-label"
+                    [ngModel]="form.favorites"
+                    (ngModelChange)="updateRailForm('favorites', $event)"
+                    [options]="favoritesOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    [appendTo]="'body'"
+                    panelStyleClass="app-overlay-panel"
+                  />
+                </div>
+
+                <div class="control-field app-control-field">
+                  <span id="home-rail-tag-mode-label" class="app-control-label">Tag Mode</span>
+                  <p-select
+                    inputId="home-rail-tag-mode"
+                    ariaLabelledBy="home-rail-tag-mode-label"
+                    [ngModel]="form.tagMode"
+                    (ngModelChange)="updateRailForm('tagMode', $event)"
+                    [options]="tagMatchOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    [appendTo]="'body'"
+                    panelStyleClass="app-overlay-panel"
+                  />
+                </div>
+              } @else {
+                <label class="control-field app-control-field">
+                  <span class="app-control-label">Title Contains</span>
+                  <input
+                    class="app-control-input"
+                    type="text"
+                    [ngModel]="form.titleQuery"
+                    (ngModelChange)="updateRailForm('titleQuery', $event)"
+                    placeholder="Newest scenes, anthology, archive..."
+                  />
+                </label>
+
+                <div class="control-field app-control-field">
+                  <span id="home-rail-stash-tag-mode-label" class="app-control-label"
+                    >Tag Mode</span
+                  >
+                  <p-select
+                    inputId="home-rail-stash-tag-mode"
+                    ariaLabelledBy="home-rail-stash-tag-mode-label"
+                    [ngModel]="form.tagMode"
+                    (ngModelChange)="updateRailForm('tagMode', $event)"
+                    [options]="tagMatchOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    [appendTo]="'body'"
+                    panelStyleClass="app-overlay-panel"
+                  />
+                </div>
+              }
+            </div>
+
+            @if (form.source === 'STASHDB' || form.source === 'STASH') {
+              <div class="rail-form-pickers">
+                <div class="control-field app-control-field">
+                  <span id="home-rail-tags-label" class="app-control-label">Tags</span>
+                  <p-multiselect
+                    inputId="home-rail-tags"
+                    ariaLabelledBy="home-rail-tags-label"
+                    [ngModel]="formTagSelectedIdsModel()"
+                    (ngModelChange)="onRailFormTagSelectionChanged($event)"
+                    (onFilter)="onRailFormTagFilterChanged($event.filter)"
+                    (onPanelHide)="onRailFormTagPanelHide()"
+                    [filter]="true"
+                    [filterValue]="tagSearchTerm()"
+                    [filterPlaceHolder]="
+                      form.source === 'STASH' ? 'Search local tags' : 'Search tags'
+                    "
+                    [loading]="tagSearchLoading()"
+                    [options]="tagSelectOptions()"
+                    optionLabel="label"
+                    optionValue="value"
+                    [showToggleAll]="false"
+                    display="chip"
+                    [emptyMessage]="tagSelectEmptyMessage()"
+                    [emptyFilterMessage]="tagSelectEmptyMessage()"
+                    [resetFilterOnHide]="true"
+                    [appendTo]="'body'"
+                    panelStyleClass="app-overlay-panel"
+                    [placeholder]="
+                      form.source === 'STASH' ? 'Select local-library tags' : 'Select matching tags'
+                    "
+                    scrollHeight="16rem"
+                  />
+                </div>
+
+                <div class="control-field app-control-field">
+                  <span id="home-rail-studios-label" class="app-control-label">Studios</span>
+                  <p-multiselect
+                    inputId="home-rail-studios"
+                    ariaLabelledBy="home-rail-studios-label"
+                    [ngModel]="formStudioSelectedIdsModel()"
+                    (ngModelChange)="onRailFormStudioSelectionChanged($event)"
+                    (onFilter)="onRailFormStudioFilterChanged($event.filter)"
+                    (onPanelHide)="onRailFormStudioPanelHide()"
+                    [filter]="true"
+                    [filterValue]="studioSearchTerm()"
+                    [filterPlaceHolder]="
+                      form.source === 'STASH' ? 'Search local studios' : 'Search studio networks'
+                    "
+                    [loading]="studioSearchLoading()"
+                    [options]="studioSelectOptions()"
+                    [group]="true"
+                    optionGroupLabel="label"
+                    optionGroupChildren="items"
+                    optionLabel="label"
+                    optionValue="value"
+                    [showToggleAll]="false"
+                    display="chip"
+                    [emptyMessage]="studioSelectEmptyMessage()"
+                    [emptyFilterMessage]="studioSelectEmptyMessage()"
+                    [resetFilterOnHide]="true"
+                    [appendTo]="'body'"
+                    panelStyleClass="app-overlay-panel"
+                    [placeholder]="
+                      form.source === 'STASH'
+                        ? 'Choose local studios'
+                        : 'Choose studio networks or child studios'
+                    "
+                    scrollHeight="16rem"
+                  />
+                </div>
+              </div>
+
+              @if (form.source === 'STASH') {
+                <div class="rail-form-grid stash-toggle-grid">
+                  <label class="control-field checkbox-field compact-toggle app-control-field">
+                    <span class="app-control-label">Only Favorite Performers</span>
+                    <label class="toggle-inline">
+                      <input
+                        type="checkbox"
+                        [ngModel]="form.favoritePerformersOnly"
+                        (ngModelChange)="updateRailForm('favoritePerformersOnly', $event)"
+                      />
+                      <span>{{ form.favoritePerformersOnly ? 'Enabled' : 'Disabled' }}</span>
+                    </label>
+                  </label>
+
+                  <label class="control-field checkbox-field compact-toggle app-control-field">
+                    <span class="app-control-label">Only Favorite Studios</span>
+                    <label class="toggle-inline">
+                      <input
+                        type="checkbox"
+                        [ngModel]="form.favoriteStudiosOnly"
+                        (ngModelChange)="updateRailForm('favoriteStudiosOnly', $event)"
+                      />
+                      <span>{{ form.favoriteStudiosOnly ? 'Enabled' : 'Disabled' }}</span>
+                    </label>
+                  </label>
+
+                  <label class="control-field checkbox-field compact-toggle app-control-field">
+                    <span class="app-control-label">Only Favorite Tags</span>
+                    <label class="toggle-inline">
+                      <input
+                        type="checkbox"
+                        [ngModel]="form.favoriteTagsOnly"
+                        (ngModelChange)="updateRailForm('favoriteTagsOnly', $event)"
+                      />
+                      <span>{{ form.favoriteTagsOnly ? 'Enabled' : 'Disabled' }}</span>
+                    </label>
+                  </label>
+                </div>
+
+                <p class="editor-note source-note">
+                  Stash rails use your local library filters only, including title search, local
+                  tags, local studios, and favorite performer, studio, or tag toggles.
+                </p>
+              }
+            }
+          </section>
+        }
+      </section>
+    }
+
+    @if (isNoRailsEnabledState()) {
+      <section class="home-state empty-state app-state-block">
+        <h2>No Home rails are enabled</h2>
+        <p>
+          Turn at least one rail back on or create a custom rail to restore your personalized
+          landing page.
+        </p>
+        <div class="empty-links app-action-row">
+          <button type="button" class="hero-link" (click)="openEditor()">Edit Rails</button>
+        </div>
+      </section>
+    } @else if (isPageEmptyState()) {
+      <section class="home-state empty-state app-state-block">
+        <h2>{{ emptyStateTitle() }}</h2>
+        <p>{{ emptyStateMessage() }}</p>
+        <p>{{ indexingGuidance() }}</p>
+        <div class="empty-links app-action-row">
+          <a class="hero-link" [routerLink]="['/scenes']">Browse Scenes</a>
+          <a class="hero-link secondary" [routerLink]="['/settings/indexing']">Open Indexing</a>
+          <a class="hero-link secondary" [routerLink]="['/library']">Browse Library</a>
+          <button type="button" class="hero-link secondary" (click)="openEditor()">
+            Customize Home
+          </button>
+        </div>
+      </section>
+    } @else {
+      @if (featured().length > 0) {
+        <section class="featured" aria-label="Featured">
+          <div
+            class="featured-track"
+            #featuredTrack
+            (scroll)="onFeaturedScroll(featuredTrack)"
+            (pointerdown)="pauseFeatured()"
+            (focusin)="pauseFeatured()"
+          >
+            @for (slide of featured(); track slide.item.id; let i = $index) {
+              <article class="featured-slide" [attr.aria-hidden]="i !== featuredIndex()">
+                <img
+                  class="featured-art"
+                  [src]="slide.item.imageUrl ?? slide.item.cardImageUrl"
+                  [alt]="slide.item.title"
+                  [attr.loading]="i === 0 ? 'eager' : 'lazy'"
+                  decoding="async"
+                  (load)="$any($event.target).classList.add('is-loaded')"
+                />
+                <div class="featured-shade" aria-hidden="true"></div>
+                <div class="featured-copy">
+                  <p class="featured-kicker">{{ slide.kicker }}</p>
+                  <h2 class="featured-title">{{ slide.item.title }}</h2>
+                  <p class="featured-meta">
+                    @if (slide.item.studio) {
+                      <span>{{ slide.item.studio }}</span>
+                    }
+                    @if (slide.item.releaseDate) {
+                      <span>{{ slide.item.releaseDate.slice(0, 4) }}</span>
+                    }
+                    @if (slide.item.duration) {
+                      <span>{{ (slide.item.duration / 60).toFixed(0) }} min</span>
+                    }
+                  </p>
+                  <div class="featured-actions">
+                    @if (slide.playId) {
+                      <a
+                        class="featured-button primary"
+                        [routerLink]="['/watch', slide.playId]"
+                        [queryParams]="{ returnTo: currentRouteUrl() }"
+                        [attr.tabindex]="i === featuredIndex() ? null : -1"
+                      >
+                        <i class="pi pi-play" aria-hidden="true"></i>
+                        {{ slide.resume ? 'Resume' : 'Play' }}
+                      </a>
+                    } @else if (isRequestable(slide.item)) {
+                      <button
+                        type="button"
+                        class="featured-button primary"
+                        [attr.tabindex]="i === featuredIndex() ? null : -1"
+                        (click)="
+                          openRequestModal({
+                            id: slide.item.id,
+                            title: slide.item.title,
+                            imageUrl: slide.item.imageUrl,
+                          })
+                        "
+                      >
+                        <i class="pi pi-plus" aria-hidden="true"></i>
+                        Request
+                      </button>
+                    }
+                    @if (slide.detailsCommands; as commands) {
+                      <a
+                        class="featured-button"
+                        [routerLink]="commands"
+                        [queryParams]="{ returnTo: currentRouteUrl() }"
+                        [attr.tabindex]="i === featuredIndex() ? null : -1"
+                      >
+                        <i class="pi pi-info-circle" aria-hidden="true"></i>
+                        Details
+                      </a>
+                    }
+                  </div>
+                </div>
+              </article>
+            }
+          </div>
+
+          @if (featured().length > 1) {
+            <div class="featured-dots" role="tablist" aria-label="Featured scenes">
+              @for (slide of featured(); track slide.item.id; let i = $index) {
+                <button
+                  type="button"
+                  role="tab"
+                  class="featured-dot"
+                  [class.active]="i === featuredIndex()"
+                  [attr.aria-selected]="i === featuredIndex()"
+                  [attr.aria-label]="'Show ' + slide.item.title"
+                  (click)="showFeatured(featuredTrack, i)"
+                ></button>
+              }
+            </div>
+          }
+        </section>
+      }
+
+      <div class="rail-stack">
+        @for (rail of rails(); track rail.id; let idx = $index) {
+          @if (showRail(rail)) {
+            <section class="rail-section" [style.--rail-index]="idx">
+              <header class="rail-head">
+                <div class="rail-copy">
+                  <h2 [attr.title]="rail.summary.sortLabel + ' · ' + rail.summary.favoritesLabel">
+                    {{ rail.title }}
+                  </h2>
+                  @if (rail.subtitle) {
+                    <p>{{ rail.subtitle }}</p>
+                  }
+                </div>
+
+                @if (rail.items.length > 0) {
+                  @if (rail.seeAllLink; as seeAllLink) {
+                    <a
+                      class="see-all-link"
+                      [routerLink]="[seeAllLink.path]"
+                      [queryParams]="seeAllLink.queryParams"
+                    >
+                      See all
+                      <i class="pi pi-angle-right" aria-hidden="true"></i>
+                    </a>
+                  }
+                }
+              </header>
+
+              @if (rail.pending) {
+                <div class="rail-track skeleton-track" aria-hidden="true">
+                  @for (c of skeletonCards; track c) {
+                    <div class="skeleton-card"></div>
+                  }
+                </div>
+              } @else if (rail.items.length > 0) {
+                <div
+                  class="rail-frame"
+                  [class.can-prev]="canScrollRail(rail.id, 'prev')"
+                  [class.can-next]="canScrollRail(rail.id, 'next')"
+                  (mouseenter)="updateRailEdges(rail.id, railViewport)"
+                >
+                  <button
+                    type="button"
+                    class="scroll-button prev"
+                    tabindex="-1"
+                    (click)="scrollRail(rail.id, 'prev')"
+                    [attr.aria-label]="'Scroll ' + rail.title + ' left'"
+                  >
+                    <i class="pi pi-angle-left" aria-hidden="true"></i>
+                  </button>
+
+                  <div
+                    class="rail-viewport"
+                    #railViewport
+                    [attr.data-rail-id]="rail.id"
+                    (scroll)="updateRailEdges(rail.id, railViewport)"
+                  >
+                    <div class="rail-track">
+                      @for (item of rail.items; track item.id) {
+                        <app-scene-card
+                          class="rail-card"
+                          [item]="item"
+                          [requestable]="isRequestable(item)"
+                          variant="rail"
+                          [primaryLinkMode]="
+                            rail.key === 'CONTINUE_WATCHING'
+                              ? 'watch'
+                              : isInternalSceneRoute(item)
+                                ? 'scene'
+                                : item.source === 'STASH'
+                                  ? 'local'
+                                  : 'external'
+                          "
+                          [sceneQueryParams]="
+                            isInternalSceneRoute(item) ? { returnTo: currentRouteUrl() } : null
+                          "
+                          [externalHref]="isInternalSceneRoute(item) ? null : item.viewUrl"
+                          [playSceneId]="
+                            item.source === 'STASH' ? item.id : (item.localSceneId ?? null)
+                          "
+                          [playQueryParams]="{ returnTo: currentRouteUrl() }"
+                          [progress]="item.progress ?? null"
+                          [menuActions]="
+                            rail.key === 'CONTINUE_WATCHING' ? continueWatchingActions : []
+                          "
+                          (menuAction)="onContinueWatchingAction(rail.id, item.id, $event)"
+                          (request)="openRequestModal($event)"
+                        />
+                      }
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    class="scroll-button next"
+                    tabindex="-1"
+                    (click)="scrollRail(rail.id, 'next')"
+                    [attr.aria-label]="'Scroll ' + rail.title + ' right'"
+                  >
+                    <i class="pi pi-angle-right" aria-hidden="true"></i>
+                  </button>
+                </div>
+              } @else if (rail.error) {
+                <div class="rail-state error">
+                  <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+                  <p>{{ rail.error }}</p>
+                </div>
+              }
+            </section>
+          }
+        }
+      </div>
+    }
+  }
+
+  <app-scene-request-modal
+    [open]="requestModalOpen()"
+    [sceneId]="requestContext()?.id ?? null"
+    [sceneTitle]="requestContext()?.title ?? null"
+    [sceneImageUrl]="requestContext()?.imageUrl ?? null"
+    (closed)="onRequestModalClosed()"
+    (submitted)="onRequestSubmitted($event)"
+  />
+</main>

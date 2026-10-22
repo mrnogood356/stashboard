@@ -1,0 +1,52 @@
+{
+  "name": "sp-web",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve --proxy-config proxy.conf.json",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:cov": "vitest run --coverage",
+    "lint": "eslint \"src/**/*.{ts,html}\" --fix",
+    "lint:check": "eslint \"src/**/*.{ts,html}\" --max-warnings 0",
+    "format": "prettier --write \"src/**/*.{ts,html,scss,css}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,html,scss,css}\"",
+    "typecheck": "tsc --noEmit -p tsconfig.spec.json"
+  },
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "dependencies": {
+    "@angular/animations": "^21.2.25",
+    "@angular/cdk": "^21.2.14",
+    "@angular/common": "^21.2.25",
+    "@angular/compiler": "^21.2.25",
+    "@angular/core": "^21.2.25",
+    "@angular/forms": "^21.2.25",
+    "@angular/platform-browser": "^21.2.25",
+    "@angular/router": "^21.2.25",
+    "@primeuix/themes": "^2.0.3",
+    "@simplewebauthn/browser": "^14.0.0",
+    "hls.js": "^1.7.3",
+    "primeicons": "^7.0.0",
+    "primeng": "^21.1.10",
+    "rxjs": "~7.8.2",
+    "tslib": "^2.8.1"
+  },
+  "devDependencies": {
+    "@angular/build": "^21.2.27",
+    "@angular/cli": "^21.2.27",
+    "@angular/compiler-cli": "^21.2.25",
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^24.19.2",
+    "@vitest/coverage-v8": "^4.1.12",
+    "angular-eslint": "^21.4.0",
+    "eslint": "^9.39.5",
+    "jsdom": "^28.1.0",
+    "prettier": "^3.9.10",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^4.1.12"
+  }
+}

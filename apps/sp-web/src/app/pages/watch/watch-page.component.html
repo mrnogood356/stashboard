@@ -1,0 +1,354 @@
+<div class="player" #shell [class.is-playing]="playing()" [class.is-fullscreen]="fullscreen()">
+  <!-- playsinline keeps iPhone from forcing its own fullscreen player. -->
+  <video
+    #video
+    class="video"
+    playsinline
+    webkit-playsinline
+    x-webkit-airplay="allow"
+    preload="metadata"
+    [attr.poster]="info()?.posterUrl ?? null"
+  ></video>
+
+  <div class="surface" (click)="onSurfaceTap($any($event))" aria-hidden="true"></div>
+
+  @if (loading() || buffering()) {
+    <div class="spinner" role="status" aria-live="polite">
+      <span class="spinner-ring" aria-hidden="true"></span>
+      <span class="sr-only">Loading video</span>
+    </div>
+  }
+
+  @if (skipFlash(); as direction) {
+    <div class="skip-flash" [class.forward]="direction === 'forward'" aria-hidden="true">
+      <i [class]="direction === 'forward' ? 'pi pi-forward' : 'pi pi-backward'"></i>
+      <span>10s</span>
+    </div>
+  }
+
+  @if (error(); as message) {
+    <div class="error-panel" role="alert">
+      <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+      <p>{{ message }}</p>
+      <div class="error-actions">
+        <button type="button" class="pill" (click)="goBack()">Go back</button>
+        @if (info()?.viewUrl) {
+          <button type="button" class="pill primary" (click)="openInStash()">Open in Stash</button>
+        }
+      </div>
+    </div>
+  }
+
+  @if (upNext(); as next) {
+    <aside class="up-next" role="dialog" aria-label="Up next">
+      <div class="up-next-art">
+        @if (next.cardImageUrl ?? next.imageUrl; as art) {
+          <img [src]="art" alt="" />
+        }
+        <svg class="up-next-ring" viewBox="0 0 36 36" aria-hidden="true">
+          <circle
+            cx="18"
+            cy="18"
+            r="16"
+            pathLength="100"
+            [style.stroke-dashoffset]="100 - (upNextCountdown() / 8) * 100"
+          ></circle>
+        </svg>
+        <span class="up-next-count" aria-live="polite">{{ upNextCountdown() }}</span>
+      </div>
+      <div class="up-next-copy">
+        <p class="up-next-label">Up next</p>
+        <p class="up-next-title">{{ next.title }}</p>
+        <div class="up-next-actions">
+          <button type="button" class="pill primary" (click)="playUpNext()">
+            <i class="pi pi-play" aria-hidden="true"></i> Play now
+          </button>
+          <button type="button" class="pill" (click)="cancelUpNext()">Cancel</button>
+        </div>
+      </div>
+    </aside>
+  }
+
+  @if (chapterDraft(); as draft) {
+    <div class="sheet-backdrop" (click)="closeChapterDraft()" aria-hidden="true"></div>
+    <form
+      class="chapter-sheet"
+      role="dialog"
+      aria-label="Add chapter"
+      (submit)="$event.preventDefault(); saveChapter()"
+    >
+      <p class="sheet-title">Add chapter at {{ formatTime(draft.seconds) }}</p>
+      <label class="sheet-field">
+        <span>Name</span>
+        <input
+          type="text"
+          maxlength="200"
+          placeholder="Optional, e.g. Pool scene"
+          [value]="draft.title"
+          (input)="setChapterTitle($any($event.target).value)"
+        />
+      </label>
+      <!-- Not a <label>: a click on it would hit the "Change tag" button inside. -->
+      <div class="sheet-field">
+        <span id="chapter-tag-label">Tag <small>(Stash needs one)</small></span>
+        @if (draft.tag; as tag) {
+          <span class="picked-tag">
+            {{ tag.name }}
+            <button type="button" aria-label="Change tag" (click)="clearChapterTag()">
+              <i class="pi pi-times" aria-hidden="true"></i>
+            </button>
+          </span>
+        } @else {
+          <input
+            type="search"
+            placeholder="Search tags…"
+            autocomplete="off"
+            aria-labelledby="chapter-tag-label"
+            (input)="searchChapterTags($any($event.target).value)"
+          />
+        }
+      </div>
+      @if (!draft.tag && chapterTagResults().length > 0) {
+        <ul class="sheet-results">
+          @for (tag of chapterTagResults(); track tag.id) {
+            <li>
+              <button type="button" (click)="pickChapterTag(tag)">{{ tag.name }}</button>
+            </li>
+          }
+        </ul>
+      }
+      @if (chapterError(); as message) {
+        <p class="sheet-error" role="alert">{{ message }}</p>
+      }
+      <div class="sheet-actions">
+        <button type="button" class="pill" (click)="closeChapterDraft()">Cancel</button>
+        <button type="submit" class="pill primary" [disabled]="!draft.tag || chapterSaving()">
+          {{ chapterSaving() ? 'Saving…' : 'Save chapter' }}
+        </button>
+      </div>
+    </form>
+  }
+
+  <!-- Top bar -->
+  <header class="top-bar">
+    <button type="button" class="icon-button" (click)="goBack()" aria-label="Back">
+      <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    </button>
+    <div class="titles">
+      <h1>{{ info()?.title ?? (error() ? 'Unavailable' : 'Loading…') }}</h1>
+      @if (info()?.studio; as studio) {
+        <p>{{ studio }}</p>
+      }
+    </div>
+  </header>
+
+  @if (resumedFrom(); as resumed) {
+    <div class="resume-toast" role="status">
+      <span>Resumed at {{ formatTime(resumed) }}</span>
+      <button type="button" class="link-button" (click)="startOver()">Start over</button>
+    </div>
+  }
+
+  <!-- Centre controls -->
+  @if (!error()) {
+    <div class="center-controls">
+      <button
+        type="button"
+        class="icon-button large"
+        (click)="skip(-10)"
+        aria-label="Back 10 seconds"
+      >
+        <i class="pi pi-replay" aria-hidden="true"></i>
+      </button>
+      <button
+        type="button"
+        class="icon-button xlarge"
+        (click)="togglePlay()"
+        [attr.aria-label]="playing() ? 'Pause' : 'Play'"
+      >
+        <i [class]="playing() ? 'pi pi-pause' : 'pi pi-play'" aria-hidden="true"></i>
+      </button>
+      <button
+        type="button"
+        class="icon-button large"
+        (click)="skip(10)"
+        aria-label="Forward 10 seconds"
+      >
+        <i class="pi pi-refresh" aria-hidden="true"></i>
+      </button>
+    </div>
+  }
+
+  <!-- Bottom bar -->
+  <footer class="bottom-bar">
+    <div
+      #seekBar
+      class="seek"
+      role="slider"
+      tabindex="0"
+      aria-label="Seek"
+      [attr.aria-valuemin]="0"
+      [attr.aria-valuemax]="duration()"
+      [attr.aria-valuenow]="currentTime()"
+      [attr.aria-valuetext]="formatTime(currentTime()) + ' of ' + formatTime(duration())"
+      (pointermove)="onSeekHover($event)"
+      (pointerdown)="onSeekDown($event)"
+      (pointerup)="onSeekUp($event)"
+      (pointerleave)="onSeekLeave()"
+      (keydown)="onSeekKey($event)"
+    >
+      <div class="seek-track">
+        <div class="seek-buffered" [style.width.%]="bufferedPercent()"></div>
+        <div class="seek-played" [style.width.%]="progressPercent()"></div>
+        @for (tick of chapterTicks(); track tick.id) {
+          <span class="seek-chapter" [style.left.%]="tick.left" aria-hidden="true"></span>
+        }
+        <div class="seek-thumb" [style.left.%]="progressPercent()"></div>
+      </div>
+
+      @if (scrub(); as preview) {
+        <div class="scrub-preview" [style.left.%]="preview.left">
+          @if (preview.cue; as cue) {
+            <div class="scrub-image" [style]="scrubThumbStyle(cue)"></div>
+          }
+          @if (chapterAt(preview.time); as chapter) {
+            <span class="scrub-chapter">{{ chapter.title }}</span>
+          }
+          <span>{{ formatTime(preview.time) }}</span>
+        </div>
+      }
+    </div>
+
+    <div class="bar-row">
+      <span class="time">
+        {{ formatTime(currentTime()) }} / {{ formatTime(duration()) }}
+        @if (currentChapter(); as chapter) {
+          <span class="time-chapter">· {{ chapter.title }}</span>
+        }
+      </span>
+
+      <div class="bar-actions">
+        <button
+          type="button"
+          class="icon-button"
+          (click)="toggleMute()"
+          [attr.aria-label]="muted() ? 'Unmute' : 'Mute'"
+        >
+          <i [class]="muted() ? 'pi pi-volume-off' : 'pi pi-volume-up'" aria-hidden="true"></i>
+        </button>
+
+        <button
+          type="button"
+          class="icon-button"
+          (click)="openChapterDraft()"
+          aria-label="Add chapter"
+          title="Add chapter here"
+        >
+          <i class="pi pi-bookmark" aria-hidden="true"></i>
+        </button>
+
+        @if (markers().length > 0) {
+          <div class="quality">
+            <button
+              type="button"
+              class="icon-button"
+              (click)="toggleChaptersMenu()"
+              aria-label="Chapters"
+              [attr.aria-expanded]="chaptersMenuOpen()"
+            >
+              <i class="pi pi-list" aria-hidden="true"></i>
+            </button>
+            @if (chaptersMenuOpen()) {
+              <ul class="quality-menu chapters-menu" role="menu">
+                @for (marker of markers(); track marker.id) {
+                  <li class="chapter-item">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      [class.active]="marker.id === currentChapter()?.id"
+                      (click)="jumpToChapter(marker)"
+                    >
+                      <span class="chapter-time">{{ formatTime(marker.seconds) }}</span>
+                      <span class="chapter-name">{{ marker.title }}</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="chapter-delete"
+                      [attr.aria-label]="'Delete chapter ' + marker.title"
+                      (click)="deleteChapter(marker, $event)"
+                    >
+                      <i class="pi pi-trash" aria-hidden="true"></i>
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        }
+
+        @if (qualities().length > 1) {
+          <div class="quality">
+            <button
+              type="button"
+              class="icon-button"
+              (click)="toggleQualityMenu()"
+              aria-label="Quality"
+              [attr.aria-expanded]="qualityMenuOpen()"
+            >
+              <i class="pi pi-cog" aria-hidden="true"></i>
+            </button>
+            @if (qualityMenuOpen()) {
+              <ul class="quality-menu" role="menu">
+                @for (option of qualities(); track option.id) {
+                  <li>
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      [attr.aria-checked]="option.id === activeQualityId()"
+                      [class.active]="option.id === activeQualityId()"
+                      (click)="chooseQuality(option)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        }
+
+        @if (airplayAvailable()) {
+          <button type="button" class="icon-button" (click)="showAirplay()" aria-label="AirPlay">
+            <i class="pi pi-desktop" aria-hidden="true"></i>
+          </button>
+        }
+        @if (castAvailable()) {
+          <button type="button" class="icon-button" (click)="cast()" aria-label="Cast to TV">
+            <i class="pi pi-wifi" aria-hidden="true"></i>
+          </button>
+        }
+        @if (pipAvailable()) {
+          <button
+            type="button"
+            class="icon-button"
+            (click)="togglePip()"
+            aria-label="Picture in picture"
+          >
+            <i class="pi pi-clone" aria-hidden="true"></i>
+          </button>
+        }
+        <button
+          type="button"
+          class="icon-button"
+          (click)="toggleFullscreen()"
+          [attr.aria-label]="fullscreen() ? 'Exit fullscreen' : 'Fullscreen'"
+        >
+          <i
+            [class]="fullscreen() ? 'pi pi-window-minimize' : 'pi pi-window-maximize'"
+            aria-hidden="true"
+          ></i>
+        </button>
+      </div>
+    </div>
+  </footer>
+</div>

@@ -1,0 +1,238 @@
+<section class="logs-page">
+  <header class="section-head">
+    <div>
+      <h2>Logs</h2>
+      <p class="lede">
+        What Stashboard has been doing, newest first. Keys, passwords and tokens are removed before
+        anything is written.
+      </p>
+    </div>
+  </header>
+
+  <article class="card settings-card">
+    <p class="eyebrow">Logging</p>
+    @if (settings(); as current) {
+      <div class="field">
+        <label for="log-level">Log level</label>
+        <select
+          id="log-level"
+          name="level"
+          [value]="current.level"
+          [disabled]="saving()"
+          (change)="setLevel($any($event.target))"
+        >
+          @for (level of levels; track level.value) {
+            <option [value]="level.value" [selected]="level.value === current.level">
+              {{ level.label }}
+            </option>
+          }
+        </select>
+        <p class="muted small">
+          {{ levelHelp() }}
+          @if (!current.saved) {
+            Set by LOG_LEVEL ({{ current.envLevel }}) until changed here.
+          }
+        </p>
+      </div>
+
+      <div class="switch-row">
+        <span>
+          Write log files
+          <span class="muted small block">
+            {{
+              current.fileDirectory ? current.fileDirectory + '/stashboard.txt' : 'Not available'
+            }}, 5 MB each, the last 5 kept.
+          </span>
+        </span>
+        <input
+          type="checkbox"
+          class="app-switch"
+          role="switch"
+          name="fileEnabled"
+          aria-label="Write log files"
+          [checked]="current.fileEnabled"
+          [disabled]="saving()"
+          (change)="setFileEnabled($any($event.target))"
+        />
+      </div>
+      @if (current.fileError) {
+        <p class="error small">Can’t write log files: {{ current.fileError }}</p>
+      }
+      @if (settingsStatus(); as status) {
+        <p class="status small" [class.error]="status.kind === 'error'" role="status">
+          {{ status.text }}
+        </p>
+      }
+    } @else if (settingsError()) {
+      <p class="muted">Couldn’t read the log settings right now.</p>
+    } @else {
+      <p class="muted" role="status">Loading…</p>
+    }
+  </article>
+
+  <section class="group">
+    <div class="list-head">
+      <h3>
+        Recent log
+        @if (loggingAt(); as level) {
+          <span class="muted small">logging at {{ level }}</span>
+        }
+      </h3>
+      <div class="head-actions">
+        <button
+          type="button"
+          class="pill live"
+          [class.on]="live()"
+          [attr.aria-pressed]="live()"
+          (click)="toggleLive()"
+        >
+          <i class="pi" [class.pi-pause]="live()" [class.pi-play]="!live()" aria-hidden="true"></i>
+          {{ live() ? 'Live' : 'Paused' }}
+        </button>
+        <button type="button" class="pill refresh" [disabled]="loading()" (click)="load()">
+          <i class="pi pi-refresh" [class.pi-spin]="loading()" aria-hidden="true"></i>
+          Refresh
+        </button>
+        @if (confirmingClear()) {
+          <button type="button" class="pill danger clear" (click)="clear()">Clear the log?</button>
+          <button type="button" class="pill" (click)="cancelClear()">Keep</button>
+        } @else {
+          <button type="button" class="pill clear" (click)="clear()">
+            <i class="pi pi-trash" aria-hidden="true"></i>
+            Clear
+          </button>
+        }
+      </div>
+    </div>
+
+    <div class="filters">
+      <label class="filter">
+        <span>Level</span>
+        <select
+          name="minLevel"
+          [value]="minLevel()"
+          (change)="setMinLevel($any($event.target).value)"
+        >
+          @for (filter of filters; track filter.value) {
+            <option [value]="filter.value" [selected]="filter.value === minLevel()">
+              {{ filter.label }}
+            </option>
+          }
+        </select>
+      </label>
+      <label class="filter">
+        <span>Component</span>
+        <select name="context" [value]="context()" (change)="setContext($any($event.target).value)">
+          <option value="" [selected]="!context()">All</option>
+          @for (name of contexts(); track name) {
+            <option [value]="name" [selected]="name === context()">{{ name }}</option>
+          }
+        </select>
+      </label>
+      <label class="filter search">
+        <span>Search</span>
+        <input
+          type="search"
+          name="q"
+          placeholder="Text in the message"
+          autocomplete="off"
+          [value]="search()"
+          (input)="setSearch($any($event.target).value)"
+        />
+      </label>
+    </div>
+
+    @if (loadError()) {
+      <p class="error" role="alert">Couldn’t read the log right now.</p>
+    }
+
+    @if (entries().length > 0) {
+      <ul class="entries">
+        @for (entry of entries(); track entry.id) {
+          <li class="entry" [attr.data-level]="entry.level">
+            <button
+              type="button"
+              class="entry-main"
+              [attr.aria-expanded]="expanded().has(entry.id)"
+              (click)="toggle(entry.id)"
+            >
+              <span class="entry-meta">
+                <span class="level-badge">{{ levelLabel(entry) }}</span>
+                <time [attr.datetime]="entry.at">{{ time(entry.at) }}</time>
+                <span class="context">{{
+                  entry.source === 'app' ? 'App' : (entry.context ?? 'Server')
+                }}</span>
+                @if (entry.stack) {
+                  <i class="pi pi-align-left has-detail" aria-label="Has details"></i>
+                }
+              </span>
+              <span class="message" [class.clamped]="!expanded().has(entry.id)">{{
+                entry.message
+              }}</span>
+            </button>
+            @if (expanded().has(entry.id)) {
+              <div class="entry-detail">
+                @if (entry.stack) {
+                  <pre class="stack">{{ entry.stack }}</pre>
+                }
+                <button type="button" class="pill copy" (click)="copy(entry)">
+                  <i
+                    class="pi"
+                    [class.pi-check]="copiedId() === entry.id"
+                    [class.pi-copy]="copiedId() !== entry.id"
+                    aria-hidden="true"
+                  ></i>
+                  {{ copiedId() === entry.id ? 'Copied' : 'Copy' }}
+                </button>
+              </div>
+            }
+          </li>
+        }
+      </ul>
+      @if (hasMore()) {
+        <button type="button" class="pill older" [disabled]="loadingOlder()" (click)="loadOlder()">
+          {{ loadingOlder() ? 'Loading…' : 'Load older' }}
+        </button>
+      }
+    } @else if (loading()) {
+      <p class="muted" role="status">Loading…</p>
+    } @else if (!loadError()) {
+      <p class="muted empty">
+        @if (filtered()) {
+          Nothing matches.
+          <button type="button" class="link" (click)="clearFilters()">Show everything</button>
+        } @else {
+          Nothing logged yet.
+        }
+      </p>
+    }
+  </section>
+
+  <section class="group">
+    <h3>Log files</h3>
+    @if (files(); as result) {
+      @if (result.files.length > 0) {
+        <ul class="files">
+          @for (file of result.files; track file.name) {
+            <li class="file">
+              <div class="file-copy">
+                <strong>{{ file.name }}</strong>
+                <span class="muted small">{{ size(file.size) }} · {{ when(file.modifiedAt) }}</span>
+              </div>
+              <a class="pill" [href]="fileUrl(file.name)" [attr.download]="file.name">
+                <i class="pi pi-download" aria-hidden="true"></i>
+                Download
+              </a>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="muted">
+          {{ result.enabled ? 'No log files yet.' : 'Log files are off.' }}
+        </p>
+      }
+    } @else if (filesError()) {
+      <p class="muted">Couldn’t list the log files right now.</p>
+    }
+  </section>
+</section>

@@ -1,0 +1,208 @@
+<section class="automation-page">
+  <header class="section-head">
+    <h2>New scenes</h2>
+    <p class="lede">
+      When Whisparr finishes a download, Stashboard can have Stash pick it up, look it up on StashDB
+      and make its previews, so it shows up ready to watch.
+    </p>
+  </header>
+
+  @if (error(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+
+  @if (settings(); as settings) {
+    <div class="group">
+      <div class="row">
+        <span class="row-copy">
+          <strong>Scan Stash for new scenes</strong>
+          <small>Right after Whisparr imports one.</small>
+        </span>
+        <button
+          type="button"
+          class="switch"
+          [class.on]="settings.scanOnImport"
+          aria-label="Scan Stash for new scenes"
+          role="switch"
+          [attr.aria-checked]="settings.scanOnImport"
+          [disabled]="saving() !== null"
+          (click)="toggle('scanOnImport')"
+        ></button>
+      </div>
+      <div class="row">
+        <span class="row-copy">
+          <strong>Watch the library folders too</strong>
+          <small>
+            Scenes copied or moved straight into Stash’s library folders are scanned within a couple
+            of minutes of finishing.
+            @if (settings.watchFolders && settings.foldersVisible === false) {
+              <span class="warn"
+                >Stashboard can’t see those folders. Mount them into Stashboard at the same paths as
+                in Stash.</span
+              >
+            }
+          </small>
+        </span>
+        <button
+          type="button"
+          class="switch"
+          [class.on]="settings.watchFolders && settings.scanOnImport"
+          aria-label="Watch the library folders too"
+          role="switch"
+          [attr.aria-checked]="settings.watchFolders"
+          [disabled]="saving() !== null || !settings.scanOnImport"
+          (click)="toggle('watchFolders')"
+        ></button>
+      </div>
+      <div class="row">
+        <span class="row-copy">
+          <strong>Identify them on StashDB</strong>
+          <small
+            >Fills in the title, performers, studio and tags. Uses the StashDB source set up in
+            Stash.</small
+          >
+        </span>
+        <button
+          type="button"
+          class="switch"
+          [class.on]="settings.identifyNew && settings.scanOnImport"
+          aria-label="Identify them on StashDB"
+          role="switch"
+          [attr.aria-checked]="settings.identifyNew"
+          [disabled]="saving() !== null || !settings.scanOnImport"
+          (click)="toggle('identifyNew')"
+        ></button>
+      </div>
+      <div class="row">
+        <span class="row-copy">
+          <strong>Make previews and thumbnails</strong>
+          <small>For card previews, the swipe feed, scrubbing and the duplicate finder.</small>
+        </span>
+        <button
+          type="button"
+          class="switch"
+          [class.on]="settings.generateNew && settings.scanOnImport"
+          aria-label="Make previews and thumbnails"
+          role="switch"
+          [attr.aria-checked]="settings.generateNew"
+          [disabled]="saving() !== null || !settings.scanOnImport"
+          (click)="toggle('generateNew')"
+        ></button>
+      </div>
+      <div class="row">
+        <span class="row-copy">
+          <strong>Delete sample clips</strong>
+          <small
+            >Files or folders called "sample" that come with a download, deleted from disk before
+            anything else is done with them.</small
+          >
+        </span>
+        <button
+          type="button"
+          class="switch"
+          [class.on]="settings.removeSamples && settings.scanOnImport"
+          aria-label="Delete sample clips"
+          role="switch"
+          [attr.aria-checked]="settings.removeSamples"
+          [disabled]="saving() !== null || !settings.scanOnImport"
+          (click)="toggle('removeSamples')"
+        ></button>
+      </div>
+      <div class="row">
+        <span class="row-copy">
+          <strong>Tidy up after Whisparr imports</strong>
+          <small
+            >Has Stash rescan, removes extra copies a hardlink or copy import leaves behind, and
+            links scenes waiting for import. The same as Sync with Whisparr in Tools.</small
+          >
+        </span>
+        <button
+          type="button"
+          class="switch"
+          [class.on]="settings.tidyAfterImport && settings.scanOnImport"
+          aria-label="Tidy up after Whisparr imports"
+          role="switch"
+          [attr.aria-checked]="settings.tidyAfterImport"
+          [disabled]="saving() !== null || !settings.scanOnImport"
+          (click)="toggle('tidyAfterImport')"
+        ></button>
+      </div>
+    </div>
+
+    <div class="group status">
+      <div class="status-row">
+        <span
+          class="status-dot"
+          [class.running]="settings.running || settings.lastRun.status === 'RUNNING'"
+          [class.failed]="settings.lastRun.status === 'FAILED'"
+          [class.done]="settings.lastRun.status === 'DONE'"
+          aria-hidden="true"
+        ></span>
+        <div class="row-copy">
+          <strong>{{ statusLabel(settings) }}</strong>
+          @if (settings.lastRun.message) {
+            <small>{{ settings.lastRun.message }}</small>
+          }
+          @if (settings.lastRun.at) {
+            <small class="faint"
+              >{{ when(settings.lastRun.at)
+              }}{{
+                reasonLabel(settings.lastRun.reason)
+                  ? ' · ' + reasonLabel(settings.lastRun.reason)
+                  : ''
+              }}</small
+            >
+          }
+        </div>
+        <button type="button" class="pill" [disabled]="settings.running" (click)="runNow()">
+          Run now
+        </button>
+      </div>
+    </div>
+
+    <a class="group link-row" routerLink="/tools/organize">
+      <span class="link-icon" aria-hidden="true"><i class="pi pi-link"></i></span>
+      <span class="row-copy">
+        <strong>Match &amp; rename</strong>
+        <small
+          >Match scenes Stash couldn’t identify, and rename files automatically once they’re
+          matched.</small
+        >
+      </span>
+      <i class="pi pi-chevron-right chevron" aria-hidden="true"></i>
+    </a>
+
+    <header class="section-head sub">
+      <h3>Make it instant (optional)</h3>
+      <p class="lede">
+        Without this, Stashboard notices new imports within about 15 minutes. With it, Whisparr
+        tells Stashboard right away.
+      </p>
+    </header>
+    <div class="group steps">
+      <ol>
+        <li>
+          In Whisparr, open <strong>Settings → Connect</strong> and add a <strong>Webhook</strong>.
+        </li>
+        <li>Turn on <strong>On Import</strong> (and <strong>On Upgrade</strong> if you like).</li>
+        <li>
+          Paste this address as the URL, method <strong>POST</strong>, then tap Test and Save.
+        </li>
+      </ol>
+      <div class="url-row">
+        <code class="url" tabindex="0">{{ webhookUrl() }}</code>
+        <button type="button" class="pill" (click)="copyUrl()">
+          {{ copied() ? 'Copied' : 'Copy' }}
+        </button>
+      </div>
+      <p class="faint note">
+        This uses the address you opened Stashboard with. If Whisparr reaches Stashboard a different
+        way (for example through a Docker network name), change the start of the address and keep
+        the rest.
+      </p>
+      <button type="button" class="link-button" (click)="regenerate()">Make a new address</button>
+    </div>
+  } @else if (!error()) {
+    <p class="faint" role="status">Loading…</p>
+  }
+</section>

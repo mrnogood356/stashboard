@@ -1,0 +1,83 @@
+:host {
+  display: block;
+}
+
+.playback-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  max-width: 56rem;
+  min-width: 0;
+}
+
+h2,
+p {
+  margin: 0;
+}
+
+.section-head {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.lede,
+.muted {
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.muted {
+  font-size: 0.84rem;
+}
+
+.card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.1rem;
+  padding: 1rem;
+  min-width: 0;
+}
+
+.switch-row > span {
+  display: grid;
+  gap: 0.15rem;
+  overflow-wrap: anywhere;
+}
+
+.switch-row small {
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Separate each switch from whatever follows it. */
+.switch-row + * {
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--separator, var(--border-subtle));
+}
+
+/* The feed and preview switches only apply while playback is on. */
+.switch-row.is-off > span {
+  opacity: 0.55;
+}
+
+.status {
+  font-weight: 600;
+  color: var(--success-text);
+}
+
+.status.error {
+  color: var(--danger);
+}
+
+.button {
+  justify-self: start;
+  min-height: 2.5rem;
+  padding: 0 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 60%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}

@@ -1,0 +1,157 @@
+.setup-check-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.lede {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.checks {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 18px;
+  background: var(--surface-1);
+  overflow: hidden;
+}
+
+.check {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.9rem 1rem;
+  min-width: 0;
+}
+
+.check + .check {
+  box-shadow: inset 0 1px 0 var(--separator, var(--border-subtle));
+}
+
+.check-head {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.status-icon {
+  margin-top: 0.15rem;
+  font-size: 1.1rem;
+  color: var(--text-muted);
+}
+
+[data-status='ok'] .status-icon {
+  color: var(--success-text);
+}
+
+[data-status='warn'] .status-icon {
+  color: var(--warning-text);
+}
+
+[data-status='fail'] .status-icon {
+  color: var(--danger);
+}
+
+.check-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.check-copy p,
+.detail {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.detail {
+  margin-left: 1.85rem;
+  white-space: pre-line;
+}
+
+.status-label {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.link {
+  justify-self: start;
+  margin-left: 1.85rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: 1.85rem;
+}
+
+.pill {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.pill.primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.pill:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.small {
+  font-size: 0.8rem;
+}
+
+.inline-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.inline-link:hover {
+  text-decoration: underline;
+}

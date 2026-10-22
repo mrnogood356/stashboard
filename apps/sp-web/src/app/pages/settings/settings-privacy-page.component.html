@@ -1,0 +1,154 @@
+<section class="privacy-page">
+  <header class="section-head">
+    <h2>Keep Stashboard private</h2>
+    <p class="lede">
+      Require a PIN (or Face ID) to open Stashboard, and hide what's on screen from the app
+      switcher. This applies only to Stashboard added to a phone's home screen; browsers are never
+      locked.
+    </p>
+  </header>
+
+  @if (loading()) {
+    <p class="muted" role="status">Loading…</p>
+  } @else {
+    <form class="card" (ngSubmit)="save()">
+      <div class="switch-row">
+        <span>
+          <strong>App Lock</strong>
+          <small>Ask for your PIN when you come back to Stashboard.</small>
+        </span>
+        <input
+          type="checkbox"
+          class="app-switch"
+          role="switch"
+          name="enabled"
+          aria-label="App Lock"
+          [(ngModel)]="enabled"
+        />
+      </div>
+
+      @if (enabled) {
+        <label class="field">
+          <span class="field-label">Lock</span>
+          <select class="text-input" name="timeout" [(ngModel)]="timeoutSeconds">
+            @for (option of timeoutOptions; track option.value) {
+              <option [ngValue]="option.value">{{ option.label }}</option>
+            }
+          </select>
+          <span class="muted"
+            >How long Stashboard can be in the background before it locks. While it’s open on screen
+            it never locks.</span
+          >
+        </label>
+
+        <div class="pin-row">
+          <label class="field">
+            <span class="field-label">{{ hasPin() ? 'New PIN (optional)' : 'PIN' }}</span>
+            <input
+              class="text-input"
+              name="pin"
+              type="password"
+              inputmode="numeric"
+              autocomplete="new-password"
+              maxlength="8"
+              placeholder="4–8 digits"
+              [(ngModel)]="pin"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Confirm PIN</span>
+            <input
+              class="text-input"
+              name="pinConfirm"
+              type="password"
+              inputmode="numeric"
+              autocomplete="new-password"
+              maxlength="8"
+              [(ngModel)]="pinConfirm"
+            />
+          </label>
+        </div>
+      }
+
+      <div class="switch-row">
+        <span>
+          <strong>Hide in app switcher</strong>
+          <small
+            >Cover the screen when you leave the app, so the switcher shows only the Stashboard
+            icon.</small
+          >
+        </span>
+        <input
+          type="checkbox"
+          class="app-switch"
+          role="switch"
+          name="hideInSwitcher"
+          aria-label="Hide in app switcher"
+          [(ngModel)]="hideInSwitcher"
+        />
+      </div>
+
+      <label class="field">
+        <span class="field-label">Account password</span>
+        <input
+          class="text-input"
+          name="currentPassword"
+          type="password"
+          autocomplete="current-password"
+          [(ngModel)]="currentPassword"
+        />
+        <span class="muted">Needed to change these settings.</span>
+      </label>
+
+      @if (message(); as m) {
+        <p class="status" [class.error]="m.kind === 'error'" role="status">{{ m.text }}</p>
+      }
+
+      <div class="actions">
+        <button type="submit" class="button" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+    </form>
+
+    <section class="card face-id">
+      <h3>Face ID</h3>
+      @if (!appLock.faceIdSupported()) {
+        <p class="muted">
+          @if (isHttps) {
+            This browser doesn't support Face ID for websites.
+          } @else {
+            Face ID needs Stashboard to be opened over <strong>HTTPS</strong> with a domain name
+            (for example through a reverse proxy or Tailscale). On plain http:// iPhone only allows
+            the PIN. Everything else works the same.
+          }
+        </p>
+      } @else if (!hasPin() || !appLock.enabled()) {
+        <p class="muted">Turn on App Lock with a PIN first. Face ID then unlocks it faster.</p>
+      } @else {
+        @for (passkey of passkeys(); track passkey.id) {
+          <div class="passkey">
+            <i class="pi pi-face-smile" aria-hidden="true"></i>
+            <span>{{ passkey.label }}</span>
+            <button
+              type="button"
+              class="link-danger"
+              [disabled]="faceIdBusy()"
+              (click)="removeFaceId(passkey.id)"
+            >
+              Remove
+            </button>
+          </div>
+        }
+        <button
+          type="button"
+          class="button secondary"
+          [disabled]="faceIdBusy()"
+          (click)="setUpFaceId()"
+        >
+          {{ passkeys().length ? 'Add another device' : 'Set up Face ID on this device' }}
+        </button>
+      }
+    </section>
+  }
+</section>

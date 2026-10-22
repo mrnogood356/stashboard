@@ -1,0 +1,75 @@
+<section class="evidence app-section-panel">
+  <h2 class="evidence-heading">
+    <button
+      type="button"
+      class="evidence-toggle"
+      [attr.aria-expanded]="open()"
+      [attr.aria-controls]="bodyId"
+      (click)="toggle()"
+    >
+      <span class="evidence-toggle-copy">
+        <span class="evidence-title">Why is it like this?</span>
+        <span class="evidence-subtitle">What Stashboard sees for this scene</span>
+      </span>
+      <i [class]="open() ? 'pi pi-chevron-up' : 'pi pi-chevron-down'" aria-hidden="true"></i>
+    </button>
+  </h2>
+
+  @if (open()) {
+    <div class="evidence-body" [id]="bodyId">
+      @if (loading()) {
+        <p class="evidence-note" role="status">Asking Stashboard, Whisparr and Stash…</p>
+      } @else if (error(); as message) {
+        <p class="evidence-error" role="alert">{{ message }}</p>
+        <div>
+          <button type="button" class="app-btn" (click)="load()">Try again</button>
+        </div>
+      } @else if (evidence(); as evidence) {
+        <div class="evidence-actions">
+          <button type="button" class="app-btn evidence-copy" (click)="copy()">
+            <i [class]="copied() ? 'pi pi-check' : 'pi pi-copy'" aria-hidden="true"></i>
+            {{ copied() ? 'Copied' : 'Copy' }}
+          </button>
+          <button type="button" class="app-btn evidence-refresh" (click)="load()">
+            <i class="pi pi-refresh" aria-hidden="true"></i>
+            Check again
+          </button>
+        </div>
+        @if (copyFailed()) {
+          <p class="evidence-note" role="status">
+            Couldn’t copy here. Press and hold the text below to copy it.
+          </p>
+        }
+
+        @for (section of evidence.sections; track section.id) {
+          <section class="evidence-section" [attr.data-section]="section.id">
+            <h3>{{ section.title }}</h3>
+            @if (section.error) {
+              <p class="evidence-error">{{ section.error }}</p>
+            }
+            @if (section.summary) {
+              <p class="evidence-summary">{{ section.summary }}</p>
+            }
+            @for (group of section.groups; track $index) {
+              @if (group.heading) {
+                <h4>{{ group.heading }}</h4>
+              }
+              @if (group.facts.length > 0) {
+                <dl class="evidence-facts">
+                  @for (fact of group.facts; track $index) {
+                    <div>
+                      <dt>{{ fact.label }}</dt>
+                      <dd>{{ fact.value }}</dd>
+                    </div>
+                  }
+                </dl>
+              }
+            }
+          </section>
+        }
+
+        <p class="evidence-note">Checked {{ formatCheckedAt(evidence.checkedAt) }}</p>
+      }
+    </div>
+  }
+</section>

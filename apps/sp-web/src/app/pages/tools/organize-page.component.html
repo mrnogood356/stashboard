@@ -1,0 +1,1422 @@
+<main class="app-page-shell">
+  <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
+  <h1 class="page-title">Match &amp; rename</h1>
+  <p class="page-lede">
+    Link scenes Stash couldn’t identify to StashDB, then give their files tidy names and folders.
+  </p>
+
+  <div class="segmented" role="tablist" aria-label="Organizer">
+    <button
+      type="button"
+      role="tab"
+      [class.active]="tab() === 'match'"
+      [attr.aria-selected]="tab() === 'match'"
+      (click)="select('match')"
+    >
+      <i class="pi pi-link" aria-hidden="true"></i> Match
+      @if (total() !== null) {
+        <span class="count-badge">{{ total() }}</span>
+      }
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [class.active]="tab() === 'rename'"
+      [attr.aria-selected]="tab() === 'rename'"
+      (click)="select('rename')"
+    >
+      <i class="pi pi-folder" aria-hidden="true"></i> Rename
+      @if (preview(); as preview) {
+        <span class="count-badge">{{ preview.counts.ready }}</span>
+      }
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [class.active]="tab() === 'settings'"
+      [attr.aria-selected]="tab() === 'settings'"
+      (click)="select('settings')"
+    >
+      <i class="pi pi-sliders-h" aria-hidden="true"></i> Settings
+    </button>
+  </div>
+
+  @if (error(); as message) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle" aria-hidden="true"></i><span>{{ message }}</span>
+    </div>
+  }
+
+  @if (run(); as run) {
+    @if (run.running) {
+      <section class="run panel" role="status" aria-live="polite">
+        <div class="run-head">
+          <span class="spinner" aria-hidden="true"></span>
+          <strong>{{
+            run.kind === 'match'
+              ? 'Matching your library'
+              : run.kind === 'undo'
+                ? 'Putting files back'
+                : run.kind === 'whisparr'
+                  ? 'Sending to Whisparr'
+                  : run.kind === 'unmatched'
+                    ? 'Moving unmatched files'
+                    : 'Renaming files'
+          }}</strong>
+          <span class="muted run-count">{{ run.processed }} / {{ run.total || '…' }}</span>
+        </div>
+        <div class="bar" aria-hidden="true"><span [style.width.%]="progress(run)"></span></div>
+        @if (run.message) {
+          <p class="muted small">{{ run.message }}</p>
+        }
+        <p class="muted small">You can leave this page. It keeps going on your server.</p>
+      </section>
+    }
+  }
+
+  @if (settings()?.undo; as lastBatch) {
+    @if (!run()?.running) {
+      <div class="notice undo">
+        <i class="pi pi-history" aria-hidden="true"></i>
+        <span
+          >Last run moved {{ lastBatch.count }} {{ lastBatch.count === 1 ? 'file' : 'files' }} ·
+          {{ when(lastBatch.at) }}</span
+        >
+        <button type="button" class="btn small" (click)="undo()">Undo</button>
+      </div>
+    }
+  }
+
+  @if (tab() === 'match') {
+    <!-- ================= MATCH ================= -->
+    <section class="card panel">
+      <div class="card-head">
+        <span class="card-icon" aria-hidden="true"><i class="pi pi-sparkles"></i></span>
+        <div class="card-copy">
+          <h2>Find matches</h2>
+          <p class="muted">
+            Looks every unmatched scene up by video fingerprint and name, then lists what it found
+            for you to check. Nothing is saved until you say so; only Whisparr’s own imports are
+            linked straight away.
+          </p>
+        </div>
+      </div>
+      <div class="card-actions">
+        <button
+          type="button"
+          class="btn primary"
+          [disabled]="run()?.running || total() === 0"
+          (click)="matchAll()"
+        >
+          <i class="pi pi-bolt" aria-hidden="true"></i>
+          {{ total() ? 'Match all ' + total() : 'Match all' }}
+        </button>
+      </div>
+      @if (settings(); as settings) {
+        @if (toMove()) {
+          <button
+            type="button"
+            class="link"
+            [disabled]="run()?.running"
+            (click)="moveUnmatchedNow()"
+          >
+            Move the {{ toMove() }} unmatched {{ toMove() === 1 ? 'file' : 'files' }} now
+          </button>
+        } @else if (total()) {
+          <p class="muted small center">
+            All {{ total() }} unmatched {{ total() === 1 ? 'file is' : 'files are' }} in the
+            Unmatched folder.
+          </p>
+        }
+        <button type="button" class="link" (click)="select('settings')">
+          Nightly matching, sources and Whisparr: Settings
+        </button>
+        @if (settings.lastRun.kind === 'match' && settings.lastRun.message && !run()?.running) {
+          <p class="muted small last-run">
+            Last run {{ when(settings.lastRun.at) }}: {{ settings.lastRun.message }}
+          </p>
+        }
+      }
+    </section>
+
+    <app-match-review
+      [reloadKey]="reviewKey()"
+      [busy]="run()?.running ?? false"
+      (started)="followRun($event)"
+    />
+
+    @if (withoutFingerprint() > 0) {
+      <div class="notice">
+        <i class="pi pi-info-circle" aria-hidden="true"></i>
+        <span
+          >{{ withoutFingerprint() }} of these have no video fingerprint yet, so they can only be
+          matched by name. Run <a routerLink="/tools/jobs">Generate</a> in Stash jobs to add
+          fingerprints for better matches.</span
+        >
+      </div>
+    }
+
+    <div class="list-head">
+      <h2 class="list-title">
+        {{
+          listScope() === 'all'
+            ? 'All scenes'
+            : listScope() === 'unlinked'
+              ? 'Not linked to StashDB'
+              : 'Not matched'
+        }}
+        @if (listTotal() !== null) {
+          <span class="muted">· {{ listTotal() }}</span>
+        }
+      </h2>
+      @if (scenes().length > 1) {
+        <button type="button" class="btn" [disabled]="lookingUpPage()" (click)="lookupPage()">
+          <i class="pi pi-search" aria-hidden="true"></i>
+          {{ lookingUpPage() ? 'Looking up…' : 'Find matches for these' }}
+        </button>
+      }
+    </div>
+
+    <div class="list-filters" role="search">
+      <label class="list-search">
+        <i class="pi pi-search" aria-hidden="true"></i>
+        <input
+          type="search"
+          placeholder="Search title, file or folder"
+          aria-label="Search scenes"
+          [value]="listQuery()"
+          (input)="search($any($event.target).value)"
+        />
+      </label>
+      <label class="list-select">
+        <span>Show</span>
+        <select [value]="listScope()" (change)="setScope($any($event.target).value)">
+          <option value="unmatched">Not matched</option>
+          <option value="unlinked">Not linked to StashDB</option>
+          <option value="all">All scenes</option>
+        </select>
+      </label>
+      <label class="list-select">
+        <span>Sort</span>
+        <select [value]="listSort()" (change)="setSort($any($event.target).value)">
+          <option value="added-desc">Newest added</option>
+          <option value="added-asc">Oldest added</option>
+          <option value="title">Title</option>
+          <option value="path">File name</option>
+          <option value="date">Release date</option>
+        </select>
+      </label>
+    </div>
+
+    @if (!loadingScenes() && listTotal() === 0) {
+      <div class="empty">
+        <i class="pi pi-check-circle" aria-hidden="true"></i>
+        <p>{{ filtered() ? 'No scenes match.' : 'Every scene is matched.' }}</p>
+      </div>
+    }
+
+    @if (scenes().length > 0) {
+      <div class="select-row">
+        <button
+          type="button"
+          class="link"
+          [attr.aria-pressed]="selecting()"
+          (click)="selecting() ? stopSelecting() : startSelecting()"
+        >
+          {{ selecting() ? 'Done picking' : 'Pick scenes' }}
+        </button>
+      </div>
+    }
+
+    <ul class="scenes">
+      @for (scene of scenes(); track scene.id) {
+        <li
+          class="scene panel"
+          [class.compact]="!matchState(scene.id)"
+          [class.picked]="selecting() && isPicked(scene.id)"
+        >
+          @if (selecting()) {
+            <button
+              type="button"
+              class="pick-overlay"
+              [attr.aria-pressed]="isPicked(scene.id)"
+              [attr.aria-label]="(isPicked(scene.id) ? 'Unselect ' : 'Select ') + scene.fileName"
+              (click)="togglePick(scene.id)"
+            >
+              <i
+                class="pi"
+                [class.pi-check-circle]="isPicked(scene.id)"
+                [class.pi-circle]="!isPicked(scene.id)"
+                aria-hidden="true"
+              ></i>
+            </button>
+          }
+          <div class="scene-top">
+            <a
+              class="thumb"
+              [routerLink]="['/library/scene', scene.id]"
+              [queryParams]="{ returnTo: currentUrl() }"
+              [attr.aria-label]="'Open ' + scene.fileName"
+            >
+              @if (scene.imageUrl) {
+                <img [src]="scene.imageUrl" alt="" loading="lazy" />
+              } @else {
+                <i class="pi pi-video" aria-hidden="true"></i>
+              }
+            </a>
+            <div class="scene-copy">
+              <p class="file">{{ scene.fileName }}</p>
+              @if (scene.folder) {
+                <p class="muted folder" [title]="scene.folder">
+                  <i class="pi pi-folder" aria-hidden="true"></i
+                  ><span class="folder-path"
+                    ><span dir="ltr">{{ scene.folder }}</span></span
+                  >
+                </p>
+              }
+              <p class="muted meta">
+                @if (duration(scene.duration); as length) {
+                  <span>{{ length }}</span>
+                }
+                @if (scene.resolution) {
+                  <span>{{ scene.resolution }}</span>
+                }
+                @if (size(scene.size); as fileSize) {
+                  <span>{{ fileSize }}</span>
+                }
+              </p>
+            </div>
+          </div>
+
+          @if (matchState(scene.id); as state) {
+            @if (state.loading) {
+              <p class="muted looking" role="status">
+                <span class="spinner" aria-hidden="true"></span> Looking on StashDB…
+              </p>
+            } @else if (state.error) {
+              <div class="notice error small-notice" role="alert">
+                <i class="pi pi-exclamation-circle" aria-hidden="true"></i
+                ><span>{{ state.error }}</span>
+              </div>
+            } @else if (state.result; as result) {
+              @if (result.candidates.length === 0) {
+                <p class="muted none">
+                  No matches{{ result.searchedFor ? ' for “' + result.searchedFor + '”' : '' }}. Try
+                  your own words below.
+                </p>
+              } @else {
+                <ul class="candidates" [attr.aria-label]="'Possible matches for ' + scene.fileName">
+                  @for (candidate of result.candidates; track candidate.id) {
+                    <li class="candidate" [class.top]="$first">
+                      <div class="candidate-art">
+                        @if (candidate.imageUrl) {
+                          <img
+                            [src]="candidate.imageUrl"
+                            alt=""
+                            loading="lazy"
+                            referrerpolicy="no-referrer"
+                          />
+                        }
+                      </div>
+                      <div class="candidate-copy">
+                        <span class="badge-row">
+                          <span class="badge" [attr.data-confidence]="candidate.confidence">{{
+                            confidenceLabel[candidate.confidence]
+                          }}</span>
+                          <span class="source-chip">{{ candidate.source }}</span>
+                        </span>
+                        <strong class="candidate-title">{{ candidate.title ?? 'Untitled' }}</strong>
+                        <span class="muted small">
+                          {{ candidate.studio ?? 'No studio' }}
+                          @if (candidate.date) {
+                            · {{ candidate.date }}
+                          }
+                          @if (duration(candidate.duration); as length) {
+                            · {{ length }}
+                          }
+                        </span>
+                        @if (candidate.performers.length) {
+                          <span class="muted small performers">{{
+                            candidate.performers.join(', ')
+                          }}</span>
+                        }
+                        @if (candidate.reasons.length || lengthDiff(scene, candidate)) {
+                          <span class="reasons">
+                            @for (reason of candidate.reasons; track reason) {
+                              <span class="reason" [class.bad]="reason === 'Different length'">{{
+                                reason
+                              }}</span>
+                            }
+                            @if (lengthDiff(scene, candidate); as diff) {
+                              <span class="reason faint">{{ diff }}</span>
+                            }
+                          </span>
+                        }
+                      </div>
+                      <button
+                        type="button"
+                        class="btn small"
+                        [class.primary]="$first && candidate.confidence !== 'weak'"
+                        [disabled]="state.applying !== null"
+                        (click)="apply(scene, candidate)"
+                        [attr.aria-label]="'Use ' + (candidate.title ?? 'this match')"
+                      >
+                        @if (state.applying === candidate.id) {
+                          <span class="spinner" aria-hidden="true"></span>
+                        } @else {
+                          <i class="pi pi-check" aria-hidden="true"></i>
+                        }
+                        <span class="label">This one</span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+              <form
+                class="own-search"
+                (submit)="$event.preventDefault(); searchOwn(scene, ownQuery.value)"
+              >
+                <label class="sr-only" [attr.for]="'q-' + scene.id"
+                  >Search all sources yourself</label
+                >
+                <input
+                  #ownQuery
+                  [id]="'q-' + scene.id"
+                  type="search"
+                  enterkeyhint="search"
+                  autocomplete="off"
+                  placeholder="Search all sources yourself"
+                  [value]="state.query"
+                />
+                <button type="submit" class="btn small">Search</button>
+              </form>
+              @if (settings()?.useStashScrapers && settings()?.scrapers?.length) {
+                <button
+                  type="button"
+                  class="link scrape-link"
+                  [disabled]="isScraping(scene.id)"
+                  (click)="tryScrapers(scene)"
+                >
+                  @if (isScraping(scene.id)) {
+                    <span class="spinner" aria-hidden="true"></span> Asking Stash’s scrapers… (up to
+                    a few minutes)
+                  } @else {
+                    <i class="pi pi-code" aria-hidden="true"></i> Try Stash’s scrapers
+                  }
+                </button>
+              }
+            }
+          } @else {
+            <div class="scene-actions">
+              <button type="button" class="btn small primary" (click)="lookup(scene)">
+                <i class="pi pi-search" aria-hidden="true"></i><span class="label">Find match</span>
+              </button>
+            </div>
+          }
+        </li>
+      }
+    </ul>
+
+    @if (loadingScenes()) {
+      <p class="muted loading" role="status">
+        <span class="spinner" aria-hidden="true"></span> Loading…
+      </p>
+    } @else if (hasMore()) {
+      <div class="more">
+        <button type="button" class="btn" (click)="loadMore()">Show more</button>
+      </div>
+    }
+  } @else if (tab() === 'settings') {
+    <!-- ================= SETTINGS ================= -->
+    @if (settings(); as settings) {
+      <section class="card panel">
+        <div class="card-head">
+          <span class="card-icon" aria-hidden="true"><i class="pi pi-sparkles"></i></span>
+          <div class="card-copy">
+            <h2>Matching</h2>
+            <p class="muted">When Stashboard looks for matches, and what happens to the rest.</p>
+          </div>
+        </div>
+        <div class="switch-row">
+          <span class="row-copy">
+            <strong>Every night</strong>
+            <small
+              >Looks again at 4 AM, as StashDB keeps adding scenes. What it finds waits for you
+              here.</small
+            >
+          </span>
+          <button
+            type="button"
+            class="switch"
+            [class.on]="settings.autoMatchNightly"
+            aria-label="Every night"
+            role="switch"
+            [attr.aria-checked]="settings.autoMatchNightly"
+            [disabled]="saving() !== null"
+            (click)="toggle('autoMatchNightly')"
+          ></button>
+        </div>
+        <div class="switch-row">
+          <span class="row-copy">
+            <strong>Move what’s left to “Unmatched”</strong>
+            <small
+              >After Match all, files nothing could match go into an Unmatched folder in your
+              library. Stash moves them itself, so scenes, plays and markers stay. Undo puts them
+              back.</small
+            >
+          </span>
+          <button
+            type="button"
+            class="switch"
+            [class.on]="settings.moveUnmatched"
+            aria-label="Move what’s left to “Unmatched”"
+            role="switch"
+            [attr.aria-checked]="settings.moveUnmatched"
+            [disabled]="saving() !== null"
+            (click)="toggle('moveUnmatched')"
+          ></button>
+        </div>
+      </section>
+    }
+
+    @if (settings(); as settings) {
+      <section class="card panel sources">
+        <div class="card-head">
+          <span class="card-icon" aria-hidden="true"><i class="pi pi-sitemap"></i></span>
+          <div class="card-copy">
+            <h2>Where matches come from</h2>
+            <p class="muted">
+              Each scene is checked in this order. Every stash-box you add in Stash shows up here on
+              its own.
+            </p>
+          </div>
+        </div>
+        <ol class="source-list">
+          @for (source of settings.sources; track source.name; let i = $index) {
+            <li>
+              <span class="source-num">{{ i + 1 }}</span>
+              <i class="pi" [class]="'pi ' + sourceIcon(source.kind)" aria-hidden="true"></i>
+              <span class="source-name">{{ source.name }}</span>
+              <span class="muted small">{{
+                source.kind === 'catalog' ? 'Main catalog' : 'From Stash'
+              }}</span>
+            </li>
+          } @empty {
+            <li class="muted small">No sources yet. Set up StashDB in Settings → Integrations.</li>
+          }
+        </ol>
+
+        @if (!settings.hasTpdbKey && !hasTpdbSource(settings)) {
+          @if (tpdbEditing()) {
+            <form class="own-search" (submit)="$event.preventDefault(); saveTpdbKey(tpdbKey.value)">
+              <label class="sr-only" for="tpdb-key">ThePornDB API key</label>
+              <input
+                #tpdbKey
+                id="tpdb-key"
+                type="password"
+                autocomplete="off"
+                placeholder="ThePornDB API key"
+              />
+              <button type="submit" class="btn small primary" [disabled]="saving() !== null">
+                Add
+              </button>
+            </form>
+            <p class="muted small">Find it on theporndb.net under your profile → API Tokens.</p>
+          } @else {
+            <button type="button" class="link" (click)="tpdbEditing.set(true)">
+              + Add ThePornDB
+            </button>
+          }
+        } @else if (settings.hasTpdbKey) {
+          <button
+            type="button"
+            class="link danger-link"
+            [disabled]="saving() !== null"
+            (click)="saveTpdbKey('')"
+          >
+            Remove ThePornDB key
+          </button>
+        }
+
+        <div class="switch-row">
+          <span class="row-copy">
+            <strong>Offer Stash’s scrapers</strong>
+            <small
+              >Adds “Try Stash’s scrapers” to scenes nothing else found. Stash saves what its
+              scrapers return straight away, so it runs one scene at a time, only when you
+              ask.</small
+            >
+          </span>
+          <button
+            type="button"
+            class="switch"
+            [class.on]="settings.useStashScrapers"
+            aria-label="Use Stash’s scrapers too"
+            role="switch"
+            [attr.aria-checked]="settings.useStashScrapers"
+            [disabled]="saving() !== null"
+            (click)="toggle('useStashScrapers')"
+          ></button>
+        </div>
+        @if (settings.useStashScrapers) {
+          <p class="muted small scraper-names">
+            {{
+              settings.scrapers.length
+                ? 'Scrapers that can read a file: ' + settings.scrapers.join(', ')
+                : 'Stash has no scrapers that can read a file. Add some in Stash under Settings → Metadata Providers.'
+            }}
+          </p>
+        }
+      </section>
+    }
+
+    @if (settings(); as settings) {
+      <section class="card panel whisparr-card">
+        <div class="card-head">
+          <span class="card-icon" aria-hidden="true"><i class="pi pi-download"></i></span>
+          <div class="card-copy">
+            <h2>Send to Whisparr</h2>
+            <p class="muted">
+              Matched scenes Whisparr shows as missing are imported into Whisparr, so they count as
+              downloaded. Whisparr then names and keeps the file.
+            </p>
+          </div>
+        </div>
+
+        @if (!settings.whisparrAvailable) {
+          <p class="muted small">Set up Whisparr in Settings → Integrations to use this.</p>
+        } @else {
+          <div class="switch-row">
+            <span class="row-copy">
+              <strong>Send matches to Whisparr</strong>
+              <small
+                >Right after a scene is matched to {{ settings.sources[0]?.name ?? 'StashDB' }}.
+                Scenes Whisparr already has are left alone.</small
+              >
+            </span>
+            <button
+              type="button"
+              class="switch"
+              [class.on]="settings.sendToWhisparr"
+              aria-label="Send matches to Whisparr"
+              role="switch"
+              [attr.aria-checked]="settings.sendToWhisparr"
+              [disabled]="saving() !== null"
+              (click)="toggle('sendToWhisparr')"
+            ></button>
+          </div>
+
+          @if (settings.missingInWhisparr > 0) {
+            <div class="missing-row">
+              <span
+                ><strong>{{ settings.missingInWhisparr }}</strong>
+                {{ settings.missingInWhisparr === 1 ? 'scene is' : 'scenes are' }} in Stash but
+                missing in Whisparr.</span
+              >
+              <button
+                type="button"
+                class="btn small primary"
+                [disabled]="run()?.running"
+                (click)="sendAllToWhisparr()"
+              >
+                Send them now
+              </button>
+            </div>
+          }
+
+          <div class="mapping">
+            <p class="field-title">Your media folder</p>
+            <p class="mapping-summary small">
+              @if (settings.whisparrPathFrom || settings.whisparrPathTo) {
+                <span class="muted">Stash</span> <code>{{ settings.whisparrPathFrom || '/' }}</code>
+                <span class="muted" aria-label="maps to">→</span>
+                <span class="muted">Whisparr</span>
+                <code>{{ settings.whisparrPathTo || '/' }}</code>
+              } @else {
+                <span class="muted">Not set</span>
+              }
+            </p>
+            <a
+              class="mapping-link small"
+              routerLink="/settings/integrations"
+              fragment="whisparr-folder-mapping"
+              >Change in Settings → Integrations</a
+            >
+          </div>
+
+          <div class="mode">
+            <p class="field-title">When Whisparr imports</p>
+            <div class="segmented compact" role="radiogroup" aria-label="Import mode">
+              <button
+                type="button"
+                role="radio"
+                [attr.aria-checked]="settings.whisparrImportMode === 'move'"
+                [class.active]="settings.whisparrImportMode === 'move'"
+                (click)="setImportMode('move')"
+              >
+                Move the file
+              </button>
+              <button
+                type="button"
+                role="radio"
+                [attr.aria-checked]="settings.whisparrImportMode === 'copy'"
+                [class.active]="settings.whisparrImportMode === 'copy'"
+                (click)="setImportMode('copy')"
+              >
+                Hardlink / copy
+              </button>
+            </div>
+            <p class="muted small">
+              {{
+                settings.whisparrImportMode === 'move'
+                  ? 'Recommended. Stash follows the file to its new place on its next scan, keeping the scene, plays and markers.'
+                  : 'Keeps the original file too. If Whisparr’s folder is inside your Stash library, Stash will see two copies.'
+              }}
+            </p>
+          </div>
+
+          <div class="switch-row">
+            <span class="row-copy">
+              <strong>Also add scenes Whisparr doesn’t have</strong>
+              <small
+                >Adds the matched scene to Whisparr (no search) and imports your file into
+                it.</small
+              >
+            </span>
+            <button
+              type="button"
+              class="switch"
+              [class.on]="settings.addToWhisparr"
+              aria-label="Also add scenes Whisparr doesn’t have"
+              role="switch"
+              [attr.aria-checked]="settings.addToWhisparr"
+              [disabled]="saving() !== null"
+              (click)="toggle('addToWhisparr')"
+            ></button>
+          </div>
+        }
+      </section>
+    }
+  } @else {
+    <!-- ================= RENAME ================= -->
+    <section class="card panel">
+      <div class="card-head">
+        <span class="card-icon" aria-hidden="true"><i class="pi pi-folder-open"></i></span>
+        <div class="card-copy">
+          <h2>Naming pattern</h2>
+          <p class="muted">
+            Files stay in the same library folder and move into the folders in your pattern. The
+            file type is kept. Only matched scenes are renamed.
+          </p>
+        </div>
+      </div>
+
+      @if (settings(); as settings) {
+        @if (settings.libraryRoots.length > 0) {
+          <label class="root-field">
+            <span class="field-title">Put files in</span>
+            <select
+              [value]="settings.renameRoot"
+              [disabled]="saving() !== null"
+              (change)="setRenameRoot($any($event.target).value)"
+            >
+              <option value="" [selected]="!settings.renameRoot">
+                The library folder each file is already in
+              </option>
+              @for (root of settings.libraryRoots; track root) {
+                <option [value]="root" [selected]="settings.renameRoot === root">{{ root }}</option>
+              }
+            </select>
+            <small class="muted"
+              >These are Stash’s library folders. To use another folder, add it in Stash under
+              Settings → Library first. You can also start the pattern with a subfolder, like
+              <code>scenes/&#123;studio&#125;/…</code>.</small
+            >
+          </label>
+        }
+      }
+
+      <div class="pattern-fields">
+        <label class="field" for="rename-folders">
+          <span class="field-title">Folder format</span>
+          <input
+            #folderInput
+            id="rename-folders"
+            type="text"
+            spellcheck="false"
+            autocapitalize="off"
+            autocomplete="off"
+            placeholder="No folders"
+            [value]="folderPart()"
+            (focus)="setFolderFocus()"
+            (input)="setFolderPart(folderInput.value)"
+            (keydown.enter)="loadPreview()"
+          />
+          <small class="muted">Like Whisparr’s Scene Folder Format. Use / between folders.</small>
+        </label>
+        <label class="field" for="rename-file">
+          <span class="field-title">File format</span>
+          <input
+            #fileInput
+            id="rename-file"
+            type="text"
+            spellcheck="false"
+            autocapitalize="off"
+            autocomplete="off"
+            [value]="filePart()"
+            (focus)="setFileFocus()"
+            (input)="setFilePart(fileInput.value)"
+            (keydown.enter)="loadPreview()"
+          />
+          <small class="muted">Like Whisparr’s Standard Scene Format. The file type is kept.</small>
+        </label>
+      </div>
+      <div class="tokens" aria-label="Add a placeholder">
+        @for (token of settings()?.tokens ?? []; track token) {
+          <button
+            type="button"
+            class="token"
+            [title]="tokenHelp[token] || token"
+            (click)="insertToken(token)"
+          >
+            {{ '{' + token + '}' }}
+          </button>
+        }
+      </div>
+      <div class="presets">
+        <span class="muted small">Try:</span>
+        <button type="button" class="link" (click)="usePreset('{studio}/{date} - {title}')">
+          Studio / date - title
+        </button>
+        <button
+          type="button"
+          class="link"
+          (click)="usePreset('{studio}/{year}/{studio} - {date} - {title}')"
+        >
+          Studio / year
+        </button>
+        <button type="button" class="link" (click)="usePreset('{performers}/{title} ({year})')">
+          By performer
+        </button>
+        <button
+          type="button"
+          class="link"
+          [disabled]="loadingWhisparrNaming()"
+          (click)="useWhisparrNaming()"
+        >
+          {{ loadingWhisparrNaming() ? 'Reading Whisparr…' : 'Use Whisparr’s naming' }}
+        </button>
+      </div>
+      @if (example(); as sample) {
+        <p class="example">
+          <span class="muted small">Example</span><code>{{ sample }}</code>
+        </p>
+      }
+      <div class="card-actions">
+        <button type="button" class="btn" [disabled]="previewing()" (click)="loadPreview()">
+          <i class="pi pi-eye" aria-hidden="true"></i> {{ previewing() ? 'Checking…' : 'Preview' }}
+        </button>
+        @if (patternDirty()) {
+          <button type="button" class="btn" [disabled]="saving() !== null" (click)="savePattern()">
+            Save pattern
+          </button>
+        }
+      </div>
+
+      @if (settings(); as settings) {
+        <div class="switches">
+          <div class="switch-row">
+            <span class="row-copy">
+              <strong>Rename automatically</strong>
+              <small
+                >As soon as a scene is matched, here or when a new download is identified.</small
+              >
+            </span>
+            <button
+              type="button"
+              class="switch"
+              [class.on]="settings.renameAfterMatch"
+              aria-label="Rename automatically"
+              role="switch"
+              [attr.aria-checked]="settings.renameAfterMatch"
+              [disabled]="saving() !== null"
+              (click)="toggle('renameAfterMatch')"
+            ></button>
+          </div>
+          <div class="switch-row">
+            <span class="row-copy">
+              <strong>Leave Whisparr’s files alone</strong>
+              <small
+                >Whisparr keeps track of its downloads and names them itself. Moving them can
+                confuse it.</small
+              >
+            </span>
+            <button
+              type="button"
+              class="switch"
+              [class.on]="settings.skipWhisparrFiles"
+              aria-label="Leave Whisparr’s files alone"
+              role="switch"
+              [attr.aria-checked]="settings.skipWhisparrFiles"
+              [disabled]="saving() !== null"
+              (click)="toggle('skipWhisparrFiles')"
+            ></button>
+          </div>
+        </div>
+      }
+    </section>
+
+    @if (previewError(); as message) {
+      <div class="notice error" role="alert">
+        <i class="pi pi-exclamation-circle" aria-hidden="true"></i><span>{{ message }}</span>
+      </div>
+    }
+
+    @if (previewing() && !preview()) {
+      <p class="muted loading" role="status">
+        <span class="spinner" aria-hidden="true"></span> Working out new names…
+      </p>
+    }
+
+    @if (preview(); as preview) {
+      <div class="summary" [class.dim]="previewing()">
+        <div class="stat">
+          <strong>{{ preview.counts.ready }}</strong
+          ><span>to rename</span>
+        </div>
+        <div class="stat">
+          <strong>{{ preview.counts.same }}</strong
+          ><span>already tidy</span>
+        </div>
+        <div class="stat">
+          <strong>{{ preview.scanned - preview.counts.ready - preview.counts.same }}</strong
+          ><span>skipped</span>
+        </div>
+      </div>
+      @if (settings(); as settings) {
+        <section class="card panel folders">
+          <div class="card-head">
+            <span class="card-icon" aria-hidden="true"><i class="pi pi-folder"></i></span>
+            <div class="card-copy">
+              <h2>Empty folders</h2>
+              @if (settings.folderAccess) {
+                <p class="muted">
+                  @if (empty(); as found) {
+                    {{
+                      found.count === 0
+                        ? 'None left in your library.'
+                        : found.count +
+                          (found.count === 1 ? ' folder' : ' folders') +
+                          ' with no video left in them.'
+                    }}
+                  } @else {
+                    Checking…
+                  }
+                  @if (empty()?.error; as problem) {
+                    <strong>{{ problem }}</strong>
+                  }
+                  @if (empty()?.galleries) {
+                    {{ empty()?.galleries }} more {{ empty()?.galleries === 1 ? 'is' : 'are' }} kept
+                    because Stash has a gallery there.
+                  }
+                  Removes folders that only hold leftovers like .nzb, .txt and .nfo files, pictures,
+                  artwork or subtitles. Folders with a video, an archive or a large file stay, as do
+                  galleries you added to Stash and your library and Whisparr’s root folders.
+                </p>
+              } @else {
+                <p class="muted">
+                  To remove empty folders, Stashboard needs to see your media too. On Unraid: Docker
+                  → Stashboard → Edit →
+                  <strong>Add another Path</strong>, container path <code>/data</code>, host path
+                  <code>/mnt/user/data</code> (the same as Stash), then Apply.
+                </p>
+              }
+            </div>
+          </div>
+          @if (settings.folderAccess) {
+            @if (empty(); as found) {
+              @if (found.count > 0) {
+                <ul class="examples">
+                  @for (folder of found.folders.slice(0, 5); track folder) {
+                    <li>
+                      <code>{{ folder }}</code>
+                    </li>
+                  }
+                </ul>
+                <div class="card-actions">
+                  <button
+                    type="button"
+                    class="btn primary"
+                    [class.confirm]="confirmClean()"
+                    [disabled]="cleaning() || run()?.running"
+                    (click)="cleanFolders()"
+                  >
+                    <i class="pi pi-trash" aria-hidden="true"></i>
+                    {{
+                      cleaning()
+                        ? 'Cleaning…'
+                        : confirmClean()
+                          ? 'Tap again to remove ' + found.count
+                          : 'Clean up ' + found.count + (found.count === 1 ? ' folder' : ' folders')
+                    }}
+                  </button>
+                </div>
+              }
+            }
+            <div class="switch-row">
+              <span class="row-copy">
+                <strong>Clean up after every move</strong>
+                <small
+                  >Removes the folders a rename, Unmatched move or Whisparr move leaves without a
+                  video.</small
+                >
+              </span>
+              <button
+                type="button"
+                class="switch"
+                [class.on]="settings.cleanEmptyFolders"
+                aria-label="Clean up after every move"
+                role="switch"
+                [attr.aria-checked]="settings.cleanEmptyFolders"
+                [disabled]="saving() !== null"
+                (click)="toggle('cleanEmptyFolders')"
+              ></button>
+            </div>
+          }
+        </section>
+      }
+
+      @if (settings(); as settings) {
+        @if (settings.whisparrAvailable) {
+          <section class="card panel sync">
+            <div class="card-head">
+              <span class="card-icon" aria-hidden="true"><i class="pi pi-sync"></i></span>
+              <div class="card-copy">
+                <h2>Sync with Whisparr</h2>
+                <p class="muted">
+                  Has Stash rescan Whisparr’s folders, removes extra copies of scenes and links
+                  scenes waiting for import, all in one go. It also runs after each Whisparr import
+                  (Settings → Automation).
+                </p>
+                @if (settings.whisparrLeavesCopies; as copies) {
+                  <p class="note">
+                    {{
+                      copies.by === 'whisparr'
+                        ? 'Whisparr imports downloads by ' +
+                          (copies.hardlinks === false ? 'copying' : 'hardlinking') +
+                          ' them, so the original stays behind.'
+                        : 'Stashboard hands files to Whisparr with “Hardlink / copy”, so the original stays behind.'
+                    }}
+                    Syncing tidies up the extra copies this leaves in Stash.
+                  </p>
+                }
+              </div>
+            </div>
+            <div class="card-actions">
+              <button
+                type="button"
+                class="btn primary"
+                [disabled]="run()?.running"
+                (click)="syncWithWhisparr()"
+              >
+                <i
+                  class="pi pi-sync"
+                  [class.pi-spin]="run()?.running && run()?.kind === 'sync'"
+                  aria-hidden="true"
+                ></i>
+                {{ run()?.running && run()?.kind === 'sync' ? 'Syncing…' : 'Sync now' }}
+              </button>
+            </div>
+          </section>
+        }
+      }
+
+      @if (repair(); as fix) {
+        @if (fix.count > 0 || fix.folderFormat) {
+          <section class="card panel repair">
+            <div class="card-head">
+              <span class="card-icon" [class.danger-icon]="fix.count > 0" aria-hidden="true"
+                ><i class="pi pi-wrench"></i
+              ></span>
+              <div class="card-copy">
+                <h2>
+                  {{
+                    fix.count > 0
+                      ? fix.count +
+                        ' Whisparr ' +
+                        (fix.count === 1 ? 'scene is' : 'scenes are') +
+                        ' in the wrong folder'
+                      : 'Whisparr’s folders are right'
+                  }}
+                </h2>
+                <p class="muted">
+                  @if (fix.usesWhisparrNaming) {
+                    Repair puts each one in its own folder from Whisparr’s Scene Folder Format,
+                    <code>{{ fix.folderFormat }}</code
+                    >.
+                  } @else {
+                    Repair puts each one in its own folder from your pattern, like
+                    <code>{{ fix.destination }}/Studio/2020-01-02 - Title</code>.
+                  }
+                  Whisparr moves downloaded scenes with their files; missing ones just get the new
+                  path. Then Whisparr rescans, Stash follows the moved files, and any still missing
+                  are re-imported from where Stash has the file.
+                </p>
+              </div>
+            </div>
+            @if (fix.scenes; as repairScenes) {
+              @if (repairScenes.length) {
+                <button
+                  type="button"
+                  class="link skipped-toggle"
+                  [attr.aria-expanded]="showRepairScenes()"
+                  (click)="showRepairScenes.set(!showRepairScenes())"
+                >
+                  {{ showRepairScenes() ? 'Hide' : 'Show' }} the
+                  {{ fix.count === 1 ? 'scene' : fix.count + ' scenes' }}
+                </button>
+                @if (showRepairScenes()) {
+                  <ul
+                    class="changes panel repair-scenes"
+                    aria-label="Scenes the repair would change"
+                  >
+                    @for (scene of repairScenes; track $index) {
+                      <li class="change">
+                        <p class="change-title">{{ scene.title }}</p>
+                        @if (scene.from) {
+                          <!-- Struck through only when it moves somewhere else. -->
+                          <p class="path" [class.from]="!!scene.to">
+                            <span class="sr-only">{{ scene.to ? 'From ' : 'In ' }}</span
+                            >{{ scene.from }}
+                          </p>
+                        }
+                        @if (scene.to) {
+                          <p class="to">
+                            <i class="pi pi-arrow-right" aria-hidden="true"></i>
+                            <span><span class="sr-only">To </span>{{ scene.to }}</span>
+                          </p>
+                        }
+                        <p class="muted small">{{ repairAction[scene.action] }}</p>
+                      </li>
+                    }
+                  </ul>
+                  @if (fix.count > repairScenes.length) {
+                    <p class="muted small center">
+                      And {{ fix.count - repairScenes.length }} more.
+                    </p>
+                  }
+                }
+              }
+            }
+            @if (fix.count > 0) {
+              <div class="card-actions">
+                <button
+                  type="button"
+                  class="btn primary"
+                  [disabled]="run()?.running"
+                  (click)="repairWhisparr()"
+                >
+                  <i class="pi pi-wrench" aria-hidden="true"></i> Repair Whisparr
+                </button>
+              </div>
+            }
+            @if (fix.rootFolder && fix.folderFormat) {
+              <p class="muted small">
+                So Whisparr puts new downloads in the same place: in Whisparr → Settings → Media
+                Management, set
+                <strong>Scene Folder Format</strong> to <code>{{ fix.folderFormat }}</code
+                >, and under Root Folders keep <code>{{ fix.rootFolder }}</code> (add it if it’s
+                missing). After the repair, remove the <code>{{ fix.destination }}</code> root
+                folder there; removing a root folder doesn’t touch any files.
+              </p>
+            }
+          </section>
+        }
+      }
+
+      @if (relocation(); as plan) {
+        @if (plan.count > 0) {
+          <section class="card panel relocate">
+            <div class="card-head">
+              <span class="card-icon" aria-hidden="true"><i class="pi pi-download"></i></span>
+              <div class="card-copy">
+                <h2>Whisparr’s files</h2>
+                <p class="muted">
+                  <strong>{{ plan.count }}</strong> downloaded
+                  {{ plan.count === 1 ? 'scene isn’t' : 'scenes aren’t' }} in
+                  {{ plan.count === 1 ? 'its' : 'their' }} folder in
+                  <code>{{ plan.destination }}</code> yet. Whisparr moves them itself, so it keeps
+                  tracking them, and Stash follows them.
+                </p>
+              </div>
+            </div>
+            @if (plan.examples.length) {
+              <ul class="examples">
+                @for (example of plan.examples; track example) {
+                  <li>
+                    <code>{{ example }}</code>
+                  </li>
+                }
+              </ul>
+            }
+            <div class="card-actions">
+              <button
+                type="button"
+                class="btn primary"
+                [class.confirm]="confirmRelocate()"
+                [disabled]="run()?.running"
+                (click)="relocateWhisparr()"
+              >
+                <i
+                  class="pi"
+                  [class.pi-exclamation-triangle]="confirmRelocate()"
+                  [class.pi-arrow-right]="!confirmRelocate()"
+                  aria-hidden="true"
+                ></i>
+                {{
+                  confirmRelocate() ? 'Tap again to move ' + plan.count : 'Have Whisparr move them'
+                }}
+              </button>
+            </div>
+          </section>
+        }
+      }
+
+      @if (skipBreakdown(preview).length > 0) {
+        <ul class="skip-reasons" aria-label="Why files were skipped">
+          @for (entry of skipBreakdown(preview); track entry.state) {
+            <li>
+              <strong>{{ entry.count }}</strong>
+              <span>{{ entry.label }}</span>
+              @if (entry.hint) {
+                <small class="muted">{{ entry.hint }}</small>
+              }
+              <button
+                type="button"
+                class="link skip-files-toggle"
+                [attr.aria-expanded]="openSkip() === entry.state"
+                (click)="openSkip.set(openSkip() === entry.state ? null : entry.state)"
+              >
+                {{ openSkip() === entry.state ? 'Hide the files' : 'Show the files' }}
+              </button>
+              @if (openSkip() === entry.state) {
+                <ul class="skip-files">
+                  @for (plan of skippedIn(preview, entry.state); track plan.sceneId + plan.from) {
+                    <li>
+                      <span class="skip-file-title">{{ plan.title }}</span>
+                      @if (plan.from) {
+                        <span class="muted small path"
+                          >{{ entry.state === 'gone' ? 'Stash lists it at' : 'File' }}:
+                          <code>{{ plan.from }}</code></span
+                        >
+                      }
+                      @if (plan.to && (entry.state === 'taken' || entry.state === 'copy')) {
+                        <span class="muted small path"
+                          >Already there: <code>{{ plan.to }}</code></span
+                        >
+                      }
+                      @if (plan.taken; as taken) {
+                        <span class="taken-note small" [attr.data-fix]="taken.fix">{{
+                          taken.note
+                        }}</span>
+                        @if (taken.fix !== 'none') {
+                          <button
+                            type="button"
+                            class="btn small taken-fix"
+                            [class.confirm]="confirmTaken() === plan.sceneId"
+                            [disabled]="fixingTaken() || run()?.running"
+                            (click)="fixTaken([plan.sceneId], taken.fix)"
+                          >
+                            {{
+                              taken.fix === 'scan'
+                                ? 'Scan that folder'
+                                : confirmTaken() === plan.sceneId
+                                  ? 'Tap again to delete this copy'
+                                  : 'Keep the named file, delete this copy'
+                            }}
+                          </button>
+                        }
+                      }
+                    </li>
+                  }
+                  @if (skippedIn(preview, entry.state).length < entry.count) {
+                    <li class="muted small">
+                      And {{ entry.count - skippedIn(preview, entry.state).length }} more.
+                    </li>
+                  }
+                </ul>
+              }
+              @if (entry.state === 'copy') {
+                <button
+                  type="button"
+                  class="btn small"
+                  [class.confirm]="confirmRemoveCopies()"
+                  [disabled]="removingCopies() || run()?.running || previewing()"
+                  (click)="removeExtraCopies()"
+                >
+                  {{
+                    removingCopies()
+                      ? 'Removing…'
+                      : confirmRemoveCopies()
+                        ? 'Tap again to delete ' + entry.count + ' files'
+                        : 'Remove ' +
+                          entry.count +
+                          ' extra ' +
+                          (entry.count === 1 ? 'copy' : 'copies')
+                  }}
+                </button>
+              }
+            </li>
+          }
+        </ul>
+      }
+
+      @if (preview.counts.ready > 0) {
+        <div class="list-head">
+          <h2 class="list-title">Changes</h2>
+          <button
+            type="button"
+            class="btn primary"
+            [class.confirm]="confirmRename()"
+            [disabled]="run()?.running || previewing() || previewOutdated()"
+            (click)="renameAll()"
+          >
+            <i
+              class="pi"
+              [class.pi-exclamation-triangle]="confirmRename()"
+              [class.pi-pencil]="!confirmRename()"
+              aria-hidden="true"
+            ></i>
+            {{
+              confirmRename()
+                ? 'Tap again to rename ' + preview.counts.ready
+                : 'Rename ' +
+                  preview.counts.ready +
+                  (preview.counts.ready === 1 ? ' file' : ' files')
+            }}
+          </button>
+        </div>
+        @if (previewOutdated()) {
+          <p class="muted outdated-note" role="status">
+            {{
+              previewQueued() || previewing()
+                ? 'Working out names for the new pattern…'
+                : 'You changed the pattern. Preview it again before renaming.'
+            }}
+          </p>
+        }
+        <ul class="changes panel">
+          @for (change of preview.changes; track change.sceneId) {
+            <li class="change">
+              <p class="change-title">{{ change.title }}</p>
+              <p class="from"><span class="sr-only">From </span>{{ fileName(change.from) }}</p>
+              <p class="to">
+                <i class="pi pi-arrow-right" aria-hidden="true"></i>
+                <span
+                  ><span class="sr-only">To </span>
+                  @if (folderOf(change).moved) {
+                    <span class="to-folder">{{ folderOf(change).to }}/</span>
+                  }
+                  @if (changeReasons().get(change.sceneId); as why) {
+                    @for (piece of why.name; track $index) {
+                      <span [class.added]="piece.added">{{ piece.text }}</span>
+                    }
+                  } @else {
+                    {{ fileName(change.to) }}
+                  }
+                </span>
+              </p>
+              @if (change.renamedBefore) {
+                <p class="notice small-notice renamed-before">
+                  <i class="pi pi-replay" aria-hidden="true"></i>
+                  <span
+                    >Renamed to this before, {{ when(change.renamedBefore) }}, and something gave it
+                    its old name back. If Whisparr manages this file, its own renaming is probably
+                    undoing this one: match the pattern to Whisparr’s naming, or turn on “Leave
+                    Whisparr’s files alone”.</span
+                  >
+                </p>
+              }
+              @if (changeReasons().get(change.sceneId); as why) {
+                <ul class="why" aria-label="Why it’s renamed">
+                  @for (reason of why.reasons; track reason) {
+                    <li>{{ reason }}</li>
+                  }
+                </ul>
+              }
+              <button
+                type="button"
+                class="link rename-one"
+                [disabled]="renamingOne() !== null || run()?.running || previewOutdated()"
+                (click)="renameOne(change.sceneId)"
+              >
+                {{ renamingOne() === change.sceneId ? 'Renaming…' : 'Rename this one' }}
+              </button>
+            </li>
+          }
+        </ul>
+        @if (preview.counts.ready > preview.changes.length) {
+          <p class="muted small center">
+            And {{ preview.counts.ready - preview.changes.length }} more.
+          </p>
+        }
+      } @else if (!previewing()) {
+        <div class="empty">
+          <i class="pi pi-check-circle" aria-hidden="true"></i>
+          <p>Every matched file already follows this pattern.</p>
+        </div>
+      }
+
+      @if (preview.skipped.length > 0) {
+        <button
+          type="button"
+          class="link skipped-toggle"
+          [attr.aria-expanded]="showSkipped()"
+          (click)="showSkipped.set(!showSkipped())"
+        >
+          {{ showSkipped() ? 'Hide' : 'Show' }} skipped files
+        </button>
+        @if (showSkipped()) {
+          <ul class="changes panel">
+            @for (plan of preview.skipped; track plan.sceneId) {
+              <li class="change">
+                <p class="change-title">{{ plan.title }}</p>
+                <p class="from">{{ fileName(plan.from) }}</p>
+                <p class="muted small">{{ skipReason[plan.state] }}</p>
+              </li>
+            }
+          </ul>
+        }
+      }
+    }
+  }
+</main>
+
+@if (selecting()) {
+  <app-selection-bar
+    [count]="picked().size"
+    [visible]="scenes().length"
+    [busy]="!!run()?.running"
+    (selectAll)="pickAll()"
+    (clear)="pickNone()"
+    (done)="stopSelecting()"
+  >
+    <button
+      type="button"
+      class="bar-button"
+      [disabled]="picked().size === 0 || run()?.running"
+      (click)="matchPicked()"
+    >
+      Match picked
+    </button>
+    <button
+      type="button"
+      class="bar-button danger"
+      [class.confirm]="confirmMovePicked()"
+      [disabled]="picked().size === 0 || run()?.running"
+      (click)="movePicked()"
+    >
+      {{ confirmMovePicked() ? 'Tap again to move' : 'Move to Unmatched' }}
+    </button>
+  </app-selection-bar>
+}

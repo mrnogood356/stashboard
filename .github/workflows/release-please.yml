@@ -1,0 +1,34 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    steps:
+      # Keeps a release pull request open with the next version and its
+      # changelog; merging it tags the release.
+      - name: Create or update the release
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # A tag pushed with the workflow's own token doesn't start other
+      # workflows, so ask for the release image explicitly.
+      - name: Publish the release image
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: gh workflow run ghcr-publish.yml --repo "${{ github.repository }}" --ref "$TAG"

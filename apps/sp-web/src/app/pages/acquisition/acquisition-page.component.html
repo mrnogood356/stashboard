@@ -1,0 +1,496 @@
+<main class="app-page-shell app-page-shell--wide">
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Acquisition</h1>
+      <p>Track requested scenes through Whisparr and into your Stash library.</p>
+    </div>
+    <button
+      type="button"
+      class="select-toggle"
+      [class.active]="selecting()"
+      [attr.aria-pressed]="selecting()"
+      (click)="selecting() ? stopSelecting() : startSelecting()"
+    >
+      <i class="pi pi-check-square" aria-hidden="true"></i>
+      <span>Select</span>
+    </button>
+  </header>
+
+  @if (pageAlert(); as alert) {
+    <section
+      class="page-alert app-page-alert"
+      data-testid="acquisition-degraded-state"
+      role="status"
+    >
+      <div class="page-alert-copy app-page-alert__copy">
+        <p class="eyebrow app-page-eyebrow">{{ alert.eyebrow }}</p>
+        <h2>{{ alert.title }}</h2>
+        <p>{{ alert.message }}</p>
+      </div>
+
+      <div class="page-alert-actions app-action-row">
+        <a class="primary-link small" [routerLink]="['/settings/integrations']">
+          Repair integrations
+        </a>
+        <a class="secondary-link small" [routerLink]="['/settings/indexing']">Open Indexing</a>
+        <a class="secondary-link small" [routerLink]="['/scenes']">Open Scenes</a>
+      </div>
+    </section>
+  }
+
+  <form
+    class="list-toolbar"
+    role="search"
+    aria-label="Find tracked scenes"
+    (submit)="$event.preventDefault(); submitSearch()"
+  >
+    <label class="toolbar-field toolbar-field--search app-control-field">
+      <span class="app-control-label">Search</span>
+      <input
+        class="app-control-input"
+        type="search"
+        inputmode="search"
+        name="q"
+        data-testid="acquisition-search"
+        placeholder="Title or studio"
+        autocomplete="off"
+        [value]="searchDraft()"
+        (input)="onSearchInput($any($event.target).value)"
+        (keydown.escape)="clearSearch()"
+      />
+    </label>
+
+    <label class="toolbar-field app-control-field">
+      <span class="app-control-label">Sort</span>
+      <select
+        class="app-control-input"
+        name="sort"
+        data-testid="acquisition-sort"
+        (change)="selectSort($any($event.target).value)"
+      >
+        @for (option of sortOptions; track option.value) {
+          <option [value]="option.value" [selected]="option.value === selectedSort()">
+            {{ option.label }}
+          </option>
+        }
+      </select>
+    </label>
+  </form>
+
+  @if (loading()) {
+    <div class="app-blocking-loader" role="status" aria-live="polite">
+      <p-progressspinner
+        styleClass="app-blocking-spinner"
+        strokeWidth="4"
+        [style]="{ width: '2.25rem', height: '2.25rem' }"
+      />
+      <p>Loading acquisition feed...</p>
+    </div>
+  } @else if (error()) {
+    <section class="state-shell app-state-block">
+      <p-message severity="error" styleClass="app-page-message">{{ error() }}</p-message>
+      <button type="button" class="secondary-action" (click)="retryInitialLoad()">Retry</button>
+    </section>
+  } @else {
+    <section class="summary-shell" aria-label="Acquisition summary">
+      @for (card of summaryCards(); track card.lifecycle) {
+        <button
+          type="button"
+          class="summary-card"
+          [class.is-active]="selectedLifecycle() === card.lifecycle"
+          [attr.data-tone]="card.tone"
+          [attr.data-testid]="'summary-card-' + card.lifecycle"
+          (click)="selectLifecycle(card.lifecycle)"
+        >
+          <span class="summary-card-label">{{ card.label }}</span>
+          <strong class="summary-card-count">{{ card.count }}</strong>
+          <p class="summary-card-copy">{{ card.description }}</p>
+        </button>
+      }
+    </section>
+
+    @if (!hasItems()) {
+      <section
+        class="state-shell empty-shell app-state-block"
+        data-testid="acquisition-empty-state"
+      >
+        <p class="eyebrow app-page-eyebrow">Pipeline Quiet</p>
+        <h2>{{ emptyStateTitle() }}</h2>
+        <p class="state-copy app-state-copy">{{ emptyStateMessage() }}</p>
+        @if (selectedLifecycle() === 'ANY' && !hasSearch()) {
+          <p class="state-copy app-state-copy">{{ indexingGuidance() }}</p>
+        }
+
+        <div class="state-actions app-action-row">
+          @if (hasSearch()) {
+            <button type="button" class="app-btn app-btn--primary" (click)="clearSearch()">
+              Clear search
+            </button>
+          }
+          @if (selectedLifecycle() !== 'ANY') {
+            <button type="button" class="app-btn" (click)="selectLifecycle('ANY')">
+              Show all tracked
+            </button>
+          }
+          <a class="app-btn app-btn--primary" [routerLink]="['/scenes']">Open Scenes</a>
+          <a class="app-btn" [routerLink]="['/settings/indexing']">Open Indexing</a>
+          <a class="app-btn" [routerLink]="['/library']">Open Library</a>
+          @if (pageAlert()) {
+            <a class="app-btn" [routerLink]="['/settings/integrations']"> Repair integrations </a>
+          }
+        </div>
+      </section>
+    } @else {
+      <section class="section-shell app-section-panel">
+        <div class="section-shell-head app-section-head">
+          <div class="app-section-head__copy">
+            <p class="eyebrow app-page-eyebrow">Operational View</p>
+            <h2>{{ sectionIntroTitle() }}</h2>
+            <p class="section-shell-copy app-section-copy">{{ pageSummaryText() }}</p>
+            <p class="section-shell-copy secondary app-section-copy app-section-copy--muted">
+              {{ sectionIntroCopy() }}
+            </p>
+          </div>
+
+          @if (selectedLifecycle() !== 'ANY') {
+            <button type="button" class="secondary-action" (click)="selectLifecycle('ANY')">
+              Show all tracked
+            </button>
+          }
+        </div>
+
+        @for (section of visibleSections(); track section.lifecycle) {
+          <section
+            class="lifecycle-section app-section-panel"
+            [attr.data-tone]="section.tone"
+            [attr.data-testid]="'lifecycle-section-' + section.lifecycle"
+          >
+            <div class="lifecycle-section-head app-section-head">
+              <div class="app-section-head__copy">
+                <div class="section-title-row">
+                  <h3>{{ section.label }}</h3>
+                  <span class="section-count">{{ sectionVisibleCountLabel(section) }}</span>
+                  @if (section.lifecycle === 'FAILED') {
+                    <span class="section-priority">Needs attention</span>
+                  }
+                </div>
+                <p>{{ section.description }}</p>
+              </div>
+
+              @if (section.lifecycle === 'IMPORT_PENDING') {
+                <button
+                  type="button"
+                  class="secondary-action compact"
+                  data-testid="check-waiting"
+                  [disabled]="checkingWaiting()"
+                  (click)="checkWaiting()"
+                >
+                  {{ checkingWaiting() ? 'Checking…' : 'Check these' }}
+                </button>
+              }
+
+              @if (
+                selectedLifecycle() === 'ANY' &&
+                section.lifecycle !== 'ANY' &&
+                section.totalCount > section.items.length
+              ) {
+                <button
+                  type="button"
+                  class="secondary-action compact"
+                  (click)="selectLifecycle(section.lifecycle)"
+                >
+                  View all {{ section.label.toLowerCase() }}
+                </button>
+              }
+            </div>
+
+            @if (section.lifecycle === 'IMPORT_PENDING') {
+              @if (waitingCheckError(); as checkError) {
+                <p class="waiting-check-summary" role="alert">{{ checkError }}</p>
+              }
+              @if (waitingCheck(); as check) {
+                <div class="waiting-check" data-testid="waiting-check" role="status">
+                  <p class="waiting-check-summary">
+                    Checked {{ check.checked }}.
+                    @if (check.fixed > 0) {
+                      {{ check.fixed }} {{ check.fixed === 1 ? 'is' : 'are' }} no longer waiting.
+                    }
+                    @if (check.left.length > 0) {
+                      Each card below says why it’s still waiting.
+                    } @else {
+                      Nothing is left waiting.
+                    }
+                  </p>
+                  @if (waitingNotShown().length > 0) {
+                    <ul class="waiting-check-list">
+                      @for (scene of waitingNotShown(); track scene.stashId) {
+                        <li>
+                          <a [routerLink]="['/scene', scene.stashId]">{{
+                            scene.title || scene.stashId
+                          }}</a>
+                          <span class="waiting-check-reason">{{ scene.reason }}</span>
+                          @if (scene.path) {
+                            <code class="waiting-check-path">{{ scene.path }}</code>
+                          }
+                          @if (scene.linkedTo) {
+                            <button
+                              type="button"
+                              class="secondary-action compact waiting-check-action"
+                              [attr.data-testid]="'same-scene-' + scene.stashId"
+                              [disabled]="checkingWaiting()"
+                              (click)="markSameScene(scene.stashId)"
+                            >
+                              It’s the same scene
+                            </button>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  }
+                </div>
+              }
+            }
+
+            <div class="acquisition-list">
+              @for (item of section.items; track item.id) {
+                <article
+                  class="acquisition-card"
+                  [class.picked]="selecting() && isPicked(item.id)"
+                  [attr.data-state]="item.status.state"
+                >
+                  @if (selecting()) {
+                    <button
+                      type="button"
+                      class="pick-overlay"
+                      [attr.aria-pressed]="isPicked(item.id)"
+                      [attr.aria-label]="(isPicked(item.id) ? 'Unselect ' : 'Select ') + item.title"
+                      (click)="togglePick(item.id)"
+                    >
+                      <i
+                        class="pi"
+                        [class.pi-check-circle]="isPicked(item.id)"
+                        [class.pi-circle]="!isPicked(item.id)"
+                        aria-hidden="true"
+                      ></i>
+                    </button>
+                  }
+                  <a
+                    class="card-art-link"
+                    [routerLink]="['/scene', item.id]"
+                    [queryParams]="{ returnTo: currentRouteUrl() }"
+                    [attr.aria-label]="'Open scene details for ' + item.title"
+                  >
+                    @if (item.cardImageUrl || item.imageUrl) {
+                      <img
+                        class="card-art"
+                        [src]="item.cardImageUrl ?? item.imageUrl"
+                        [alt]="item.title"
+                        loading="lazy"
+                      />
+                    } @else {
+                      <div class="card-art placeholder" aria-hidden="true"></div>
+                    }
+                  </a>
+
+                  <div class="card-body">
+                    <div class="card-status-row">
+                      <app-scene-status-badge class="row-status-badge" [status]="item.status" />
+
+                      @if (item.releaseDate) {
+                        <p class="release-date">
+                          <time [attr.datetime]="item.releaseDate">{{ item.releaseDate }}</time>
+                        </p>
+                      }
+
+                      @if (item.studio) {
+                        <span class="studio-pill">{{ item.studio }}</span>
+                      }
+                    </div>
+
+                    <div class="card-copy">
+                      <h4 class="card-title">
+                        <a
+                          [routerLink]="['/scene', item.id]"
+                          [queryParams]="{ returnTo: currentRouteUrl() }"
+                        >
+                          {{ item.title }}
+                        </a>
+                      </h4>
+
+                      @if (
+                        item.status.state === 'IMPORT_PENDING' && waitingReasons().get(item.id);
+                        as waiting
+                      ) {
+                        <p class="helper waiting-reason" [attr.data-kind]="waiting.kind">
+                          {{ waiting.reason }}
+                        </p>
+                        @if (waiting.path) {
+                          <code class="waiting-check-path">{{ waiting.path }}</code>
+                        }
+                        <div class="waiting-actions">
+                          @if (waiting.linkedTo) {
+                            <button
+                              type="button"
+                              class="secondary-action compact"
+                              [attr.data-testid]="'card-same-scene-' + item.id"
+                              [disabled]="checkingWaiting()"
+                              (click)="markSameScene(item.id)"
+                            >
+                              It’s the same scene
+                            </button>
+                          }
+                          @if (waiting.kind === 'not-linked') {
+                            <a class="secondary-action compact" routerLink="/tools/organize"
+                              >Match &amp; rename</a
+                            >
+                          }
+                          @if (waiting.kind === 'not-in-stash') {
+                            <a class="secondary-action compact" routerLink="/tools/jobs"
+                              >Scan in Stash jobs</a
+                            >
+                          }
+                        </div>
+                      } @else {
+                        <p class="helper" [class.helper-failed]="item.status.state === 'FAILED'">
+                          {{
+                            item.status.state === 'IMPORT_PENDING' && checkingWaiting()
+                              ? 'Checking why it’s still waiting…'
+                              : lifecycleHelperText(item)
+                          }}
+                        </p>
+                      }
+
+                      @if (operationalDetail(item); as detail) {
+                        <p class="detail" [class.detail-failed]="item.status.state === 'FAILED'">
+                          {{ detail }}
+                        </p>
+                      }
+
+                      @if (timelines().get(item.id); as timeline) {
+                        <button
+                          type="button"
+                          class="where-now"
+                          [attr.data-tone]="timelineTone(timeline)"
+                          [attr.aria-expanded]="isTimelineOpen(item.id)"
+                          [attr.data-testid]="'where-now-' + item.id"
+                          (click)="toggleTimeline(item.id)"
+                        >
+                          <span class="where-now-label">Where it is now</span>
+                          <span class="where-now-text">{{ timeline.now }}</span>
+                          <i
+                            [class]="
+                              isTimelineOpen(item.id) ? 'pi pi-chevron-up' : 'pi pi-chevron-down'
+                            "
+                            aria-hidden="true"
+                          ></i>
+                        </button>
+                        @if (isTimelineOpen(item.id)) {
+                          <app-scene-timeline
+                            class="card-timeline"
+                            [stashId]="item.id"
+                            [heading]="false"
+                            [lazy]="false"
+                            [whisparrUrl]="item.whisparrViewUrl"
+                            (details)="openScene(item)"
+                            (act)="onTimelineAction(item, $event)"
+                          />
+                        }
+                      }
+                    </div>
+
+                    <div class="card-actions app-action-row">
+                      <a
+                        class="primary-link small"
+                        [routerLink]="['/scene', item.id]"
+                        [queryParams]="{ returnTo: currentRouteUrl() }"
+                      >
+                        Scene details
+                      </a>
+
+                      @if (
+                        item.status.state === 'REQUESTED' ||
+                        item.status.state === 'DOWNLOADING' ||
+                        item.status.state === 'FAILED'
+                      ) {
+                        <button
+                          type="button"
+                          class="secondary-action small"
+                          [attr.data-testid]="'pick-release-' + item.id"
+                          (click)="pickRelease(item)"
+                        >
+                          {{
+                            item.status.state === 'FAILED'
+                              ? 'Pick another release'
+                              : 'Pick a release'
+                          }}
+                        </button>
+                      }
+
+                      @if (item.whisparrViewUrl) {
+                        <a
+                          class="secondary-link small"
+                          [href]="item.whisparrViewUrl"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label="View in Whisparr in a new tab"
+                          title="View in Whisparr in a new tab"
+                        >
+                          View in Whisparr
+                        </a>
+                      }
+                    </div>
+                  </div>
+                </article>
+              }
+            </div>
+          </section>
+        }
+      </section>
+
+      <div #loadMoreSentinel class="load-sentinel"></div>
+
+      @if (loadingMore()) {
+        <p class="loading-more-copy">Loading more acquisition scenes...</p>
+      }
+
+      @if (loadMoreError()) {
+        <div class="load-more-error">
+          <p-message severity="error" styleClass="app-inline-message">{{
+            loadMoreError()
+          }}</p-message>
+          <button type="button" class="secondary-action compact" (click)="retryLoadMore()">
+            Retry
+          </button>
+        </div>
+      }
+    }
+  }
+  @if (selecting()) {
+    <app-selection-bar
+      [count]="picked().size"
+      [visible]="items().length"
+      [busy]="bulkBusy()"
+      (selectAll)="pickAll()"
+      (clear)="pickNone()"
+      (done)="stopSelecting()"
+    >
+      <button
+        type="button"
+        class="bar-button"
+        [disabled]="bulkBusy() || picked().size === 0"
+        (click)="runBulk('search')"
+      >
+        Search again
+      </button>
+      <button
+        type="button"
+        class="bar-button danger"
+        [class.confirm]="confirmRemove()"
+        [disabled]="bulkBusy() || picked().size === 0"
+        (click)="runBulk('remove')"
+      >
+        {{ confirmRemove() ? 'Tap again to remove' : 'Remove from Whisparr' }}
+      </button>
+    </app-selection-bar>
+  }
+</main>

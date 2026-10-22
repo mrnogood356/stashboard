@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    env_file:
+      - ../../.env
+    ports:
+      - "5432:5432"
+    volumes:
+      - sp_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  app:
+    image: ghcr.io/mrnogood356/stashboard:${STASHBOARD_IMAGE_TAG:-latest}
+    env_file:
+      - ../../.env
+      - .env
+    environment:
+      DATABASE_URL: ""
+    volumes:
+      - sp_app_data:/var/lib/stashboard
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  sp_postgres_data:
+    name: sp_postgres_data
+  sp_app_data:
+    name: sp_app_data

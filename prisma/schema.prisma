@@ -1,0 +1,594 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Request {
+  id        String        @id @default(cuid())
+  stashId   String        @unique
+  status    RequestStatus @default(REQUESTED)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model AdminUser {
+  id                 String           @id @default(cuid())
+  singletonKey       Int              @unique @default(1)
+  username           String
+  normalizedUsername String           @unique
+  passwordHash       String
+  sessionVersion     Int              @default(1)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  sessions           AdminSession[]
+  appLock            AppLock?
+  appLockPasskeys    AppLockPasskey[]
+}
+
+model AdminSession {
+  id             String    @id @default(cuid())
+  userId         String
+  sessionVersion Int
+  expiresAt      DateTime
+  lastSeenAt     DateTime  @default(now())
+  /// Set while App Lock is engaged for this device; cleared by PIN or Face ID.
+  lockedAt       DateTime?
+  /// Last request from this device, for App Lock's idle timeout.
+  lastActiveAt   DateTime?
+  /// The app installed on a phone's home screen. App Lock only applies there.
+  phoneApp       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  user           AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+/// A StashDB scene that is the same as another one: Whisparr downloaded it
+/// under stashId, and Stash has the file linked to aliasOf (StashDB merged
+/// the two, or you said they're the same). Stash allows one StashDB link per
+/// scene, so Stashboard keeps this one itself.
+model SceneStashAlias {
+  stashId   String   @id
+  aliasOf   String
+  createdAt DateTime @default(now())
+
+  @@index([aliasOf])
+}
+
+model SceneIndex {
+  stashId                String                 @id
+  requestStatus          RequestStatus?
+  requestUpdatedAt       DateTime?
+  title                  String?
+  description            String?
+  imageUrl               String?
+  studioId               String?
+  studioName             String?
+  studioImageUrl         String?
+  /// The scene's performers from the catalog, comma-separated, for search.
+  performerNames         String?
+  releaseDate            String?
+  duration               Int?
+  whisparrMovieId        Int?
+  whisparrHasFile        Boolean?
+  whisparrQueuePosition  Int?
+  whisparrQueueStatus    String?
+  whisparrQueueState     String?
+  whisparrErrorMessage   String?
+  stashAvailable         Boolean?
+  computedLifecycle      SceneLifecycle         @default(NOT_REQUESTED)
+  lifecycleSortOrder     Int                    @default(999)
+  metadataHydrationState MetadataHydrationState @default(PENDING)
+  metadataLastSyncedAt   DateTime?
+  metadataRetryAfterAt   DateTime?
+  whisparrLastSyncedAt   DateTime?
+  stashLastSyncedAt      DateTime?
+  lastSyncedAt           DateTime?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  @@index([computedLifecycle, lifecycleSortOrder, whisparrQueuePosition, requestUpdatedAt])
+  @@index([requestUpdatedAt])
+  @@index([whisparrMovieId])
+  @@index([metadataLastSyncedAt])
+  @@index([whisparrLastSyncedAt])
+  @@index([stashLastSyncedAt])
+  @@index([lastSyncedAt])
+}
+
+model SyncState {
+  jobName            String        @id
+  status             SyncJobStatus @default(IDLE)
+  startedAt          DateTime?
+  finishedAt         DateTime?
+  leaseUntil         DateTime?
+  cursor             String?
+  lastError          String?
+  lastSuccessAt      DateTime?
+  lastDurationMs     Int?
+  lastProcessedCount Int?
+  lastUpdatedCount   Int?
+  lastRunReason      String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+}
+
+model SceneIndexSummary {
+  key                      String    @id
+  indexedScenes            Int       @default(0)
+  acquisitionTrackedScenes Int       @default(0)
+  requestedCount           Int       @default(0)
+  downloadingCount         Int       @default(0)
+  importPendingCount       Int       @default(0)
+  failedCount              Int       @default(0)
+  metadataPendingCount     Int       @default(0)
+  metadataRetryableCount   Int       @default(0)
+  lastIndexWriteAt         DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+}
+
+model LibrarySceneIndex {
+  stashSceneId         String    @id
+  /// Active discovery-provider catalog id derived during projection sync.
+  linkedStashId        String?
+  /// Provider-qualified external refs preserved from local Stash stash_ids.
+  linkedCatalogRefs    String[]  @default([])
+  title                String
+  description          String?
+  imageUrl             String?
+  studioId             String?
+  studioName           String?
+  studioImageUrl       String?
+  performerIds         String[]  @default([])
+  performerNames       String[]  @default([])
+  tagIds               String[]  @default([])
+  tagNames             String[]  @default([])
+  releaseDate          String?
+  duration             Int?
+  viewUrl              String
+  localCreatedAt       DateTime?
+  localUpdatedAt       DateTime?
+  hasFavoritePerformer Boolean   @default(false)
+  favoriteStudio       Boolean   @default(false)
+  hasFavoriteTag       Boolean   @default(false)
+  lastSyncedAt         DateTime
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([linkedStashId])
+  @@index([studioId])
+  @@index([studioName])
+  @@index([title])
+  @@index([tagIds], type: Gin, map: "LibrarySceneIndex_tagIds_gin_idx")
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "LibrarySceneIndex_title_trgm_idx")
+  @@index([description(ops: raw("gin_trgm_ops"))], type: Gin, map: "LibrarySceneIndex_description_trgm_idx")
+  @@index([studioName(ops: raw("gin_trgm_ops"))], type: Gin, map: "LibrarySceneIndex_studioName_trgm_idx")
+  @@index([releaseDate])
+  @@index([localCreatedAt])
+  @@index([localUpdatedAt])
+  @@index([lastSyncedAt])
+}
+
+model HomeRail {
+  id          String              @id @default(cuid())
+  key         HomeRailKey?        @unique
+  kind        HomeRailKind
+  source      HomeRailSource
+  contentType HomeRailContentType
+  title       String
+  subtitle    String?
+  enabled     Boolean             @default(true)
+  sortOrder   Int
+  config      Json?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([sortOrder])
+}
+
+enum RequestStatus {
+  REQUESTED
+  PROCESSING
+  AVAILABLE
+  FAILED
+}
+
+enum SceneLifecycle {
+  NOT_REQUESTED
+  REQUESTED
+  DOWNLOADING
+  IMPORT_PENDING
+  AVAILABLE
+  FAILED
+}
+
+enum SyncJobStatus {
+  IDLE
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum MetadataHydrationState {
+  PENDING
+  HYDRATED
+  FAILED_RETRYABLE
+}
+
+enum HomeRailKey {
+  FAVORITE_STUDIOS
+  FAVORITE_PERFORMERS
+  RECENTLY_ADDED_LIBRARY
+  STILL_WAITING
+  UNWATCHED_LIBRARY
+  MOST_PLAYED_LIBRARY
+  CONTINUE_WATCHING
+}
+
+enum HomeRailKind {
+  BUILTIN
+  CUSTOM
+}
+
+enum HomeRailSource {
+  STASHDB
+  STASH
+  HYBRID
+}
+
+enum HomeRailContentType {
+  SCENES
+}
+
+enum IntegrationType {
+  STASHDB
+  FANSDB
+  STASH
+  WHISPARR
+  PROWLARR
+  SABNZBD
+}
+
+enum IntegrationStatus {
+  NOT_CONFIGURED
+  CONFIGURED
+  ERROR
+}
+
+enum RuntimeHealthServiceKey {
+  CATALOG
+  STASH
+  WHISPARR
+}
+
+enum RuntimeHealthStatus {
+  HEALTHY
+  DEGRADED
+}
+
+model IntegrationConfig {
+  id      String            @id @default(cuid())
+  type    IntegrationType   @unique
+  enabled Boolean           @default(true)
+  status  IntegrationStatus @default(NOT_CONFIGURED)
+
+  name    String?
+  baseUrl String?
+  apiKey  String?
+
+  config Json?
+
+  lastHealthyAt    DateTime?
+  lastErrorAt      DateTime?
+  lastErrorMessage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RuntimeIntegrationHealth {
+  service             RuntimeHealthServiceKey @id
+  status              RuntimeHealthStatus     @default(HEALTHY)
+  consecutiveFailures Int                     @default(0)
+  lastHealthyAt       DateTime?
+  lastFailureAt       DateTime?
+  lastErrorMessage    String?
+  degradedAt          DateTime?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+}
+
+model NotificationSettings {
+  key               String              @id @default("GLOBAL")
+  enabled           Boolean             @default(false)
+  channel           NotificationChannel @default(DISCORD)
+  url               String?
+  notifyDownloading Boolean             @default(false)
+  notifyAvailable   Boolean             @default(true)
+  notifyFailed      Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+}
+
+enum NotificationChannel {
+  DISCORD
+  NTFY
+  WEBHOOK
+}
+
+/// What happens when Whisparr imports a new scene: scan Stash, identify it, generate previews.
+model LibraryAutomationSettings {
+  key             String    @id @default("GLOBAL")
+  scanOnImport    Boolean   @default(true)
+  identifyNew     Boolean   @default(true)
+  generateNew     Boolean   @default(true)
+  /// Delete sample clips that came with an import, before Stash indexes them further.
+  removeSamples   Boolean   @default(false)
+  /// Also notice video files put straight into Stash's library folders.
+  watchFolders    Boolean   @default(true)
+  /// After a Whisparr import: rescan, remove extra copies and link waiting scenes.
+  tidyAfterImport Boolean   @default(true)
+  /// Secret in the Whisparr webhook URL.
+  webhookToken    String
+  lastRunAt       DateTime?
+  lastRunStatus   String?
+  lastRunMessage  String?
+  lastRunReason   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+/// Library organizer: matching unmatched scenes to StashDB and renaming files.
+model OrganizerSettings {
+  key                String    @id @default("GLOBAL")
+  /// e.g. "{studio}/{date} - {title}"; the file extension is kept.
+  renamePattern      String    @default("{studio}/{date} - {title}")
+  /// Stash library folder renamed files go to; null keeps each in its own.
+  renameRoot         String?
+  /// Rename a scene's file as soon as it's matched.
+  renameAfterMatch   Boolean   @default(false)
+  /// After "Match all", move what's still unmatched into an "Unmatched" folder.
+  moveUnmatched      Boolean   @default(true)
+  /// Remove folders left empty after files are moved (needs the media folder mounted into Stashboard).
+  cleanEmptyFolders  Boolean   @default(true)
+  /// Leave files Whisparr manages alone (Whisparr renames those itself).
+  skipWhisparrFiles  Boolean   @default(true)
+  /// Try to match the whole backlog once a night.
+  autoMatchNightly   Boolean   @default(false)
+  /// After the stash-boxes, let Stash's own scrapers try what's left.
+  useStashScrapers   Boolean   @default(true)
+  /// ThePornDB key, used when Stash doesn't already have ThePornDB set up.
+  tpdbApiKey         String?
+  /// Hand matched scenes Whisparr is missing to Whisparr (Manual Import).
+  sendToWhisparr     Boolean   @default(true)
+  /// Also add matched scenes Whisparr doesn't know yet.
+  addToWhisparr      Boolean   @default(false)
+  /// "move" (Whisparr takes the file) or "copy" (hardlink/copy).
+  whisparrImportMode String    @default("move")
+  /// Where Stash sees your media, e.g. /data …
+  whisparrPathFrom   String?
+  /// … and where Whisparr sees the same folder, e.g. /mnt/user/media.
+  whisparrPathTo     String?
+  lastRunKind        String?
+  lastRunAt          DateTime?
+  lastRunStatus      String?
+  lastRunMessage     String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+/// Each file move, so a rename run can be undone.
+model OrganizerRename {
+  id        Int       @id @default(autoincrement())
+  batchId   String
+  sceneId   String
+  fileId    String
+  fromPath  String
+  toPath    String
+  createdAt DateTime  @default(now())
+  undoneAt  DateTime?
+
+  @@index([batchId])
+  @@index([createdAt])
+}
+
+/// Matches "Match all" found that are waiting for you to check, one per
+/// scene, so they last through restarts. Never holds API keys: sources are
+/// stored by name and endpoint and looked up again when saving.
+model MatchProposal {
+  sceneId   String   @id
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// App Lock: a PIN (and optional Face ID passkeys) required to reopen Stashboard.
+model AppLock {
+  userId         String    @id
+  enabled        Boolean   @default(false)
+  pinHash        String?
+  timeoutSeconds Int       @default(60)
+  hideInSwitcher Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  user           AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// WebAuthn passkeys (Face ID / Touch ID) that can unlock App Lock.
+model AppLockPasskey {
+  id           String    @id @default(cuid())
+  userId       String
+  credentialId String    @unique
+  publicKey    Bytes
+  counter      Int       @default(0)
+  transports   String[]  @default([])
+  label        String
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+  user         AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Activity log: what Stashboard did, newest first, with Undo where it can.
+model ActivityEntry {
+  id        String    @id @default(cuid())
+  createdAt DateTime  @default(now())
+  kind      String
+  title     String
+  detail    String?
+  status    String    @default("done")
+  count     Int?
+  undo      Json?
+  undoneAt  DateTime?
+
+  @@index([createdAt])
+  @@index([kind, createdAt])
+}
+
+/// Settings → Logs: how much Stashboard logs and whether it writes log files.
+/// No row until saved; LOG_LEVEL (and LOG_FILE) apply until then.
+model LogSettings {
+  key         String   @id @default("GLOBAL")
+  /// error | warn | info | debug | trace
+  level       String   @default("info")
+  /// Write APP_DATA_DIR/logs/stashboard.txt.
+  fileEnabled Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// Finished downloads: releases "Find downloads" sends to SABnzbd are moved
+/// into the library once they finish, then linked and renamed. Off by default.
+model DownloadHandoffSettings {
+  key         String   @id @default("GLOBAL")
+  enabled     Boolean  @default(false)
+  /// SABnzbd category Stashboard sends to and watches; nothing else is touched.
+  category    String   @default("stashboard")
+  /// Folder inside one of Stash's library folders finished files go to.
+  destination String?
+  /// Where SABnzbd sees its downloads, e.g. /downloads …
+  sabPathFrom String?
+  /// … and where Stashboard sees the same folder, e.g. /mnt/downloads.
+  sabPathTo   String?
+  /// "move" or "copy"; usenet has no seeding, so move by default.
+  importMode  String   @default("move")
+  /// Also bring in video files put straight into the category's folder.
+  dropIns     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// One release sent to SABnzbd for a catalog scene, followed until it's in the library.
+model DownloadHandoff {
+  id           String    @id @default(cuid())
+  /// SABnzbd's id for the download; only these are ever acted on.
+  nzoId        String    @unique
+  /// The catalog scene it was downloaded for.
+  sceneId      String
+  /// STASHDB or FANSDB.
+  provider     String
+  releaseTitle String
+  /// sent | downloading | completed | imported | failed | ignored
+  status       String    @default("sent")
+  /// Where SABnzbd put the finished download (as SABnzbd sees it).
+  sabPath      String?
+  /// Where the video was moved to (as Stash and Stashboard see it).
+  finalPath    String?
+  stashSceneId String?
+  error        String?
+  /// Tries at linking it once moved; gives up after a few.
+  attempts     Int       @default(0)
+  finishedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
+  @@index([sceneId])
+  @@index([createdAt])
+}
+
+/// A video put straight into SABnzbd's category folder (not one of its
+/// downloads), brought into the library. Kept so a copied file isn't
+/// brought in twice.
+model DownloadDropIn {
+  id           String    @id @default(cuid())
+  /// Where it was found, as Stashboard sees it.
+  sourcePath   String    @unique
+  /// Its size when it was brought in; a different file at the same path is new.
+  size         BigInt
+  /// placed | imported | failed
+  status       String    @default("placed")
+  /// Where it went (as Stash and Stashboard see it).
+  finalPath    String?
+  stashSceneId String?
+  error        String?
+  /// Tries at having Stash pick it up; gives up after a few.
+  attempts     Int       @default(0)
+  finishedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// Settings → Appearance: the theme and look, shared by every device.
+/// No row until saved; the defaults (follow the device, Light/Dark) apply until then.
+model AppearanceSettings {
+  key         String   @id @default("GLOBAL")
+  /// light | dark | system (follows the device between lightTheme and darkTheme)
+  mode        String   @default("system")
+  /// Built-in theme id used in light mode, e.g. "light", "catppuccin-latte".
+  lightTheme  String   @default("light")
+  /// Built-in theme id used in dark mode, e.g. "dark", "oled", "nord".
+  darkTheme   String   @default("dark")
+  /// #rrggbb, or null for the theme's own accent.
+  accentColor String?
+  /// sharp | default | round
+  radius      String   @default("default")
+  /// compact | comfortable
+  density     String   @default("comfortable")
+  /// small | default | large
+  fontScale   String   @default("default")
+  /// Plain text applied as a stylesheet; never HTML.
+  customCss   String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// Catalog scenes to hide everywhere you browse: Scenes, Search, Home and
+/// performer and studio pages. Library pages never use it.
+model HiddenContentSettings {
+  key        String   @id @default("GLOBAL")
+  /// Whole words, matched like the Scenes page's "Exclude words".
+  words      String[] @default([])
+  /// Catalog tags to hide, as [{ id, name }].
+  tags       Json     @default("[]")
+  /// Catalog studios to hide, as [{ id, name }].
+  studios    Json     @default("[]")
+  /// Catalog performers to hide, as [{ id, name }].
+  performers Json     @default("[]")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+/// Settings → Playback: Stashboard's built-in playback, for installs that only
+/// want the request and download side. No row until saved; everything is on
+/// until then.
+model PlaybackSettings {
+  key             String   @id @default("GLOBAL")
+  /// The Watch page, Play buttons and streaming from Stash. Off turns all playback off.
+  enabled         Boolean  @default(true)
+  /// The swipe feed of preview clips.
+  feedEnabled     Boolean  @default(true)
+  /// Preview clips on scene cards (hover, or press and hold).
+  previewsEnabled Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}

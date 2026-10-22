@@ -1,0 +1,391 @@
+<main class="app-page-shell app-page-shell--wide">
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Library</h1>
+      @if (!loading() && !error()) {
+        <p class="state app-page-meta">{{ libraryStateLabel() }}</p>
+      }
+    </div>
+    <div class="head-actions">
+      <button
+        type="button"
+        class="filters-toggle select-toggle"
+        [class.active]="selecting()"
+        [attr.aria-pressed]="selecting()"
+        (click)="selecting() ? stopSelecting() : startSelecting()"
+      >
+        <i class="pi pi-check-square" aria-hidden="true"></i>
+        <span>Select</span>
+      </button>
+      <button
+        type="button"
+        class="filters-toggle"
+        [class.active]="filtersOpen()"
+        [attr.aria-expanded]="filtersOpen()"
+        (click)="filtersOpen.set(!filtersOpen())"
+      >
+        <i class="pi pi-filter" aria-hidden="true"></i>
+        <span>Filters</span>
+        @if (hasActiveFilters()) {
+          <span class="filters-dot" aria-label="Filters active"></span>
+        }
+      </button>
+    </div>
+  </header>
+
+  @if (pageAlert(); as alert) {
+    <section class="page-alert app-page-alert" data-testid="library-degraded-state" role="status">
+      <div class="page-alert-copy app-page-alert__copy">
+        <p class="page-alert-title app-page-alert__title">{{ alert.title }}</p>
+        <p>{{ alert.message }}</p>
+      </div>
+
+      <div class="page-alert-actions app-action-row">
+        <a class="secondary-link small" [routerLink]="['/settings/integrations']">
+          Repair integrations
+        </a>
+        <a class="secondary-link small" [routerLink]="['/settings/indexing']">Open Indexing</a>
+        <a class="secondary-link small" [routerLink]="['/acquisition']">Track Imports</a>
+      </div>
+    </section>
+  }
+
+  <section
+    [class.filters-collapsed]="!filtersOpen()"
+    class="controls-shell app-section-panel app-control-shell"
+    aria-label="Library controls"
+  >
+    <div class="controls-header app-control-shell__header">
+      <span class="controls-title app-control-title">Local Library</span>
+      <div class="controls-actions app-action-row">
+        <button
+          type="button"
+          class="reset-filters-button"
+          [disabled]="!hasActiveFilters()"
+          title="Clear filters and return to the default local library view"
+          (click)="resetFilters()"
+        >
+          Clear Filters
+        </button>
+      </div>
+    </div>
+
+    <div class="controls-row app-control-grid">
+      <label class="control-field control-field--query app-control-field">
+        <span class="app-control-label">Text Query</span>
+        <input
+          class="app-control-input"
+          type="search"
+          inputmode="search"
+          [ngModel]="queryTerm()"
+          (ngModelChange)="onQueryChanged($event)"
+          placeholder="Search titles, descriptions, or studios"
+        />
+      </label>
+
+      <div class="control-field control-field--studio app-control-field">
+        <span id="library-studios-label" class="app-control-label">Studio Filter</span>
+        <p-multiselect
+          inputId="library-studios"
+          ariaLabelledBy="library-studios-label"
+          [ngModel]="studioSelectedIdsModel()"
+          (ngModelChange)="onStudioSelectionChanged($event)"
+          (onFilter)="onStudioFilterChanged($event.filter)"
+          (onPanelHide)="onStudioFilterPanelHide()"
+          [filter]="true"
+          [filterValue]="studioSearchTerm()"
+          filterPlaceHolder="Search local studios"
+          [loading]="studioSearchLoading()"
+          [options]="studioSelectOptions()"
+          optionLabel="label"
+          optionValue="value"
+          [showToggleAll]="false"
+          display="chip"
+          [emptyMessage]="studioSelectEmptyMessage()"
+          [emptyFilterMessage]="studioSelectEmptyMessage()"
+          [resetFilterOnHide]="true"
+          [appendTo]="'body'"
+          panelStyleClass="app-overlay-panel"
+          placeholder="Choose local studios"
+          scrollHeight="16rem"
+        />
+      </div>
+
+      <div class="control-field control-field--tag app-control-field">
+        <span id="library-tags-label" class="app-control-label">Tag Filter</span>
+        <div class="tag-input-row app-control-inline">
+          <p-multiselect
+            inputId="library-tags"
+            ariaLabelledBy="library-tags-label"
+            [ngModel]="selectedTagIdsModel()"
+            (ngModelChange)="onTagSelectionChanged($event)"
+            (onFilter)="onTagFilterChanged($event.filter)"
+            (onPanelHide)="onTagFilterPanelHide()"
+            [filter]="true"
+            [filterValue]="tagSearchTerm()"
+            filterPlaceHolder="Search local tags"
+            [loading]="tagSearchLoading()"
+            [options]="tagSelectOptions()"
+            optionLabel="label"
+            optionValue="value"
+            [showToggleAll]="false"
+            display="chip"
+            [emptyMessage]="tagSelectEmptyMessage()"
+            [emptyFilterMessage]="tagSelectEmptyMessage()"
+            [resetFilterOnHide]="true"
+            [appendTo]="'body'"
+            panelStyleClass="app-overlay-panel"
+            placeholder="Select matching tags"
+            scrollHeight="16rem"
+          />
+          <p-select
+            class="tag-mode-select"
+            inputId="library-tag-mode"
+            ariaLabel="Tag match mode"
+            [ngModel]="selectedTagMode()"
+            (ngModelChange)="onTagMatchModeChanged($event)"
+            [options]="tagMatchOptions"
+            optionLabel="label"
+            optionValue="value"
+            [appendTo]="'body'"
+            panelStyleClass="app-overlay-panel"
+          />
+        </div>
+      </div>
+
+      <div class="control-field control-field--sort app-control-field">
+        <span id="library-sort-label" class="app-control-label">Sort By</span>
+        <div class="sort-with-direction app-control-inline">
+          <p-select
+            inputId="library-sort"
+            ariaLabelledBy="library-sort-label"
+            [ngModel]="selectedSort()"
+            (ngModelChange)="onSortChanged($event)"
+            [options]="sortOptions"
+            optionLabel="label"
+            optionValue="value"
+            [appendTo]="'body'"
+            panelStyleClass="app-overlay-panel"
+          />
+          <button
+            type="button"
+            class="sort-direction-toggle app-sort-direction-toggle"
+            [attr.aria-label]="sortDirectionToggleLabel()"
+            [attr.title]="sortDirectionToggleLabel()"
+            (click)="toggleSortDirection()"
+          >
+            <i [class]="sortDirectionIconClass()" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="control-field control-field--favorites app-control-field">
+        <span class="app-control-label">Local Favorite Overlays</span>
+        <div class="local-favorites-toggles">
+          <button
+            type="button"
+            class="filter-toggle"
+            [class.is-active]="favoritePerformersOnly()"
+            [attr.aria-pressed]="favoritePerformersOnly()"
+            (click)="onFavoritePerformersOnlyChanged(!favoritePerformersOnly())"
+          >
+            Favorite performers
+          </button>
+          <button
+            type="button"
+            class="filter-toggle"
+            [class.is-active]="favoriteStudiosOnly()"
+            [attr.aria-pressed]="favoriteStudiosOnly()"
+            (click)="onFavoriteStudiosOnlyChanged(!favoriteStudiosOnly())"
+          >
+            Favorite studios
+          </button>
+          <button
+            type="button"
+            class="filter-toggle"
+            [class.is-active]="favoriteTagsOnly()"
+            [attr.aria-pressed]="favoriteTagsOnly()"
+            (click)="onFavoriteTagsOnlyChanged(!favoriteTagsOnly())"
+          >
+            Favorite tags
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <p class="controls-note app-control-note">{{ libraryControlsNote() }}</p>
+
+    @if (hasNarrowingFilters()) {
+      <div class="active-filters" data-testid="library-active-filters">
+        <span class="active-filters-label">Active filters</span>
+        <div class="active-filters-list">
+          @if (queryTerm().trim().length > 0) {
+            <button type="button" class="filter-chip" (click)="clearQueryFilter()">
+              {{ queryFilterLabel() }}
+              <i class="pi pi-times" aria-hidden="true"></i>
+            </button>
+          }
+
+          @for (studio of selectedStudios(); track studio.id) {
+            <button type="button" class="filter-chip" (click)="clearStudioFilter(studio.id)">
+              Studio: {{ studio.label }}
+              <i class="pi pi-times" aria-hidden="true"></i>
+            </button>
+          }
+
+          @for (tag of selectedTags(); track tag.id) {
+            <button type="button" class="filter-chip" (click)="clearTagFilter(tag.id)">
+              Tag: {{ tag.name }}
+              <i class="pi pi-times" aria-hidden="true"></i>
+            </button>
+          }
+
+          @if (favoritePerformersOnly()) {
+            <button type="button" class="filter-chip" (click)="clearFavoritePerformersFilter()">
+              Favorite performers
+              <i class="pi pi-times" aria-hidden="true"></i>
+            </button>
+          }
+
+          @if (favoriteStudiosOnly()) {
+            <button type="button" class="filter-chip" (click)="clearFavoriteStudiosFilter()">
+              Favorite studios
+              <i class="pi pi-times" aria-hidden="true"></i>
+            </button>
+          }
+
+          @if (favoriteTagsOnly()) {
+            <button type="button" class="filter-chip" (click)="clearFavoriteTagsFilter()">
+              Favorite tags
+              <i class="pi pi-times" aria-hidden="true"></i>
+            </button>
+          }
+        </div>
+      </div>
+    }
+  </section>
+
+  @if (loading()) {
+    <div class="app-blocking-loader" role="status" aria-live="polite">
+      <p-progressspinner
+        styleClass="app-blocking-spinner"
+        strokeWidth="4"
+        [style]="{ width: '2.25rem', height: '2.25rem' }"
+      />
+      <p>Loading local library...</p>
+    </div>
+  } @else if (error()) {
+    <p-message severity="error" styleClass="app-page-message">{{ error() }}</p-message>
+    <button type="button" class="retry-button" (click)="retryInitialLoad()">Retry</button>
+  } @else if (!hasItems()) {
+    <section class="state-shell empty-shell app-state-block" data-testid="library-empty-state">
+      <h2>{{ emptyStateTitle() }}</h2>
+      <p class="state-copy app-state-copy">{{ emptyStateMessage() }}</p>
+      @if (!hasNarrowingFilters()) {
+        <p class="state-copy app-state-copy">{{ indexingGuidance() }}</p>
+      }
+
+      <div class="state-actions app-action-row">
+        @if (hasNarrowingFilters()) {
+          <button type="button" class="app-btn" (click)="resetFilters()">Clear filters</button>
+          <a class="app-btn app-btn--primary" [routerLink]="['/scenes']">Browse Scenes</a>
+          <a class="app-btn" [routerLink]="['/acquisition']">Track Imports</a>
+        } @else {
+          <a class="app-btn app-btn--primary" [routerLink]="['/acquisition']">Track Imports</a>
+          <a class="app-btn" [routerLink]="['/settings/indexing']">Open Indexing</a>
+          <a class="app-btn" [routerLink]="['/scenes']">Browse Scenes</a>
+          @if (pageAlert()) {
+            <a class="app-btn" [routerLink]="['/settings/integrations']"> Repair integrations </a>
+          }
+        }
+      </div>
+    </section>
+  } @else {
+    <section class="grid">
+      @for (item of items(); track item.id) {
+        <div class="pick-cell" [class.picked]="selecting() && isPicked(item.id)">
+          <app-scene-card
+            [item]="item"
+            primaryLinkMode="local"
+            [sceneQueryParams]="{ returnTo: currentRouteUrl() }"
+            studioBadgeRoute="library"
+            [topBadges]="localCardBadges"
+            [footerLink]="libraryFooterLink(item)"
+            [footerLinkLabel]="item.activeCatalogSceneId ? 'View in Stash' : null"
+            [footerBadgeLabel]="item.activeCatalogSceneId ? null : 'Local only'"
+            [playSceneId]="item.id"
+            [playQueryParams]="{ returnTo: currentRouteUrl() }"
+          />
+          @if (selecting()) {
+            <button
+              type="button"
+              class="pick-overlay"
+              [attr.aria-pressed]="isPicked(item.id)"
+              [attr.aria-label]="(isPicked(item.id) ? 'Unselect ' : 'Select ') + item.title"
+              (click)="togglePick(item.id)"
+            >
+              <i
+                class="pi"
+                [class.pi-check-circle]="isPicked(item.id)"
+                [class.pi-circle]="!isPicked(item.id)"
+                aria-hidden="true"
+              ></i>
+            </button>
+          }
+        </div>
+      }
+    </section>
+
+    <div #loadMoreSentinel class="load-sentinel"></div>
+
+    @if (loadingMore()) {
+      <p class="state">Loading more local scenes...</p>
+    }
+
+    @if (loadMoreError()) {
+      <div class="load-more-error">
+        <p-message severity="error" styleClass="app-inline-message">{{
+          loadMoreError()
+        }}</p-message>
+        <button type="button" class="retry-button" (click)="retryLoadMore()">Retry</button>
+      </div>
+    }
+  }
+  @if (selecting()) {
+    <app-selection-bar
+      [count]="picked().size"
+      [visible]="items().length"
+      [busy]="bulkBusy()"
+      (selectAll)="pickAll()"
+      (clear)="pickNone()"
+      (done)="stopSelecting()"
+    >
+      <button
+        type="button"
+        class="bar-button"
+        [disabled]="bulkBusy() || picked().size === 0"
+        (click)="runBulk('organize')"
+      >
+        Mark organized
+      </button>
+      <button
+        type="button"
+        class="bar-button danger"
+        [class.confirm]="confirmBulk() === 'remove'"
+        [disabled]="bulkBusy() || picked().size === 0"
+        (click)="runBulk('remove')"
+      >
+        {{ confirmBulk() === 'remove' ? 'Tap again to remove' : 'Remove from Stash' }}
+      </button>
+      <button
+        type="button"
+        class="bar-button danger"
+        [class.confirm]="confirmBulk() === 'delete'"
+        [disabled]="bulkBusy() || picked().size === 0"
+        (click)="runBulk('delete')"
+      >
+        {{ confirmBulk() === 'delete' ? 'Tap again to delete files' : 'Delete files' }}
+      </button>
+    </app-selection-bar>
+  }
+</main>

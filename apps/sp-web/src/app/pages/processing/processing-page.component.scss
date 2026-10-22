@@ -1,0 +1,271 @@
+.processing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 900px;
+}
+
+.block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.6rem;
+  min-width: 0;
+  margin-top: 1.6rem;
+}
+
+.block-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.block-head h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.sub {
+  margin-top: 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.line {
+  overflow-wrap: anywhere;
+}
+
+.line a {
+  color: var(--accent);
+}
+
+.items {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item,
+.watch {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.9rem 1rem;
+}
+
+.items.compact .item {
+  padding: 0.75rem 0.9rem;
+}
+
+.item-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.item-title {
+  min-width: 0;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.item-title i {
+  margin-right: 0.35rem;
+  color: var(--accent);
+}
+
+.stage {
+  flex: 0 0 auto;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--chip-text);
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+[data-stage='downloading'] .stage,
+[data-stage='unpacking'] .stage,
+[data-stage='moving'] .stage {
+  background: var(--badge-downloading-bg);
+  color: var(--badge-downloading-text);
+}
+
+[data-stage='linking'] .stage,
+[data-stage='settling'] .stage {
+  background: var(--badge-import-pending-bg);
+  color: var(--badge-import-pending-text);
+}
+
+[data-stage='done'] .stage {
+  background: var(--badge-available-bg);
+  color: var(--badge-available-text);
+}
+
+[data-stage='failed'] .stage {
+  background: var(--badge-failed-bg);
+  color: var(--badge-failed-text);
+}
+
+.detail,
+.meta {
+  min-width: 0;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.detail.strong {
+  color: var(--text-primary);
+}
+
+.meta {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.path {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--chip-bg);
+}
+
+.steps li[data-state='done'] {
+  background: var(--success);
+}
+
+.steps li[data-state='current'] {
+  background: var(--accent);
+}
+
+.bar {
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--chip-bg);
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.6s ease;
+}
+
+.watch[data-state='problem'] {
+  box-shadow: inset 0 0 0 1px var(--warning-border);
+  background: color-mix(in srgb, var(--warning-bg) 45%, var(--surface-1));
+}
+
+.watch[data-state='problem'] .item-title i {
+  color: var(--warning-text);
+}
+
+.watch[data-state='watching'] .watch-state {
+  background: var(--badge-available-bg);
+  color: var(--badge-available-text);
+}
+
+.watch[data-state='problem'] .watch-state {
+  background: var(--badge-downloading-bg);
+  color: var(--badge-downloading-text);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.35rem;
+  margin: 0.2rem 0 0;
+}
+
+.facts > div {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.facts dt {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.facts dd {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+}
+
+.skipped {
+  margin-top: 0.4rem;
+  padding: 0.75rem 0.9rem;
+  min-width: 0;
+}
+
+.skipped summary {
+  font-size: 0.86rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.skipped ul {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skipped li {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 420px) {
+  .facts > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.1rem;
+  }
+}

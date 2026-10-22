@@ -1,0 +1,51 @@
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.8rem;
+  margin-top: 0.6rem;
+}
+
+.group-title {
+  margin: 1.6rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tool {
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  padding: 1.1rem;
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: transform 0.12s ease;
+}
+
+.tool:active {
+  transform: scale(0.98);
+}
+
+.tool i {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1.1rem;
+}
+
+.tool-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.tool-detail {
+  font-size: 0.86rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}

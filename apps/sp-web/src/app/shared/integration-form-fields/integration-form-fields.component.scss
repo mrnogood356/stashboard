@@ -1,0 +1,47 @@
+:host {
+  display: contents;
+}
+
+.integration-form-fields {
+  display: grid;
+  gap: 0.9rem;
+}
+
+label {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.field-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+:host ::ng-deep .p-inputtext {
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  padding: 0.5rem 0.62rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+:host ::ng-deep .integration-inline-message {
+  margin: 0;
+}
+
+/* Only the switch toggles; the text beside it is plain text. */
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 2.25rem;
+}
+
+.switch-row > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}

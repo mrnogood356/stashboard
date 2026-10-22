@@ -1,0 +1,1680 @@
+import { Observable } from 'rxjs';
+import {
+  Component,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  QueryList,
+  ViewChild,
+  ViewChildren,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
+import { MultiSelect } from 'primeng/multiselect';
+import { Select } from 'primeng/select';
+import {
+  Subject,
+  Subscription,
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  finalize,
+  forkJoin,
+  map,
+  merge,
+  of,
+  switchMap,
+  timeout,
+} from 'rxjs';
+import { DiscoverService } from '../../core/api/discover.service';
+import {
+  PerformerStudioOption,
+  SceneFavoritesFilter,
+  SceneFeedSort,
+  SceneRequestContext,
+  SceneTagMatchMode,
+  SceneTagOption,
+  SortDirection,
+  isSceneStatusRequestable,
+} from '../../core/api/discover.types';
+import { HomeService } from '../../core/api/home.service';
+import {
+  HomeRailContentResponse,
+  HomeRailConfig,
+  HomeRailFormDraft,
+  HomeRailItem,
+  HomeRailSource,
+  HomeStashSceneSort,
+  HomeStashSceneRailConfig,
+  HomeStashdbSceneRailConfig,
+  HomeRailViewSummary,
+  SaveHomeRailPayload,
+} from '../../core/api/home.types';
+import { AuthStateStore } from '../../core/api/auth-state.store';
+import { readUserCache, writeUserCache } from '../../core/cache/user-cache';
+import { RuntimeHealthService } from '../../core/api/runtime-health.service';
+import { SetupStatusStore } from '../../core/api/setup-status.store';
+import {
+  SceneCardComponent,
+  SceneCardMenuAction,
+} from '../../shared/scene-card/scene-card.component';
+import { LocalLibraryService } from '../../core/api/local-library.service';
+import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
+import { NeedsYouCardComponent } from './needs-you-card.component';
+import { ProcessingCardComponent } from './processing-card.component';
+import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
+import {
+  buildReadinessPageAlert,
+  firstUseEmptyStateCopy,
+  initialIndexingGuidance,
+} from '../../shared/readiness/first-run-readiness.utils';
+import { joinTagNames } from '../../core/catalog/tag-names-param';
+import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
+
+type HomeRailView = HomeRailConfig & {
+  pending: boolean;
+  items: HomeRailItem[];
+  error: string | null;
+  seeAllLink: {
+    path: '/library' | '/scenes' | '/acquisition';
+    queryParams: Record<string, string>;
+  } | null;
+  summary: HomeRailViewSummary;
+};
+
+/** One slide of the featured banner at the top of Home. */
+interface FeaturedSlide {
+  item: HomeRailItem;
+  kicker: string;
+  playId: string | null;
+  detailsCommands: readonly unknown[] | null;
+  resume: boolean;
+}
+
+const FEATURED_LIMIT = 5;
+/** Home from an earlier visit is shown while it reloads, if not older than this. */
+const HOME_CACHE_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+const HOME_CACHE_RAILS_KEY = 'home.rails';
+const homeCacheItemsKey = (railId: string) => `home.rail.${railId}`;
+const FEATURED_INTERVAL_MS = 8000;
+
+interface RailLoadResult {
+  id: string;
+  items: HomeRailItem[];
+  error: string | null;
+}
+
+interface RailContentState {
+  itemsById: Record<string, HomeRailItem[]>;
+  errorsById: Record<string, string>;
+}
+
+interface MultiSelectOption {
+  label: string;
+  value: string;
+}
+
+interface MultiSelectGroup {
+  label: string;
+  items: MultiSelectOption[];
+}
+
+type RailFavoritesOption = SceneFavoritesFilter | 'NONE';
+
+@Component({
+  selector: 'app-home-page',
+  imports: [
+    RouterLink,
+    FormsModule,
+    MultiSelect,
+    Select,
+    SceneCardComponent,
+    SceneRequestModalComponent,
+    NeedsYouCardComponent,
+    ProcessingCardComponent,
+  ],
+  templateUrl: './home-page.component.html',
+  styleUrl: './home-page.component.scss',
+})
+export class HomePageComponent implements OnInit, OnDestroy {
+  private static readonly RAIL_LOAD_TIMEOUT_MS = 25_000;
+
+  private static readonly SEARCH_DEBOUNCE_MS = 250;
+  private static readonly DEFAULT_LIMIT = 16;
+  private static readonly LIMIT_MIN = 6;
+  private static readonly LIMIT_MAX = 30;
+  private static readonly DEFAULT_SORT: SceneFeedSort = 'DATE';
+  private static readonly DEFAULT_DIRECTION: SortDirection = 'DESC';
+  private static readonly DEFAULT_TAG_MODE: SceneTagMatchMode = 'OR';
+
+  protected static readonly SORT_OPTIONS: Array<{ value: SceneFeedSort; label: string }> = [
+    { value: 'DATE', label: 'Release Date' },
+    { value: 'TITLE', label: 'Title' },
+    { value: 'TRENDING', label: 'Trending' },
+    { value: 'CREATED_AT', label: 'Created At' },
+    { value: 'UPDATED_AT', label: 'Updated At' },
+  ];
+  protected static readonly STASH_SORT_OPTIONS: Array<{
+    value: HomeStashSceneSort;
+    label: string;
+  }> = [
+    { value: 'CREATED_AT', label: 'Recently Added' },
+    { value: 'UPDATED_AT', label: 'Recently Updated' },
+    { value: 'TITLE', label: 'Title' },
+  ];
+  protected static readonly SOURCE_OPTIONS: Array<{ value: HomeRailSource; label: string }> = [
+    { value: 'STASHDB', label: 'Catalog' },
+    { value: 'STASH', label: 'Stash' },
+  ];
+  protected static readonly DIRECTION_OPTIONS: Array<{
+    value: SortDirection;
+    label: string;
+  }> = [
+    { value: 'DESC', label: 'Newest First' },
+    { value: 'ASC', label: 'Oldest First' },
+  ];
+  protected static readonly FAVORITES_OPTIONS: Array<{
+    value: RailFavoritesOption;
+    label: string;
+  }> = [
+    { value: 'NONE', label: 'No Favorites Filter' },
+    { value: 'ALL', label: 'All Favorites' },
+    { value: 'PERFORMER', label: 'Favorite Performers' },
+    { value: 'STUDIO', label: 'Favorite Studios' },
+  ];
+  protected static readonly TAG_MATCH_OPTIONS: Array<{
+    value: SceneTagMatchMode;
+    label: string;
+  }> = [
+    { value: 'OR', label: 'OR (Any)' },
+    { value: 'AND', label: 'AND (All)' },
+  ];
+
+  private readonly discoverService = inject(DiscoverService);
+  private readonly homeService = inject(HomeService);
+  private readonly runtimeHealthService = inject(RuntimeHealthService);
+  private readonly setupStatusStore = inject(SetupStatusStore);
+  private readonly authState = inject(AuthStateStore);
+  private readonly router = inject(Router);
+  private readonly tagSearchTerms = new Subject<string>();
+  private readonly studioSearchTerms = new Subject<string>();
+  private loadSubscription: Subscription | null = null;
+  private saveSubscription: Subscription | null = null;
+  private tagSearchSubscription: Subscription | null = null;
+  private studioSearchSubscription: Subscription | null = null;
+  private railFormMutationSubscription: Subscription | null = null;
+  private railDeleteSubscription: Subscription | null = null;
+
+  @ViewChildren('railViewport')
+  private railViewports?: QueryList<ElementRef<HTMLDivElement>>;
+
+  protected readonly loading = signal(false);
+  protected readonly configError = signal<string | null>(null);
+  protected readonly savingRails = signal(false);
+  protected readonly saveError = signal<string | null>(null);
+  protected readonly railConfigs = signal<HomeRailConfig[]>([]);
+  protected readonly draftRails = signal<HomeRailConfig[]>([]);
+  protected readonly editorOpen = signal(false);
+
+  protected readonly railFormOpen = signal(false);
+  protected readonly editingRailId = signal<string | null>(null);
+  protected readonly railFormSaving = signal(false);
+  protected readonly railFormError = signal<string | null>(null);
+  protected readonly deletingRailId = signal<string | null>(null);
+  protected readonly deleteError = signal<string | null>(null);
+  protected readonly railForm = signal<HomeRailFormDraft | null>(null);
+
+  protected readonly tagSearchTerm = signal('');
+  protected readonly tagSearchLoading = signal(false);
+  protected readonly tagSearchError = signal<string | null>(null);
+  protected readonly tagOptions = signal<SceneTagOption[]>([]);
+  protected readonly tagSelectOptions = signal<MultiSelectOption[]>([]);
+  protected readonly formTagSelectedIdsModel = signal<string[]>([]);
+
+  protected readonly studioSearchTerm = signal('');
+  protected readonly studioSearchLoading = signal(false);
+  protected readonly studioSearchError = signal<string | null>(null);
+  protected readonly studioOptions = signal<PerformerStudioOption[]>([]);
+  protected readonly studioSelectOptions = signal<MultiSelectGroup[]>([]);
+  protected readonly formStudioSelectedIdsModel = signal<string[]>([]);
+
+  protected readonly railItemsById = signal<Record<string, HomeRailItem[]>>({});
+  protected readonly railErrorsById = signal<Record<string, string>>({});
+  protected readonly requestModalOpen = signal(false);
+  protected readonly requestContext = signal<SceneRequestContext | null>(null);
+  protected readonly pageAlert = computed(() =>
+    buildReadinessPageAlert(
+      'home',
+      this.setupStatusStore.status(),
+      this.runtimeHealthService.status(),
+    ),
+  );
+
+  protected readonly sortOptions = HomePageComponent.SORT_OPTIONS;
+  protected readonly stashSortOptions = HomePageComponent.STASH_SORT_OPTIONS;
+  protected readonly directionOptions = HomePageComponent.DIRECTION_OPTIONS;
+  protected readonly sourceOptions = HomePageComponent.SOURCE_OPTIONS;
+  protected readonly favoritesOptions = HomePageComponent.FAVORITES_OPTIONS;
+  protected readonly tagMatchOptions = HomePageComponent.TAG_MATCH_OPTIONS;
+
+  ngOnInit(): void {
+    this.runtimeHealthService.ensureStarted();
+    this.setupTagSearch();
+    this.setupStudioSearch();
+    this.loadHome();
+  }
+
+  private readonly localLibrary = inject(LocalLibraryService);
+  private readonly notifications = inject(AppNotificationsService);
+  /** Settings → Playback: off hides Play buttons and Continue Watching. */
+  private readonly playbackSettings = inject(PlaybackSettingsService);
+
+  protected readonly continueWatchingActions: readonly SceneCardMenuAction[] = [
+    { id: 'remove', label: 'Remove from Continue Watching', icon: 'pi pi-times-circle' },
+    { id: 'watched', label: 'Mark as watched', icon: 'pi pi-check' },
+  ];
+
+  /** Takes a scene off Continue Watching (forget the spot, or count it as watched). */
+  protected onContinueWatchingAction(railId: string, sceneId: string, action: string): void {
+    const request: Observable<unknown> =
+      action === 'watched'
+        ? this.localLibrary.setWatched(sceneId, true)
+        : this.localLibrary.clearResume(sceneId);
+    const before = this.railItemsById()[railId] ?? [];
+    const index = before.findIndex((item) => item.id === sceneId);
+    const removed = before[index];
+    this.railItemsById.update((items) => ({
+      ...items,
+      [railId]: (items[railId] ?? []).filter((item) => item.id !== sceneId),
+    }));
+    this.saveRailItemsToCache(railId);
+    request.subscribe({
+      error: () => {
+        // Put just this one back if Stash didn't save it; other removals stand.
+        if (removed) {
+          this.railItemsById.update((items) => {
+            const current = [...(items[railId] ?? [])];
+            current.splice(Math.min(index, current.length), 0, removed);
+            return { ...items, [railId]: current };
+          });
+          this.saveRailItemsToCache(railId);
+        }
+        this.notifications.error("Couldn't update Stash", 'Try again in a moment.');
+      },
+    });
+  }
+
+  /** Up to five big slides: what you were watching, then new and unwatched scenes. */
+  protected readonly featured = computed<FeaturedSlide[]>(() => {
+    const rails = this.rails();
+    const slides: FeaturedSlide[] = [];
+    const seen = new Set<string>();
+    const order: Array<[string | null, number]> = [
+      ['CONTINUE_WATCHING', 2],
+      ['RECENTLY_ADDED_LIBRARY', 2],
+      ['UNWATCHED_LIBRARY', 2],
+      [null, FEATURED_LIMIT],
+    ];
+    for (const [key, take] of order) {
+      const candidates = rails.filter((rail) => (key ? rail.key === key : true));
+      let taken = 0;
+      for (const rail of candidates) {
+        for (const item of rail.items) {
+          if (slides.length >= FEATURED_LIMIT || taken >= take) {
+            break;
+          }
+          if (seen.has(item.id) || !(item.imageUrl || item.cardImageUrl)) {
+            continue;
+          }
+          seen.add(item.id);
+          taken += 1;
+          const local = item.source === 'STASH';
+          slides.push({
+            item,
+            kicker: rail.title,
+            playId: !this.playbackSettings.playbackEnabled()
+              ? null
+              : local
+                ? item.id
+                : (item.localSceneId ?? null),
+            detailsCommands: local
+              ? ['/library/scene', item.id]
+              : this.isInternalSceneRoute(item)
+                ? ['/scene', item.id]
+                : null,
+            resume: rail.key === 'CONTINUE_WATCHING' && (item.progress ?? 0) > 0,
+          });
+        }
+      }
+    }
+    return slides;
+  });
+  protected readonly featuredIndex = signal(0);
+  private featuredTimer: ReturnType<typeof setInterval> | null = null;
+  private featuredPaused = false;
+
+  protected onFeaturedScroll(track: HTMLElement): void {
+    const width = track.clientWidth || 1;
+    const index = Math.round(track.scrollLeft / width);
+    if (index !== this.featuredIndex()) {
+      this.featuredIndex.set(index);
+    }
+  }
+
+  protected showFeatured(track: HTMLElement, index: number, userAction = true): void {
+    if (userAction) {
+      this.featuredPaused = true;
+    }
+    const count = this.featured().length;
+    if (count === 0) {
+      return;
+    }
+    const target = ((index % count) + count) % count;
+    track.scrollTo({ left: target * track.clientWidth, behavior: 'smooth' });
+    this.featuredIndex.set(target);
+  }
+
+  protected pauseFeatured(): void {
+    this.featuredPaused = true;
+  }
+
+  private featuredTrackEl: HTMLElement | null = null;
+
+  @ViewChild('featuredTrack')
+  private set featuredTrack(ref: ElementRef<HTMLElement> | undefined) {
+    this.featuredTrackEl = ref?.nativeElement ?? null;
+    if (this.featuredTrackEl) {
+      this.startFeaturedRotation();
+    }
+  }
+
+  /** Slowly moves through the featured slides until the user touches them. */
+  private startFeaturedRotation(): void {
+    if (this.featuredTimer || typeof window === 'undefined') {
+      return;
+    }
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+    this.featuredTimer = setInterval(() => {
+      const track = this.featuredTrackEl;
+      if (track?.isConnected && !this.featuredPaused && document.visibilityState === 'visible') {
+        this.showFeatured(track, this.featuredIndex() + 1, false);
+      }
+    }, FEATURED_INTERVAL_MS);
+  }
+
+  ngOnDestroy(): void {
+    if (this.featuredTimer) {
+      clearInterval(this.featuredTimer);
+    }
+    this.loadSubscription?.unsubscribe();
+    this.saveSubscription?.unsubscribe();
+    this.tagSearchSubscription?.unsubscribe();
+    this.studioSearchSubscription?.unsubscribe();
+    this.railFormMutationSubscription?.unsubscribe();
+    this.railDeleteSubscription?.unsubscribe();
+  }
+
+  protected loadHome(): void {
+    this.loadSubscription?.unsubscribe();
+    this.configError.set(null);
+    this.saveError.set(null);
+    // Show Home from the last visit straight away, then refresh it in the background.
+    const showingCache = this.restoreFromCache();
+    this.loading.set(!showingCache);
+
+    this.loadSubscription = this.homeService
+      .getRails()
+      .pipe(
+        map((rails) => this.sortRails(rails)),
+        switchMap((rails) => {
+          this.railConfigs.set(rails);
+          this.draftRails.set(this.cloneRails(rails));
+          writeUserCache(this.cacheUser(), HOME_CACHE_RAILS_KEY, rails);
+          // Keep last visit's items until each rail's fresh ones arrive.
+          const railIds = new Set(rails.map((rail) => rail.id));
+          this.railItemsById.update((current) =>
+            Object.fromEntries(Object.entries(current).filter(([id]) => railIds.has(id))),
+          );
+          this.railErrorsById.set({});
+          // Show the page as soon as the rail list is known; each rail fills in on its own.
+          this.loading.set(false);
+          const enabledRails = rails.filter((rail) => rail.enabled);
+          return enabledRails.length === 0
+            ? of<RailLoadResult[]>([])
+            : merge(...enabledRails.map((rail) => this.loadSingleRailSafe(rail)));
+        }),
+        finalize(() => this.loading.set(false)),
+      )
+      .subscribe({
+        next: (result) => {
+          if (Array.isArray(result)) {
+            return;
+          }
+          this.applyRailResult(result);
+        },
+        error: () => {
+          if (showingCache) {
+            // Offline or slow: keep showing the last visit rather than an error.
+            return;
+          }
+          this.configError.set('Unable to load Home rail configuration right now.');
+          this.railConfigs.set([]);
+          this.draftRails.set([]);
+        },
+      });
+  }
+
+  /** Puts the last visit's rails on screen. True if there was anything to show. */
+  private restoreFromCache(): boolean {
+    const user = this.cacheUser();
+    if (this.railConfigs().length > 0) {
+      return true;
+    }
+    const rails = readUserCache<HomeRailConfig[]>(
+      user,
+      HOME_CACHE_RAILS_KEY,
+      HOME_CACHE_MAX_AGE_MS,
+    );
+    if (!Array.isArray(rails) || rails.length === 0) {
+      this.railItemsById.set({});
+      this.railErrorsById.set({});
+      return false;
+    }
+
+    const itemsById: Record<string, HomeRailItem[]> = {};
+    for (const rail of rails) {
+      const items = readUserCache<HomeRailItem[]>(
+        user,
+        homeCacheItemsKey(rail.id),
+        HOME_CACHE_MAX_AGE_MS,
+      );
+      if (Array.isArray(items)) {
+        itemsById[rail.id] = items;
+      }
+    }
+    const sorted = this.sortRails(rails);
+    this.railConfigs.set(sorted);
+    this.draftRails.set(this.cloneRails(sorted));
+    this.railItemsById.set(itemsById);
+    this.railErrorsById.set({});
+    return true;
+  }
+
+  private cacheUser(): string | null {
+    const status = this.authState.status();
+    return status?.authenticated ? status.username : null;
+  }
+
+  private saveRailItemsToCache(railId: string): void {
+    const items = this.railItemsById()[railId];
+    if (items && !(railId in this.railErrorsById())) {
+      writeUserCache(this.cacheUser(), homeCacheItemsKey(railId), items);
+    }
+  }
+
+  protected rails(): HomeRailView[] {
+    const playback = this.playbackSettings.playbackEnabled();
+    return this.railConfigs()
+      .filter((rail) => rail.enabled && (playback || rail.key !== 'CONTINUE_WATCHING'))
+      .map((rail) => ({
+        ...rail,
+        pending: !(rail.id in this.railItemsById()) && !(rail.id in this.railErrorsById()),
+        items: this.railItemsById()[rail.id] ?? [],
+        error: this.railErrorsById()[rail.id] ?? null,
+        seeAllLink: this.buildSeeAllLink(rail),
+        summary: this.summarizeRail(rail),
+      }));
+  }
+
+  protected showRail(rail: HomeRailView): boolean {
+    return rail.pending || rail.items.length > 0 || rail.error !== null;
+  }
+
+  protected totalLoadedScenes(): number {
+    return Object.values(this.railItemsById()).reduce(
+      (total, items) => total + (items?.length ?? 0),
+      0,
+    );
+  }
+
+  protected activeRailCount(): number {
+    return this.railConfigs().filter((rail) => rail.enabled).length;
+  }
+
+  protected customRailCount(): number {
+    return this.railConfigs().filter((rail) => rail.kind === 'CUSTOM').length;
+  }
+
+  protected isNoRailsEnabledState(): boolean {
+    return (
+      !this.loading() &&
+      !this.configError() &&
+      this.railConfigs().length > 0 &&
+      this.railConfigs().every((rail) => !rail.enabled)
+    );
+  }
+
+  protected isPageEmptyState(): boolean {
+    const enabledRails = this.rails();
+    if (this.loading() || this.configError() || enabledRails.length === 0) {
+      return false;
+    }
+
+    return enabledRails.every(
+      (rail) => !rail.pending && rail.items.length === 0 && rail.error === null,
+    );
+  }
+
+  protected emptyStateTitle(): string {
+    return firstUseEmptyStateCopy('home').title;
+  }
+
+  protected emptyStateMessage(): string {
+    if (this.pageAlert()) {
+      return 'Home rails may be empty because required integrations are degraded. Repair integrations, then refresh Home to reload rail data.';
+    }
+
+    return firstUseEmptyStateCopy('home').message;
+  }
+
+  protected indexingGuidance(): string {
+    return initialIndexingGuidance();
+  }
+
+  protected openEditor(): void {
+    this.draftRails.set(this.cloneRails(this.railConfigs()));
+    this.saveError.set(null);
+    this.closeRailForm();
+    this.editorOpen.set(true);
+  }
+
+  protected cancelEditor(): void {
+    this.draftRails.set(this.cloneRails(this.railConfigs()));
+    this.saveError.set(null);
+    this.deleteError.set(null);
+    this.closeRailForm();
+    this.editorOpen.set(false);
+  }
+
+  protected setDraftRailEnabled(railId: string, enabled: boolean): void {
+    this.draftRails.update((rails) =>
+      rails.map((rail) => (rail.id === railId ? { ...rail, enabled } : rail)),
+    );
+  }
+
+  protected moveDraftRail(index: number, direction: 'up' | 'down'): void {
+    this.draftRails.update((rails) => {
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= rails.length) {
+        return rails;
+      }
+
+      const next = [...rails];
+      const [movedRail] = next.splice(index, 1);
+      next.splice(targetIndex, 0, movedRail);
+      return next.map((rail, currentIndex) => ({
+        ...rail,
+        sortOrder: currentIndex,
+      }));
+    });
+  }
+
+  protected canMoveDraftRail(index: number, direction: 'up' | 'down'): boolean {
+    return direction === 'up' ? index > 0 : index < this.draftRails().length - 1;
+  }
+
+  protected hasDraftChanges(): boolean {
+    const persisted = this.railConfigs();
+    const draft = this.draftRails();
+    if (persisted.length !== draft.length) {
+      return true;
+    }
+
+    return draft.some((rail, index) => {
+      const persistedRail = persisted[index];
+      if (!persistedRail) {
+        return true;
+      }
+
+      return (
+        rail.id !== persistedRail.id ||
+        rail.enabled !== persistedRail.enabled ||
+        rail.sortOrder !== persistedRail.sortOrder
+      );
+    });
+  }
+
+  protected canMutateCustomRails(): boolean {
+    return !this.hasDraftChanges() && !this.savingRails() && !this.railFormSaving();
+  }
+
+  protected openCreateRailForm(): void {
+    if (!this.canMutateCustomRails()) {
+      return;
+    }
+
+    this.editingRailId.set(null);
+    this.deleteError.set(null);
+    this.railFormError.set(null);
+    this.railForm.set(this.createEmptyRailForm());
+    this.formTagSelectedIdsModel.set([]);
+    this.formStudioSelectedIdsModel.set([]);
+    this.tagSearchTerm.set('');
+    this.studioSearchTerm.set('');
+    this.rebuildRailFormTagSelectOptions([]);
+    this.rebuildRailFormStudioSelectOptions([]);
+    this.railFormOpen.set(true);
+  }
+
+  protected openEditRailForm(rail: HomeRailConfig): void {
+    if (!rail.editable || !this.canMutateCustomRails()) {
+      return;
+    }
+
+    this.editingRailId.set(rail.id);
+    this.deleteError.set(null);
+    this.railFormError.set(null);
+    const form = this.buildFormFromRail(rail);
+    this.railForm.set(form);
+    this.formTagSelectedIdsModel.set(form.selectedTags.map((tag) => tag.id));
+    this.formStudioSelectedIdsModel.set(form.selectedStudios.map((studio) => studio.id));
+    this.tagSearchTerm.set('');
+    this.studioSearchTerm.set('');
+    this.rebuildRailFormTagSelectOptions([]);
+    this.rebuildRailFormStudioSelectOptions([]);
+    this.railFormOpen.set(true);
+  }
+
+  protected closeRailForm(): void {
+    this.railFormOpen.set(false);
+    this.editingRailId.set(null);
+    this.railFormError.set(null);
+    this.railForm.set(null);
+    this.formTagSelectedIdsModel.set([]);
+    this.formStudioSelectedIdsModel.set([]);
+    this.tagSearchTerm.set('');
+    this.studioSearchTerm.set('');
+    this.tagOptions.set([]);
+    this.tagSelectOptions.set([]);
+    this.studioOptions.set([]);
+    this.studioSelectOptions.set([]);
+    this.tagSearchError.set(null);
+    this.studioSearchError.set(null);
+  }
+
+  protected saveRails(): void {
+    if (this.savingRails() || !this.hasDraftChanges()) {
+      return;
+    }
+
+    this.saveSubscription?.unsubscribe();
+    this.savingRails.set(true);
+    this.saveError.set(null);
+
+    const orderedRails = this.draftRails().map((rail, index) => ({
+      ...rail,
+      sortOrder: index,
+    }));
+
+    this.saveSubscription = this.homeService
+      .updateRails({
+        rails: orderedRails.map((rail) => ({
+          id: rail.id,
+          enabled: rail.enabled,
+        })),
+      })
+      .pipe(
+        map((rails) => this.sortRails(rails)),
+        switchMap((rails) => {
+          this.railConfigs.set(rails);
+          this.draftRails.set(this.cloneRails(rails));
+          return this.loadRailContent(rails).pipe(map((content) => ({ rails, content })));
+        }),
+        finalize(() => this.savingRails.set(false)),
+      )
+      .subscribe({
+        next: ({ rails, content }) => {
+          this.railItemsById.set(content.itemsById);
+          this.railErrorsById.set(content.errorsById);
+          writeUserCache(this.cacheUser(), HOME_CACHE_RAILS_KEY, rails);
+          for (const railId of Object.keys(content.itemsById)) {
+            this.saveRailItemsToCache(railId);
+          }
+          this.editorOpen.set(false);
+        },
+        error: () => {
+          this.saveError.set('Unable to save Home rails right now.');
+        },
+      });
+  }
+
+  protected saveRailForm(): void {
+    const form = this.railForm();
+    if (!form || this.railFormSaving()) {
+      return;
+    }
+
+    const payload = this.buildRailPayload(form);
+    if (!payload.title.trim()) {
+      this.railFormError.set('A title is required for custom Home rails.');
+      return;
+    }
+
+    this.railFormMutationSubscription?.unsubscribe();
+    this.railFormSaving.set(true);
+    this.railFormError.set(null);
+
+    const request$ = this.editingRailId()
+      ? this.homeService.updateRail(this.editingRailId() as string, payload)
+      : this.homeService.createRail(payload);
+
+    this.railFormMutationSubscription = request$
+      .pipe(finalize(() => this.railFormSaving.set(false)))
+      .subscribe({
+        next: () => {
+          this.closeRailForm();
+          this.editorOpen.set(true);
+          this.loadHome();
+        },
+        error: () => {
+          this.railFormError.set('Unable to save this Home rail right now.');
+        },
+      });
+  }
+
+  protected deleteCustomRail(rail: HomeRailConfig): void {
+    if (!rail.deletable || !this.canMutateCustomRails()) {
+      return;
+    }
+
+    if (!window.confirm(`Delete the Home rail "${rail.title}"?`)) {
+      return;
+    }
+
+    this.railDeleteSubscription?.unsubscribe();
+    this.deletingRailId.set(rail.id);
+    this.deleteError.set(null);
+
+    this.railDeleteSubscription = this.homeService
+      .deleteRail(rail.id)
+      .pipe(finalize(() => this.deletingRailId.set(null)))
+      .subscribe({
+        next: () => {
+          if (this.editingRailId() === rail.id) {
+            this.closeRailForm();
+          }
+          this.editorOpen.set(true);
+          this.loadHome();
+        },
+        error: () => {
+          this.deleteError.set('Unable to delete this Home rail right now.');
+        },
+      });
+  }
+
+  protected isDeletingRail(railId: string): boolean {
+    return this.deletingRailId() === railId;
+  }
+
+  protected updateRailForm<
+    K extends keyof Pick<
+      HomeRailFormDraft,
+      | 'source'
+      | 'title'
+      | 'subtitle'
+      | 'enabled'
+      | 'sort'
+      | 'direction'
+      | 'titleQuery'
+      | 'favorites'
+      | 'tagMode'
+      | 'favoritePerformersOnly'
+      | 'favoriteStudiosOnly'
+      | 'favoriteTagsOnly'
+      | 'limit'
+    >,
+  >(field: K, value: HomeRailFormDraft[K]): void {
+    this.railForm.update((current) => (current ? { ...current, [field]: value } : current));
+  }
+
+  protected updateRailSource(nextSource: HomeRailSource): void {
+    this.railForm.update((current) => {
+      if (!current) {
+        return current;
+      }
+
+      if (current.source === nextSource) {
+        return current;
+      }
+
+      if (nextSource === 'STASH') {
+        return {
+          ...current,
+          source: 'STASH',
+          sort: 'CREATED_AT',
+          titleQuery: '',
+          favorites: 'NONE',
+          tagMode: HomePageComponent.DEFAULT_TAG_MODE,
+          favoritePerformersOnly: false,
+          favoriteStudiosOnly: false,
+          favoriteTagsOnly: false,
+          selectedTags: [],
+          selectedStudios: [],
+        };
+      }
+
+      return {
+        ...current,
+        source: 'STASHDB',
+        sort: 'DATE',
+        titleQuery: '',
+        favorites: current.favorites,
+        favoritePerformersOnly: false,
+        favoriteStudiosOnly: false,
+        favoriteTagsOnly: false,
+        selectedTags: [],
+        selectedStudios: [],
+      };
+    });
+    const updatedForm = this.railForm();
+    this.formTagSelectedIdsModel.set(updatedForm?.selectedTags.map((tag) => tag.id) ?? []);
+    this.formStudioSelectedIdsModel.set(
+      updatedForm?.selectedStudios.map((studio) => studio.id) ?? [],
+    );
+    this.rebuildRailFormTagSelectOptions(this.tagOptions());
+    this.rebuildRailFormStudioSelectOptions(this.studioOptions());
+  }
+
+  protected onRailFormTagSelectionChanged(nextValue: string[] | null): void {
+    const nextIds = this.dedupeStrings(nextValue ?? []);
+    this.formTagSelectedIdsModel.set(nextIds);
+
+    const previousTags = new Map((this.railForm()?.selectedTags ?? []).map((tag) => [tag.id, tag]));
+    const currentTags = new Map(this.tagOptions().map((tag) => [tag.id, tag]));
+    const nextSelected = nextIds
+      .map((id) => currentTags.get(id) ?? previousTags.get(id))
+      .filter((tag): tag is SceneTagOption => Boolean(tag));
+
+    this.railForm.update((current) =>
+      current
+        ? {
+            ...current,
+            selectedTags: nextSelected,
+          }
+        : current,
+    );
+    this.rebuildRailFormTagSelectOptions(this.tagOptions());
+  }
+
+  protected onRailFormStudioSelectionChanged(nextValue: string[] | null): void {
+    const nextIds = this.dedupeStrings(nextValue ?? []);
+    this.formStudioSelectedIdsModel.set(nextIds);
+
+    const previousLabels = new Map(
+      (this.railForm()?.selectedStudios ?? []).map((studio) => [studio.id, studio.label]),
+    );
+    const currentLabels = this.studioLabelMap();
+    const nextSelected = nextIds.map((id) => ({
+      id,
+      label: currentLabels.get(id) ?? previousLabels.get(id) ?? id,
+    }));
+
+    this.railForm.update((current) =>
+      current
+        ? {
+            ...current,
+            selectedStudios: nextSelected,
+          }
+        : current,
+    );
+    this.rebuildRailFormStudioSelectOptions(this.studioOptions());
+  }
+
+  protected onRailFormTagFilterChanged(nextValue: string | null | undefined): void {
+    const nextTerm = (nextValue ?? '').trimStart();
+    this.tagSearchTerm.set(nextTerm);
+    this.tagSearchTerms.next(nextTerm);
+  }
+
+  protected onRailFormStudioFilterChanged(nextValue: string | null | undefined): void {
+    const nextTerm = (nextValue ?? '').trimStart();
+    this.studioSearchTerm.set(nextTerm);
+    this.studioSearchTerms.next(nextTerm);
+  }
+
+  protected onRailFormTagPanelHide(): void {
+    this.onRailFormTagFilterChanged('');
+  }
+
+  protected onRailFormStudioPanelHide(): void {
+    this.onRailFormStudioFilterChanged('');
+  }
+
+  protected tagSelectEmptyMessage(): string {
+    if (this.tagSearchError()) {
+      return this.tagSearchError() ?? 'Failed to load tag options.';
+    }
+
+    if (this.tagSearchTerm().trim().length === 0) {
+      return this.isStashForm() ? 'Type to search local tags.' : 'Type to search tags.';
+    }
+
+    return 'No matching tags.';
+  }
+
+  protected studioSelectEmptyMessage(): string {
+    if (this.studioSearchError()) {
+      return this.studioSearchError() ?? 'Failed to load studio options.';
+    }
+
+    if (this.studioSearchTerm().trim().length === 0) {
+      return this.isStashForm()
+        ? 'Type to search local studios.'
+        : 'Type to search studio networks.';
+    }
+
+    return 'No matching studios.';
+  }
+
+  protected currentRouteUrl(): string {
+    return this.router.url;
+  }
+
+  protected isRequestable(item: HomeRailItem): boolean {
+    return item.requestable && isSceneStatusRequestable(item.status);
+  }
+
+  protected openRequestModal(item: SceneRequestContext): void {
+    this.requestContext.set(item);
+    this.requestModalOpen.set(true);
+  }
+
+  protected onRequestModalClosed(): void {
+    this.requestModalOpen.set(false);
+  }
+
+  protected onRequestSubmitted(stashId: string): void {
+    this.railItemsById.update((current) => {
+      const next: Record<string, HomeRailItem[]> = { ...current };
+      for (const [railId, items] of Object.entries(current)) {
+        next[railId] = items.map((item) =>
+          item.id === stashId
+            ? {
+                ...item,
+                requestable: false,
+                status: { state: 'REQUESTED' },
+              }
+            : item,
+        );
+      }
+      return next;
+    });
+    for (const railId of Object.keys(this.railItemsById())) {
+      this.saveRailItemsToCache(railId);
+    }
+  }
+
+  protected readonly skeletonRails = [0, 1, 2];
+  protected readonly skeletonCards = [0, 1, 2, 3, 4, 5, 6];
+  private readonly railEdges = signal<Record<string, { atStart: boolean; atEnd: boolean }>>({});
+
+  protected canScrollRail(railId: string, direction: 'prev' | 'next'): boolean {
+    const edges = this.railEdges()[railId];
+    if (!edges) {
+      return direction === 'next';
+    }
+
+    return direction === 'prev' ? !edges.atStart : !edges.atEnd;
+  }
+
+  protected updateRailEdges(railId: string, viewport: HTMLElement): void {
+    const tolerance = 4;
+    const atStart = viewport.scrollLeft <= tolerance;
+    const atEnd = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - tolerance;
+    const current = this.railEdges()[railId];
+    if (current && current.atStart === atStart && current.atEnd === atEnd) {
+      return;
+    }
+
+    this.railEdges.update((edges) => ({ ...edges, [railId]: { atStart, atEnd } }));
+  }
+
+  protected scrollRail(railId: string, direction: 'prev' | 'next'): void {
+    const viewport = this.findRailViewport(railId);
+    if (!viewport) {
+      return;
+    }
+
+    const delta = Math.max(viewport.clientWidth * 0.82, 320);
+    viewport.scrollBy({
+      left: direction === 'next' ? delta : -delta,
+      behavior: 'smooth',
+    });
+  }
+
+  protected kindLabel(rail: HomeRailConfig): string {
+    return rail.kind === 'BUILTIN' ? 'Built-in' : 'Custom';
+  }
+
+  protected sourceLabel(source: HomeRailSource): string {
+    return source === 'STASH' ? 'Stash' : 'Catalog';
+  }
+
+  protected isStashRail(
+    rail: HomeRailConfig,
+  ): rail is Extract<HomeRailConfig, { source: 'STASH' }> {
+    return rail.source === 'STASH';
+  }
+
+  protected isStashForm(): boolean {
+    return this.railForm()?.source === 'STASH';
+  }
+
+  protected railFormSortOptions() {
+    return this.isStashForm() ? this.stashSortOptions : this.sortOptions;
+  }
+
+  protected railFavoritesValue(rail: HomeRailConfig): string | null {
+    return this.favoritesLabelForRail(rail);
+  }
+
+  protected railLocalFavoritesValue(rail: HomeRailConfig): string | null {
+    return this.stashLocalFavoritesLabelForRail(rail);
+  }
+
+  protected railTagCount(rail: HomeRailConfig): number {
+    return rail.config.tagIds.length;
+  }
+
+  protected railStudioCount(rail: HomeRailConfig): number {
+    return rail.config.studioIds.length;
+  }
+
+  protected isInternalSceneRoute(item: HomeRailItem): boolean {
+    return item.source === 'STASHDB' || item.source === 'FANSDB';
+  }
+
+  private loadRailContent(rails: HomeRailConfig[]) {
+    const enabledRails = rails.filter((rail) => rail.enabled);
+    if (enabledRails.length === 0) {
+      return of<RailContentState>({
+        itemsById: {},
+        errorsById: {},
+      });
+    }
+
+    return forkJoin(enabledRails.map((rail) => this.loadSingleRailSafe(rail))).pipe(
+      map((results) => {
+        const itemsById: Record<string, HomeRailItem[]> = {};
+        const errorsById: Record<string, string> = {};
+
+        for (const result of results) {
+          itemsById[result.id] = result.items;
+          if (result.error) {
+            errorsById[result.id] = result.error;
+          }
+        }
+
+        return {
+          itemsById,
+          errorsById,
+        } satisfies RailContentState;
+      }),
+    );
+  }
+
+  /** Loads one rail, never errors, and gives up after a timeout so one slow rail can't block Home. */
+  private loadSingleRailSafe(rail: HomeRailConfig) {
+    return this.loadSingleRail(rail).pipe(
+      timeout({ first: HomePageComponent.RAIL_LOAD_TIMEOUT_MS }),
+      map((response): RailLoadResult => response),
+      catchError(() =>
+        of<RailLoadResult>({
+          id: rail.id,
+          items: [],
+          error: this.railLoadErrorMessage(rail),
+        }),
+      ),
+    );
+  }
+
+  private applyRailResult(result: RailLoadResult): void {
+    const shown = this.railItemsById()[result.id];
+    if (result.error && result.items.length === 0 && shown && shown.length > 0) {
+      // The refresh failed, but last visit's scenes are still worth showing.
+      return;
+    }
+    this.railItemsById.update((current) => ({ ...current, [result.id]: result.items }));
+    if (result.error) {
+      const error = result.error;
+      this.railErrorsById.update((current) => ({ ...current, [result.id]: error }));
+    } else {
+      this.railErrorsById.update((current) => {
+        if (!(result.id in current)) {
+          return current;
+        }
+        const next = { ...current };
+        delete next[result.id];
+        return next;
+      });
+      this.saveRailItemsToCache(result.id);
+    }
+  }
+
+  private railLoadErrorMessage(rail: HomeRailConfig): string {
+    return `Unable to load ${rail.title.toLowerCase()} right now.`;
+  }
+
+  private loadSingleRail(rail: HomeRailConfig) {
+    if (rail.source === 'STASH') {
+      return this.homeService.getRailItems(rail.id).pipe(
+        map((response: HomeRailContentResponse): RailLoadResult => ({
+          id: rail.id,
+          items: response.items,
+          error: response.message,
+        })),
+      );
+    }
+
+    return this.discoverService
+      .getScenesFeed(
+        1,
+        rail.config.limit,
+        rail.config.sort,
+        rail.config.direction,
+        rail.config.tagIds,
+        rail.config.tagIds.length > 0 ? (rail.config.tagMode ?? 'OR') : undefined,
+        rail.config.favorites ?? undefined,
+        rail.config.studioIds,
+      )
+      .pipe(
+        map((response): RailLoadResult => ({
+          id: rail.id,
+          items: response.items.map((item) => ({
+            ...item,
+            requestable: item.requestable,
+            viewUrl: null,
+          })),
+          error: null,
+        })),
+      );
+  }
+
+  private buildSeeAllLink(rail: HomeRailConfig): {
+    path: '/library' | '/scenes' | '/acquisition';
+    queryParams: Record<string, string>;
+  } | null {
+    if (rail.key === 'STILL_WAITING') {
+      return { path: '/acquisition', queryParams: {} };
+    }
+
+    // Playback rails come straight from Stash; the Library page has no play-count filter.
+    if (
+      rail.key === 'UNWATCHED_LIBRARY' ||
+      rail.key === 'MOST_PLAYED_LIBRARY' ||
+      rail.key === 'CONTINUE_WATCHING'
+    ) {
+      return null;
+    }
+
+    if (rail.source === 'STASHDB') {
+      return {
+        path: '/scenes',
+        queryParams: this.buildDiscoverySeeAllQueryParams(rail.config),
+      };
+    }
+
+    if (rail.source === 'STASH') {
+      return {
+        path: '/library',
+        queryParams: this.buildLibrarySeeAllQueryParams(rail.config),
+      };
+    }
+
+    return null;
+  }
+
+  private buildDiscoverySeeAllQueryParams(
+    config: HomeStashdbSceneRailConfig,
+  ): Record<string, string> {
+    const params: Record<string, string> = {
+      sort: config.sort,
+      dir: config.direction,
+    };
+
+    if (config.favorites) {
+      params['fav'] = config.favorites;
+    }
+    if (config.tagIds.length > 0) {
+      params['tags'] = config.tagIds.join(',');
+      params['tagNames'] = joinTagNames(config.tagNames);
+      params['mode'] = config.tagMode ?? 'OR';
+    }
+    if (config.studioIds.length > 0) {
+      params['studios'] = config.studioIds.join(',');
+      params['studioNames'] = config.studioNames.join(',');
+    }
+
+    return params;
+  }
+
+  private buildLibrarySeeAllQueryParams(config: HomeStashSceneRailConfig): Record<string, string> {
+    const params: Record<string, string> = {
+      sort: config.sort,
+      dir: config.direction,
+    };
+
+    if (config.titleQuery) {
+      params['query'] = config.titleQuery;
+    }
+    if (config.tagIds.length > 0) {
+      params['tags'] = config.tagIds.join(',');
+      params['tagNames'] = joinTagNames(config.tagNames);
+      params['mode'] = config.tagMode ?? 'OR';
+    }
+    if (config.studioIds.length > 0) {
+      params['studios'] = config.studioIds.join(',');
+      params['studioNames'] = config.studioNames.join(',');
+    }
+    if (config.favoritePerformersOnly) {
+      params['favoritePerformersOnly'] = '1';
+    }
+    if (config.favoriteStudiosOnly) {
+      params['favoriteStudiosOnly'] = '1';
+    }
+    if (config.favoriteTagsOnly) {
+      params['favoriteTagsOnly'] = '1';
+    }
+
+    return params;
+  }
+
+  private summarizeRail(rail: HomeRailConfig): HomeRailViewSummary {
+    return {
+      sortLabel: this.sortLabelForRail(rail),
+      favoritesLabel: this.favoritesLabelForRail(rail),
+      stashLocalFavoritesLabel: this.stashLocalFavoritesLabelForRail(rail),
+      titleQueryLabel: this.titleQueryLabelForRail(rail),
+      tagCount: rail.config.tagIds.length,
+      studioCount: rail.config.studioIds.length,
+      limit: rail.config.limit,
+    };
+  }
+
+  private sortRails(rails: HomeRailConfig[]): HomeRailConfig[] {
+    return [...rails].sort((left, right) => left.sortOrder - right.sortOrder);
+  }
+
+  private cloneRails(rails: HomeRailConfig[]): HomeRailConfig[] {
+    return rails.map((rail): HomeRailConfig => {
+      switch (rail.source) {
+        case 'STASHDB':
+          return {
+            ...rail,
+            config: {
+              ...rail.config,
+              tagIds: [...rail.config.tagIds],
+              tagNames: [...rail.config.tagNames],
+              studioIds: [...rail.config.studioIds],
+              studioNames: [...rail.config.studioNames],
+            },
+          };
+        case 'STASH':
+          return {
+            ...rail,
+            config: {
+              ...rail.config,
+              tagIds: [...rail.config.tagIds],
+              tagNames: [...rail.config.tagNames],
+              studioIds: [...rail.config.studioIds],
+              studioNames: [...rail.config.studioNames],
+            },
+          };
+      }
+    });
+  }
+
+  private buildFormFromRail(rail: HomeRailConfig): HomeRailFormDraft {
+    const config = rail.config;
+    return {
+      title: rail.title,
+      subtitle: rail.subtitle ?? '',
+      enabled: rail.enabled,
+      source: rail.source,
+      sort: config.sort,
+      direction: config.direction,
+      titleQuery: this.isStashConfig(config) ? (config.titleQuery ?? '') : '',
+      favorites: this.isStashdbConfig(config) ? (config.favorites ?? 'NONE') : 'NONE',
+      tagMode: config.tagMode ?? HomePageComponent.DEFAULT_TAG_MODE,
+      favoritePerformersOnly: this.isStashConfig(config) ? config.favoritePerformersOnly : false,
+      favoriteStudiosOnly: this.isStashConfig(config) ? config.favoriteStudiosOnly : false,
+      favoriteTagsOnly: this.isStashConfig(config) ? config.favoriteTagsOnly : false,
+      limit: config.limit,
+      selectedTags: config.tagIds
+        ? config.tagIds.map((id, index) => ({
+            id,
+            name: config.tagNames[index] ?? id,
+            description: null,
+            aliases: [],
+          }))
+        : [],
+      selectedStudios: config.studioIds
+        ? config.studioIds.map((id, index) => ({
+            id,
+            label: config.studioNames[index] ?? id,
+          }))
+        : [],
+    };
+  }
+
+  private createEmptyRailForm(): HomeRailFormDraft {
+    return {
+      title: '',
+      subtitle: '',
+      enabled: true,
+      source: 'STASHDB',
+      sort: HomePageComponent.DEFAULT_SORT,
+      direction: HomePageComponent.DEFAULT_DIRECTION,
+      titleQuery: '',
+      favorites: 'NONE',
+      tagMode: HomePageComponent.DEFAULT_TAG_MODE,
+      favoritePerformersOnly: false,
+      favoriteStudiosOnly: false,
+      favoriteTagsOnly: false,
+      limit: HomePageComponent.DEFAULT_LIMIT,
+      selectedTags: [],
+      selectedStudios: [],
+    };
+  }
+
+  private buildRailPayload(form: HomeRailFormDraft): SaveHomeRailPayload {
+    if (form.source === 'STASH') {
+      return {
+        source: 'STASH',
+        title: form.title.trim(),
+        subtitle: form.subtitle.trim() || null,
+        enabled: form.enabled,
+        config: {
+          sort: form.sort as HomeStashSceneSort,
+          direction: form.direction,
+          titleQuery: form.titleQuery.trim() || null,
+          tagIds: form.selectedTags.map((tag) => tag.id),
+          tagNames: form.selectedTags.map((tag) => tag.name),
+          tagMode: form.selectedTags.length > 0 ? form.tagMode : null,
+          studioIds: form.selectedStudios.map((studio) => studio.id),
+          studioNames: form.selectedStudios.map((studio) => studio.label),
+          favoritePerformersOnly: form.favoritePerformersOnly,
+          favoriteStudiosOnly: form.favoriteStudiosOnly,
+          favoriteTagsOnly: form.favoriteTagsOnly,
+          limit: Math.min(
+            Math.max(
+              Math.round(Number(form.limit) || HomePageComponent.DEFAULT_LIMIT),
+              HomePageComponent.LIMIT_MIN,
+            ),
+            HomePageComponent.LIMIT_MAX,
+          ),
+        },
+      };
+    }
+
+    return {
+      source: 'STASHDB',
+      title: form.title.trim(),
+      subtitle: form.subtitle.trim() || null,
+      enabled: form.enabled,
+      config: {
+        sort: form.sort,
+        direction: form.direction,
+        favorites: form.favorites === 'NONE' ? null : form.favorites,
+        tagIds: form.selectedTags.map((tag) => tag.id),
+        tagNames: form.selectedTags.map((tag) => tag.name),
+        tagMode: form.selectedTags.length > 0 ? form.tagMode : null,
+        studioIds: form.selectedStudios.map((studio) => studio.id),
+        studioNames: form.selectedStudios.map((studio) => studio.label),
+        limit: Math.min(
+          Math.max(
+            Math.round(Number(form.limit) || HomePageComponent.DEFAULT_LIMIT),
+            HomePageComponent.LIMIT_MIN,
+          ),
+          HomePageComponent.LIMIT_MAX,
+        ),
+      },
+    };
+  }
+
+  private setupTagSearch(): void {
+    this.tagSearchSubscription = this.tagSearchTerms
+      .pipe(
+        map((value) => value.trim()),
+        debounceTime(HomePageComponent.SEARCH_DEBOUNCE_MS),
+        distinctUntilChanged(),
+        switchMap((query) => {
+          if (!query) {
+            this.tagOptions.set([]);
+            this.tagSearchError.set(null);
+            this.rebuildRailFormTagSelectOptions([]);
+            return of<SceneTagOption[]>([]);
+          }
+
+          this.tagSearchLoading.set(true);
+          this.tagSearchError.set(null);
+
+          return this.searchRailTags(query).pipe(
+            catchError(() => {
+              this.tagSearchError.set('Failed to load tag options.');
+              return of<SceneTagOption[]>([]);
+            }),
+            finalize(() => {
+              this.tagSearchLoading.set(false);
+            }),
+          );
+        }),
+      )
+      .subscribe((options) => {
+        this.tagOptions.set(options);
+        this.rebuildRailFormTagSelectOptions(options);
+      });
+  }
+
+  private setupStudioSearch(): void {
+    this.studioSearchSubscription = this.studioSearchTerms
+      .pipe(
+        map((value) => value.trim()),
+        debounceTime(HomePageComponent.SEARCH_DEBOUNCE_MS),
+        distinctUntilChanged(),
+        switchMap((query) => {
+          if (!query) {
+            this.studioOptions.set([]);
+            this.studioSearchError.set(null);
+            this.rebuildRailFormStudioSelectOptions([]);
+            return of<PerformerStudioOption[]>([]);
+          }
+
+          this.studioSearchLoading.set(true);
+          this.studioSearchError.set(null);
+
+          return this.searchRailStudios(query).pipe(
+            catchError(() => {
+              this.studioSearchError.set('Failed to load studio options.');
+              return of<PerformerStudioOption[]>([]);
+            }),
+            finalize(() => {
+              this.studioSearchLoading.set(false);
+            }),
+          );
+        }),
+      )
+      .subscribe((options) => {
+        this.studioOptions.set(options);
+        this.rebuildRailFormStudioSelectOptions(options);
+      });
+  }
+
+  private rebuildRailFormTagSelectOptions(searchResults: SceneTagOption[]): void {
+    const merged = new Map<string, MultiSelectOption>();
+
+    for (const selected of this.railForm()?.selectedTags ?? []) {
+      merged.set(selected.id, {
+        label: selected.name,
+        value: selected.id,
+      });
+    }
+
+    for (const tag of searchResults) {
+      merged.set(tag.id, {
+        label: tag.name,
+        value: tag.id,
+      });
+    }
+
+    this.tagSelectOptions.set([...merged.values()]);
+  }
+
+  private rebuildRailFormStudioSelectOptions(options: PerformerStudioOption[]): void {
+    const grouped = options.map((network) => {
+      const groupItems: MultiSelectOption[] = [
+        {
+          label: `${network.name} (Network)`,
+          value: network.id,
+        },
+        ...network.childStudios.map((child) => ({
+          label: child.name,
+          value: child.id,
+        })),
+      ];
+
+      return {
+        label: network.name,
+        items: groupItems,
+      } satisfies MultiSelectGroup;
+    });
+
+    const seen = new Set(grouped.flatMap((group) => group.items.map((item) => item.value)));
+    const selectedOnlyItems = (this.railForm()?.selectedStudios ?? [])
+      .filter((studio) => !seen.has(studio.id))
+      .map((studio) => ({
+        label: studio.label,
+        value: studio.id,
+      }));
+
+    if (selectedOnlyItems.length > 0) {
+      grouped.unshift({
+        label: 'Selected',
+        items: selectedOnlyItems,
+      });
+    }
+
+    this.studioSelectOptions.set(grouped);
+  }
+
+  private studioLabelMap(): Map<string, string> {
+    const labels = new Map<string, string>();
+
+    for (const option of this.studioOptions()) {
+      labels.set(option.id, option.name);
+      for (const child of option.childStudios) {
+        labels.set(child.id, child.name);
+      }
+    }
+
+    return labels;
+  }
+
+  private dedupeStrings(values: string[]): string[] {
+    const deduped = new Set<string>();
+    for (const value of values) {
+      deduped.add(value);
+    }
+    return [...deduped];
+  }
+
+  private findRailViewport(railId: string): HTMLDivElement | null {
+    return (
+      this.railViewports?.find(
+        (elementRef) => elementRef.nativeElement.dataset['railId'] === railId,
+      )?.nativeElement ?? null
+    );
+  }
+
+  private isStashdbConfig(config: HomeRailConfig['config']): config is HomeStashdbSceneRailConfig {
+    return 'favorites' in config;
+  }
+
+  private isStashConfig(config: HomeRailConfig['config']): config is HomeStashSceneRailConfig {
+    return !this.isStashdbConfig(config);
+  }
+
+  private favoritesLabelForRail(rail: HomeRailConfig): string {
+    const config = rail.config;
+    if (this.isStashConfig(config)) {
+      return 'Local Library';
+    }
+
+    return (
+      HomePageComponent.FAVORITES_OPTIONS.find(
+        (option) => option.value === (config.favorites ?? 'NONE'),
+      )?.label ?? 'No Favorites Filter'
+    );
+  }
+
+  private sortLabelForRail(rail: HomeRailConfig): string {
+    const options = rail.source === 'STASH' ? this.stashSortOptions : this.sortOptions;
+    return options.find((option) => option.value === rail.config.sort)?.label ?? rail.config.sort;
+  }
+
+  private titleQueryLabelForRail(rail: HomeRailConfig): string | null {
+    if (this.isStashConfig(rail.config) && rail.config.titleQuery) {
+      return `Title contains "${rail.config.titleQuery}"`;
+    }
+
+    return null;
+  }
+
+  private stashLocalFavoritesLabelForRail(rail: HomeRailConfig): string | null {
+    if (this.isStashConfig(rail.config)) {
+      return this.stashLocalFavoritesSummary(
+        rail.config.favoritePerformersOnly,
+        rail.config.favoriteStudiosOnly,
+        rail.config.favoriteTagsOnly,
+      );
+    }
+
+    return null;
+  }
+
+  private stashLocalFavoritesSummary(
+    favoritePerformersOnly: boolean,
+    favoriteStudiosOnly: boolean,
+    favoriteTagsOnly: boolean,
+  ): string | null {
+    const labels: string[] = [];
+    if (favoritePerformersOnly) {
+      labels.push('Favorite Performers');
+    }
+    if (favoriteStudiosOnly) {
+      labels.push('Favorite Studios');
+    }
+    if (favoriteTagsOnly) {
+      labels.push('Favorite Tags');
+    }
+
+    return labels.length > 0 ? `Stash Local ${labels.join(' + ')}` : null;
+  }
+
+  private searchRailTags(query: string) {
+    return this.isStashForm()
+      ? this.homeService.searchStashTags(query)
+      : this.discoverService.searchSceneTags(query);
+  }
+
+  private searchRailStudios(query: string) {
+    return this.isStashForm()
+      ? this.homeService.searchStashStudios(query)
+      : this.discoverService.searchPerformerStudios(query);
+  }
+}

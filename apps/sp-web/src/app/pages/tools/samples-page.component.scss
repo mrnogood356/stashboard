@@ -1,0 +1,40 @@
+/* Built on the Duplicates page's cards (.copy, .thumb, .specs, .sheet). */
+.samples-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.8rem;
+}
+
+.samples-head .summary {
+  margin: 0;
+}
+
+.samples {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.9rem;
+  padding-bottom: 1.5rem;
+}
+
+.samples .copy {
+  border: 0;
+}
+
+.samples .copy .btn {
+  justify-self: start;
+}
+
+.reason {
+  background: color-mix(in srgb, var(--surface-1) 85%, transparent);
+  color: var(--text-primary);
+}
+
+@media (max-width: 560px) {
+  .samples {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+}

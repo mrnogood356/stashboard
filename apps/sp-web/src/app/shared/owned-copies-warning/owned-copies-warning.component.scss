@@ -1,0 +1,141 @@
+:host {
+  display: block;
+}
+
+.owned {
+  display: grid;
+  gap: 0.85rem;
+  padding: 0.9rem;
+  border-radius: 14px;
+  min-width: 0;
+  background: var(--tone-warning-background);
+  border: 1px solid var(--tone-warning-border);
+}
+
+.owned-head {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+}
+
+.owned-head > .pi {
+  margin-top: 0.15rem;
+  color: var(--warning);
+}
+
+h3,
+p {
+  margin: 0;
+}
+
+h3 {
+  font-size: 1rem;
+  color: var(--tone-warning-text);
+}
+
+p {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+
+.copies {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.copy {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.thumb {
+  width: 5.5rem;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--surface-elevated);
+}
+
+.thumb.empty {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+}
+
+.copy-text {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.copy-text strong,
+.copy-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy-text small {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.why {
+  font-weight: 600;
+}
+
+.copy-text small.path {
+  /* The whole path, wrapped anywhere: it's what tells two copies apart. */
+  font-family: var(--font-mono, ui-monospace, monospace);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.open {
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.owned-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.proceed {
+  min-height: 2.5rem;
+  padding: 0 1.1rem;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 420px) {
+  .copy {
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+  }
+
+  .thumb {
+    width: 4.5rem;
+  }
+
+  .open {
+    grid-column: 2;
+    justify-self: start;
+  }
+}

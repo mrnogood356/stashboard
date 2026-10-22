@@ -1,0 +1,174 @@
+<p-dialog
+  [visible]="open"
+  (visibleChange)="onDialogVisibleChange($event)"
+  [modal]="true"
+  [dismissableMask]="!requestSubmitLoading()"
+  [closeOnEscape]="!requestSubmitLoading()"
+  [draggable]="false"
+  [resizable]="false"
+  [closable]="false"
+  [blockScroll]="true"
+  [focusOnShow]="true"
+  [breakpoints]="dialogBreakpoints"
+  [appendTo]="'self'"
+  [style]="{ width: 'min(760px, 96vw)', maxHeight: 'min(86dvh, 780px)' }"
+  styleClass="request-dialog"
+  maskStyleClass="request-dialog-mask"
+>
+  <div class="request-modal-shell">
+    @if (sceneImageUrl) {
+      <div
+        class="request-modal-art"
+        [style.background-image]="'url(' + sceneImageUrl + ')'"
+        aria-hidden="true"
+      ></div>
+    }
+    <div class="request-modal-shade" aria-hidden="true"></div>
+
+    <div class="request-modal-content">
+      <header class="request-modal-header">
+        <div>
+          <h2 id="request-dialog-title">Request in Whisparr</h2>
+          @if (sceneTitle) {
+            <p>{{ sceneTitle }}</p>
+          }
+        </div>
+        <button
+          type="button"
+          class="close-modal"
+          [disabled]="requestSubmitLoading()"
+          pButton
+          (click)="closeModal()"
+        >
+          Close
+        </button>
+      </header>
+
+      <div class="request-modal-body">
+        @if (requestOptionsLoading() || ownedChecking()) {
+          <div
+            class="app-blocking-loader app-blocking-loader--modal"
+            role="status"
+            aria-live="polite"
+          >
+            <p-progressspinner
+              styleClass="app-blocking-spinner"
+              strokeWidth="4"
+              [style]="{ width: '2rem', height: '2rem' }"
+            />
+            <p>Loading request options...</p>
+          </div>
+        } @else if (showOwnedWarning()) {
+          <app-owned-copies-warning
+            [copies]="ownedCopies()"
+            proceedLabel="Request anyway"
+            (proceed)="requestAnyway()"
+            (opened)="onOwnedCopyOpened()"
+          />
+        } @else if (requestOptionsError()) {
+          <p-message severity="error" styleClass="app-inline-message">
+            {{ requestOptionsError() }}
+          </p-message>
+        } @else {
+          <form [formGroup]="requestForm" (ngSubmit)="submitRequest()">
+            <label id="request-root-folder-label" class="field" for="request-root-folder">
+              <span>Root Folder</span>
+              <p-select
+                inputId="request-root-folder"
+                ariaLabelledBy="request-root-folder-label"
+                formControlName="rootFolderPath"
+                [options]="rootFolderOptions()"
+                optionLabel="label"
+                optionValue="value"
+                optionDisabled="disabled"
+                [appendTo]="'body'"
+                panelStyleClass="app-overlay-panel app-overlay-panel--comfortable"
+                scrollHeight="16rem"
+                placeholder="Select a root folder"
+                [invalid]="
+                  requestForm.controls.rootFolderPath.touched &&
+                  requestForm.controls.rootFolderPath.invalid
+                "
+              />
+            </label>
+
+            <label id="request-quality-profile-label" class="field" for="request-quality-profile">
+              <span>Quality Profile</span>
+              <p-select
+                inputId="request-quality-profile"
+                ariaLabelledBy="request-quality-profile-label"
+                formControlName="qualityProfileId"
+                [options]="qualityProfileOptions()"
+                optionLabel="label"
+                optionValue="value"
+                [appendTo]="'body'"
+                panelStyleClass="app-overlay-panel app-overlay-panel--comfortable"
+                scrollHeight="16rem"
+                placeholder="Select a quality profile"
+                [invalid]="
+                  requestForm.controls.qualityProfileId.touched &&
+                  requestForm.controls.qualityProfileId.invalid
+                "
+              />
+            </label>
+
+            <div class="checks">
+              <label class="toggle-field" for="request-monitored">
+                <p-toggleswitch inputId="request-monitored" formControlName="monitored" />
+                <span>Monitored</span>
+              </label>
+              <label class="toggle-field" for="request-search-now">
+                <p-toggleswitch inputId="request-search-now" formControlName="searchForMovie" />
+                <span>Search Immediately</span>
+              </label>
+            </div>
+
+            @if (tagOptions().length > 0) {
+              <label id="request-tags-label" class="field" for="request-tags">
+                <span>Tags</span>
+                <p-multiselect
+                  inputId="request-tags"
+                  ariaLabelledBy="request-tags-label"
+                  formControlName="tags"
+                  [options]="tagOptions()"
+                  optionLabel="label"
+                  optionValue="value"
+                  [appendTo]="'body'"
+                  panelStyleClass="app-overlay-panel app-overlay-panel--comfortable"
+                  scrollHeight="16rem"
+                  [showToggleAll]="false"
+                  [showHeader]="false"
+                  [maxSelectedLabels]="3"
+                  display="chip"
+                  placeholder="Select tags"
+                />
+              </label>
+            }
+
+            @if (requestSubmitError()) {
+              <p-message severity="error" styleClass="app-inline-message">
+                {{ requestSubmitError() }}
+              </p-message>
+            }
+
+            <div class="request-actions">
+              <button type="submit" [disabled]="requestSubmitLoading()" pButton>
+                {{ requestSubmitLoading() ? 'Submitting...' : 'Submit Request' }}
+              </button>
+              <button
+                type="button"
+                class="secondary"
+                [disabled]="requestSubmitLoading()"
+                pButton
+                text
+                (click)="closeModal()"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        }
+      </div>
+    </div>
+  </div>
+</p-dialog>

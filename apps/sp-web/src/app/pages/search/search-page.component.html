@@ -1,0 +1,245 @@
+<main class="search app-page-shell">
+  <header class="search-head">
+    <h1>Search</h1>
+    <form class="search-field" role="search" (submit)="$event.preventDefault(); remember()">
+      <i class="pi pi-search" aria-hidden="true"></i>
+      <input
+        #searchInput
+        type="search"
+        enterkeyhint="search"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+        placeholder="Scenes, performers, studios"
+        aria-label="Search your library and the catalog"
+        [value]="query()"
+        (input)="setQuery($any($event.target).value)"
+      />
+      @if (query()) {
+        <button type="button" class="clear" aria-label="Clear search" (click)="clear()">
+          <i class="pi pi-times-circle" aria-hidden="true"></i>
+        </button>
+      }
+    </form>
+  </header>
+
+  @if (!searched()) {
+    @if (recent().length > 0) {
+      <section class="block">
+        <div class="block-head">
+          <h2>Recent</h2>
+          <button type="button" class="link-button" (click)="clearRecent()">Clear</button>
+        </div>
+        <ul class="recent">
+          @for (entry of recent(); track entry) {
+            <li>
+              <button type="button" class="recent-item" (click)="setQuery(entry)">
+                <i class="pi pi-history" aria-hidden="true"></i>
+                <span>{{ entry }}</span>
+              </button>
+              <button
+                type="button"
+                class="recent-remove"
+                [attr.aria-label]="'Remove ' + entry"
+                (click)="removeRecent(entry)"
+              >
+                <i class="pi pi-times" aria-hidden="true"></i>
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <section class="block">
+      <h2>Explore</h2>
+      <div class="shortcuts">
+        @if (feedOn()) {
+          <a class="shortcut" routerLink="/feed">
+            <i class="pi pi-mobile" aria-hidden="true"></i>
+            <span>Swipe feed</span>
+          </a>
+        }
+        <a class="shortcut" routerLink="/tools/fix">
+          <i class="pi pi-check-square" aria-hidden="true"></i>
+          <span>Fix my library</span>
+        </a>
+        <a class="shortcut" routerLink="/tools/duplicates">
+          <i class="pi pi-clone" aria-hidden="true"></i>
+          <span>Duplicates</span>
+        </a>
+        <a class="shortcut" routerLink="/tools/jobs">
+          <i class="pi pi-cog" aria-hidden="true"></i>
+          <span>Stash jobs</span>
+        </a>
+      </div>
+    </section>
+  } @else {
+    @if (searching()) {
+      <p class="status" role="status">
+        <span class="spinner" aria-hidden="true"></span> Searching…
+      </p>
+    }
+    @if (nothingFound()) {
+      <section class="empty">
+        <i class="pi pi-search" aria-hidden="true"></i>
+        <p>Nothing found for “{{ query().trim() }}”.</p>
+      </section>
+    }
+
+    @if (results(); as result) {
+      @if (result.library.length > 0) {
+        <section class="block">
+          <div class="block-head">
+            <h2>In your library</h2>
+            @if (result.libraryTotal > result.library.length) {
+              <a
+                class="link-button"
+                [routerLink]="['/library']"
+                [queryParams]="{ query: query().trim() }"
+                (click)="remember()"
+              >
+                See all {{ result.libraryTotal }}
+              </a>
+            }
+          </div>
+          <div class="rail">
+            @for (item of result.library; track item.id) {
+              <app-scene-card
+                class="rail-card"
+                [item]="item"
+                variant="rail"
+                primaryLinkMode="local"
+                [sceneQueryParams]="{ returnTo: currentUrl() }"
+                [playSceneId]="item.id"
+                [playQueryParams]="{ returnTo: currentUrl() }"
+                (click)="remember()"
+              />
+            }
+          </div>
+        </section>
+      }
+
+      @if (result.local.performers.length > 0 || result.local.studios.length > 0) {
+        <section class="block">
+          <h2>Performers and studios you have</h2>
+          <div class="people">
+            @for (performer of result.local.performers; track performer.id) {
+              <a
+                class="person"
+                [routerLink]="['/library/performer', performer.id]"
+                [queryParams]="{ returnTo: currentUrl() }"
+                (click)="remember()"
+              >
+                <span class="avatar">
+                  @if (performer.imageUrl) {
+                    <img [src]="performer.imageUrl" alt="" loading="lazy" />
+                  } @else {
+                    <span>{{ initial(performer.name) }}</span>
+                  }
+                </span>
+                <span class="person-name">{{ performer.name }}</span>
+                <span class="person-meta">{{ performer.sceneCount }} scenes</span>
+              </a>
+            }
+            @for (studio of result.local.studios; track studio.id) {
+              <a
+                class="person studio"
+                [routerLink]="['/library/studio', studio.id]"
+                [queryParams]="{ returnTo: currentUrl() }"
+                (click)="remember()"
+              >
+                <span class="avatar" [class.has-image]="!!studio.imageUrl">
+                  @if (studio.imageUrl) {
+                    <img [src]="studio.imageUrl" alt="" loading="lazy" />
+                  } @else {
+                    <span>{{ initial(studio.name) }}</span>
+                  }
+                </span>
+                <span class="person-name">{{ studio.name }}</span>
+                <span class="person-meta">Studio · {{ studio.sceneCount }} scenes</span>
+              </a>
+            }
+          </div>
+        </section>
+      }
+
+      @if (result.catalogScenes.length > 0 || result.catalogHidden > 0 || showHidden()) {
+        <section class="block">
+          <h2>On the catalog</h2>
+          <app-hidden-count
+            [count]="result.catalogHidden"
+            [showing]="showHidden()"
+            (toggled)="onShowHiddenChanged($event)"
+          />
+          <div class="rail">
+            @for (item of result.catalogScenes; track item.id) {
+              <app-scene-card
+                class="rail-card"
+                [item]="item"
+                variant="rail"
+                [requestable]="item.requestable"
+                [sceneQueryParams]="{ returnTo: currentUrl() }"
+                (request)="openRequest($event)"
+                (click)="remember()"
+              />
+            }
+          </div>
+        </section>
+      }
+
+      @if (result.catalogPerformers.length > 0 || result.catalogStudios.length > 0) {
+        <section class="block">
+          <h2>Catalog performers and studios</h2>
+          <div class="people">
+            @for (performer of result.catalogPerformers; track performer.id) {
+              <a
+                class="person"
+                [routerLink]="['/performer', performer.id]"
+                [queryParams]="{ returnTo: currentUrl() }"
+                (click)="remember()"
+              >
+                <span class="avatar">
+                  @if (performer.cardImageUrl ?? performer.imageUrl; as image) {
+                    <img [src]="image" alt="" loading="lazy" />
+                  } @else {
+                    <span>{{ initial(performer.name) }}</span>
+                  }
+                </span>
+                <span class="person-name">{{ performer.name }}</span>
+                <span class="person-meta">{{ performer.sceneCount }} scenes</span>
+              </a>
+            }
+            @for (studio of result.catalogStudios; track studio.id) {
+              <a
+                class="person studio"
+                [routerLink]="['/studio', studio.id]"
+                [queryParams]="{ returnTo: currentUrl() }"
+                (click)="remember()"
+              >
+                <span class="avatar" [class.has-image]="!!studio.imageUrl">
+                  @if (studio.imageUrl) {
+                    <img [src]="studio.imageUrl" alt="" loading="lazy" />
+                  } @else {
+                    <span>{{ initial(studio.name) }}</span>
+                  }
+                </span>
+                <span class="person-name">{{ studio.name }}</span>
+                <span class="person-meta">Studio</span>
+              </a>
+            }
+          </div>
+        </section>
+      }
+    }
+  }
+
+  <app-scene-request-modal
+    [open]="requestContext() !== null"
+    [sceneId]="requestContext()?.id ?? null"
+    [sceneTitle]="requestContext()?.title ?? null"
+    [sceneImageUrl]="requestContext()?.imageUrl ?? null"
+    (closed)="closeRequest()"
+    (submitted)="onRequested()"
+  />
+</main>

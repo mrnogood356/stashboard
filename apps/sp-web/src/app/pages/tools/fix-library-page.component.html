@@ -1,0 +1,126 @@
+<main class="app-page-shell">
+  <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
+  <h1 class="page-title">Fix my library</h1>
+  <p class="page-lede">
+    Scenes that need a little attention. Everything here is saved straight to Stash.
+  </p>
+
+  <div class="segmented" role="tablist" aria-label="Lists">
+    @for (tab of tabs; track tab.kind) {
+      <button
+        type="button"
+        role="tab"
+        [class.active]="kind() === tab.kind"
+        [attr.aria-selected]="kind() === tab.kind"
+        (click)="select(tab.kind)"
+      >
+        {{ tab.label }}
+        @if (counts(); as counts) {
+          <span class="count-badge">{{ counts[tab.kind] }}</span>
+        }
+      </button>
+    }
+  </div>
+
+  <div class="list-head">
+    <p class="muted">{{ hint() }}</p>
+    @if (kind() !== 'unorganized' && items().length > 1) {
+      <button
+        type="button"
+        class="btn primary"
+        [disabled]="identifyingAll()"
+        (click)="identifyPage()"
+      >
+        <i class="pi pi-sparkles" aria-hidden="true"></i>
+        {{ identifyingAll() ? 'Starting…' : 'Identify these ' + items().length }}
+      </button>
+    }
+  </div>
+
+  @if (kind() === 'unmatched' && items().length > 0) {
+    <a class="notice organizer-link" routerLink="/tools/organize">
+      <i class="pi pi-link" aria-hidden="true"></i>
+      <span
+        ><strong>Identify didn’t find them?</strong> Match &amp; rename searches StashDB by file
+        name and lets you pick.</span
+      >
+      <i class="pi pi-chevron-right" aria-hidden="true"></i>
+    </a>
+  }
+
+  @if (error(); as message) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle" aria-hidden="true"></i><span>{{ message }}</span>
+    </div>
+  }
+
+  @if (!loading() && !error() && items().length === 0) {
+    <div class="empty">
+      <i class="pi pi-check-circle" aria-hidden="true"></i>
+      <p>All clear. Nothing on this list.</p>
+    </div>
+  }
+
+  <ul class="rows">
+    @for (item of items(); track item.id) {
+      <li class="row panel">
+        <a
+          class="thumb"
+          [routerLink]="['/library/scene', item.id]"
+          [queryParams]="{ returnTo: currentUrl() }"
+          [attr.aria-label]="'Open ' + item.title"
+        >
+          @if (item.cardImageUrl ?? item.imageUrl; as image) {
+            <img [src]="image" alt="" loading="lazy" />
+          }
+        </a>
+        <div class="row-copy">
+          <a
+            class="row-title"
+            [routerLink]="['/library/scene', item.id]"
+            [queryParams]="{ returnTo: currentUrl() }"
+            >{{ item.title }}</a
+          >
+          <p class="muted row-meta">
+            {{ item.studio ?? 'No studio' }}
+            @if (item.releaseDate) {
+              · {{ item.releaseDate }}
+            }
+          </p>
+        </div>
+        <div class="row-actions">
+          @if (kind() === 'unorganized') {
+            <button
+              type="button"
+              class="btn small primary"
+              [disabled]="isBusy(item.id)"
+              (click)="markOrganized(item)"
+            >
+              <i class="pi pi-check" aria-hidden="true"></i><span class="label">Done</span>
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="btn small"
+              [disabled]="isBusy(item.id)"
+              (click)="identify(item)"
+              [attr.aria-label]="'Identify ' + item.title"
+            >
+              <i class="pi pi-sparkles" aria-hidden="true"></i><span class="label">Identify</span>
+            </button>
+          }
+        </div>
+      </li>
+    }
+  </ul>
+
+  @if (loading()) {
+    <p class="muted loading" role="status">
+      <span class="spinner" aria-hidden="true"></span> Loading…
+    </p>
+  } @else if (hasMore()) {
+    <div class="more">
+      <button type="button" class="btn" (click)="loadMore()">Show more</button>
+    </div>
+  }
+</main>

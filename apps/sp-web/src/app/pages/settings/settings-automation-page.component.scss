@@ -1,0 +1,291 @@
+:host {
+  display: block;
+}
+
+.automation-page {
+  display: grid;
+  gap: 1rem;
+  max-width: 56rem;
+}
+
+h2,
+h3,
+p,
+ol {
+  margin: 0;
+}
+
+.section-head {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.section-head h2 {
+  font-size: 1.3rem;
+}
+
+.section-head.sub {
+  margin-top: 0.8rem;
+}
+
+.section-head h3 {
+  font-size: 1.1rem;
+}
+
+.lede,
+.faint {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.faint {
+  font-size: 0.82rem;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.warn {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--tone-warning-text);
+}
+
+.group {
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--surface-1);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.95rem 1.05rem;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+}
+
+.row + .row {
+  box-shadow: inset 0 1px 0 var(--separator, var(--border-subtle));
+}
+
+/* Only the switch itself toggles; the words beside it are just words. */
+.row:has(.switch:disabled) .row-copy {
+  opacity: 0.6;
+}
+
+.switch:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.row-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.row-copy small {
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* iOS-style switch, kept identical to the global input.app-switch. */
+.switch {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  width: 3.1rem;
+  height: 1.9rem;
+  border-radius: 999px;
+  background: var(--border-strong);
+  transition: background-color 0.2s ease;
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--switch-knob);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 25%);
+  transition: transform 0.2s cubic-bezier(0.3, 0.9, 0.3, 1.1);
+}
+
+.switch.on {
+  background: var(--success);
+}
+
+.switch.on::after {
+  transform: translateX(1.2rem);
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.95rem 1.05rem;
+}
+
+.status-dot {
+  flex: 0 0 auto;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.status-dot.done {
+  background: var(--success);
+}
+
+.status-dot.failed {
+  background: var(--danger);
+}
+
+.status-dot.running {
+  background: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.pill {
+  flex: 0 0 auto;
+  min-height: 2.3rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.pill:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.steps {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem 1.05rem;
+}
+
+.steps ol {
+  display: grid;
+  gap: 0.45rem;
+  padding-left: 1.2rem;
+  line-height: 1.45;
+}
+
+.url-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.url {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.65rem 0.8rem;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.note {
+  line-height: 1.45;
+}
+
+.link-button {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-dot.running {
+    animation: none;
+  }
+
+  .switch,
+  .switch::after {
+    transition: none;
+  }
+}
+
+.link-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1.05rem;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.link-row:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.link-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+  font-size: 0.9rem;
+}
+
+.chevron {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 560px) {
+  /* Give the long webhook address the full width and put Copy under it. */
+  .url-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .url-row .pill {
+    align-self: flex-start;
+  }
+}

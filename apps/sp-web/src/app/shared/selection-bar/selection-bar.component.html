@@ -1,0 +1,18 @@
+<div class="selection-bar" role="toolbar" aria-label="Selected items">
+  <div class="selection-info">
+    <strong>{{ count === 0 ? 'Pick items' : count + ' selected' }}</strong>
+    @if (count < visible) {
+      <button type="button" class="text-button" [disabled]="busy" (click)="selectAll.emit()">
+        Select all {{ visible }}
+      </button>
+    } @else {
+      <button type="button" class="text-button" [disabled]="busy" (click)="clear.emit()">
+        Select none
+      </button>
+    }
+  </div>
+  <div class="selection-actions">
+    <ng-content />
+    <button type="button" class="bar-button" [disabled]="busy" (click)="done.emit()">Done</button>
+  </div>
+</div>

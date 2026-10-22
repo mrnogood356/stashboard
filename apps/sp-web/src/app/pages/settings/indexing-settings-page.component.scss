@@ -1,0 +1,351 @@
+:host {
+  display: block;
+  color: var(--text-primary);
+}
+
+.indexing-page {
+  display: grid;
+  gap: 1rem;
+}
+
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+
+.page-head {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1.1rem 1.15rem;
+  border-radius: 20px;
+  border: 1px solid var(--surface-panel-hero-border);
+  background: var(--surface-panel-hero-background);
+}
+
+.page-copy {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.eyebrow {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+.lede {
+  max-width: 58rem;
+  color: var(--text-primary);
+}
+
+.lede.secondary {
+  color: var(--text-muted);
+}
+
+.state-shell {
+  display: grid;
+  gap: 0.75rem;
+}
+
+/* Health beside Manual Actions, then Snapshot beside Freshness: cards of
+   about the same height share a row, so none is left mostly empty. */
+.summary-grid {
+  display: grid;
+  gap: 0.95rem;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+
+.summary-card-hero {
+  order: 1;
+}
+
+.action-card {
+  order: 2;
+}
+
+.snapshot-card {
+  order: 3;
+}
+
+.freshness-card {
+  order: 4;
+}
+
+.snapshot-card .metric-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.summary-card,
+.job-card {
+  border: 1px solid var(--surface-panel-border);
+  border-radius: 16px;
+  background: var(--surface-panel-background);
+  box-shadow: var(--surface-panel-shadow);
+}
+
+.summary-card {
+  padding: 1rem;
+  display: grid;
+  gap: 0.8rem;
+  /* A short card in a tall row keeps its content together at the top. */
+  align-content: start;
+}
+
+.summary-card-hero.tone-good {
+  border-color: var(--tone-success-border);
+}
+
+.summary-card-hero.tone-warn {
+  border-color: var(--tone-warning-border);
+}
+
+.summary-card-hero.tone-info {
+  border-color: var(--tone-info-border);
+}
+
+.summary-head,
+.section-head,
+.job-head,
+.job-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* The status sits right after the job's name, not out in the middle. */
+.job-title-row {
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.summary-copy,
+.section-head p,
+.job-purpose,
+.action-hint {
+  color: var(--text-muted);
+}
+
+.inline-stats,
+.metric-grid,
+.job-meta-grid {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.inline-stats {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.inline-stat,
+.metric-card,
+.meta-item,
+.check-item {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.inline-stat span,
+.metric-card span,
+.meta-item span,
+.check-item span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.inline-stat strong,
+.metric-card strong,
+.meta-item strong,
+.check-item strong {
+  font-size: 0.96rem;
+}
+
+.metric-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.job-meta-grid {
+  grid-template-columns: minmax(11rem, 1.6fr) repeat(7, minmax(0, 1fr));
+  gap: 0.7rem 1rem;
+}
+
+.meta-item {
+  align-content: start;
+}
+
+@media (max-width: 1100px) {
+  .job-meta-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  }
+}
+
+.metric-card,
+.check-item {
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 86%, transparent);
+  background: color-mix(in srgb, var(--surface-elevated) 84%, var(--surface-1));
+}
+
+.check-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.check-item {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.check-item.ok strong {
+  color: var(--tone-success-text);
+}
+
+.check-item.warn strong {
+  color: var(--tone-warning-text);
+}
+
+.action-card h2 {
+  font-size: 1.1rem;
+}
+
+.jobs-shell {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.jobs-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.job-card {
+  padding: 1rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.job-card.is-running {
+  border-color: var(--tone-info-border);
+}
+
+.job-card.is-failed {
+  border-color: color-mix(in srgb, var(--danger) 52%, var(--border-subtle));
+}
+
+.job-copy {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.status-pill,
+.job-passive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.6rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.status-pill.status-idle {
+  background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
+  color: var(--text-muted);
+}
+
+.status-pill.status-running {
+  background: var(--tone-info-background);
+  color: var(--tone-info-text);
+}
+
+.status-pill.status-succeeded {
+  background: var(--tone-success-background);
+  color: var(--tone-success-text);
+}
+
+.status-pill.status-failed {
+  background: var(--tone-danger-background);
+  color: var(--tone-danger-text);
+}
+
+.job-passive {
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+
+.error-block {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.8rem;
+  border-radius: 12px;
+  border: 1px solid var(--tone-danger-border);
+  background: var(--tone-danger-background);
+}
+
+.error-block h4 {
+  font-size: 0.92rem;
+}
+
+.error-block p {
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 0.82rem;
+}
+
+:host ::ng-deep .p-button {
+  padding: 0.45rem 0.78rem;
+  border-radius: 9px;
+  border: 1px solid var(--border-subtle);
+  background: var(--button-bg);
+  color: var(--button-text);
+  cursor: pointer;
+}
+
+:host ::ng-deep .p-button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+:host ::ng-deep .state-message {
+  margin: 0;
+}
+
+:host ::ng-deep .state-message .p-message-content {
+  gap: 0.45rem;
+}
+
+@media (max-width: 920px) {
+  .summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .snapshot-card .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .page-head,
+  .summary-head,
+  .section-head,
+  .job-head,
+  .job-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .back-link {
+    white-space: normal;
+  }
+}

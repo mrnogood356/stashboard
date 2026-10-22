@@ -1,0 +1,148 @@
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1.2rem 0;
+}
+
+.summary {
+  margin: 1.2rem 0 0.6rem;
+}
+
+.groups {
+  display: grid;
+  gap: 1rem;
+  padding-bottom: 1.5rem;
+}
+
+.group {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(230px, 1fr);
+  gap: 0.9rem;
+  padding: 0.9rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.group::-webkit-scrollbar {
+  display: none;
+}
+
+.copy {
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  padding: 0.6rem;
+  border-radius: 14px;
+  border: 2px solid transparent;
+}
+
+.copy.best {
+  border-color: color-mix(in srgb, var(--success) 55%, transparent);
+  background: color-mix(in srgb, var(--success) 7%, transparent);
+}
+
+.best-badge {
+  position: absolute;
+  left: 0.45rem;
+  top: 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--success);
+  color: #002b0e;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.copy-title {
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy-file {
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.specs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem 0.6rem;
+  margin: 0.2rem 0;
+}
+
+.specs dt {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.specs dd {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.keep-note {
+  min-height: 2rem;
+  display: flex;
+  align-items: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--success-text);
+}
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgb(0 0 0 / 45%);
+}
+
+.sheet {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  z-index: 61;
+  display: grid;
+  gap: 0.55rem;
+  width: min(26rem, calc(100% - 1.5rem));
+  padding: 1.2rem;
+  border-radius: 22px;
+  background: var(--surface-1);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 45%);
+  transform: translateX(-50%);
+}
+
+.sheet h2 {
+  font-size: 1.15rem;
+}
+
+.sheet p {
+  margin-bottom: 0.4rem;
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+.btn.wide {
+  width: 100%;
+  min-height: 2.9rem;
+}
+
+.btn.ghost {
+  background: transparent;
+  color: var(--accent);
+}
+
+@media (max-width: 560px) {
+  .group {
+    grid-auto-columns: 78vw;
+  }
+}

@@ -1,0 +1,38 @@
+version: 2
+updates:
+  # Weekly dependency updates, grouped so they arrive as a few pull requests
+  # instead of dozens.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      angular:
+        patterns: ['@angular/*', '@angular-devkit/*', 'primeng', '@primeuix/*']
+      nest:
+        patterns: ['@nestjs/*']
+      prisma:
+        patterns: ['prisma', '@prisma/*']
+      everything-else:
+        patterns: ['*']
+    ignore:
+      # Major versions change how things work and need code changes with
+      # them (Angular, NestJS, TypeScript…), so they're upgraded by hand.
+      # Dependabot keeps everything on the latest minor and patch releases,
+      # which is where security fixes land.
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly
+    ignore:
+      # Odd Node majors never get long-term support; majors are bumped by
+      # hand to the next even release.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']

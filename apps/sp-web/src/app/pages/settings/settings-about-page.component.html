@@ -1,0 +1,150 @@
+<section class="about-page">
+  <header class="section-head">
+    <div>
+      <h2>About &amp; health</h2>
+      <p class="lede">
+        Which version is running, whether everything Stashboard needs is working, and what went
+        wrong lately.
+      </p>
+    </div>
+    <div class="head-actions">
+      <button type="button" class="pill" [disabled]="checking()" (click)="load()">
+        <i class="pi pi-refresh" [class.pi-spin]="checking()" aria-hidden="true"></i>
+        {{ checking() ? 'Checking…' : 'Check again' }}
+      </button>
+      <button type="button" class="pill primary copy" (click)="copy()">
+        <i
+          class="pi"
+          [class.pi-check]="copied()"
+          [class.pi-copy]="!copied()"
+          aria-hidden="true"
+        ></i>
+        {{ copied() ? 'Copied' : 'Copy for support' }}
+      </button>
+    </div>
+  </header>
+
+  @if (copyFailed()) {
+    <p class="error" role="alert">Couldn’t copy. Your browser may not allow it here.</p>
+  }
+
+  <article class="card version-card">
+    <p class="eyebrow">Version</p>
+    @if (about(); as info) {
+      <div class="meta-grid">
+        <div class="meta-item">
+          <span>Version</span>
+          <strong class="version">{{ info.build.version }}</strong>
+        </div>
+        <div class="meta-item">
+          <span>Commit</span>
+          <strong [attr.title]="info.build.commit">{{
+            info.build.commit ? shortCommit(info.build.commit) : 'Local build'
+          }}</strong>
+        </div>
+        <div class="meta-item">
+          <span>Built</span>
+          <strong>{{ info.build.builtAt ? when(info.build.builtAt) : 'Unknown' }}</strong>
+        </div>
+      </div>
+    } @else if (aboutError()) {
+      <p class="muted">Couldn’t read the version right now.</p>
+    } @else {
+      <p class="muted" role="status">Loading…</p>
+    }
+    <p class="update" [attr.data-status]="update()?.status ?? 'checking'">
+      {{ updateLine() }}
+      @if (update()?.reason; as reason) {
+        <span class="muted small">{{ reason }}</span>
+      }
+    </p>
+  </article>
+
+  <section class="group">
+    <h3>
+      Health
+      @if (health() && problems() > 0) {
+        <span class="muted small">
+          {{ problems() === 1 ? '1 thing needs a look' : problems() + ' things need a look' }}
+        </span>
+      }
+    </h3>
+    @if (rows().length > 0) {
+      <ul class="checks">
+        @for (row of rows(); track row.id) {
+          <li class="check" [attr.data-status]="row.status">
+            <div class="check-head">
+              <i [class]="statusIcon(row.status) + ' status-icon'" aria-hidden="true"></i>
+              <div class="check-copy">
+                <strong>{{ row.title }}</strong>
+                <p>{{ row.summary }}</p>
+                @if (row.detail) {
+                  <p class="detail">{{ row.detail }}</p>
+                }
+              </div>
+            </div>
+          </li>
+        }
+      </ul>
+      @if (health(); as result) {
+        <p class="muted small">
+          Checked {{ when(result.checkedAt) }}. Setup problems?
+          <a routerLink="/settings/setup-check">Run the setup check</a>.
+        </p>
+      }
+    } @else if (healthError()) {
+      <p class="muted">Couldn’t check health right now. Try again in a moment.</p>
+    } @else {
+      <p class="muted" role="status">Checking…</p>
+    }
+  </section>
+
+  <section class="group">
+    <h3>Recent errors</h3>
+    @if (about(); as info) {
+      @if (info.recentErrors.length > 0) {
+        <ul class="checks errors">
+          @for (entry of info.recentErrors; track $index) {
+            <li class="check" [attr.data-status]="entry.level === 'error' ? 'fail' : 'warn'">
+              <div class="check-head">
+                <i
+                  [class]="statusIcon(entry.level === 'error' ? 'fail' : 'warn') + ' status-icon'"
+                  aria-hidden="true"
+                ></i>
+                <div class="check-copy">
+                  <span class="status-label">
+                    {{ when(entry.at) }} ·
+                    {{ entry.source === 'app' ? 'App' : (entry.context ?? 'Server') }}
+                  </span>
+                  <p class="message">{{ entry.message }}</p>
+                </div>
+              </div>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="muted">No warnings or errors since Stashboard started.</p>
+      }
+    } @else if (aboutError()) {
+      <p class="muted">Couldn’t read recent errors right now.</p>
+    }
+    <p class="muted small">
+      Need more detail? <a routerLink="/settings/logs" class="logs-link">See the full logs</a>.
+    </p>
+  </section>
+
+  @if (githubUrl(); as githubUrl) {
+    <article class="card">
+      <p class="eyebrow">Project</p>
+      <div class="link-list">
+        <a [href]="githubUrl" target="_blank" rel="noopener noreferrer">GitHub repository</a>
+        <a [href]="githubUrl + '#self-hosted-quick-start'" target="_blank" rel="noopener noreferrer"
+          >Self-hosted quick start</a
+        >
+        <a [href]="githubUrl + '/releases'" target="_blank" rel="noopener noreferrer"
+          >Release history</a
+        >
+      </div>
+    </article>
+  }
+</section>

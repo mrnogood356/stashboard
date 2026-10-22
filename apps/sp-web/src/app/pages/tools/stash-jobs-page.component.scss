@@ -1,0 +1,148 @@
+section h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 1.6rem 0 0.75rem;
+}
+
+.idle {
+  padding: 1rem 0;
+}
+
+.jobs {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.job {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.95rem 1rem;
+}
+
+.job-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-right: 4.5rem;
+}
+
+.job-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 650;
+}
+
+.job-status {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.job-status.running {
+  color: var(--accent);
+}
+
+.job-sub {
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stop {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.8rem;
+}
+
+.bar {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--chip-bg);
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.6s ease;
+}
+
+.bar.indeterminate span {
+  width: 35%;
+  animation: bar-slide 1.3s ease-in-out infinite;
+}
+
+@keyframes bar-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+.task-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.7rem;
+}
+
+.task {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 0.4rem;
+  padding: 1rem;
+  border: 0;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.task:active {
+  transform: scale(0.98);
+}
+
+.task:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.task i {
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.task-title {
+  font-weight: 700;
+}
+
+.task-detail {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar.indeterminate span {
+    animation: none;
+  }
+}

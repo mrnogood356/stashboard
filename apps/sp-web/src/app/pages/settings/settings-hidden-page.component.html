@@ -1,0 +1,99 @@
+<section class="hidden-page">
+  <header class="section-head">
+    <h2>Hide scenes everywhere</h2>
+    <p class="lede">
+      Catalog scenes with these words, tags, studios or performers are left out of Scenes, Search,
+      Home and performer and studio pages. Your library is never filtered. Any list can still show
+      them with “Show anyway”, and a studio's or performer's own page always shows its scenes.
+    </p>
+  </header>
+
+  @if (loading()) {
+    <p class="muted" role="status">Loading…</p>
+  } @else if (loadFailed()) {
+    <div class="card load-failed" role="alert">
+      <p>Your hidden list couldn’t be loaded, so it can’t be changed right now.</p>
+      <div class="actions">
+        <button type="button" class="button" (click)="load()">Try again</button>
+      </div>
+    </div>
+  } @else {
+    <form class="card" (ngSubmit)="save()">
+      <label class="field">
+        <span class="field-label">Words</span>
+        <input
+          class="text-input"
+          name="words"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="trans, transgender"
+          [ngModel]="wordsText()"
+          (ngModelChange)="onWordsChanged($event)"
+        />
+        <span class="muted"
+          >Whole words in the title, description, studio or tags. “trans” hides “Trans” and
+          “trans-woman”, not “transfer”.</span
+        >
+      </label>
+
+      @for (picker of pickers; track picker.kind) {
+        <fieldset class="field" [attr.data-testid]="'hidden-' + picker.kind">
+          <legend>{{ picker.label }}</legend>
+          @if (chosen(picker.kind).length > 0) {
+            <ul class="chips" [attr.aria-label]="'Hidden ' + picker.label.toLowerCase()">
+              @for (item of chosen(picker.kind); track item.id) {
+                <li class="chip">
+                  <span>{{ item.name }}</span>
+                  <button
+                    type="button"
+                    class="chip-remove"
+                    [attr.aria-label]="'Stop hiding ' + item.name"
+                    (click)="remove(picker.kind, item.id)"
+                  >
+                    <i class="pi pi-times" aria-hidden="true"></i>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+          <input
+            class="text-input"
+            type="search"
+            autocomplete="off"
+            spellcheck="false"
+            [name]="picker.kind + 'Search'"
+            [attr.aria-label]="picker.placeholder"
+            [placeholder]="picker.placeholder"
+            [ngModel]="queries()[picker.kind]"
+            (ngModelChange)="onQueryChanged(picker.kind, $event)"
+          />
+          @if (searching() === picker.kind) {
+            <span class="muted" role="status">Searching…</span>
+          }
+          @if (suggestions(picker.kind).length > 0) {
+            <ul class="suggestions">
+              @for (item of suggestions(picker.kind); track item.id) {
+                <li>
+                  <button type="button" class="suggestion" (click)="add(picker.kind, item)">
+                    <i class="pi pi-eye-slash" aria-hidden="true"></i>
+                    <span>{{ item.name }}</span>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </fieldset>
+      }
+
+      @if (status(); as s) {
+        <p class="status" [class.error]="s.kind === 'error'" role="status">{{ s.text }}</p>
+      }
+
+      <div class="actions">
+        <button type="submit" class="button" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+    </form>
+  }
+</section>

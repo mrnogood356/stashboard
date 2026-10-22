@@ -1,0 +1,171 @@
+:host {
+  display: block;
+}
+
+.privacy-page {
+  display: grid;
+  gap: 1rem;
+  max-width: 56rem;
+}
+
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+.section-head {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.eyebrow {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+.lede,
+.muted {
+  color: var(--text-muted);
+}
+
+.muted {
+  font-size: 0.84rem;
+}
+
+.card {
+  display: grid;
+  gap: 1.1rem;
+  padding: 1rem;
+  border: 1px solid var(--surface-panel-border);
+  border-radius: 18px;
+  background: var(--surface-panel-background);
+  box-shadow: var(--surface-panel-shadow);
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.switch-row > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Separate each switch from whatever follows it. */
+.switch-row + * {
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--separator, var(--border-subtle));
+}
+
+.switch-row span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.switch-row small {
+  color: var(--text-muted);
+}
+
+.field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.face-id {
+  gap: 0.6rem;
+  align-content: start;
+}
+
+.face-id h3 {
+  font-size: 1rem;
+}
+
+.field-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.pin-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.text-input {
+  width: 100%;
+  height: 2.75rem;
+  padding: 0 0.8rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 70%, transparent);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.status {
+  font-weight: 600;
+  color: var(--success-text);
+}
+
+.status.error {
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.button {
+  height: 2.5rem;
+  padding: 0 1.1rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--focus-ring) 70%, transparent);
+  background: var(--focus-ring);
+  color: var(--accent-contrast, #fff);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  justify-self: start;
+}
+
+.button.secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--border-strong) 60%, transparent);
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.passkey {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.passkey span {
+  flex: 1;
+}
+
+.link-danger {
+  border: 0;
+  background: transparent;
+  color: var(--danger);
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 560px) {
+  .pin-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

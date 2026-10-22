@@ -1,0 +1,53 @@
+<section class="owned" role="alert" data-testid="owned-copies">
+  <header class="owned-head">
+    <i class="pi pi-copy" aria-hidden="true"></i>
+    <div>
+      <h3>You may already have this</h3>
+      <p>
+        {{
+          copies.length === 1
+            ? 'This looks like a copy you already have.'
+            : 'These look like copies you already have.'
+        }}
+      </p>
+    </div>
+  </header>
+
+  <ul class="copies">
+    @for (copy of copies; track $index) {
+      <li class="copy">
+        @if (copy.imageUrl) {
+          <img class="thumb" [src]="copy.imageUrl" alt="" loading="lazy" />
+        } @else {
+          <span class="thumb empty" aria-hidden="true"><i class="pi pi-video"></i></span>
+        }
+        <span class="copy-text">
+          <strong>{{ title(copy) }}</strong>
+          @if (meta(copy); as info) {
+            <small>{{ info }}</small>
+          }
+          <small class="why">{{ reason(copy) }}</small>
+          @if (copy.path) {
+            <small class="path" [attr.title]="copy.path">{{ copy.path }}</small>
+          }
+        </span>
+        @if (copy.stashSceneId) {
+          <a
+            class="open"
+            [routerLink]="['/library/scene', copy.stashSceneId]"
+            (click)="opened.emit()"
+            >Open it</a
+          >
+        } @else if (copy.whisparrUrl) {
+          <a class="open" [href]="copy.whisparrUrl" target="_blank" rel="noopener noreferrer"
+            >Open in Whisparr</a
+          >
+        }
+      </li>
+    }
+  </ul>
+
+  <div class="owned-actions">
+    <button type="button" class="proceed" (click)="proceed.emit()">{{ proceedLabel }}</button>
+  </div>
+</section>

@@ -1,0 +1,421 @@
+<main class="app-page-shell">
+  <a
+    class="back-link app-back-link app-back-link--media"
+    [routerLink]="backLinkPath()"
+    [queryParams]="backLinkQueryParams()"
+  >
+    {{ backLinkLabel() }}
+  </a>
+
+  @if (loading()) {
+    <div class="scene-skeleton" role="status" aria-live="polite" aria-label="Loading scene details">
+      <div class="scene-skeleton__poster"></div>
+      <div class="scene-skeleton__lines">
+        <div class="scene-skeleton__line scene-skeleton__line--title"></div>
+        <div class="scene-skeleton__line"></div>
+        <div class="scene-skeleton__line scene-skeleton__line--short"></div>
+      </div>
+    </div>
+  } @else if (error()) {
+    <p-message severity="error" styleClass="app-page-message">{{ error() }}</p-message>
+    <button pButton type="button" (click)="retry()">Retry</button>
+  } @else if (scene(); as scene) {
+    <section class="hero-shell">
+      @if (scene.imageUrl) {
+        <div
+          class="hero-backdrop"
+          [style.background-image]="'url(' + scene.imageUrl + ')'"
+          aria-hidden="true"
+        ></div>
+      }
+      <div class="hero-shade" aria-hidden="true"></div>
+
+      @if (scene.studioImageUrl || scene.studioId) {
+        <div class="studio-affordance-cluster">
+          @if (scene.studioImageUrl) {
+            @if (scene.studioUrl) {
+              <a
+                class="studio-logo-overlay"
+                [href]="scene.studioUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                [attr.aria-label]="studioLogoAriaLabel(scene)"
+              >
+                <img [src]="scene.studioImageUrl" alt="" />
+              </a>
+            } @else {
+              <div class="studio-logo-overlay" aria-hidden="true">
+                <img [src]="scene.studioImageUrl" alt="" />
+              </div>
+            }
+          }
+
+          @if (scene.studioId) {
+            <button
+              type="button"
+              class="studio-favorite-indicator"
+              [class.active]="scene.studioIsFavorite"
+              [disabled]="!canToggleFavoriteStudio(scene)"
+              [attr.aria-busy]="favoritingStudio()"
+              [attr.aria-label]="studioFavoriteAriaLabel(scene)"
+              [attr.title]="studioFavoriteTitle(scene)"
+              (click)="toggleFavoriteStudio(scene)"
+            >
+              <i
+                [class]="scene.studioIsFavorite ? 'pi pi-star-fill' : 'pi pi-star'"
+                aria-hidden="true"
+              ></i>
+            </button>
+          }
+        </div>
+      }
+
+      <div class="hero-layout">
+        <div class="poster-card">
+          @if (scene.imageUrl) {
+            <img class="poster-image" [src]="scene.imageUrl" [alt]="scene.title" />
+          } @else {
+            <div class="poster-image placeholder" aria-hidden="true"></div>
+          }
+        </div>
+
+        <div class="hero-info">
+          <div class="title-row">
+            <h1>{{ scene.title }}</h1>
+            <app-scene-status-badge [status]="scene.status" />
+          </div>
+
+          @if (scene.releaseDate) {
+            <p class="release-subheading">{{ scene.releaseDate }}</p>
+          }
+
+          <div class="meta-row">
+            @if (formattedDuration(scene.duration); as duration) {
+              <span class="meta-chip">{{ duration }}</span>
+            }
+          </div>
+
+          @if (scene.tags.length > 0) {
+            <div class="hero-tags">
+              @for (tag of scene.tags; track tag.id; let idx = $index) {
+                @if (idx < 4) {
+                  <a
+                    class="meta-chip tag-link"
+                    [routerLink]="['/scenes']"
+                    [queryParams]="{ tags: tag.id, tagNames: tag.name }"
+                    [attr.aria-label]="'Open scenes tagged ' + tag.name"
+                  >
+                    {{ tag.name }}
+                  </a>
+                }
+              }
+            </div>
+          }
+
+          @if (scene.studioId) {
+            <div class="hide-row">
+              <app-hide-toggle kind="studio" [itemId]="scene.studioId" [name]="scene.studio" />
+            </div>
+          }
+
+          @if (
+            hasStashCopy(scene) ||
+            hasWhisparrLink(scene) ||
+            canRequestScene(scene) ||
+            canPickRelease(scene) ||
+            canFindDownloads(scene)
+          ) {
+            <div class="hero-actions app-action-row">
+              @if (playbackOn() && hasStashCopy(scene) && selectedStashSceneId(scene); as playId) {
+                <a
+                  pButton
+                  class="hero-action-button scene-primary-request scene-play-button"
+                  [routerLink]="['/watch', playId]"
+                  [queryParams]="{ returnTo: currentRouteUrl() }"
+                  aria-label="Play"
+                >
+                  <i class="pi pi-play" aria-hidden="true"></i>
+                  <span>Play</span>
+                </a>
+              }
+
+              @if (canRequestScene(scene)) {
+                <button
+                  pButton
+                  #requestTriggerButton
+                  type="button"
+                  class="hero-action-button request-button scene-primary-request"
+                  (click)="openRequestPanel(scene)"
+                >
+                  <i class="pi pi-download" aria-hidden="true"></i>
+                  <span>Request in Whisparr</span>
+                </button>
+              }
+
+              @if (canPickRelease(scene)) {
+                <button
+                  pButton
+                  type="button"
+                  class="hero-action-button scene-primary-request pick-release-button"
+                  (click)="releasePickerOpen.set(true)"
+                >
+                  <i class="pi pi-list" aria-hidden="true"></i>
+                  <span>{{
+                    scene.status.state === 'FAILED' ? 'Pick another release' : 'Pick a release'
+                  }}</span>
+                </button>
+              }
+
+              @if (canFindDownloads(scene)) {
+                <button
+                  pButton
+                  type="button"
+                  class="hero-action-button scene-primary-request find-downloads-button"
+                  (click)="findDownloadsOpen.set(true)"
+                >
+                  <i class="pi pi-search" aria-hidden="true"></i>
+                  <span>Find downloads</span>
+                </button>
+              }
+
+              @if (hasStashCopy(scene)) {
+                @if (hasMultipleStashCopies(scene)) {
+                  <div class="stash-copy-selector">
+                    <span id="scene-stash-copy-label">Stash Copies</span>
+                    <p-select
+                      inputId="scene-stash-copy"
+                      ariaLabelledBy="scene-stash-copy-label"
+                      [ngModel]="selectedStashViewUrl(scene)"
+                      (ngModelChange)="onStashCopySelected($event)"
+                      [options]="scene.stash!.copies"
+                      optionLabel="label"
+                      optionValue="viewUrl"
+                      [appendTo]="'body'"
+                      panelStyleClass="app-overlay-panel"
+                    />
+                  </div>
+
+                  @if (selectedStashViewUrl(scene); as selectedViewUrl) {
+                    <a
+                      pButton
+                      class="hero-action-button external-action"
+                      [href]="selectedViewUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      [attr.aria-label]="
+                        'View in Stash (' + selectedStashLabel(scene) + ') in a new tab'
+                      "
+                      [attr.title]="
+                        'View in Stash (' + selectedStashLabel(scene) + ') in a new tab'
+                      "
+                    >
+                      <span class="external-action-label">
+                        View in Stash ({{ selectedStashLabel(scene) }})
+                      </span>
+                      <i class="pi pi-external-link external-action-icon" aria-hidden="true"></i>
+                    </a>
+                  }
+                } @else if (scene.stash!.copies[0]; as singleCopy) {
+                  <a
+                    pButton
+                    class="hero-action-button external-action"
+                    [href]="singleCopy.viewUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="View in Stash in a new tab"
+                    title="View in Stash in a new tab"
+                  >
+                    <span class="external-action-label">View in Stash</span>
+                    <i class="pi pi-external-link external-action-icon" aria-hidden="true"></i>
+                  </a>
+                }
+              }
+
+              @if (hasWhisparrLink(scene)) {
+                <a
+                  pButton
+                  class="hero-action-button external-action"
+                  [href]="scene.whisparr!.viewUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="View in Whisparr in a new tab"
+                  title="View in Whisparr in a new tab"
+                >
+                  <span class="external-action-label">View in Whisparr</span>
+                  <i class="pi pi-external-link external-action-icon" aria-hidden="true"></i>
+                </a>
+              }
+            </div>
+          }
+
+          @if (failedRemediationVisible(scene)) {
+            <p class="hero-action-helper">Resolve or retry this download in Whisparr.</p>
+          }
+
+          @if (showProwlarrHint(scene)) {
+            <p class="hero-action-helper prowlarr-hint">
+              Whisparr can’t request this scene. Add Prowlarr in
+              <a routerLink="/settings/integrations">Settings → Integrations</a> to find downloads
+              for it.
+            </p>
+          }
+        </div>
+      </div>
+    </section>
+
+    <div class="content-shell app-section-stack">
+      @if (displayedDescription(scene.description); as description) {
+        <section class="section overview-section app-section-panel">
+          <h2>Overview</h2>
+          <p class="overview-text">{{ description }}</p>
+
+          @if (hasLongDescription(scene.description)) {
+            <button type="button" (click)="toggleDescription()">
+              {{ descriptionExpanded() ? 'Show less' : 'Show more' }}
+            </button>
+          }
+        </section>
+      }
+
+      @if (scene.performers.length > 0) {
+        <section class="section app-section-panel">
+          <h2>Performers</h2>
+          <div class="performer-grid">
+            @for (performer of scene.performers; track performer.id) {
+              <article class="performer-card">
+                <a
+                  class="performer-link-stretch"
+                  [routerLink]="['/performer', performer.id]"
+                  [queryParams]="{ returnTo: currentRouteUrl() }"
+                  [attr.aria-label]="'View performer ' + performer.name"
+                ></a>
+
+                <button
+                  type="button"
+                  class="performer-favorite"
+                  [class.is-favorite]="performer.isFavorite"
+                  [disabled]="performerFavoriteToggleBusy(performer.id)"
+                  [attr.aria-busy]="performerFavoriteToggleBusy(performer.id)"
+                  [attr.aria-label]="performerFavoriteToggleLabel(performer.isFavorite)"
+                  [title]="performerFavoriteToggleLabel(performer.isFavorite)"
+                  (click)="toggleScenePerformerFavorite($event, performer)"
+                >
+                  <i
+                    [class]="performer.isFavorite ? 'pi pi-star-fill' : 'pi pi-star'"
+                    aria-hidden="true"
+                  ></i>
+                </button>
+
+                @if (performer.cardImageUrl || performer.imageUrl) {
+                  <img
+                    class="performer-image"
+                    [src]="performer.cardImageUrl ?? performer.imageUrl"
+                    [alt]="performer.name"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                } @else {
+                  <div class="performer-image placeholder">
+                    {{ performerInitial(performer.name) }}
+                  </div>
+                }
+
+                <div class="performer-meta">
+                  <p class="performer-name">{{ performer.name }}</p>
+                  @if (formattedGender(performer.gender); as gender) {
+                    <p class="performer-gender">{{ gender }}</p>
+                  }
+                </div>
+              </article>
+            }
+          </div>
+        </section>
+      }
+
+      <section class="section lifecycle-section app-section-panel">
+        <h2>Lifecycle</h2>
+        <p class="overview-text">{{ lifecycleSummary(scene) }}</p>
+
+        <div class="lifecycle-grid">
+          @for (step of lifecycleSteps(scene); track step.system) {
+            <article class="lifecycle-card">
+              <p class="overview-text">
+                <strong>{{ step.system }}</strong>
+              </p>
+              <p>
+                <strong>{{ step.title }}</strong>
+              </p>
+              <p class="overview-text">{{ step.detail }}</p>
+            </article>
+          }
+        </div>
+      </section>
+
+      @if (showTimeline(scene)) {
+        <app-scene-timeline
+          [stashId]="scene.id"
+          [whisparrUrl]="scene.whisparr?.viewUrl || null"
+          (details)="evidence.reveal()"
+          (act)="onTimelineAction($event)"
+        />
+      }
+
+      <app-scene-evidence #evidence kind="catalog" [sceneId]="scene.id" />
+
+      @if (scene.tags.length > 4) {
+        <section class="section app-section-panel">
+          <h2>All tags</h2>
+          <div class="chips app-chip-list">
+            @for (tag of scene.tags; track tag.id) {
+              <a
+                class="chip app-chip tag-link"
+                [routerLink]="['/scenes']"
+                [queryParams]="{ tags: tag.id, tagNames: tag.name }"
+                [attr.aria-label]="'Open scenes tagged ' + tag.name"
+              >
+                {{ tag.name }}
+              </a>
+            }
+          </div>
+        </section>
+      }
+    </div>
+
+    <!-- Placed after the content so it stays pinned to the bottom while scrolling on phones. -->
+    @if (canRequestScene(scene)) {
+      <div class="scene-mobile-request-bar">
+        <button type="button" class="scene-mobile-request" (click)="openRequestPanel(scene)">
+          <i class="pi pi-download" aria-hidden="true"></i>
+          Request this scene
+        </button>
+      </div>
+    }
+
+    <app-scene-request-modal
+      [open]="requestModalOpen()"
+      [sceneId]="requestContext()?.id ?? null"
+      [sceneTitle]="requestContext()?.title ?? null"
+      [sceneImageUrl]="requestContext()?.imageUrl ?? null"
+      (closed)="onRequestModalClosed()"
+      (submitted)="onRequestSubmitted($event)"
+    />
+
+    <app-release-picker
+      [open]="releasePickerOpen()"
+      [stashId]="scene.id"
+      [sceneTitle]="scene.title"
+      (closed)="releasePickerOpen.set(false)"
+      (grabbed)="onReleaseGrabbed()"
+    />
+
+    <app-release-picker
+      source="prowlarr"
+      [provider]="scene.source"
+      [open]="findDownloadsOpen()"
+      [stashId]="scene.id"
+      [sceneTitle]="scene.title"
+      (closed)="findDownloadsOpen.set(false)"
+      (grabbed)="findDownloadsOpen.set(false)"
+    />
+  }
+</main>

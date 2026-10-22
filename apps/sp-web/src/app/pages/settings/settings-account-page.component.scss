@@ -1,0 +1,31 @@
+:host {
+  display: block;
+}
+
+.account-page {
+  display: grid;
+  gap: 1rem;
+  max-width: 56rem;
+}
+
+h2,
+p {
+  margin: 0;
+}
+
+.section-head {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.eyebrow {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+.lede {
+  color: var(--text-muted);
+  max-width: 42rem;
+}

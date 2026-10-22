@@ -1,0 +1,173 @@
+:host {
+  display: block;
+}
+
+.notifications-page {
+  display: grid;
+  gap: 1rem;
+  max-width: 56rem;
+}
+
+h2,
+p {
+  margin: 0;
+}
+
+.section-head {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.eyebrow {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+.lede,
+.muted {
+  color: var(--text-muted);
+}
+
+.muted {
+  font-size: 0.84rem;
+}
+
+.card {
+  display: grid;
+  gap: 1.1rem;
+  padding: 1rem;
+  border: 1px solid var(--surface-panel-border);
+  border-radius: 18px;
+  background: var(--surface-panel-background);
+  box-shadow: var(--surface-panel-shadow);
+}
+
+.field {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+legend,
+.field-label {
+  padding: 0;
+  margin-bottom: 0.2rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.switch-row.master {
+  padding-bottom: 1.1rem;
+  border-bottom: 1px solid var(--separator, var(--border-subtle));
+  font-weight: 700;
+}
+
+.events {
+  gap: 0;
+}
+
+.events .switch-row {
+  min-height: 2.9rem;
+}
+
+.events .switch-row + .switch-row {
+  border-top: 1px solid var(--separator, var(--border-subtle));
+}
+
+.channel-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.channel-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 50%, transparent);
+  cursor: pointer;
+}
+
+.channel-option.selected {
+  border-color: color-mix(in srgb, var(--focus-ring) 70%, transparent);
+  background: color-mix(in srgb, var(--focus-ring) 14%, transparent);
+}
+
+.text-input {
+  width: 100%;
+  height: 2.75rem;
+  padding: 0 0.8rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 70%, transparent);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.status {
+  font-weight: 600;
+  color: var(--success-text);
+}
+
+.status.error {
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.button {
+  height: 2.5rem;
+  padding: 0 1.1rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--focus-ring) 70%, transparent);
+  background: var(--focus-ring);
+  color: var(--accent-contrast, #fff);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button.secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--border-strong) 60%, transparent);
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+@media (max-width: 560px) {
+  /* Keep the three channel chips on one line, sharing the width evenly. */
+  .channel-options {
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+  }
+
+  .channel-option {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    gap: 0.3rem;
+    padding: 0.45rem 0.35rem;
+    font-size: 0.88rem;
+    white-space: nowrap;
+  }
+
+  .channel-option input {
+    margin: 0;
+  }
+}

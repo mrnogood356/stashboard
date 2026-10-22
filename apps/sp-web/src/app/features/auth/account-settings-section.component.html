@@ -1,0 +1,56 @@
+<section class="account-card">
+  <div class="card-head">
+    <h3>Change admin password</h3>
+    <p class="summary">
+      Signed in as <strong>{{ authStatus()?.username ?? 'admin' }}</strong
+      >. This single local password protects Stashboard on your LAN.
+    </p>
+  </div>
+
+  <form [formGroup]="form" (ngSubmit)="submit()">
+    <label class="field">
+      <span class="field-label">Current password</span>
+      <input
+        pInputText
+        type="password"
+        formControlName="currentPassword"
+        autocomplete="current-password"
+      />
+    </label>
+
+    <label class="field">
+      <span class="field-label">New password</span>
+      <input pInputText type="password" formControlName="newPassword" autocomplete="new-password" />
+    </label>
+
+    <label class="field">
+      <span class="field-label">Confirm new password</span>
+      <input
+        pInputText
+        type="password"
+        formControlName="confirmPassword"
+        autocomplete="new-password"
+      />
+    </label>
+
+    @if (passwordMismatch()) {
+      <p-message severity="error" styleClass="inline-message">
+        New password and confirmation must match.
+      </p-message>
+    }
+
+    @if (successMessage()) {
+      <p-message severity="success" styleClass="inline-message">{{ successMessage() }}</p-message>
+    }
+
+    @if (errorMessage()) {
+      <p-message severity="error" styleClass="inline-message">{{ errorMessage() }}</p-message>
+    }
+
+    <div class="actions">
+      <button pButton type="submit" [disabled]="submitting()">
+        {{ submitting() ? 'Updating password...' : 'Change password' }}
+      </button>
+    </div>
+  </form>
+</section>

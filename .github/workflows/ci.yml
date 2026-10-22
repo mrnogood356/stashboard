@@ -1,0 +1,167 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    name: Test And Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.32.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sp?schema=public
+        run: pnpm exec prisma generate --schema prisma/schema.prisma
+
+      - name: Lint, format and typecheck
+        run: pnpm check
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Build backend
+        run: pnpm --filter ./apps/sp-api build
+
+      - name: Build frontend
+        run: pnpm --filter ./apps/sp-web build
+
+  e2e:
+    name: API End-To-End
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sp_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sp_e2e?schema=public
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.32.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm exec prisma generate --schema prisma/schema.prisma
+
+      - name: Apply migrations
+        run: pnpm exec prisma migrate deploy --schema prisma/schema.prisma
+
+      - name: Run end-to-end tests
+        run: pnpm --filter ./apps/sp-api test:e2e
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build production image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: stashboard:test
+          load: true
+          build-args: |
+            STASHBOARD_VERSION=0.0.0-ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke-test the image
+        run: |
+          docker network create smoke
+          docker run -d --name db --network smoke \
+            -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=sp \
+            postgres:17-alpine
+          docker run -d --name app --network smoke \
+            -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=sp \
+            -e DATABASE_HOST=db \
+            stashboard:test
+
+          for _ in $(seq 1 60); do
+            status="$(docker inspect -f '{{.State.Health.Status}}' app)"
+            [ "$status" = healthy ] && break
+            [ "$(docker inspect -f '{{.State.Running}}' app)" = true ] || break
+            sleep 2
+          done
+          docker logs app
+          test "$(docker inspect -f '{{.State.Health.Status}}' app)" = healthy
+
+          # The app drops root to the default PUID:PGID.
+          test "$(docker exec app stat -c '%u:%g' /proc/1)" = "99:100"
+          test "$(docker exec app stat -c '%u:%g' /var/lib/stashboard/session-secret)" = "99:100"
+
+          # Only the app's production dependencies ship: no build or test tools.
+          for tool in eslint vitest @angular/cli @nestjs/cli jest; do
+            if docker exec app sh -c "ls /app/node_modules/.pnpm | grep -q \"^$(echo "$tool" | sed 's#/#+#')@\""; then
+              echo "$tool should not be in the image" >&2
+              exit 1
+            fi
+          done
+          docker image ls stashboard:test --format 'Image size: {{.Size}}'
+
+          headers="$(docker exec app wget -qS -O /dev/null http://127.0.0.1:3000/api/v1/status 2>&1)"
+          echo "$headers"
+          echo "$headers" | grep -qi 'x-content-type-options: nosniff'
+          echo "$headers" | grep -qi 'content-security-policy-report-only'
+
+      - name: Clean up smoke test
+        if: always()
+        run: docker rm -f app db || true

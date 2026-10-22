@@ -1,0 +1,106 @@
+<div class="feed">
+  <div class="feed-track" #track>
+    @for (item of items(); track item.id; let i = $index) {
+      <section class="slide" #slide [attr.data-index]="i" [attr.aria-label]="item.title">
+        @if (item.imageUrl) {
+          <div
+            class="slide-backdrop"
+            [style.background-image]="'url(' + (item.cardImageUrl ?? item.imageUrl) + ')'"
+            aria-hidden="true"
+          ></div>
+        }
+        @if (nearActive(i) && !failed().has(item.id)) {
+          <video
+            class="slide-video"
+            [src]="previewUrl(item)"
+            [attr.poster]="item.imageUrl"
+            muted
+            loop
+            playsinline
+            preload="auto"
+            (error)="onPreviewError(item.id)"
+          ></video>
+        } @else if (item.imageUrl) {
+          <img class="slide-video" [src]="item.imageUrl" alt="" loading="lazy" />
+        }
+        <div class="slide-shade" aria-hidden="true"></div>
+
+        <div class="slide-info">
+          @if (item.studio) {
+            <p class="slide-studio">{{ item.studio }}</p>
+          }
+          <h2 class="slide-title">{{ item.title }}</h2>
+          <p class="slide-meta">
+            @if (item.releaseDate) {
+              <span>{{ item.releaseDate.slice(0, 4) }}</span>
+            }
+            @if (formatDuration(item.duration); as duration) {
+              <span>{{ duration }}</span>
+            }
+            @if (item.playCount === 0) {
+              <span class="badge">New to you</span>
+            }
+          </p>
+        </div>
+
+        <div class="slide-actions">
+          <a
+            class="round primary"
+            [routerLink]="['/watch', item.id]"
+            [queryParams]="{ returnTo: '/feed' }"
+            aria-label="Play the full scene"
+          >
+            <i class="pi pi-play" aria-hidden="true"></i>
+          </a>
+          <a
+            class="round"
+            [routerLink]="['/library/scene', item.id]"
+            [queryParams]="{ returnTo: '/feed' }"
+            aria-label="Scene details"
+          >
+            <i class="pi pi-info-circle" aria-hidden="true"></i>
+          </a>
+          <button
+            type="button"
+            class="round"
+            (click)="toggleSound()"
+            [attr.aria-label]="sound() ? 'Mute' : 'Sound on'"
+            [attr.aria-pressed]="sound()"
+          >
+            <i [class]="sound() ? 'pi pi-volume-up' : 'pi pi-volume-off'" aria-hidden="true"></i>
+          </button>
+        </div>
+      </section>
+    }
+
+    @if (loading() && items().length === 0) {
+      <section class="slide placeholder" role="status">
+        <span class="spinner" aria-hidden="true"></span>
+        <p>Shuffling your library…</p>
+      </section>
+    }
+    @if (error(); as message) {
+      <section class="slide placeholder" role="alert">
+        <p>{{ message }}</p>
+        <button type="button" class="pill" (click)="loadMore()">Try again</button>
+      </section>
+    }
+    @if (!loading() && !error() && items().length === 0) {
+      <section class="slide placeholder">
+        <p>Your library is empty.</p>
+      </section>
+    }
+  </div>
+
+  <header class="feed-top">
+    <button type="button" class="round small" (click)="close()" aria-label="Close feed">
+      <i class="pi pi-times" aria-hidden="true"></i>
+    </button>
+    <p class="feed-title">For you</p>
+    <span class="round small ghost" aria-hidden="true"></span>
+  </header>
+
+  @if (items().length > 1 && active() === 0) {
+    <p class="swipe-hint" aria-hidden="true"><i class="pi pi-angle-up"></i> Swipe up</p>
+  }
+</div>

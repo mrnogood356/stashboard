@@ -1,0 +1,22 @@
+@if (rows().length > 0) {
+  <section class="needs-you" aria-labelledby="needs-you-title" data-testid="needs-you-card">
+    <h2 id="needs-you-title" class="needs-you-title">Needs you</h2>
+    <ul class="needs-you-list">
+      @for (row of rows(); track row.id) {
+        <li>
+          <a
+            class="needs-you-row"
+            [routerLink]="row.path"
+            [queryParams]="row.queryParams"
+            [attr.data-testid]="'needs-you-' + row.id"
+          >
+            <i [class]="row.icon" aria-hidden="true"></i>
+            <span class="needs-you-label">{{ row.label }}</span>
+            <span class="needs-you-count">{{ row.count }}</span>
+            <i class="pi pi-chevron-right needs-you-chevron" aria-hidden="true"></i>
+          </a>
+        </li>
+      }
+    </ul>
+  </section>
+}

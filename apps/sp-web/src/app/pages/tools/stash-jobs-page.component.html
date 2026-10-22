@@ -1,0 +1,67 @@
+<main class="app-page-shell">
+  <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
+  <h1 class="page-title">Stash jobs</h1>
+  <p class="page-lede">
+    Run Stash's library tasks without opening Stash. They keep running if you leave this page.
+  </p>
+
+  <section class="running">
+    <h2>Running now</h2>
+    @if (error(); as message) {
+      <div class="notice error" role="alert">
+        <i class="pi pi-exclamation-circle" aria-hidden="true"></i><span>{{ message }}</span>
+      </div>
+    } @else if (loaded() && jobs().length === 0) {
+      <p class="muted idle">Nothing running. Stash is idle.</p>
+    }
+    <ul class="jobs">
+      @for (job of jobs(); track job.id) {
+        <li class="job panel">
+          <div class="job-head">
+            <p class="job-title">{{ job.description }}</p>
+            <span class="job-status" [class.running]="job.status === 'RUNNING'">{{
+              statusLabel(job)
+            }}</span>
+          </div>
+          @if (percent(job); as value) {
+            <div
+              class="bar"
+              role="progressbar"
+              [attr.aria-valuenow]="value"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >
+              <span [style.width.%]="value"></span>
+            </div>
+          } @else if (job.status === 'RUNNING') {
+            <div class="bar indeterminate" aria-hidden="true"><span></span></div>
+          }
+          @if (job.subTasks.length > 0) {
+            <p class="muted job-sub">{{ job.subTasks[job.subTasks.length - 1] }}</p>
+          }
+          @if (job.status === 'RUNNING' || job.status === 'READY') {
+            <button type="button" class="btn small danger stop" (click)="stop(job)">Stop</button>
+          }
+        </li>
+      }
+    </ul>
+  </section>
+
+  <section class="tasks">
+    <h2>Start a task</h2>
+    <div class="task-grid">
+      @for (card of tasks; track card.task) {
+        <button
+          type="button"
+          class="task panel"
+          [disabled]="starting() !== null"
+          (click)="start(card)"
+        >
+          <i [class]="card.icon" aria-hidden="true"></i>
+          <span class="task-title">{{ starting() === card.task ? 'Starting…' : card.title }}</span>
+          <span class="task-detail">{{ card.detail }}</span>
+        </button>
+      }
+    </div>
+  </section>
+</main>

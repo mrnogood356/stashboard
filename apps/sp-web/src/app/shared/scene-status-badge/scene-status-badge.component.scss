@@ -1,0 +1,100 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 0.18rem 0.6rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  backdrop-filter: blur(4px);
+}
+
+.icon i {
+  font-size: 1rem;
+}
+
+.not-requested {
+  background: var(--badge-not-requested-bg);
+  border-color: var(--badge-not-requested-border);
+  color: var(--badge-not-requested-text);
+}
+
+.requested {
+  background: var(--badge-requested-bg);
+  border-color: var(--badge-requested-border);
+  color: var(--badge-requested-text);
+}
+
+.downloading {
+  background: var(--badge-downloading-bg);
+  border-color: var(--badge-downloading-border);
+  color: var(--badge-downloading-text);
+}
+
+.import-pending {
+  background: var(--badge-import-pending-bg);
+  border-color: var(--badge-import-pending-border);
+  color: var(--badge-import-pending-text);
+}
+
+.available {
+  background: var(--badge-available-bg);
+  border-color: var(--badge-available-border);
+  color: var(--badge-available-text);
+}
+
+.failed {
+  background: var(--badge-failed-bg);
+  border-color: var(--badge-failed-border);
+  color: var(--badge-failed-text);
+}
+
+/* On top of pictures: a dark glass dot with a bright status colour. */
+.icon {
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 0;
+  background: rgb(0 0 0 / 50%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.icon i {
+  font-size: 0.85rem;
+}
+
+.icon.not-requested {
+  color: #fff;
+}
+
+.icon.requested {
+  color: #64b0ff;
+}
+
+.icon.downloading {
+  color: #ffd60a;
+}
+
+.icon.import-pending {
+  color: #70d7ff;
+}
+
+.icon.available {
+  color: #30d158;
+}
+
+.icon.failed {
+  color: #ff453a;
+}

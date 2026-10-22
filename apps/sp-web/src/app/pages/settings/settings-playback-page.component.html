@@ -1,0 +1,93 @@
+<section class="playback-page">
+  <header class="section-head">
+    <h2>Playback</h2>
+    <p class="lede">
+      Stashboard can play scenes from your Stash library itself. If you only use it to find, request
+      and download scenes, turn playback off: Play buttons, previews and the swipe feed go away, and
+      everything else works the same. Nothing is deleted, and you can turn it back on at any time.
+    </p>
+  </header>
+
+  @if (loaded()) {
+    <article class="card">
+      <div class="switch-row">
+        <span>
+          <strong>In-app playback</strong>
+          <small
+            >The player, Play and Resume buttons, chapters, Continue Watching on Home, and streaming
+            from Stash. Off turns everything on this page off.</small
+          >
+        </span>
+        <input
+          type="checkbox"
+          class="app-switch"
+          role="switch"
+          name="enabled"
+          aria-label="In-app playback"
+          data-testid="playback-enabled"
+          [checked]="settings().enabled"
+          [disabled]="saving()"
+          (change)="toggle('enabled', $any($event.target))"
+        />
+      </div>
+
+      <div class="switch-row" [class.is-off]="!settings().enabled">
+        <span>
+          <strong>Swipe feed</strong>
+          <small>A full-screen feed of preview clips from your library, one after another.</small>
+        </span>
+        <input
+          type="checkbox"
+          class="app-switch"
+          role="switch"
+          name="feedEnabled"
+          aria-label="Swipe feed"
+          data-testid="playback-feed"
+          [checked]="settings().enabled && settings().feedEnabled"
+          [disabled]="saving() || !settings().enabled"
+          (change)="toggle('feedEnabled', $any($event.target))"
+        />
+      </div>
+
+      <div class="switch-row" [class.is-off]="!settings().enabled">
+        <span>
+          <strong>Previews on scene cards</strong>
+          <small
+            >Play a short silent clip when you hover over a library scene, or press and hold it on a
+            phone.</small
+          >
+        </span>
+        <input
+          type="checkbox"
+          class="app-switch"
+          role="switch"
+          name="previewsEnabled"
+          aria-label="Previews on scene cards"
+          data-testid="playback-previews"
+          [checked]="settings().enabled && settings().previewsEnabled"
+          [disabled]="saving() || !settings().enabled"
+          (change)="toggle('previewsEnabled', $any($event.target))"
+        />
+      </div>
+
+      @if (!settings().enabled) {
+        <p class="muted note">
+          Playback is off. Stash’s own player still works; use “Open in Stash” on a library scene.
+        </p>
+      }
+
+      @if (status(); as current) {
+        <p class="status" [class.error]="current.kind === 'error'" role="status">
+          {{ current.text }}
+        </p>
+      }
+    </article>
+  } @else if (loadFailed()) {
+    <article class="card">
+      <p class="muted">Couldn’t read the playback settings right now.</p>
+      <button type="button" class="button secondary" (click)="retry()">Try again</button>
+    </article>
+  } @else {
+    <p class="muted" role="status">Loading…</p>
+  }
+</section>

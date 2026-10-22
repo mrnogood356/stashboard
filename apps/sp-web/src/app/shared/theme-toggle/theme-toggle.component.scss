@@ -1,0 +1,29 @@
+.theme-toggle {
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 0;
+  background: var(--chip-bg);
+  color: var(--text-primary);
+  padding: 0;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition:
+    background-color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.theme-toggle:hover {
+  background: var(--surface-raised);
+}
+
+.theme-toggle:active {
+  transform: scale(0.92);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

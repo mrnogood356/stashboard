@@ -1,0 +1,115 @@
+:host {
+  display: block;
+}
+
+.repair-card {
+  border: 1px solid var(--surface-panel-border);
+  border-radius: 16px;
+  padding: 1rem;
+  background: var(--surface-panel-background);
+  box-shadow: var(--surface-panel-shadow);
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+h2,
+p {
+  margin: 0;
+}
+
+.card-head,
+.actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.eyebrow {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.card-summary {
+  font-size: 0.98rem;
+}
+
+.meta,
+.health-meta,
+.action-hint {
+  color: var(--text-muted);
+}
+
+.health-meta {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.88rem;
+}
+
+form {
+  display: grid;
+  gap: 1rem;
+}
+
+.actions {
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.actions .p-button {
+  min-height: 2.5rem;
+  padding-inline: 1.1rem;
+}
+
+.action-hint {
+  font-size: 0.88rem;
+}
+
+.state-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.is-ready {
+  border-color: var(--tone-success-border);
+  background: var(--tone-success-background);
+  color: var(--tone-success-text);
+}
+
+.is-saved {
+  border-color: var(--tone-warning-border);
+  background: var(--tone-warning-background);
+  color: var(--tone-warning-text);
+}
+
+.is-error {
+  border-color: var(--tone-danger-border);
+  background: var(--tone-danger-background);
+  color: var(--tone-danger-text);
+}
+
+.is-pending {
+  border-color: var(--border-strong);
+}
+
+@media (max-width: 640px) {
+  .card-head {
+    flex-direction: column;
+  }
+
+  .state-badge {
+    align-self: flex-start;
+  }
+}

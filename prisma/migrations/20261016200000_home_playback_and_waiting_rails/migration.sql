@@ -1,0 +1,4 @@
+-- New built-in Home rails: Still Waiting, Unwatched in Library, Most Played.
+ALTER TYPE "HomeRailKey" ADD VALUE IF NOT EXISTS 'STILL_WAITING';
+ALTER TYPE "HomeRailKey" ADD VALUE IF NOT EXISTS 'UNWATCHED_LIBRARY';
+ALTER TYPE "HomeRailKey" ADD VALUE IF NOT EXISTS 'MOST_PLAYED_LIBRARY';

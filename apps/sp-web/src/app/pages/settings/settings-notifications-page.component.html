@@ -1,0 +1,120 @@
+<section class="notifications-page">
+  <header class="section-head">
+    <h2>Get notified about your requests</h2>
+    <p class="lede">
+      Stashboard can message you when a requested scene starts downloading, lands in your library,
+      or fails.
+    </p>
+  </header>
+
+  @if (loading()) {
+    <p class="muted" role="status">Loading notification settings…</p>
+  } @else {
+    <form class="card" (ngSubmit)="save()">
+      <div class="switch-row master">
+        <span>Send notifications</span>
+        <input
+          type="checkbox"
+          class="app-switch"
+          role="switch"
+          name="enabled"
+          aria-label="Send notifications"
+          [ngModel]="form().enabled"
+          (ngModelChange)="update('enabled', $event)"
+        />
+      </div>
+
+      <fieldset class="field">
+        <legend>Send to</legend>
+        <div class="channel-options">
+          @for (channel of channels; track channel.value) {
+            <label class="channel-option" [class.selected]="form().channel === channel.value">
+              <input
+                type="radio"
+                name="channel"
+                [value]="channel.value"
+                [ngModel]="form().channel"
+                (ngModelChange)="update('channel', $event)"
+              />
+              {{ channel.label }}
+            </label>
+          }
+        </div>
+      </fieldset>
+
+      <label class="field">
+        <span class="field-label">URL</span>
+        <input
+          class="text-input"
+          type="url"
+          name="url"
+          autocomplete="off"
+          [placeholder]="help().placeholder"
+          [ngModel]="form().url ?? ''"
+          (ngModelChange)="update('url', $event)"
+        />
+        <span class="muted">{{ help().help }}</span>
+      </label>
+
+      <fieldset class="field events">
+        <legend>Tell me when a requested scene…</legend>
+        <div class="switch-row">
+          <span>starts downloading</span>
+          <input
+            type="checkbox"
+            class="app-switch"
+            role="switch"
+            name="notifyDownloading"
+            aria-label="Notify when a requested scene starts downloading"
+            [ngModel]="form().notifyDownloading"
+            (ngModelChange)="update('notifyDownloading', $event)"
+          />
+        </div>
+        <div class="switch-row">
+          <span>lands in my library</span>
+          <input
+            type="checkbox"
+            class="app-switch"
+            role="switch"
+            name="notifyAvailable"
+            aria-label="Notify when a requested scene lands in my library"
+            [ngModel]="form().notifyAvailable"
+            (ngModelChange)="update('notifyAvailable', $event)"
+          />
+        </div>
+        <div class="switch-row">
+          <span>fails to download</span>
+          <input
+            type="checkbox"
+            class="app-switch"
+            role="switch"
+            name="notifyFailed"
+            aria-label="Notify when a requested scene fails to download"
+            [ngModel]="form().notifyFailed"
+            (ngModelChange)="update('notifyFailed', $event)"
+          />
+        </div>
+      </fieldset>
+
+      @if (status(); as status) {
+        <p class="status" [class.error]="status.kind === 'error'" role="status">
+          {{ status.text }}
+        </p>
+      }
+
+      <div class="actions">
+        <button
+          type="button"
+          class="button secondary"
+          [disabled]="testing() || !form().url"
+          (click)="sendTest()"
+        >
+          {{ testing() ? 'Sending…' : 'Send test' }}
+        </button>
+        <button type="submit" class="button" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+    </form>
+  }
+</section>

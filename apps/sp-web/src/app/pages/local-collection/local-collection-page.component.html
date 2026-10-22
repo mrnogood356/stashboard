@@ -1,0 +1,164 @@
+<main class="collection app-page-shell app-page-shell--wide">
+  <a
+    class="back-link app-back-link app-back-link--media"
+    [routerLink]="backPath()"
+    [queryParams]="backQueryParams()"
+  >
+    Back
+  </a>
+
+  @if (loading()) {
+    <div class="hero-skeleton" role="status" aria-label="Loading">
+      <div class="avatar-skeleton" [class.studio]="kind() === 'studio'"></div>
+      <div class="line-skeleton"></div>
+    </div>
+  } @else if (error(); as message) {
+    <section class="state-panel" role="alert">
+      <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+      <p>{{ message }}</p>
+      <button type="button" class="action secondary" (click)="load()">Try again</button>
+    </section>
+  } @else if (header(); as header) {
+    <section class="hero" [class.studio]="kind() === 'studio'">
+      @if (header.imageUrl) {
+        <div
+          class="hero-backdrop"
+          [style.background-image]="'url(' + header.imageUrl + ')'"
+          aria-hidden="true"
+        ></div>
+      }
+      <div class="hero-inner">
+        <div
+          class="avatar"
+          [class.studio]="kind() === 'studio'"
+          [class.has-image]="!!header.imageUrl"
+        >
+          @if (header.imageUrl) {
+            <img [src]="header.imageUrl" [alt]="header.name" decoding="async" />
+          } @else {
+            <span class="avatar-initial" aria-hidden="true">{{ initial(header.name) }}</span>
+          }
+        </div>
+
+        <div class="hero-copy">
+          <p class="kicker">{{ kind() === 'studio' ? 'Studio' : 'Performer' }} · Your library</p>
+          <h1>{{ header.name }}</h1>
+          @if (header.subtitle) {
+            <p class="subtitle">{{ header.subtitle }}</p>
+          }
+          @if (header.parent; as parent) {
+            <p class="subtitle">
+              Part of
+              <a
+                [routerLink]="['/library/studio', parent.id]"
+                [queryParams]="{ returnTo: currentUrl() }"
+                >{{ parent.name }}</a
+              >
+            </p>
+          }
+          <p class="count">
+            {{ header.sceneCount }} {{ header.sceneCount === 1 ? 'scene' : 'scenes' }}
+          </p>
+
+          <div class="actions">
+            @if (playbackOn()) {
+              <button
+                type="button"
+                class="action primary"
+                [disabled]="shuffling() || header.sceneCount === 0"
+                (click)="shuffle()"
+              >
+                <i class="pi pi-sync" aria-hidden="true"></i>
+                {{ shuffling() ? 'Picking…' : 'Shuffle' }}
+              </button>
+            }
+            <button
+              type="button"
+              class="action secondary favorite"
+              [class.on]="header.favorite"
+              [attr.aria-pressed]="header.favorite"
+              [disabled]="favoriteBusy()"
+              (click)="toggleFavorite()"
+            >
+              <i
+                [class]="header.favorite ? 'pi pi-heart-fill' : 'pi pi-heart'"
+                aria-hidden="true"
+              ></i>
+              {{ header.favorite ? 'Favorite' : 'Add to favorites' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    @if (displayedDetails(header.details); as details) {
+      <section class="about">
+        <p>{{ details }}</p>
+        @if (header.details && header.details.length > 240) {
+          <button type="button" class="link-button" (click)="toggleDetails()">
+            {{ detailsExpanded() ? 'Show less' : 'Show more' }}
+          </button>
+        }
+      </section>
+    }
+
+    @if (header.children.length > 0) {
+      <nav class="children" aria-label="Sub-studios">
+        @for (child of header.children; track child.id) {
+          <a
+            class="chip"
+            [routerLink]="['/library/studio', child.id]"
+            [queryParams]="{ returnTo: currentUrl() }"
+          >
+            {{ child.name }}
+          </a>
+        }
+      </nav>
+    }
+
+    <div class="toolbar">
+      <h2>Scenes</h2>
+      <div class="segmented" role="tablist" aria-label="Sort scenes">
+        @for (option of sorts; track option.value) {
+          <button
+            type="button"
+            role="tab"
+            [class.active]="sort() === option.value"
+            [attr.aria-selected]="sort() === option.value"
+            (click)="setSort(option.value)"
+          >
+            {{ option.label }}
+          </button>
+        }
+      </div>
+    </div>
+
+    @if (items().length === 0 && !loadingScenes()) {
+      <p class="empty">No scenes in your library yet.</p>
+    }
+
+    <section class="grid">
+      @for (item of items(); track item.id) {
+        <app-scene-card
+          [item]="item"
+          primaryLinkMode="local"
+          [sceneQueryParams]="{ returnTo: currentUrl() }"
+          [playSceneId]="item.id"
+          [playQueryParams]="{ returnTo: currentUrl() }"
+          [progress]="item.progress"
+        />
+      }
+      @if (loadingScenes()) {
+        @for (n of [1, 2, 3, 4]; track n) {
+          <div class="card-skeleton" aria-hidden="true"></div>
+        }
+      }
+    </section>
+
+    @if (hasMore() && !loadingScenes()) {
+      <div class="more">
+        <button type="button" class="action secondary" (click)="loadMore()">Show more</button>
+      </div>
+    }
+  }
+</main>

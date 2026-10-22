@@ -1,0 +1,69 @@
+@if (appLock.locked()) {
+  <div class="lock" role="dialog" aria-modal="true" aria-labelledby="lock-title" #panel>
+    <div class="lock-content">
+      <img class="app-icon" src="icons/icon-192.png" alt="" width="72" height="72" />
+      <h1 id="lock-title">Stashboard is locked</h1>
+      <p class="hint">
+        {{ appLock.faceIdReady() ? 'Use Face ID or enter your PIN' : 'Enter your PIN' }}
+      </p>
+
+      <div
+        class="dots"
+        [class.shake]="shake()"
+        aria-live="polite"
+        [attr.aria-label]="pin().length + ' digits entered'"
+      >
+        @for (filled of dots(); track $index) {
+          <span class="dot" [class.filled]="filled"></span>
+        }
+      </div>
+
+      <p class="error" role="alert">{{ error() ?? '' }}</p>
+
+      <div class="keypad">
+        @for (key of keys; track key) {
+          <button type="button" class="key" (click)="press(key)" [attr.aria-disabled]="busy()">
+            {{ key }}
+          </button>
+        }
+        @if (appLock.faceIdReady()) {
+          <button
+            type="button"
+            class="key icon"
+            (click)="useFaceId()"
+            [disabled]="busy()"
+            aria-label="Unlock with Face ID"
+          >
+            <i class="pi pi-face-smile" aria-hidden="true"></i>
+          </button>
+        } @else {
+          <span class="key spacer" aria-hidden="true"></span>
+        }
+        <button type="button" class="key" (click)="press('0')" [attr.aria-disabled]="busy()">
+          0
+        </button>
+        <button
+          type="button"
+          class="key icon"
+          (click)="pin().length && !busy() ? backspace() : null"
+          [disabled]="!pin().length"
+          aria-label="Delete"
+        >
+          <i class="pi pi-delete-left" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <button
+        type="button"
+        class="unlock"
+        (click)="submit()"
+        [disabled]="pin().length < 4"
+        [attr.aria-busy]="busy()"
+      >
+        {{ busy() ? 'Checking…' : 'Unlock' }}
+      </button>
+
+      <button type="button" class="link" (click)="logOut()">Log out instead</button>
+    </div>
+  </div>
+}

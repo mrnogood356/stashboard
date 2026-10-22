@@ -1,0 +1,1317 @@
+import { HttpErrorResponse } from '@angular/common/http';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, ParamMap, Router, RouterLink, Scroll } from '@angular/router';
+import {
+  Subject,
+  Subscription,
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  filter,
+  finalize,
+  map,
+  of,
+  switchMap,
+  take,
+} from 'rxjs';
+import { Message } from 'primeng/message';
+import { MultiSelect } from 'primeng/multiselect';
+import { ProgressSpinner } from 'primeng/progressspinner';
+import { InputText } from 'primeng/inputtext';
+import { Select } from 'primeng/select';
+import { DiscoverService } from '../../core/api/discover.service';
+import {
+  PerformerStudioOption,
+  SceneFavoritesFilter,
+  SceneFeedSort,
+  SceneExplorerItem,
+  SceneRequestContext,
+  SortDirection,
+  SceneTagMatchMode,
+  SceneTagOption,
+  isSceneStatusRequestable,
+} from '../../core/api/discover.types';
+import { RuntimeHealthService } from '../../core/api/runtime-health.service';
+import { SetupStatusStore } from '../../core/api/setup-status.store';
+import { SceneCardComponent } from '../../shared/scene-card/scene-card.component';
+import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
+import {
+  buildReadinessPageAlert,
+  firstUseEmptyStateCopy,
+  initialIndexingGuidance,
+} from '../../shared/readiness/first-run-readiness.utils';
+import { ScenesSearchCacheService } from './scenes-search-cache.service';
+
+type FavoritesFilterOption = 'NONE' | SceneFavoritesFilter;
+interface MultiSelectOption {
+  label: string;
+  value: string;
+}
+
+interface MultiSelectGroup {
+  label: string;
+  items: MultiSelectOption[];
+}
+
+interface SelectedStudioChip {
+  id: string;
+  label: string;
+}
+
+import { CatalogProviderSwitchComponent } from '../../shared/catalog-provider-switch/catalog-provider-switch.component';
+import { joinTagNames, splitTagNames } from '../../core/catalog/tag-names-param';
+import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.component';
+
+@Component({
+  selector: 'app-scenes-page',
+  imports: [
+    CatalogProviderSwitchComponent,
+    HiddenCountComponent,
+    FormsModule,
+    InputText,
+    Message,
+    ProgressSpinner,
+    Select,
+    MultiSelect,
+    RouterLink,
+    SceneCardComponent,
+    SceneRequestModalComponent,
+  ],
+  templateUrl: './scenes-page.component.html',
+  styleUrl: './scenes-page.component.scss',
+})
+export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
+  /** On phones the filter panel starts collapsed so results show first. */
+  protected readonly filtersOpen = signal(false);
+
+  private static readonly PAGE_SIZE = 24;
+  private static readonly SEARCH_DEBOUNCE_MS = 250;
+  private static readonly EXCLUDE_DEBOUNCE_MS = 500;
+  /**
+   * Excluded words can empty whole catalog pages. After this many empty pages
+   * in a row, stop fetching on our own and let the user ask for more.
+   */
+  private static readonly MAX_EMPTY_PAGES_IN_A_ROW = 5;
+  private static readonly DEFAULT_SORT: SceneFeedSort = 'TRENDING';
+  private static readonly DEFAULT_DIRECTION: SortDirection = 'DESC';
+  private static readonly DEFAULT_FAVORITES: FavoritesFilterOption = 'NONE';
+  private static readonly DEFAULT_TAG_MODE: SceneTagMatchMode = 'OR';
+  protected static readonly SORT_OPTIONS: Array<{
+    value: SceneFeedSort;
+    label: string;
+  }> = [
+    { value: 'TRENDING', label: 'Trending' },
+    { value: 'DATE', label: 'Release Date' },
+    { value: 'TITLE', label: 'Title' },
+    { value: 'CREATED_AT', label: 'Created At' },
+    { value: 'UPDATED_AT', label: 'Updated At' },
+  ];
+  protected static readonly FAVORITES_OPTIONS: Array<{
+    value: FavoritesFilterOption;
+    label: string;
+  }> = [
+    { value: 'NONE', label: 'Any Scene' },
+    { value: 'ALL', label: 'All Favorites' },
+    { value: 'PERFORMER', label: 'Favorite Performers' },
+    { value: 'STUDIO', label: 'Favorite Studios' },
+  ];
+  protected static readonly TAG_MATCH_OPTIONS: Array<{
+    value: SceneTagMatchMode;
+    label: string;
+  }> = [
+    { value: 'OR', label: 'OR (Any)' },
+    { value: 'AND', label: 'AND (All)' },
+  ];
+
+  private readonly discoverService = inject(DiscoverService);
+  private readonly runtimeHealthService = inject(RuntimeHealthService);
+  private readonly setupStatusStore = inject(SetupStatusStore);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly searchCache = inject(ScenesSearchCacheService);
+  private readonly excludeInputChanges = new Subject<string>();
+  private readonly studioSearchTerms = new Subject<string>();
+  private readonly tagSearchTerms = new Subject<string>();
+  private studioSearchSubscription: Subscription | null = null;
+  private tagSearchSubscription: Subscription | null = null;
+  private queryParamSubscription: Subscription | null = null;
+  private excludeInputSubscription: Subscription | null = null;
+  private scrollRestoreSubscription: Subscription | null = null;
+  private observer: IntersectionObserver | null = null;
+  private sentinelElement: HTMLDivElement | null = null;
+  private sentinelIntersecting = false;
+  private feedVersion = 0;
+  private pendingReload = false;
+  private hasHydratedFromUrl = false;
+  private emptyPagesInARow = 0;
+  /** Cache key for the search on screen; see searchCacheKey(). */
+  private cacheKey: string | null = null;
+  private lastScrollY = 0;
+  private readonly onWindowScroll = (): void => {
+    this.lastScrollY = window.scrollY;
+  };
+
+  @ViewChild('loadMoreSentinel')
+  set loadMoreSentinel(elementRef: ElementRef<HTMLDivElement> | undefined) {
+    const nextElement = elementRef?.nativeElement ?? null;
+    if (this.sentinelElement === nextElement) {
+      return;
+    }
+
+    if (this.observer && this.sentinelElement) {
+      this.observer.unobserve(this.sentinelElement);
+    }
+
+    this.sentinelElement = nextElement;
+
+    if (this.observer && this.sentinelElement) {
+      this.observer.observe(this.sentinelElement);
+    }
+  }
+
+  protected readonly loading = signal(false);
+  protected readonly loadingMore = signal(false);
+  protected readonly error = signal<string | null>(null);
+  protected readonly loadMoreError = signal<string | null>(null);
+  protected readonly total = signal(0);
+  protected readonly page = signal(0);
+  protected readonly hasMore = signal(true);
+  protected readonly inFlight = signal(false);
+  /** True once too many pages in a row came back empty; see MAX_EMPTY_PAGES_IN_A_ROW. */
+  protected readonly autoLoadPaused = signal(false);
+  protected readonly items = signal<SceneExplorerItem[]>([]);
+  protected readonly requestModalOpen = signal(false);
+  protected readonly requestContext = signal<SceneRequestContext | null>(null);
+  protected readonly selectedSort = signal<SceneFeedSort>(ScenesPageComponent.DEFAULT_SORT);
+  protected readonly selectedDirection = signal<SortDirection>(
+    ScenesPageComponent.DEFAULT_DIRECTION,
+  );
+  protected readonly selectedFavorites = signal<FavoritesFilterOption>(
+    ScenesPageComponent.DEFAULT_FAVORITES,
+  );
+  protected readonly tagSearchTerm = signal('');
+  /** What's typed in the Exclude Words box; applied as excludeTerms after a pause. */
+  protected readonly excludeInput = signal('');
+  protected readonly excludeTerms = signal<string[]>([]);
+  /** Show scenes Settings → Hidden content leaves out ("showHidden=1" in the URL). */
+  protected readonly showHidden = signal(false);
+  /** How many scenes the loaded pages left out for Settings → Hidden content. */
+  protected readonly hiddenCount = signal(0);
+  protected readonly selectedTagMode = signal<SceneTagMatchMode>(
+    ScenesPageComponent.DEFAULT_TAG_MODE,
+  );
+  protected readonly selectedTags = signal<SceneTagOption[]>([]);
+  /** Picked tags this catalog doesn't have (a StashDB rail opened on FansDB). */
+  protected readonly unknownTags = signal<string[]>([]);
+  protected readonly uncheckedTags = signal<string[]>([]);
+  protected readonly selectedTagIdsModel = signal<string[]>([]);
+  protected readonly tagOptions = signal<SceneTagOption[]>([]);
+  protected readonly tagSelectOptions = signal<MultiSelectOption[]>([]);
+  protected readonly studioSearchTerm = signal('');
+  protected readonly selectedStudios = signal<SelectedStudioChip[]>([]);
+  protected readonly studioSelectedIdsModel = signal<string[]>([]);
+  protected readonly studioOptions = signal<PerformerStudioOption[]>([]);
+  protected readonly studioSelectOptions = signal<MultiSelectGroup[]>([]);
+  protected readonly studioSearchLoading = signal(false);
+  protected readonly studioSearchError = signal<string | null>(null);
+  protected readonly tagSearchLoading = signal(false);
+  protected readonly tagSearchError = signal<string | null>(null);
+  protected readonly sortOptions = ScenesPageComponent.SORT_OPTIONS;
+  protected readonly favoritesOptions = ScenesPageComponent.FAVORITES_OPTIONS;
+  protected readonly tagMatchOptions = ScenesPageComponent.TAG_MATCH_OPTIONS;
+  protected readonly pageAlert = computed(() =>
+    buildReadinessPageAlert(
+      'scenes',
+      this.setupStatusStore.status(),
+      this.runtimeHealthService.status(),
+    ),
+  );
+
+  ngOnInit(): void {
+    this.runtimeHealthService.ensureStarted();
+    this.setupStudioSearch();
+    this.setupTagSearch();
+    this.setupExcludeInput();
+    this.setupUrlStateSync();
+    window.addEventListener('scroll', this.onWindowScroll, { passive: true });
+  }
+
+  ngAfterViewInit(): void {
+    this.setupIntersectionObserver();
+  }
+
+  ngOnDestroy(): void {
+    this.saveToSearchCache();
+    window.removeEventListener('scroll', this.onWindowScroll);
+    if (this.observer && this.sentinelElement) {
+      this.observer.unobserve(this.sentinelElement);
+    }
+    this.observer?.disconnect();
+    this.studioSearchSubscription?.unsubscribe();
+    this.tagSearchSubscription?.unsubscribe();
+    this.queryParamSubscription?.unsubscribe();
+    this.excludeInputSubscription?.unsubscribe();
+    this.scrollRestoreSubscription?.unsubscribe();
+  }
+
+  protected hasItems(): boolean {
+    return this.items().length > 0;
+  }
+
+  protected retryInitialLoad(): void {
+    if (this.inFlight()) {
+      return;
+    }
+
+    this.error.set(null);
+    this.loadNextPage();
+  }
+
+  protected retryLoadMore(): void {
+    if (this.inFlight() || !this.hasMore()) {
+      return;
+    }
+
+    this.loadMoreError.set(null);
+    this.loadNextPage();
+  }
+
+  /** Picks up again after autoLoadPaused stopped fetching on its own. */
+  protected loadMoreAfterPause(): void {
+    this.emptyPagesInARow = 0;
+    this.autoLoadPaused.set(false);
+    this.retryLoadMore();
+  }
+
+  protected onExcludeInputChanged(nextValue: string | null | undefined): void {
+    this.excludeInput.set(nextValue ?? '');
+    this.excludeInputChanges.next(nextValue ?? '');
+  }
+
+  /** Enter applies the words straight away instead of waiting for the pause. */
+  protected applyExcludeInput(): void {
+    this.applyExcludeTerms(this.parseExcludeTerms(this.excludeInput()));
+  }
+
+  protected onShowHiddenChanged(showHidden: boolean): void {
+    if (this.showHidden() === showHidden) {
+      return;
+    }
+
+    this.showHidden.set(showHidden);
+    this.syncUrlWithCurrentFilters(false);
+    this.resetFeedAndReload();
+  }
+
+  protected isRequestable(item: SceneExplorerItem): boolean {
+    return item.requestable && isSceneStatusRequestable(item.status);
+  }
+
+  protected openRequestModal(item: SceneRequestContext): void {
+    this.requestContext.set(item);
+    this.requestModalOpen.set(true);
+  }
+
+  protected onSortChanged(nextValue: string): void {
+    if (
+      nextValue === 'DATE' ||
+      nextValue === 'TITLE' ||
+      nextValue === 'TRENDING' ||
+      nextValue === 'CREATED_AT' ||
+      nextValue === 'UPDATED_AT'
+    ) {
+      if (this.selectedSort() === nextValue) {
+        return;
+      }
+
+      this.selectedSort.set(nextValue);
+      this.syncUrlWithCurrentFilters(false);
+      this.resetFeedAndReload();
+    }
+  }
+
+  protected onDirectionChanged(nextValue: string): void {
+    if (nextValue !== 'ASC' && nextValue !== 'DESC') {
+      return;
+    }
+
+    if (this.selectedDirection() === nextValue) {
+      return;
+    }
+
+    this.selectedDirection.set(nextValue);
+    this.syncUrlWithCurrentFilters(false);
+    this.resetFeedAndReload();
+  }
+
+  protected toggleSortDirection(): void {
+    this.onDirectionChanged(this.selectedDirection() === 'ASC' ? 'DESC' : 'ASC');
+  }
+
+  protected sortDirectionIconClass(): string {
+    return this.selectedDirection() === 'ASC'
+      ? 'pi pi-sort-amount-up-alt'
+      : 'pi pi-sort-amount-down-alt';
+  }
+
+  protected sortDirectionToggleLabel(): string {
+    return this.selectedDirection() === 'ASC'
+      ? 'Sort direction: ascending. Toggle to descending.'
+      : 'Sort direction: descending. Toggle to ascending.';
+  }
+
+  protected onFavoritesChanged(nextValue: string): void {
+    if (
+      nextValue === 'NONE' ||
+      nextValue === 'ALL' ||
+      nextValue === 'PERFORMER' ||
+      nextValue === 'STUDIO'
+    ) {
+      if (this.selectedFavorites() === nextValue) {
+        return;
+      }
+
+      this.selectedFavorites.set(nextValue);
+      this.syncUrlWithCurrentFilters(false);
+      this.resetFeedAndReload();
+    }
+  }
+
+  protected hasActiveFilters(): boolean {
+    return (
+      this.selectedSort() !== ScenesPageComponent.DEFAULT_SORT ||
+      this.selectedDirection() !== ScenesPageComponent.DEFAULT_DIRECTION ||
+      this.selectedFavorites() !== ScenesPageComponent.DEFAULT_FAVORITES ||
+      this.selectedTagMode() !== ScenesPageComponent.DEFAULT_TAG_MODE ||
+      this.selectedTags().length > 0 ||
+      this.selectedStudios().length > 0 ||
+      this.excludeTerms().length > 0
+    );
+  }
+
+  protected resetFilters(): void {
+    if (!this.hasActiveFilters()) {
+      return;
+    }
+
+    this.selectedSort.set(ScenesPageComponent.DEFAULT_SORT);
+    this.selectedDirection.set(ScenesPageComponent.DEFAULT_DIRECTION);
+    this.selectedFavorites.set(ScenesPageComponent.DEFAULT_FAVORITES);
+    this.selectedTagMode.set(ScenesPageComponent.DEFAULT_TAG_MODE);
+    this.selectedTags.set([]);
+    this.selectedTagIdsModel.set([]);
+    this.tagSearchTerm.set('');
+    this.tagOptions.set([]);
+    this.tagSelectOptions.set([]);
+    this.tagSearchError.set(null);
+    this.studioSearchTerm.set('');
+    this.selectedStudios.set([]);
+    this.studioSelectedIdsModel.set([]);
+    this.studioOptions.set([]);
+    this.studioSelectOptions.set([]);
+    this.studioSearchError.set(null);
+    this.excludeInput.set('');
+    this.excludeTerms.set([]);
+    this.tagSearchTerms.next('');
+    this.studioSearchTerms.next('');
+    this.syncUrlWithCurrentFilters(false);
+    this.resetFeedAndReload();
+  }
+
+  protected scenesTotalLabel(): string {
+    return `Total scenes: ${this.total()}`;
+  }
+
+  protected scenesResultsNote(): string {
+    return 'Discovery filters come from the catalog provider configured for this instance. Lifecycle badges show where each scene sits in the Whisparr to Stash pipeline.';
+  }
+
+  protected emptyStateMessage(): string {
+    if (this.hasActiveFilters()) {
+      return 'No scenes match the current filters.';
+    }
+
+    if (this.pageAlert()?.impactedServices.includes('CATALOG')) {
+      return 'The catalog feed may be empty because the configured catalog provider needs repair.';
+    }
+
+    return firstUseEmptyStateCopy('scenes').message;
+  }
+
+  protected emptyStateTitle(): string {
+    return this.hasActiveFilters()
+      ? 'No scenes match the current filters'
+      : firstUseEmptyStateCopy('scenes').title;
+  }
+
+  protected indexingGuidance(): string {
+    return initialIndexingGuidance();
+  }
+
+  protected onTagFilterChanged(nextValue: string | null | undefined): void {
+    const nextTerm = (nextValue ?? '').trimStart();
+    this.tagSearchTerm.set(nextTerm);
+    this.tagSearchTerms.next(nextTerm);
+  }
+
+  protected onStudioFilterChanged(nextValue: string | null | undefined): void {
+    const nextTerm = (nextValue ?? '').trimStart();
+    this.studioSearchTerm.set(nextTerm);
+    this.studioSearchTerms.next(nextTerm);
+  }
+
+  protected onTagFilterPanelHide(): void {
+    this.onTagFilterChanged('');
+  }
+
+  protected onStudioFilterPanelHide(): void {
+    this.onStudioFilterChanged('');
+  }
+
+  protected studioSelectEmptyMessage(): string {
+    if (this.studioSearchError()) {
+      return this.studioSearchError() ?? 'Failed to load studio options.';
+    }
+
+    if (this.studioSearchTerm().trim().length === 0) {
+      return 'Type to search studio networks.';
+    }
+
+    return 'No matching studios.';
+  }
+
+  protected tagSelectEmptyMessage(): string {
+    if (this.tagSearchError()) {
+      return this.tagSearchError() ?? 'Failed to load tag options.';
+    }
+
+    if (this.tagSearchTerm().trim().length === 0) {
+      return 'Type to search tags.';
+    }
+
+    return 'No matching tags.';
+  }
+
+  protected onStudioSelectionChanged(nextValue: string[] | null): void {
+    const nextIds = this.dedupeStrings(nextValue ?? []);
+    this.studioSelectedIdsModel.set(nextIds);
+
+    const changed = !this.areStringArraysEqual(this.selectedStudioIds(), nextIds);
+    if (!changed) {
+      return;
+    }
+
+    const previousLabels = new Map(
+      this.selectedStudios().map((studio) => [studio.id, studio.label]),
+    );
+    const currentLabels = this.studioLabelMap();
+    this.selectedStudios.set(
+      nextIds.map((id) => ({
+        id,
+        label: currentLabels.get(id) ?? previousLabels.get(id) ?? id,
+      })),
+    );
+    this.rebuildStudioSelectOptions(this.studioOptions());
+    this.syncUrlWithCurrentFilters(false);
+    this.resetFeedAndReload();
+  }
+
+  protected onTagSelectionChanged(nextValue: string[] | null): void {
+    const nextIds = this.dedupeStrings(nextValue ?? []);
+    this.selectedTagIdsModel.set(nextIds);
+
+    const previousTags = new Map(this.selectedTags().map((tag) => [tag.id, tag]));
+    const currentTags = new Map(this.tagOptions().map((tag) => [tag.id, tag]));
+    const nextSelected = nextIds
+      .map((id) => currentTags.get(id) ?? previousTags.get(id))
+      .filter((tag): tag is SceneTagOption => Boolean(tag));
+    const current = this.selectedTags();
+    const changed =
+      nextSelected.length !== current.length ||
+      nextSelected.some((tag) => !this.isTagSelected(tag.id));
+
+    this.selectedTags.set(nextSelected);
+    this.rebuildTagSelectOptions(this.tagOptions());
+    this.syncUrlWithCurrentFilters(false);
+
+    if (!changed) {
+      return;
+    }
+
+    this.resetFeedAndReload();
+  }
+
+  protected onTagMatchModeChanged(nextValue: string): void {
+    if (nextValue !== 'OR' && nextValue !== 'AND') {
+      return;
+    }
+    if (this.selectedTagMode() === nextValue) {
+      return;
+    }
+
+    this.selectedTagMode.set(nextValue);
+    this.syncUrlWithCurrentFilters(false);
+    if (this.selectedTags().length > 0) {
+      this.resetFeedAndReload();
+    }
+  }
+
+  protected isTagSelected(tagId: string): boolean {
+    return this.selectedTags().some((tag) => tag.id === tagId);
+  }
+
+  protected onRequestModalClosed(): void {
+    this.requestModalOpen.set(false);
+  }
+
+  protected onRequestSubmitted(stashId: string): void {
+    this.items.update((current) =>
+      current.map((item) =>
+        item.id === stashId
+          ? {
+              ...item,
+              requestable: false,
+              status: { state: 'REQUESTED' },
+            }
+          : item,
+      ),
+    );
+  }
+
+  protected currentRouteUrl(): string {
+    return this.router.url;
+  }
+
+  private loadNextPage(): void {
+    if (this.inFlight() || !this.hasMore()) {
+      return;
+    }
+
+    const nextPage = this.page() + 1;
+    // Excluded words can leave early pages empty; keep the full-page loader
+    // until something shows up.
+    const isInitialPage = this.items().length === 0;
+    const requestVersion = this.feedVersion;
+    this.inFlight.set(true);
+
+    if (isInitialPage) {
+      this.loading.set(true);
+      this.error.set(null);
+    } else {
+      this.loadingMore.set(true);
+      this.loadMoreError.set(null);
+    }
+
+    this.discoverService
+      .getScenesFeed(
+        nextPage,
+        ScenesPageComponent.PAGE_SIZE,
+        this.selectedSort(),
+        this.selectedDirection(),
+        this.selectedTagIds(),
+        this.selectedTagMode(),
+        this.selectedFavoritesFilter(),
+        this.selectedStudioIds(),
+        this.excludeTerms(),
+        this.selectedTags().map((tag) => tag.name),
+        this.showHidden(),
+      )
+      .pipe(
+        finalize(() => {
+          this.inFlight.set(false);
+
+          if (requestVersion !== this.feedVersion) {
+            if (this.pendingReload) {
+              this.pendingReload = false;
+              this.loadNextPage();
+            }
+            return;
+          }
+
+          if (isInitialPage) {
+            this.loading.set(false);
+          } else {
+            this.loadingMore.set(false);
+          }
+
+          const failed = Boolean(this.error() || this.loadMoreError());
+          const wantsMore = this.sentinelIntersecting || this.items().length === 0;
+          if (wantsMore && !failed && this.hasMore() && !this.autoLoadPaused()) {
+            this.loadNextPage();
+          }
+        }),
+      )
+      .subscribe({
+        next: (response) => {
+          if (requestVersion !== this.feedVersion) {
+            return;
+          }
+
+          this.total.set(response.total);
+          this.unknownTags.set(response.unknownTags ?? []);
+          this.uncheckedTags.set(response.uncheckedTags ?? []);
+          this.page.set(response.page);
+          this.hasMore.set(response.hasMore);
+          this.items.update((current) =>
+            isInitialPage ? response.items : [...current, ...response.items],
+          );
+          this.hiddenCount.update((count) => count + (response.hidden ?? 0));
+          this.emptyPagesInARow =
+            response.items.length === 0 && response.hasMore ? this.emptyPagesInARow + 1 : 0;
+          this.autoLoadPaused.set(
+            this.emptyPagesInARow >= ScenesPageComponent.MAX_EMPTY_PAGES_IN_A_ROW,
+          );
+        },
+        error: (error) => {
+          if (requestVersion !== this.feedVersion) {
+            return;
+          }
+
+          if (isInitialPage) {
+            this.error.set(
+              this.describeFeedError(error, 'Failed to load scenes feed from the API.'),
+            );
+          } else {
+            this.loadMoreError.set(this.describeFeedError(error, 'Failed to load more scenes.'));
+          }
+        },
+      });
+  }
+
+  private resetFeedAndReload(): void {
+    this.feedVersion += 1;
+    this.pendingReload = false;
+    this.emptyPagesInARow = 0;
+    this.autoLoadPaused.set(false);
+    this.page.set(0);
+    this.total.set(0);
+    this.hasMore.set(true);
+    this.items.set([]);
+    this.hiddenCount.set(0);
+    this.loading.set(false);
+    this.loadingMore.set(false);
+    this.error.set(null);
+    this.loadMoreError.set(null);
+    if (this.inFlight()) {
+      this.pendingReload = true;
+      return;
+    }
+
+    this.loadNextPage();
+  }
+
+  private describeFeedError(error: unknown, fallback: string): string {
+    if (error instanceof HttpErrorResponse) {
+      const message = error.error?.message;
+      if (typeof message === 'string' && message.trim().length > 0) {
+        return message;
+      }
+
+      if (Array.isArray(message) && message.length > 0) {
+        return message.join(' ');
+      }
+    }
+
+    return fallback;
+  }
+
+  private selectedTagIds(): string[] {
+    return this.selectedTags().map((tag) => tag.id);
+  }
+
+  private selectedStudioIds(): string[] {
+    return this.selectedStudios().map((studio) => studio.id);
+  }
+
+  private selectedFavoritesFilter(): SceneFavoritesFilter | undefined {
+    const selectedFavorites = this.selectedFavorites();
+    return selectedFavorites === 'NONE' ? undefined : selectedFavorites;
+  }
+
+  private setupUrlStateSync(): void {
+    this.queryParamSubscription = this.route.queryParamMap.subscribe((queryParamMap) => {
+      const urlState = this.readUrlState(queryParamMap);
+      const changed = this.applyUrlState(urlState);
+      this.cacheKey = this.searchCacheKey(queryParamMap);
+      if (queryParamMap.has('lifecycle') || this.hasLegacyLibraryOverlayParams(queryParamMap)) {
+        this.syncUrlWithCurrentFilters(true);
+      }
+      if (!this.hasHydratedFromUrl || changed) {
+        const firstVisit = !this.hasHydratedFromUrl;
+        this.hasHydratedFromUrl = true;
+        // Coming back to a search we just left: show it as it was.
+        if (firstVisit && this.restoreFromSearchCache()) {
+          return;
+        }
+        this.resetFeedAndReload();
+        return;
+      }
+
+      this.hasHydratedFromUrl = true;
+    });
+  }
+
+  private readUrlState(queryParamMap: ParamMap): {
+    sort: SceneFeedSort;
+    direction: SortDirection;
+    favorites: FavoritesFilterOption;
+    mode: SceneTagMatchMode;
+    tagIds: string[];
+    tagNamesById: Map<string, string>;
+    studioIds: string[];
+    studioNamesById: Map<string, string>;
+    excludeTerms: string[];
+    showHidden: boolean;
+  } {
+    const sortParam = queryParamMap.get('sort');
+    const sort: SceneFeedSort =
+      sortParam === 'DATE' ||
+      sortParam === 'TITLE' ||
+      sortParam === 'TRENDING' ||
+      sortParam === 'CREATED_AT' ||
+      sortParam === 'UPDATED_AT'
+        ? sortParam
+        : ScenesPageComponent.DEFAULT_SORT;
+
+    const favoritesParam = queryParamMap.get('fav');
+    const favorites: FavoritesFilterOption =
+      favoritesParam === 'NONE' ||
+      favoritesParam === 'ALL' ||
+      favoritesParam === 'PERFORMER' ||
+      favoritesParam === 'STUDIO'
+        ? favoritesParam
+        : ScenesPageComponent.DEFAULT_FAVORITES;
+    const directionParam = queryParamMap.get('dir');
+    const direction: SortDirection =
+      directionParam === 'ASC' || directionParam === 'DESC'
+        ? directionParam
+        : ScenesPageComponent.DEFAULT_DIRECTION;
+
+    const modeParam = queryParamMap.get('mode');
+    const mode: SceneTagMatchMode =
+      modeParam === 'OR' || modeParam === 'AND' ? modeParam : ScenesPageComponent.DEFAULT_TAG_MODE;
+
+    const rawTagIds = (queryParamMap.get('tags') ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+    const rawTagNames = splitTagNames(queryParamMap.get('tagNames'));
+
+    const tagNamesById = new Map<string, string>();
+    rawTagIds.forEach((id, index) => {
+      const name = rawTagNames[index];
+      if (name) {
+        tagNamesById.set(id, name);
+      }
+    });
+
+    const tagIds = this.dedupeStrings(rawTagIds);
+    const rawStudioIds = (queryParamMap.get('studios') ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+    const rawStudioNames = (queryParamMap.get('studioNames') ?? '')
+      .split(',')
+      .map((value) => value.trim());
+    const studioNamesById = new Map<string, string>();
+    rawStudioIds.forEach((id, index) => {
+      const name = rawStudioNames[index];
+      if (name) {
+        studioNamesById.set(id, name);
+      }
+    });
+    const studioIds = this.dedupeStrings(rawStudioIds);
+
+    return {
+      sort,
+      direction,
+      favorites,
+      mode,
+      tagIds,
+      tagNamesById,
+      studioIds,
+      studioNamesById,
+      excludeTerms: this.parseExcludeTerms(queryParamMap.get('exclude') ?? ''),
+      showHidden: queryParamMap.get('showHidden') === '1',
+    };
+  }
+
+  private applyUrlState(state: {
+    sort: SceneFeedSort;
+    direction: SortDirection;
+    favorites: FavoritesFilterOption;
+    mode: SceneTagMatchMode;
+    tagIds: string[];
+    tagNamesById: Map<string, string>;
+    studioIds: string[];
+    studioNamesById: Map<string, string>;
+    excludeTerms: string[];
+    showHidden: boolean;
+  }): boolean {
+    const currentSelectedIds = this.selectedTagIds();
+    const currentSelectedStudioIds = this.selectedStudioIds();
+    const tagsChanged = !this.areStringArraysEqual(currentSelectedIds, state.tagIds);
+    const studiosChanged = !this.areStringArraysEqual(currentSelectedStudioIds, state.studioIds);
+    const excludeChanged = !this.areStringArraysEqual(this.excludeTerms(), state.excludeTerms);
+    const changed =
+      this.selectedSort() !== state.sort ||
+      this.selectedDirection() !== state.direction ||
+      this.selectedFavorites() !== state.favorites ||
+      this.selectedTagMode() !== state.mode ||
+      tagsChanged ||
+      studiosChanged ||
+      excludeChanged ||
+      this.showHidden() !== state.showHidden;
+
+    if (!changed) {
+      return false;
+    }
+
+    this.selectedSort.set(state.sort);
+    this.selectedDirection.set(state.direction);
+    this.selectedFavorites.set(state.favorites);
+    this.selectedTagMode.set(state.mode);
+    this.showHidden.set(state.showHidden);
+    this.selectedTagIdsModel.set(state.tagIds);
+
+    if (tagsChanged) {
+      const previousTags = new Map(this.selectedTags().map((tag) => [tag.id, tag]));
+      const nextSelectedTags = state.tagIds.map((id) => {
+        const existing = previousTags.get(id);
+        if (existing) {
+          return existing;
+        }
+
+        return {
+          id,
+          name: state.tagNamesById.get(id) ?? id,
+          description: null,
+          aliases: [],
+        } satisfies SceneTagOption;
+      });
+      this.selectedTags.set(nextSelectedTags);
+    }
+
+    if (studiosChanged) {
+      const previousStudios = new Map(
+        this.selectedStudios().map((studio) => [studio.id, studio.label]),
+      );
+      this.selectedStudios.set(
+        state.studioIds.map((id) => ({
+          id,
+          label: state.studioNamesById.get(id) ?? previousStudios.get(id) ?? id,
+        })),
+      );
+      this.studioSelectedIdsModel.set(state.studioIds);
+    }
+
+    if (excludeChanged) {
+      this.excludeTerms.set(state.excludeTerms);
+      this.excludeInput.set(state.excludeTerms.join(', '));
+    }
+
+    this.rebuildTagSelectOptions(this.tagOptions());
+    this.rebuildStudioSelectOptions(this.studioOptions());
+    return true;
+  }
+
+  private syncUrlWithCurrentFilters(replaceUrl: boolean): void {
+    const next = {
+      sort: this.selectedSort() === ScenesPageComponent.DEFAULT_SORT ? null : this.selectedSort(),
+      dir:
+        this.selectedDirection() === ScenesPageComponent.DEFAULT_DIRECTION
+          ? null
+          : this.selectedDirection(),
+      fav:
+        this.selectedFavorites() === ScenesPageComponent.DEFAULT_FAVORITES
+          ? null
+          : this.selectedFavorites(),
+      availability: null,
+      lifecycle: null,
+      stashFavPerformers: null,
+      stashFavStudios: null,
+      stashFavTags: null,
+      mode:
+        this.selectedTagMode() === ScenesPageComponent.DEFAULT_TAG_MODE
+          ? null
+          : this.selectedTagMode(),
+      tags: this.selectedTagIds().length > 0 ? this.selectedTagIds().join(',') : null,
+      tagNames:
+        this.selectedTags().length > 0
+          ? joinTagNames(this.selectedTags().map((tag) => tag.name))
+          : null,
+      studios: this.selectedStudioIds().length > 0 ? this.selectedStudioIds().join(',') : null,
+      studioNames:
+        this.selectedStudios().length > 0
+          ? this.selectedStudios()
+              .map((studio) => studio.label.trim())
+              .join(',')
+          : null,
+      exclude: this.excludeTerms().length > 0 ? this.excludeTerms().join(',') : null,
+      showHidden: this.showHidden() ? '1' : null,
+    };
+
+    const current = this.route.snapshot.queryParamMap;
+    const currentSort = current.get('sort');
+    const currentFav = current.get('fav');
+    const currentDir = current.get('dir');
+    const currentAvailability = current.get('availability');
+    const currentMode = current.get('mode');
+    const currentLifecycle = current.get('lifecycle');
+    const currentStashFavPerformers = current.get('stashFavPerformers');
+    const currentStashFavStudios = current.get('stashFavStudios');
+    const currentStashFavTags = current.get('stashFavTags');
+    const currentTags = current.get('tags');
+    const currentTagNames = current.get('tagNames');
+    const currentStudios = current.get('studios');
+    const currentStudioNames = current.get('studioNames');
+    const currentExclude = current.get('exclude');
+    const currentShowHidden = current.get('showHidden');
+    if (
+      (currentSort ?? null) === next.sort &&
+      (currentDir ?? null) === next.dir &&
+      (currentFav ?? null) === next.fav &&
+      (currentAvailability ?? null) === next.availability &&
+      (currentLifecycle ?? null) === next.lifecycle &&
+      (currentStashFavPerformers ?? null) === next.stashFavPerformers &&
+      (currentStashFavStudios ?? null) === next.stashFavStudios &&
+      (currentStashFavTags ?? null) === next.stashFavTags &&
+      (currentMode ?? null) === next.mode &&
+      (currentTags ?? null) === next.tags &&
+      (currentTagNames ?? null) === next.tagNames &&
+      (currentStudios ?? null) === next.studios &&
+      (currentStudioNames ?? null) === next.studioNames &&
+      (currentExclude ?? null) === next.exclude &&
+      (currentShowHidden ?? null) === next.showHidden
+    ) {
+      return;
+    }
+
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: next,
+      queryParamsHandling: 'merge',
+      replaceUrl,
+    });
+  }
+
+  private hasLegacyLibraryOverlayParams(queryParamMap: ParamMap): boolean {
+    return (
+      queryParamMap.has('availability') ||
+      queryParamMap.has('stashFavPerformers') ||
+      queryParamMap.has('stashFavStudios') ||
+      queryParamMap.has('stashFavTags')
+    );
+  }
+
+  private setupExcludeInput(): void {
+    this.excludeInputSubscription = this.excludeInputChanges
+      .pipe(debounceTime(ScenesPageComponent.EXCLUDE_DEBOUNCE_MS))
+      .subscribe((value) => this.applyExcludeTerms(this.parseExcludeTerms(value)));
+  }
+
+  private applyExcludeTerms(terms: string[]): void {
+    if (this.areStringArraysEqual(this.excludeTerms(), terms)) {
+      return;
+    }
+
+    this.excludeTerms.set(terms);
+    this.syncUrlWithCurrentFilters(false);
+    this.resetFeedAndReload();
+  }
+
+  /** "Trans, -transgender pov" -> ['trans', 'transgender', 'pov']. */
+  private parseExcludeTerms(value: string): string[] {
+    return this.dedupeStrings(
+      value
+        .split(/[\s,]+/)
+        .map((term) => term.replace(/^-+/, '').trim().toLowerCase())
+        .filter((term) => term.length > 0),
+    );
+  }
+
+  /** Same filters, same key, whatever order the query params came in. */
+  private searchCacheKey(queryParamMap: ParamMap): string {
+    return [...queryParamMap.keys]
+      .sort()
+      .map((key) => `${key}=${queryParamMap.getAll(key).join(',')}`)
+      .join('&');
+  }
+
+  private saveToSearchCache(): void {
+    // An unfiltered list has an empty key, which is still a key.
+    if (this.cacheKey === null || this.items().length === 0 || this.loading() || this.error()) {
+      return;
+    }
+
+    this.searchCache.save(this.cacheKey, {
+      items: this.items(),
+      total: this.total(),
+      page: this.page(),
+      hasMore: this.hasMore(),
+      hidden: this.hiddenCount(),
+      scrollY: this.lastScrollY,
+      unknownTags: this.unknownTags(),
+      uncheckedTags: this.uncheckedTags(),
+    });
+  }
+
+  private restoreFromSearchCache(): boolean {
+    const snapshot = this.cacheKey === null ? null : this.searchCache.get(this.cacheKey);
+    if (!snapshot) {
+      return false;
+    }
+
+    this.feedVersion += 1;
+    this.pendingReload = false;
+    this.items.set(snapshot.items);
+    this.total.set(snapshot.total);
+    this.page.set(snapshot.page);
+    this.hasMore.set(snapshot.hasMore);
+    this.unknownTags.set(snapshot.unknownTags ?? []);
+    this.uncheckedTags.set(snapshot.uncheckedTags ?? []);
+    this.hiddenCount.set(snapshot.hidden ?? 0);
+    this.lastScrollY = snapshot.scrollY;
+    this.restoreScrollPosition(snapshot.scrollY);
+    return true;
+  }
+
+  private restoreScrollPosition(scrollY: number): void {
+    if (scrollY <= 0) {
+      return;
+    }
+
+    // The router scrolls to the top once the navigation settles (its Scroll
+    // event), and its handler can run after ours, so move back down on the
+    // next frame.
+    this.scrollRestoreSubscription?.unsubscribe();
+    this.scrollRestoreSubscription = this.router.events
+      .pipe(
+        filter((event): event is Scroll => event instanceof Scroll),
+        take(1),
+      )
+      .subscribe(() => requestAnimationFrame(() => this.scrollToWhenReady(scrollY, 10)));
+  }
+
+  /** Cards may still be laying out; try again for a few frames until it sticks. */
+  private scrollToWhenReady(scrollY: number, attemptsLeft: number): void {
+    window.scrollTo({ top: scrollY, behavior: 'instant' });
+    if (Math.abs(window.scrollY - scrollY) > 1 && attemptsLeft > 0) {
+      requestAnimationFrame(() => this.scrollToWhenReady(scrollY, attemptsLeft - 1));
+    }
+  }
+
+  private setupTagSearch(): void {
+    this.tagSearchSubscription = this.tagSearchTerms
+      .pipe(
+        map((value) => value.trim()),
+        debounceTime(250),
+        distinctUntilChanged(),
+        switchMap((query) => {
+          if (!query) {
+            this.tagOptions.set([]);
+            this.tagSelectOptions.set(this.selectedTagsToSelectOptions());
+            this.tagSearchError.set(null);
+            return of<SceneTagOption[]>([]);
+          }
+
+          this.tagSearchLoading.set(true);
+          this.tagSearchError.set(null);
+
+          return this.discoverService.searchSceneTags(query).pipe(
+            catchError(() => {
+              this.tagSearchError.set('Failed to load tag options.');
+              return of<SceneTagOption[]>([]);
+            }),
+            finalize(() => {
+              this.tagSearchLoading.set(false);
+            }),
+          );
+        }),
+      )
+      .subscribe((options) => {
+        this.tagOptions.set(options);
+        this.rebuildTagSelectOptions(options);
+      });
+  }
+
+  private setupStudioSearch(): void {
+    this.studioSearchSubscription = this.studioSearchTerms
+      .pipe(
+        map((value) => value.trim()),
+        debounceTime(ScenesPageComponent.SEARCH_DEBOUNCE_MS),
+        distinctUntilChanged(),
+        switchMap((query) => {
+          if (!query) {
+            this.studioOptions.set([]);
+            this.rebuildStudioSelectOptions([]);
+            this.studioSearchError.set(null);
+            return of<PerformerStudioOption[]>([]);
+          }
+
+          this.studioSearchLoading.set(true);
+          this.studioSearchError.set(null);
+
+          return this.discoverService.searchPerformerStudios(query).pipe(
+            catchError(() => {
+              this.studioSearchError.set('Failed to load studio options.');
+              return of<PerformerStudioOption[]>([]);
+            }),
+            finalize(() => {
+              this.studioSearchLoading.set(false);
+            }),
+          );
+        }),
+      )
+      .subscribe((options) => {
+        this.studioOptions.set(options);
+        this.rebuildStudioSelectOptions(options);
+      });
+  }
+
+  private selectedTagsToSelectOptions(): MultiSelectOption[] {
+    return this.selectedTags().map((tag) => ({
+      label: tag.name,
+      value: tag.id,
+    }));
+  }
+
+  private rebuildTagSelectOptions(searchResults: SceneTagOption[]): void {
+    const merged = new Map<string, MultiSelectOption>();
+
+    for (const selected of this.selectedTags()) {
+      merged.set(selected.id, {
+        label: selected.name,
+        value: selected.id,
+      });
+    }
+
+    for (const tag of searchResults) {
+      merged.set(tag.id, {
+        label: tag.name,
+        value: tag.id,
+      });
+    }
+
+    this.tagSelectOptions.set([...merged.values()]);
+  }
+
+  private rebuildStudioSelectOptions(options: PerformerStudioOption[]): void {
+    const selectedLabels = new Map(
+      this.selectedStudios().map((studio) => [studio.id, studio.label]),
+    );
+    const grouped = options.map((network) => {
+      const groupItems: MultiSelectOption[] = [
+        {
+          label: `${network.name} (Network)`,
+          value: network.id,
+        },
+        ...network.childStudios.map((child) => ({
+          label: child.name,
+          value: child.id,
+        })),
+      ];
+
+      return {
+        label: network.name,
+        items: groupItems,
+      } satisfies MultiSelectGroup;
+    });
+
+    const seen = new Set(grouped.flatMap((group) => group.items.map((item) => item.value)));
+    const selectedOnlyItems = this.selectedStudioIds()
+      .filter((studioId) => !seen.has(studioId))
+      .map((studioId) => ({
+        label: selectedLabels.get(studioId) ?? studioId,
+        value: studioId,
+      }));
+
+    if (selectedOnlyItems.length > 0) {
+      grouped.unshift({
+        label: 'Selected',
+        items: selectedOnlyItems,
+      });
+    }
+
+    this.studioSelectOptions.set(grouped);
+  }
+
+  private studioLabelMap(): Map<string, string> {
+    const labels = new Map<string, string>();
+
+    for (const option of this.studioOptions()) {
+      labels.set(option.id, option.name);
+      for (const child of option.childStudios) {
+        labels.set(child.id, child.name);
+      }
+    }
+
+    return labels;
+  }
+
+  private dedupeStrings(values: string[]): string[] {
+    const deduped = new Set<string>();
+    for (const value of values) {
+      deduped.add(value);
+    }
+    return [...deduped];
+  }
+
+  private areStringArraysEqual(left: string[], right: string[]): boolean {
+    if (left.length !== right.length) {
+      return false;
+    }
+
+    for (let i = 0; i < left.length; i += 1) {
+      if (left[i] !== right[i]) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private setupIntersectionObserver(): void {
+    if (!this.observer) {
+      this.observer = new IntersectionObserver(
+        (entries) => {
+          const [entry] = entries;
+          if (!entry) {
+            return;
+          }
+
+          this.sentinelIntersecting = entry.isIntersecting;
+          if (!entry.isIntersecting) {
+            return;
+          }
+
+          if (this.inFlight() || !this.hasMore()) {
+            return;
+          }
+
+          this.loadNextPage();
+        },
+        {
+          root: null,
+          rootMargin: '300px 0px',
+          threshold: 0.01,
+        },
+      );
+    }
+
+    if (this.sentinelElement) {
+      this.observer.observe(this.sentinelElement);
+    }
+  }
+}

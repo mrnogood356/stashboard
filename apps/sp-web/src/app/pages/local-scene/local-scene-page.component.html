@@ -1,0 +1,421 @@
+<main class="local-scene app-page-shell">
+  <a
+    class="back-link app-back-link app-back-link--media"
+    [routerLink]="backPath()"
+    [queryParams]="backQueryParams()"
+  >
+    {{ backLabel() }}
+  </a>
+
+  @if (loading()) {
+    <div class="scene-skeleton" role="status" aria-live="polite" aria-label="Loading scene">
+      <div class="scene-skeleton__poster"></div>
+      <div class="scene-skeleton__lines">
+        <div class="scene-skeleton__line scene-skeleton__line--title"></div>
+        <div class="scene-skeleton__line"></div>
+        <div class="scene-skeleton__line scene-skeleton__line--short"></div>
+      </div>
+    </div>
+  } @else if (error(); as message) {
+    <section class="state-panel" role="alert">
+      <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+      <p>{{ message }}</p>
+      <button type="button" class="action secondary" (click)="load()">Try again</button>
+    </section>
+  } @else if (scene(); as scene) {
+    <section class="hero">
+      @if (scene.imageUrl) {
+        <div
+          class="hero-backdrop"
+          [style.background-image]="'url(' + scene.imageUrl + ')'"
+          aria-hidden="true"
+        ></div>
+      }
+      <div class="hero-shade" aria-hidden="true"></div>
+
+      <div class="hero-layout">
+        <!-- Tapping the picture plays, like a streaming app (unless playback is off). -->
+        <a
+          class="poster"
+          [class.is-static]="!playbackOn()"
+          [routerLink]="playbackOn() ? ['/watch', scene.id] : null"
+          [queryParams]="watchQueryParams()"
+          [attr.aria-label]="playbackOn() ? (resumeAt() ? 'Resume ' : 'Play ') + scene.title : null"
+        >
+          @if (scene.imageUrl) {
+            <img
+              [src]="scene.imageUrl"
+              [alt]="scene.title"
+              decoding="async"
+              (load)="$any($event.target).classList.add('is-loaded')"
+            />
+          } @else {
+            <div class="poster-placeholder" aria-hidden="true"><i class="pi pi-video"></i></div>
+          }
+          @if (playbackOn()) {
+            <span class="poster-play" aria-hidden="true"><i class="pi pi-play"></i></span>
+          }
+          @if (progressPercent() > 0) {
+            <span class="poster-progress" aria-hidden="true">
+              <span [style.width.%]="progressPercent()"></span>
+            </span>
+          }
+        </a>
+
+        <div class="hero-info">
+          @if (scene.studio; as studio) {
+            <a
+              class="studio-line"
+              [routerLink]="['/library/studio', studio.id]"
+              [queryParams]="{ returnTo: currentUrl() }"
+              [attr.aria-label]="'More from ' + studio.name"
+            >
+              @if (studio.imageUrl) {
+                <img class="studio-logo" [src]="studio.imageUrl" alt="" loading="lazy" />
+              }
+              <span>{{ studio.name }}</span>
+            </a>
+          }
+
+          <h1>{{ scene.title }}</h1>
+
+          <div class="meta-row">
+            @if (formatDate(scene.date); as date) {
+              <span>{{ date }}</span>
+            }
+            @if (formatDuration(scene.duration); as duration) {
+              <span>{{ duration }}</span>
+            }
+            @if (resolutionLabel(file()); as resolution) {
+              <span class="meta-badge">{{ resolution }}</span>
+            }
+            @if (scene.code) {
+              <span>{{ scene.code }}</span>
+            }
+          </div>
+
+          <!-- Organize: saved straight to Stash. -->
+          <div class="organize-row" [class.is-saving]="saving()">
+            <div class="rating-input" role="group" aria-label="Rating">
+              @for (star of stars(); track star) {
+                <button
+                  type="button"
+                  class="star"
+                  [class.on]="star <= ratingStars()"
+                  [attr.aria-label]="'Rate ' + star + (star === 1 ? ' star' : ' stars')"
+                  [attr.aria-pressed]="star === ratingStars()"
+                  (click)="setRating(star)"
+                >
+                  <i
+                    [class]="star <= ratingStars() ? 'pi pi-star-fill' : 'pi pi-star'"
+                    aria-hidden="true"
+                  ></i>
+                </button>
+              }
+            </div>
+            <button
+              type="button"
+              class="toggle-chip"
+              [class.on]="watched()"
+              [attr.aria-pressed]="watched()"
+              (click)="toggleWatched()"
+              [title]="watched() ? 'Mark as unwatched' : 'Mark as watched'"
+            >
+              <i [class]="watched() ? 'pi pi-check' : 'pi pi-eye'" aria-hidden="true"></i>
+              {{
+                watched()
+                  ? 'Watched' + (scene.playCount > 1 ? ' ' + scene.playCount + '×' : '')
+                  : 'Unwatched'
+              }}
+            </button>
+            <button
+              type="button"
+              class="toggle-chip"
+              [class.on]="scene.organized"
+              [attr.aria-pressed]="scene.organized"
+              (click)="toggleOrganized()"
+            >
+              <i
+                [class]="scene.organized ? 'pi pi-check-circle' : 'pi pi-circle'"
+                aria-hidden="true"
+              ></i>
+              Organized
+            </button>
+          </div>
+          @if (actionError(); as message) {
+            <p class="action-error" role="alert">{{ message }}</p>
+          }
+
+          <div class="actions">
+            @if (playbackOn()) {
+              <a
+                class="action primary"
+                [routerLink]="['/watch', scene.id]"
+                [queryParams]="watchQueryParams()"
+              >
+                <i class="pi pi-play" aria-hidden="true"></i>
+                @if (resumeAt(); as resume) {
+                  <span>Resume from {{ formatTime(resume) }}</span>
+                } @else {
+                  <span>Play</span>
+                }
+              </a>
+            }
+            @if (playbackOn() && resumeAt()) {
+              <a
+                class="action secondary"
+                [routerLink]="['/watch', scene.id]"
+                [queryParams]="watchQueryParams(true)"
+              >
+                <i class="pi pi-replay" aria-hidden="true"></i>
+                <span>From the start</span>
+              </a>
+            }
+            @if (scene.catalogSceneId) {
+              <a
+                class="action secondary"
+                [routerLink]="['/scene', scene.catalogSceneId]"
+                [queryParams]="{ returnTo: currentUrl() }"
+              >
+                <i class="pi pi-info-circle" aria-hidden="true"></i>
+                <span>Catalog page</span>
+              </a>
+            }
+            <a
+              class="action secondary"
+              [href]="scene.viewUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <i class="pi pi-external-link" aria-hidden="true"></i>
+              <span>Open in Stash</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="sections">
+      @if (displayedDescription(scene.details); as description) {
+        <section class="panel">
+          <h2>Overview</h2>
+          <p class="overview">{{ description }}</p>
+          @if (isLongDescription(scene.details)) {
+            <button type="button" class="link-button" (click)="toggleDescription()">
+              {{ descriptionExpanded() ? 'Show less' : 'Show more' }}
+            </button>
+          }
+        </section>
+      }
+
+      @if (scene.performers.length > 0) {
+        <section class="panel">
+          <h2>Performers</h2>
+          <div class="performer-row">
+            @for (performer of scene.performers; track performer.id) {
+              <a
+                class="performer"
+                [routerLink]="['/library/performer', performer.id]"
+                [queryParams]="{ returnTo: currentUrl() }"
+                [attr.aria-label]="'More scenes with ' + performer.name"
+              >
+                <span class="avatar">
+                  @if (performer.imageUrl) {
+                    <img
+                      [src]="performer.imageUrl"
+                      [alt]="performer.name"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  } @else {
+                    <span class="avatar-initial" aria-hidden="true">{{
+                      initial(performer.name)
+                    }}</span>
+                  }
+                  @if (performer.favorite) {
+                    <i class="pi pi-heart-fill favorite" aria-label="Favorite"></i>
+                  }
+                </span>
+                <span class="performer-name">{{ performer.name }}</span>
+              </a>
+            }
+          </div>
+        </section>
+      }
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Tags</h2>
+          <button type="button" class="link-button" (click)="toggleTagEditing()">
+            {{ editingTags() ? 'Done' : 'Edit' }}
+          </button>
+        </div>
+        @if (scene.tags.length > 0) {
+          <div class="tags">
+            @for (tag of scene.tags; track tag.id) {
+              @if (editingTags()) {
+                <span class="tag editing">
+                  {{ tag.name }}
+                  <button
+                    type="button"
+                    class="tag-remove"
+                    [attr.aria-label]="'Remove tag ' + tag.name"
+                    [disabled]="saving()"
+                    (click)="removeTag(tag.id)"
+                  >
+                    <i class="pi pi-times" aria-hidden="true"></i>
+                  </button>
+                </span>
+              } @else {
+                <a
+                  class="tag"
+                  [routerLink]="['/library']"
+                  [queryParams]="{ tags: tag.id, tagNames: tag.name }"
+                >
+                  {{ tag.name }}
+                </a>
+              }
+            }
+          </div>
+        } @else if (!editingTags()) {
+          <p class="note">No tags yet.</p>
+        }
+        @if (editingTags()) {
+          <div class="tag-search">
+            <i class="pi pi-search" aria-hidden="true"></i>
+            <input
+              type="search"
+              placeholder="Add a tag…"
+              aria-label="Search tags to add"
+              autocomplete="off"
+              [value]="tagQuery()"
+              (input)="onTagQuery($any($event.target).value)"
+            />
+          </div>
+          @if (tagResults().length > 0) {
+            <ul class="tag-results" aria-label="Matching tags">
+              @for (tag of tagResults(); track tag.id) {
+                <li>
+                  <button type="button" [disabled]="saving()" (click)="addTag(tag)">
+                    <i class="pi pi-plus" aria-hidden="true"></i>
+                    {{ tag.name }}
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        }
+      </section>
+
+      @if (playbackOn() && markers().length > 0) {
+        <section class="panel">
+          <h2>Chapters</h2>
+          <div class="chapter-row">
+            @for (marker of markers(); track marker.id) {
+              <a
+                class="chapter"
+                [routerLink]="['/watch', scene.id]"
+                [queryParams]="chapterQueryParams(marker)"
+              >
+                <span class="chapter-thumb">
+                  <img
+                    [src]="marker.imageUrl"
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    (error)="$any($event.target).classList.add('is-failed')"
+                  />
+                  <span class="chapter-time">{{ formatTime(marker.seconds) }}</span>
+                </span>
+                <span class="chapter-title">{{ marker.title }}</span>
+              </a>
+            }
+          </div>
+        </section>
+      }
+
+      @if (file(); as file) {
+        <section class="panel">
+          <h2>File</h2>
+          <dl class="file-info">
+            @if (file.basename) {
+              <div class="wide">
+                <dt>Name</dt>
+                <dd>{{ file.basename }}</dd>
+              </div>
+            }
+            @if (file.width && file.height) {
+              <div>
+                <dt>Resolution</dt>
+                <dd>{{ file.width }} × {{ file.height }}</dd>
+              </div>
+            }
+            @if (formatSize(file.size); as size) {
+              <div>
+                <dt>Size</dt>
+                <dd>{{ size }}</dd>
+              </div>
+            }
+            @if (upper(file.videoCodec); as codec) {
+              <div>
+                <dt>Video</dt>
+                <dd>{{ codec }}</dd>
+              </div>
+            }
+            @if (upper(file.audioCodec); as codec) {
+              <div>
+                <dt>Audio</dt>
+                <dd>{{ codec }}</dd>
+              </div>
+            }
+            @if (upper(file.container); as container) {
+              <div>
+                <dt>Format</dt>
+                <dd>{{ container }}</dd>
+              </div>
+            }
+            @if (formatFrameRate(file.frameRate); as fps) {
+              <div>
+                <dt>Frame rate</dt>
+                <dd>{{ fps }}</dd>
+              </div>
+            }
+            @if (formatBitRate(file.bitRate); as bitRate) {
+              <div>
+                <dt>Bit rate</dt>
+                <dd>{{ bitRate }}</dd>
+              </div>
+            }
+          </dl>
+          @if (scene.files.length > 1) {
+            <p class="note">
+              {{ scene.files.length }} files are attached; the player uses the first one.
+            </p>
+          }
+        </section>
+      }
+
+      <app-scene-evidence kind="local" [sceneId]="scene.id" />
+
+      @if (related().length > 0) {
+        <section class="related">
+          <h2>More like this</h2>
+          <div class="related-row">
+            @for (item of related(); track item.id) {
+              <app-scene-card
+                class="related-card"
+                [item]="item"
+                variant="rail"
+                primaryLinkMode="local"
+                [sceneQueryParams]="{ returnTo: currentUrl() }"
+                [playSceneId]="item.id"
+                [playQueryParams]="{ returnTo: currentUrl() }"
+                [progress]="item.progress"
+              />
+            }
+          </div>
+        </section>
+      }
+    </div>
+  }
+</main>

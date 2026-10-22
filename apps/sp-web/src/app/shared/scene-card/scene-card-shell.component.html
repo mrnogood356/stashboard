@@ -1,0 +1,111 @@
+<article class="card">
+  <div
+    class="media"
+    [class.is-previewing]="previewing()"
+    [class.swallow-tap]="swallowTap()"
+    (pointerenter)="onPointerEnter($event)"
+    (pointermove)="onPointerMove($event)"
+    (pointerleave)="onPointerLeave($event)"
+    (touchstart)="onTouchStart()"
+    (touchmove)="onTouchMove()"
+    (touchend)="onTouchEnd()"
+    (touchcancel)="onTouchEnd()"
+    (contextmenu)="previewUrl ? $event.preventDefault() : null"
+  >
+    @if (primaryLinkIsExternal()) {
+      <a
+        class="media-link-stretch"
+        [attr.href]="primaryExternalHref()"
+        target="_blank"
+        rel="noopener noreferrer"
+        [attr.aria-label]="primaryLinkLabel()"
+      ></a>
+    } @else if (primaryRouterCommands(); as commands) {
+      <a
+        class="media-link-stretch"
+        [routerLink]="commands"
+        [queryParams]="primaryQueryParams()"
+        [attr.aria-label]="primaryLinkLabel()"
+      ></a>
+    }
+
+    @if (thumbnailUrl(); as imageUrl) {
+      <img
+        class="thumbnail"
+        [src]="imageUrl"
+        [alt]="item.title"
+        loading="lazy"
+        decoding="async"
+        (load)="$any($event.target).classList.add('is-loaded')"
+        (error)="$any($event.target).classList.add('is-failed')"
+      />
+    } @else {
+      <div class="thumbnail placeholder" aria-hidden="true">
+        <ng-content select="[sceneCardPlaceholder]"></ng-content>
+      </div>
+    }
+
+    @if (previewing() && previewUrl) {
+      <video
+        #previewVideo
+        class="preview-video"
+        [class.is-playing]="previewPlaying()"
+        [src]="previewUrl"
+        [muted]="true"
+        muted
+        autoplay
+        loop
+        playsinline
+        disableremoteplayback
+        preload="auto"
+        aria-hidden="true"
+        (playing)="onPreviewPlaying()"
+        (error)="onPreviewError()"
+      ></video>
+    }
+
+    @if (playCommands) {
+      <a
+        class="play-button"
+        [routerLink]="playCommands"
+        [queryParams]="playQueryParams"
+        [attr.aria-label]="'Play ' + item.title"
+        [attr.title]="'Play'"
+      >
+        <i class="pi pi-play" aria-hidden="true"></i>
+      </a>
+    }
+
+    @if (progressPercent(); as percent) {
+      <div
+        class="watch-progress"
+        role="progressbar"
+        [attr.aria-valuenow]="percent"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        [attr.aria-label]="'Watched ' + percent + '%'"
+      >
+        <span [style.width.%]="percent"></span>
+      </div>
+    }
+
+    @if (hasTopRightSlot()) {
+      <div class="media-top">
+        <div class="media-top-right">
+          <ng-content select="[sceneCardTopRight]"></ng-content>
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- Title, studio and actions sit under the picture, like a streaming app. -->
+  @if (hasMediaFooter()) {
+    <div class="card-body">
+      <ng-content select="[sceneCardMediaFooter]"></ng-content>
+    </div>
+  }
+
+  @if (hasBody()) {
+    <ng-content select="[sceneCardBody]"></ng-content>
+  }
+</article>

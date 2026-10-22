@@ -1,0 +1,304 @@
+<main class="app-page-shell">
+  <a
+    class="back-link app-back-link app-back-link--media"
+    [routerLink]="backLinkPath()"
+    [queryParams]="backLinkQueryParams()"
+  >
+    {{ backLinkLabel() }}
+  </a>
+
+  @if (loadingPerformer()) {
+    <div class="app-blocking-loader" role="status" aria-live="polite">
+      <p-progressspinner
+        styleClass="app-blocking-spinner"
+        strokeWidth="4"
+        [style]="{ width: '2.25rem', height: '2.25rem' }"
+      />
+      <p>Loading performer details...</p>
+    </div>
+  } @else if (performerError()) {
+    <p-message severity="error" styleClass="app-page-message">{{ performerError() }}</p-message>
+    <button type="button" (click)="retryPerformerLoad()">Retry</button>
+  } @else if (performer(); as performer) {
+    <section class="hero-shell">
+      @if (activeCarouselImageUrl(); as backdropImage) {
+        <div
+          class="hero-backdrop"
+          [style.background-image]="'url(' + backdropImage + ')'"
+          aria-hidden="true"
+        ></div>
+      }
+      <div class="hero-shade" aria-hidden="true"></div>
+
+      <div class="hero-layout">
+        <div class="media-column">
+          <div class="carousel-main">
+            @if (activeCarouselImageUrl(); as activeImage) {
+              <img [src]="activeImage" [alt]="performer.name" />
+            } @else {
+              <div class="carousel-placeholder" aria-hidden="true">
+                {{ performerInitial(performer.name) }}
+              </div>
+            }
+          </div>
+
+          @if (hasCarouselImages()) {
+            <div class="carousel-controls">
+              <button type="button" (click)="previousImage()">Previous</button>
+              <button type="button" (click)="nextImage()">Next</button>
+            </div>
+
+            <div class="carousel-thumbs">
+              @for (image of performer.images; track image.id; let i = $index) {
+                <button
+                  type="button"
+                  class="thumb"
+                  [class.active]="activeImageIndex() === i"
+                  (click)="setActiveImage(i)"
+                >
+                  <img
+                    [src]="image.url"
+                    [alt]="performer.name + ' image ' + (i + 1)"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </button>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="hero-info">
+          <div class="title-row">
+            <h1>{{ performer.name }}</h1>
+            <button
+              type="button"
+              class="favorite-indicator"
+              [class.active]="performer.isFavorite"
+              [disabled]="!canToggleFavoritePerformer(performer)"
+              [attr.aria-busy]="favoritingPerformer()"
+              [attr.aria-label]="
+                performer.isFavorite ? 'Unfavorite performer' : 'Favorite performer'
+              "
+              (click)="toggleFavoritePerformer(performer)"
+            >
+              <i
+                [class]="performer.isFavorite ? 'pi pi-star-fill' : 'pi pi-star'"
+                aria-hidden="true"
+              ></i>
+            </button>
+          </div>
+
+          @if (performer.disambiguation) {
+            <p class="subheading">{{ performer.disambiguation }}</p>
+          }
+
+          @if (performer.aliases.length > 0) {
+            <p class="aliases">Also known as: {{ performer.aliases.join(', ') }}</p>
+          }
+
+          <div class="hide-row">
+            <app-hide-toggle kind="performer" [itemId]="performer.id" [name]="performer.name" />
+          </div>
+
+          @if (performer.deleted || performer.mergedIntoId || performer.mergedIds.length > 0) {
+            <div class="meta-flags">
+              @if (performer.deleted) {
+                <span class="meta-chip warning">Marked Deleted</span>
+              }
+              @if (performer.mergedIntoId) {
+                <span class="meta-chip">Merged Into: {{ performer.mergedIntoId }}</span>
+              }
+              @if (performer.mergedIds.length > 0) {
+                <span class="meta-chip">Merged IDs: {{ performer.mergedIds.join(', ') }}</span>
+              }
+            </div>
+          }
+
+          @if (metadataRows(performer).length > 0) {
+            <div class="metadata-grid">
+              @for (row of metadataRows(performer); track row.label) {
+                <div class="metadata-item">
+                  <span class="label">{{ row.label }}</span>
+                  <span class="value">{{ row.value }}</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </section>
+
+    <section
+      class="section controls-shell app-section-panel app-control-shell"
+      aria-label="Performer scene filters"
+    >
+      <h2>Scenes</h2>
+      <app-hidden-count
+        [count]="hiddenCount()"
+        [showing]="showHidden()"
+        (toggled)="onShowHiddenChanged($event)"
+      />
+      <div class="controls-row">
+        <div class="control-field app-control-field">
+          <span id="performer-sort-label" class="app-control-label">Sort</span>
+          <div class="sort-with-direction app-control-inline">
+            <p-select
+              inputId="performer-sort"
+              ariaLabelledBy="performer-sort-label"
+              [ngModel]="sceneSort()"
+              (ngModelChange)="onSceneSortChanged($event)"
+              [options]="sceneSortOptions"
+              optionLabel="label"
+              optionValue="value"
+              [appendTo]="'body'"
+              panelStyleClass="app-overlay-panel"
+            />
+            <button
+              type="button"
+              class="sort-direction-toggle app-sort-direction-toggle"
+              [attr.aria-label]="sceneSortDirectionToggleLabel()"
+              [attr.title]="sceneSortDirectionToggleLabel()"
+              (click)="toggleSceneSortDirection()"
+            >
+              <i [class]="sceneSortDirectionIconClass()" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="control-field checkbox-field app-control-field">
+          <span id="performer-favorite-studios-label" class="app-control-label"
+            >Only Favorite Studios</span
+          >
+          <label class="toggle-label">
+            <p-toggleswitch
+              inputId="performer-favorite-studios"
+              ariaLabelledBy="performer-favorite-studios-label"
+              [ngModel]="onlyFavoriteStudios()"
+              (ngModelChange)="onOnlyFavoriteStudiosChanged($event)"
+            />
+            <span>Enabled</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="filter-grid">
+        <div class="filter-panel">
+          <div class="control-field app-control-field">
+            <span id="performer-studios-label" class="app-control-label">Studios</span>
+            <p-multiselect
+              inputId="performer-studios"
+              ariaLabelledBy="performer-studios-label"
+              [ngModel]="studioSelectedIds()"
+              (ngModelChange)="onStudioSelectionChanged($event)"
+              (onFilter)="onStudioFilterChanged($event.filter)"
+              (onPanelHide)="onStudioFilterPanelHide()"
+              [filter]="true"
+              [filterValue]="studioSearchTerm()"
+              filterPlaceHolder="Search studio networks"
+              [loading]="studioSearchLoading()"
+              [options]="studioSelectOptions()"
+              [group]="true"
+              optionGroupLabel="label"
+              optionGroupChildren="items"
+              optionLabel="label"
+              optionValue="value"
+              display="chip"
+              placeholder="Choose studio networks or child studios"
+              [showToggleAll]="false"
+              [emptyMessage]="studioSelectEmptyMessage()"
+              [emptyFilterMessage]="studioSelectEmptyMessage()"
+              [resetFilterOnHide]="true"
+              [appendTo]="'body'"
+              panelStyleClass="app-overlay-panel"
+              scrollHeight="18rem"
+            />
+          </div>
+        </div>
+
+        <div class="filter-panel">
+          <div class="control-field app-control-field">
+            <span id="performer-tags-label" class="app-control-label">Tags</span>
+            <p-multiselect
+              inputId="performer-tags"
+              ariaLabelledBy="performer-tags-label"
+              [ngModel]="tagSelectedIds()"
+              (ngModelChange)="onTagSelectionChanged($event)"
+              (onFilter)="onTagFilterChanged($event.filter)"
+              (onPanelHide)="onTagFilterPanelHide()"
+              [filter]="true"
+              [filterValue]="tagSearchTerm()"
+              filterPlaceHolder="Search scene tags"
+              [loading]="tagSearchLoading()"
+              [options]="tagSelectOptions()"
+              optionLabel="label"
+              optionValue="value"
+              [showToggleAll]="false"
+              display="chip"
+              [emptyMessage]="tagSelectEmptyMessage()"
+              [emptyFilterMessage]="tagSelectEmptyMessage()"
+              [resetFilterOnHide]="true"
+              [appendTo]="'body'"
+              panelStyleClass="app-overlay-panel"
+              placeholder="Select tags"
+              scrollHeight="16rem"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    @if (loadingScenes()) {
+      <div class="app-blocking-loader" role="status" aria-live="polite">
+        <p-progressspinner
+          styleClass="app-blocking-spinner"
+          strokeWidth="4"
+          [style]="{ width: '2rem', height: '2rem' }"
+        />
+        <p>Loading performer scenes...</p>
+      </div>
+    } @else if (scenesError()) {
+      <p-message severity="error" styleClass="app-page-message">{{ scenesError() }}</p-message>
+      <button type="button" (click)="retryInitialScenesLoad()">Retry</button>
+    } @else if (!hasScenes()) {
+      <p class="state">No scenes found for this performer and filters.</p>
+    } @else {
+      <section class="grid">
+        @for (item of scenes(); track item.id) {
+          <app-scene-card
+            [item]="item"
+            [requestable]="isRequestable(item)"
+            tone="surface"
+            [sceneQueryParams]="{ returnTo: currentRouteUrl() }"
+            studioBadgeRoute="scenes"
+            (request)="openRequestModal($event)"
+          />
+        }
+      </section>
+
+      <div #loadMoreSentinel class="load-sentinel"></div>
+
+      @if (loadingMoreScenes()) {
+        <p class="state">Loading more scenes...</p>
+      }
+
+      @if (loadMoreScenesError()) {
+        <div class="load-more-error">
+          <p-message severity="error" styleClass="app-inline-message">
+            {{ loadMoreScenesError() }}
+          </p-message>
+          <button type="button" (click)="retryLoadMoreScenes()">Retry</button>
+        </div>
+      }
+    }
+  }
+
+  <app-scene-request-modal
+    [open]="requestModalOpen()"
+    [sceneId]="requestContext()?.id ?? null"
+    [sceneTitle]="requestContext()?.title ?? null"
+    [sceneImageUrl]="requestContext()?.imageUrl ?? null"
+    (closed)="onRequestModalClosed()"
+    (submitted)="onRequestSubmitted($event)"
+  />
+</main>

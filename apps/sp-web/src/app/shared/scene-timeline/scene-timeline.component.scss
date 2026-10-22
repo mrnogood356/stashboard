@@ -1,0 +1,194 @@
+:host {
+  display: block;
+}
+
+.timeline {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.timeline-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+
+  h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+  }
+}
+
+.timeline-link,
+.timeline-action {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  justify-self: start;
+}
+
+.timeline-link:focus-visible,
+.timeline-action:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+.timeline-now {
+  font-weight: 600;
+
+  &[data-tone='failed'] {
+    color: var(--danger);
+  }
+}
+
+.timeline-note {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.timeline-error {
+  color: var(--danger);
+  line-height: 1.5;
+}
+
+.timeline-steps {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  gap: 0.65rem;
+  padding-bottom: 0.7rem;
+
+  // The line joining each step to the next.
+  &:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    top: 1.5rem;
+    bottom: 0;
+    left: calc(0.75rem - 1px);
+    width: 2px;
+    background: var(--separator);
+  }
+
+  &:last-child {
+    padding-bottom: 0;
+  }
+}
+
+.timeline-dot {
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--separator);
+  border-radius: 50%;
+  background: var(--surface-elevated);
+  color: var(--text-muted);
+  font-size: 0.65rem;
+
+  [data-status='done'] > & {
+    border-color: var(--success-border);
+    background: var(--success-bg);
+    color: inherit;
+  }
+
+  [data-status='current'] > & {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  [data-status='failed'] > & {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+
+  [data-status='next'] > &,
+  [data-status='unknown'] > &,
+  [data-status='skipped'] > & {
+    border-style: dashed;
+  }
+}
+
+.timeline-body {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  padding-top: 0.1rem;
+}
+
+.timeline-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+
+  [data-status='next'] &,
+  [data-status='unknown'] &,
+  [data-status='skipped'] & {
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+}
+
+.timeline-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+
+  [data-status='current'] & {
+    color: var(--accent);
+  }
+
+  [data-status='failed'] & {
+    color: var(--danger);
+  }
+}
+
+.timeline-at {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.timeline-detail {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  // Release names and paths are long; wrap rather than push the page sideways.
+  overflow-wrap: anywhere;
+
+  [data-status='failed'] & {
+    color: var(--danger);
+  }
+}
+
+.timeline-progress {
+  height: 0.35rem;
+  max-width: 16rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--separator);
+
+  span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent);
+  }
+}

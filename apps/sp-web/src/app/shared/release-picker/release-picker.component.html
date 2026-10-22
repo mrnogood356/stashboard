@@ -1,0 +1,292 @@
+@if (open) {
+  <div class="backdrop" (click)="grabbing() ? null : close()" aria-hidden="true"></div>
+  <section
+    #sheet
+    class="sheet"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="release-picker-title"
+    tabindex="-1"
+  >
+    <span class="grabber" aria-hidden="true"></span>
+    <header class="head">
+      <div class="head-copy">
+        <h2 id="release-picker-title">{{ viaProwlarr() ? 'Find downloads' : 'Pick a release' }}</h2>
+        @if (sceneTitle) {
+          <p>{{ sceneTitle }}</p>
+        }
+      </div>
+      <button
+        type="button"
+        class="icon-button"
+        aria-label="Close"
+        [disabled]="grabbing()"
+        (click)="close()"
+      >
+        <i class="pi pi-times" aria-hidden="true"></i>
+      </button>
+    </header>
+
+    @if (viaProwlarr()) {
+      <form
+        class="own-search"
+        role="search"
+        (submit)="$event.preventDefault(); searchFor(ownQuery.value)"
+      >
+        <label class="filter-field">
+          <i class="pi pi-search" aria-hidden="true"></i>
+          <span class="sr-only">Search Prowlarr</span>
+          <input
+            #ownQuery
+            type="search"
+            name="q"
+            placeholder="Search Prowlarr your own way"
+            autocomplete="off"
+            spellcheck="false"
+            [value]="typedQuery()"
+          />
+        </label>
+        <button type="submit" class="search-button" [disabled]="loading()">Search</button>
+      </form>
+      @if (queries().length && !loading()) {
+        <p class="searched-for">
+          Searched for {{ queries().join(', ') }}.
+          @if (typedQuery()) {
+            <button type="button" class="link" (click)="searchFor('')">
+              Use the scene’s details again
+            </button>
+          }
+        </p>
+      }
+    }
+
+    @if (showOwnedWarning()) {
+      <div class="body">
+        <app-owned-copies-warning
+          [copies]="ownedCopies()"
+          proceedLabel="Download anyway"
+          (proceed)="downloadAnyway()"
+          (opened)="close()"
+        />
+      </div>
+    }
+
+    @if (!showOwnedWarning() && !loading() && !error() && releases().length > 0) {
+      <div class="toolbar">
+        <div class="segmented" role="tablist" aria-label="Sort releases">
+          @for (option of sorts; track option.id) {
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="sort() === option.id"
+              [class.active]="sort() === option.id"
+              (click)="sort.set(option.id)"
+            >
+              {{ option.label }}
+            </button>
+          }
+        </div>
+        @if (skippedCount() > 0) {
+          <button
+            type="button"
+            class="link"
+            [attr.aria-pressed]="showSkipped()"
+            (click)="showSkipped.set(!showSkipped())"
+          >
+            {{ showSkipped() ? 'Hide' : 'Show' }} {{ skippedCount() }} Whisparr would skip
+          </button>
+        }
+        @if (weakCount() > 0) {
+          <button
+            type="button"
+            class="link"
+            data-testid="toggle-weak"
+            [attr.aria-pressed]="showWeak()"
+            (click)="showWeak.set(!showWeak())"
+          >
+            {{ showWeak() ? 'Hide' : 'Show' }} {{ weakCount() }} weak
+            {{ weakCount() === 1 ? 'match' : 'matches' }}
+          </button>
+        }
+      </div>
+      <div class="filter">
+        <label class="filter-field">
+          <i class="pi pi-filter" aria-hidden="true"></i>
+          <span class="sr-only">Filter releases by name</span>
+          <input
+            type="search"
+            placeholder="Filter by name"
+            autocomplete="off"
+            spellcheck="false"
+            [value]="filterText()"
+            (input)="onFilterInput($any($event.target).value)"
+          />
+        </label>
+        @if (filtering()) {
+          <span class="filter-count" role="status" aria-live="polite">
+            {{ filterCount() }} of {{ unfilteredCount() }}
+          </span>
+          <button type="button" class="link" (click)="clearFilter()">Clear</button>
+        }
+      </div>
+    }
+
+    @if (!showOwnedWarning()) {
+      <div class="body">
+        @if (loading()) {
+          <div class="state" role="status" aria-live="polite">
+            <span class="spinner" aria-hidden="true"></span>
+            <strong>Searching your indexers…</strong>
+            <small>This can take up to a minute.</small>
+          </div>
+        } @else if (error(); as message) {
+          <div class="state" role="alert">
+            <i class="pi pi-exclamation-circle danger" aria-hidden="true"></i>
+            <strong>Search didn’t work</strong>
+            <small>{{ message }}</small>
+            <button type="button" class="btn" (click)="search()">Try again</button>
+          </div>
+        } @else if (releases().length === 0) {
+          <div class="state">
+            <i class="pi pi-search" aria-hidden="true"></i>
+            <strong>Nothing found</strong>
+            <small>{{ notice() ?? 'None of your indexers have this scene right now.' }}</small>
+            <button type="button" class="btn" (click)="search()">Search again</button>
+          </div>
+        } @else if (visible().length === 0) {
+          <div class="state">
+            <i class="pi pi-filter" aria-hidden="true"></i>
+            @if (filtering()) {
+              <strong>No release names match “{{ filterText().trim() }}”</strong>
+              <button type="button" class="btn" (click)="clearFilter()">Clear filter</button>
+            } @else {
+              <strong>Nothing found looks like this scene</strong>
+              <small
+                >{{ weakCount() }} {{ weakCount() === 1 ? 'release was' : 'releases were' }} found,
+                but the names don’t match its studio, date, performers or title.</small
+              >
+              <button type="button" class="btn" (click)="showWeak.set(true)">
+                Show them anyway
+              </button>
+            }
+          </div>
+        } @else {
+          <ul class="list">
+            @for (release of visible(); track trackKey($index, release)) {
+              <li>
+                @if (viaProwlarr()) {
+                  <div class="release" [class.weak]="release.match?.strength === 'weak'">
+                    <ng-container
+                      [ngTemplateOutlet]="releaseCopy"
+                      [ngTemplateOutletContext]="{ $implicit: release }"
+                    />
+                    <button
+                      type="button"
+                      class="btn primary download"
+                      [disabled]="grabbing()"
+                      [attr.aria-label]="'Download ' + release.title"
+                      (click)="grab(release)"
+                    >
+                      @if (isGrabbing(release)) {
+                        <span class="spinner light" aria-hidden="true"></span>
+                      } @else {
+                        <i class="pi pi-download" aria-hidden="true"></i>
+                      }
+                      Download
+                    </button>
+                  </div>
+                } @else {
+                  <button
+                    type="button"
+                    class="release"
+                    [class.selected]="isSelected(release)"
+                    [class.skipped]="release.rejected"
+                    [class.weak]="release.match?.strength === 'weak'"
+                    [attr.aria-pressed]="isSelected(release)"
+                    (click)="choose(release)"
+                  >
+                    <span class="radio" aria-hidden="true"><i class="pi pi-check"></i></span>
+                    <ng-container
+                      [ngTemplateOutlet]="releaseCopy"
+                      [ngTemplateOutletContext]="{ $implicit: release }"
+                    />
+                  </button>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    }
+
+    @if (releases().length > 0 && !loading() && !viaProwlarr() && !showOwnedWarning()) {
+      <footer class="foot">
+        <button
+          type="button"
+          class="btn primary wide"
+          [disabled]="!selectedRelease() || grabbing()"
+          (click)="grab()"
+        >
+          @if (grabbing()) {
+            <span class="spinner light" aria-hidden="true"></span> Sending to Whisparr…
+          } @else if (selectedRelease(); as chosen) {
+            <i class="pi pi-download" aria-hidden="true"></i> Download · {{ size(chosen.size) }}
+          } @else {
+            Choose a release
+          }
+        </button>
+      </footer>
+    }
+  </section>
+}
+
+<!-- Name, chips and match note: the same for Whisparr's and Prowlarr's releases. -->
+<ng-template #releaseCopy let-release>
+  <span class="release-copy">
+    <span class="release-title">{{ release.title }}</span>
+    <span class="chips">
+      @if (matchLabel(release); as label) {
+        <span
+          class="chip match"
+          [class.good]="release.match?.strength === 'strong'"
+          [class.poor]="release.match?.strength === 'weak'"
+          [attr.title]="matchDetail(release)"
+          >{{ label }}</span
+        >
+      }
+      @if (release.quality) {
+        <span class="chip strong">{{ release.quality }}</span>
+      }
+      <span class="chip">{{ size(release.size) }}</span>
+      @if (release.protocol === 'torrent') {
+        <span
+          class="chip"
+          [class.good]="(release.seeders ?? 0) >= 5"
+          [class.poor]="(release.seeders ?? 0) === 0"
+        >
+          <i class="pi pi-arrow-up" aria-hidden="true"></i>{{ release.seeders ?? 0 }}
+          <span class="sr-only">seeders</span>
+        </span>
+      } @else if (release.protocol === 'usenet') {
+        <span class="chip">Usenet</span>
+      }
+      @if (age(release.ageHours); as releaseAge) {
+        <span class="chip">{{ releaseAge }}</span>
+      }
+      @if (release.customFormatScore) {
+        <span class="chip"
+          >Score {{ release.customFormatScore > 0 ? '+' : '' }}{{ release.customFormatScore }}</span
+        >
+      }
+      @if (release.indexer) {
+        <span class="chip faint">{{ release.indexer }}</span>
+      }
+    </span>
+    @if (release.match && release.match.strength !== 'strong') {
+      <span class="match-why">{{ matchDetail(release) }}</span>
+    }
+    @if (release.rejected && release.rejections.length) {
+      <span class="why">Whisparr would skip this: {{ release.rejections.join(' · ') }}</span>
+    }
+  </span>
+</ng-template>

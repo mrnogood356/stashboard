@@ -1,0 +1,311 @@
+<main class="app-page-shell app-page-shell--wide">
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Scenes</h1>
+      @if (!loading() && !error()) {
+        <p class="state">{{ scenesTotalLabel() }}</p>
+      }
+      <app-hidden-count
+        [count]="hiddenCount()"
+        [showing]="showHidden()"
+        (toggled)="onShowHiddenChanged($event)"
+      />
+    </div>
+    <div class="page-head-compact__actions">
+      <app-catalog-provider-switch />
+      <button
+        type="button"
+        class="filters-toggle"
+        [class.active]="filtersOpen()"
+        [attr.aria-expanded]="filtersOpen()"
+        (click)="filtersOpen.set(!filtersOpen())"
+      >
+        <i class="pi pi-filter" aria-hidden="true"></i>
+        <span>Filters</span>
+        @if (hasActiveFilters()) {
+          <span class="filters-dot" aria-label="Filters active"></span>
+        }
+      </button>
+    </div>
+  </header>
+
+  @if (pageAlert(); as alert) {
+    <section class="page-alert app-page-alert" data-testid="scenes-readiness-alert" role="status">
+      <div class="app-page-alert__copy">
+        <p class="eyebrow">{{ alert.eyebrow }}</p>
+        <h2>{{ alert.title }}</h2>
+        <p>{{ alert.message }}</p>
+      </div>
+
+      <div class="page-alert-actions app-action-row">
+        <a class="state-link primary" [routerLink]="['/settings/integrations']">
+          Repair integrations
+        </a>
+        <a class="state-link" [routerLink]="['/settings/indexing']">Open indexing</a>
+      </div>
+    </section>
+  }
+
+  <section
+    [class.filters-collapsed]="!filtersOpen()"
+    class="controls-shell app-control-shell"
+    aria-label="Scenes controls"
+  >
+    <div class="controls-header">
+      <span class="controls-title">Catalog Discovery</span>
+      <div class="controls-actions">
+        <button
+          type="button"
+          class="reset-filters-button"
+          [disabled]="!hasActiveFilters()"
+          title="Clear filters and return to the default trending discovery view"
+          (click)="resetFilters()"
+        >
+          Clear Filters
+        </button>
+      </div>
+    </div>
+
+    <div class="controls-row">
+      <div class="control-field">
+        <span id="scenes-studios-label">Studio Filter</span>
+        <div class="studio-picker-shell">
+          <p-multiselect
+            inputId="scenes-studios"
+            ariaLabelledBy="scenes-studios-label"
+            [ngModel]="studioSelectedIdsModel()"
+            (ngModelChange)="onStudioSelectionChanged($event)"
+            (onFilter)="onStudioFilterChanged($event.filter)"
+            (onPanelHide)="onStudioFilterPanelHide()"
+            [filter]="true"
+            [filterValue]="studioSearchTerm()"
+            filterPlaceHolder="Search studio networks"
+            [loading]="studioSearchLoading()"
+            [fluid]="true"
+            [options]="studioSelectOptions()"
+            [group]="true"
+            optionGroupLabel="label"
+            optionGroupChildren="items"
+            optionLabel="label"
+            optionValue="value"
+            [showToggleAll]="false"
+            display="chip"
+            [emptyMessage]="studioSelectEmptyMessage()"
+            [emptyFilterMessage]="studioSelectEmptyMessage()"
+            [resetFilterOnHide]="true"
+            [appendTo]="'body'"
+            panelStyleClass="app-overlay-panel"
+            placeholder="Choose studio networks or child studios"
+            scrollHeight="16rem"
+          />
+        </div>
+      </div>
+
+      <div class="control-field">
+        <span id="scenes-tags-label">Tag Filter</span>
+        <div class="tag-picker-shell">
+          <div class="tag-input-row">
+            <p-multiselect
+              inputId="scenes-tags"
+              ariaLabelledBy="scenes-tags-label"
+              [ngModel]="selectedTagIdsModel()"
+              (ngModelChange)="onTagSelectionChanged($event)"
+              (onFilter)="onTagFilterChanged($event.filter)"
+              (onPanelHide)="onTagFilterPanelHide()"
+              [filter]="true"
+              [filterValue]="tagSearchTerm()"
+              filterPlaceHolder="Search tags"
+              [loading]="tagSearchLoading()"
+              [options]="tagSelectOptions()"
+              optionLabel="label"
+              optionValue="value"
+              [showToggleAll]="false"
+              display="chip"
+              [emptyMessage]="tagSelectEmptyMessage()"
+              [emptyFilterMessage]="tagSelectEmptyMessage()"
+              [resetFilterOnHide]="true"
+              [appendTo]="'body'"
+              panelStyleClass="app-overlay-panel"
+              placeholder="Select matching tags"
+              scrollHeight="16rem"
+            />
+            <p-select
+              class="tag-mode-select"
+              inputId="scenes-tag-mode"
+              ariaLabel="Tag match mode"
+              [ngModel]="selectedTagMode()"
+              (ngModelChange)="onTagMatchModeChanged($event)"
+              [options]="tagMatchOptions"
+              optionLabel="label"
+              optionValue="value"
+              [appendTo]="'body'"
+              panelStyleClass="app-overlay-panel"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="control-field">
+        <span id="scenes-sort-label">Sort By</span>
+        <div class="sort-with-direction">
+          <p-select
+            inputId="scenes-sort"
+            ariaLabelledBy="scenes-sort-label"
+            [ngModel]="selectedSort()"
+            (ngModelChange)="onSortChanged($event)"
+            [options]="sortOptions"
+            optionLabel="label"
+            optionValue="value"
+            [appendTo]="'body'"
+            panelStyleClass="app-overlay-panel"
+          />
+          <button
+            type="button"
+            class="sort-direction-toggle app-sort-direction-toggle"
+            [attr.aria-label]="sortDirectionToggleLabel()"
+            [attr.title]="sortDirectionToggleLabel()"
+            (click)="toggleSortDirection()"
+          >
+            <i [class]="sortDirectionIconClass()" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="control-field">
+        <span id="scenes-favorites-label">Catalog Favorites</span>
+        <p-select
+          inputId="scenes-favorites"
+          ariaLabelledBy="scenes-favorites-label"
+          [ngModel]="selectedFavorites()"
+          (ngModelChange)="onFavoritesChanged($event)"
+          [options]="favoritesOptions"
+          optionLabel="label"
+          optionValue="value"
+          [appendTo]="'body'"
+          panelStyleClass="app-overlay-panel"
+        />
+      </div>
+
+      <div class="control-field exclude-field">
+        <span id="scenes-exclude-label">Exclude Words</span>
+        <input
+          pInputText
+          id="scenes-exclude"
+          type="text"
+          aria-labelledby="scenes-exclude-label"
+          aria-describedby="scenes-exclude-hint"
+          autocomplete="off"
+          placeholder="e.g. trans, transgender"
+          [ngModel]="excludeInput()"
+          (ngModelChange)="onExcludeInputChanged($event)"
+          (keydown.enter)="applyExcludeInput()"
+        />
+        <small id="scenes-exclude-hint" class="field-hint">
+          Separate words with commas or spaces. Scenes with any of them in the title, description,
+          studio or tags are hidden.
+        </small>
+      </div>
+    </div>
+
+    <p class="controls-note">
+      {{ scenesResultsNote() }}
+    </p>
+  </section>
+
+  @if (unknownTags().length && !loading()) {
+    <p class="unknown-tags" role="status" data-testid="unknown-tags">
+      This catalog has no tag named {{ unknownTags().join(', ') }}, so
+      {{ unknownTags().length === 1 ? 'it was' : 'they were' }} left out.
+    </p>
+  }
+  @if (uncheckedTags().length && !loading()) {
+    <p class="unknown-tags" role="status" data-testid="unchecked-tags">
+      Couldn't look up {{ uncheckedTags().join(', ') }} on this catalog just now, so results may be
+      missing. Reload to try again.
+    </p>
+  }
+
+  @if (loading()) {
+    <div class="app-blocking-loader" role="status" aria-live="polite">
+      <p-progressspinner
+        styleClass="app-blocking-spinner"
+        strokeWidth="4"
+        [style]="{ width: '2.25rem', height: '2.25rem' }"
+      />
+      <p>Loading scenes feed...</p>
+    </div>
+  } @else if (error()) {
+    <p-message severity="error" styleClass="app-page-message">{{ error() }}</p-message>
+    <button type="button" class="retry-button" (click)="retryInitialLoad()">Retry</button>
+  } @else if (!hasItems()) {
+    <section class="empty-shell app-state-block" data-testid="scenes-empty-state">
+      <h2>{{ emptyStateTitle() }}</h2>
+      <p class="app-state-copy">{{ emptyStateMessage() }}</p>
+      @if (!hasActiveFilters()) {
+        <p class="app-state-copy">{{ indexingGuidance() }}</p>
+      }
+
+      <div class="state-actions app-action-row">
+        @if (autoLoadPaused() && hasMore()) {
+          <button type="button" class="app-btn" (click)="loadMoreAfterPause()">Keep looking</button>
+        }
+        @if (hasActiveFilters()) {
+          <button type="button" class="app-btn app-btn--primary" (click)="resetFilters()">
+            Clear filters
+          </button>
+        } @else {
+          <a class="app-btn app-btn--primary" [routerLink]="['/settings/indexing']"
+            >Open indexing</a
+          >
+          <a class="app-btn" [routerLink]="['/library']">Open Library</a>
+        }
+        @if (pageAlert()) {
+          <a class="app-btn" [routerLink]="['/settings/integrations']">Repair integrations</a>
+        }
+      </div>
+    </section>
+  } @else {
+    <section class="grid">
+      @for (item of items(); track item.id) {
+        <app-scene-card
+          [item]="item"
+          [requestable]="isRequestable(item)"
+          [sceneQueryParams]="{ returnTo: currentRouteUrl() }"
+          [playSceneId]="item.localSceneId ?? null"
+          [playQueryParams]="{ returnTo: currentRouteUrl() }"
+          studioBadgeRoute="studio"
+          [studioQueryParams]="{ returnTo: currentRouteUrl() }"
+          (request)="openRequestModal($event)"
+        />
+      }
+    </section>
+
+    <div #loadMoreSentinel class="load-sentinel"></div>
+
+    @if (loadingMore()) {
+      <p class="state">Loading more scenes...</p>
+    } @else if (autoLoadPaused() && hasMore()) {
+      <button type="button" class="retry-button" (click)="loadMoreAfterPause()">
+        Load more scenes
+      </button>
+    }
+
+    @if (loadMoreError()) {
+      <div class="load-more-error">
+        <p-message severity="error" styleClass="app-inline-message">{{
+          loadMoreError()
+        }}</p-message>
+        <button type="button" class="retry-button" (click)="retryLoadMore()">Retry</button>
+      </div>
+    }
+  }
+
+  <app-scene-request-modal
+    [open]="requestModalOpen()"
+    [sceneId]="requestContext()?.id ?? null"
+    [sceneTitle]="requestContext()?.title ?? null"
+    [sceneImageUrl]="requestContext()?.imageUrl ?? null"
+    (closed)="onRequestModalClosed()"
+    (submitted)="onRequestSubmitted($event)"
+  />
+</main>

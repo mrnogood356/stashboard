@@ -1,0 +1,113 @@
+<main class="app-page-shell">
+  <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
+  <h1 class="page-title">Activity</h1>
+  <p class="page-lede">What Stashboard did, newest first. Renames can be undone.</p>
+
+  <div class="filters">
+    <label class="search">
+      <i class="pi pi-search" aria-hidden="true"></i>
+      <span class="sr-only">Search the activity</span>
+      <input
+        #search
+        type="search"
+        placeholder="Search"
+        autocomplete="off"
+        [value]="query()"
+        (input)="onSearch(search.value)"
+      />
+    </label>
+    <div class="chips" role="group" aria-label="Show">
+      @for (option of kinds; track option.label) {
+        <button
+          type="button"
+          class="chip"
+          [class.active]="kind() === option.id"
+          [attr.aria-pressed]="kind() === option.id"
+          (click)="pickKind(option.id)"
+        >
+          {{ option.label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (error(); as message) {
+    <p class="notice" role="alert">{{ message }}</p>
+  }
+
+  @for (day of days(); track day.label) {
+    <section class="day">
+      <h2 class="day-label">{{ day.label }}</h2>
+      <ul class="entries panel">
+        @for (entry of day.items; track entry.id) {
+          <li class="entry" [attr.data-status]="entry.status" [class.undone]="entry.undoneAt">
+            <i [class]="icon(entry.kind) + ' entry-icon'" aria-hidden="true"></i>
+            <div class="entry-body">
+              <button
+                type="button"
+                class="entry-title"
+                [attr.aria-expanded]="entry.detail ? open().has(entry.id) : null"
+                [disabled]="!entry.detail"
+                (click)="toggle(entry.id)"
+              >
+                {{ entry.title }}
+              </button>
+              <span class="entry-meta">
+                {{ time(entry.at) }}
+                @if (entry.status === 'failed') {
+                  · <span class="failed">Failed</span>
+                } @else if (entry.status === 'partial') {
+                  · <span class="partial">Partly done</span>
+                }
+                @if (entry.undoneAt) {
+                  · Undone
+                }
+              </span>
+              @if (entry.detail && open().has(entry.id)) {
+                <p class="entry-detail">{{ entry.detail }}</p>
+              }
+            </div>
+            @if (entry.canUndo && !entry.undoneAt) {
+              <button
+                type="button"
+                class="btn small"
+                [class.danger]="confirmUndo() === entry.id"
+                [disabled]="undoing() !== null"
+                (click)="undo(entry)"
+              >
+                {{
+                  undoing() === entry.id
+                    ? 'Undoing…'
+                    : confirmUndo() === entry.id
+                      ? 'Tap again'
+                      : 'Undo'
+                }}
+              </button>
+            }
+          </li>
+        }
+      </ul>
+    </section>
+  } @empty {
+    @if (!loading() && !error()) {
+      <div class="empty">
+        <i class="pi pi-history" aria-hidden="true"></i>
+        <p>
+          {{
+            query() || kind()
+              ? 'Nothing matches.'
+              : 'Nothing yet. Renames, deletes and scans show up here.'
+          }}
+        </p>
+      </div>
+    }
+  }
+
+  @if (loading()) {
+    <p class="muted center" role="status">Loading…</p>
+  } @else if (hasMore()) {
+    <div class="more">
+      <button type="button" class="btn" (click)="loadMore()">Show more</button>
+    </div>
+  }
+</main>

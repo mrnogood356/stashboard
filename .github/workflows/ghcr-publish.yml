@@ -1,0 +1,82 @@
+name: Publish GHCR Image
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*.*.*"
+  # Publish by hand from Actions when a push didn't start a build.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ghcr-publish-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Publish App Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/stashboard
+          tags: |
+            type=raw,value=edge,priority=700,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{raw}},priority=950,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=semver,pattern=v{{major}}.{{minor}},priority=900,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=semver,pattern=v{{major}},priority=850,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+          labels: |
+            org.opencontainers.image.title=stashboard
+            org.opencontainers.image.description=Stashboard production app image
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: Resolve app version
+        id: app-version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
+            echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=edge-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+          # Shown in Settings → About & health, to tell which build is running.
+          echo "built-at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push app image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            STASHBOARD_VERSION=${{ steps.app-version.outputs.value }}
+            STASHBOARD_COMMIT=${{ github.sha }}
+            STASHBOARD_BUILT_AT=${{ steps.app-version.outputs.built-at }}
+            STASHBOARD_REPOSITORY=${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,0 +1,276 @@
+<section class="appearance-page">
+  <header class="section-head">
+    <h2>Appearance</h2>
+    <p class="lede">
+      Pick a theme, accent colour and layout. Changes show straight away; save them to use the same
+      look on every device.
+    </p>
+  </header>
+
+  @if (loading()) {
+    <p class="muted" role="status">Loading…</p>
+  } @else {
+    <section class="card" aria-labelledby="appearance-mode">
+      <div class="card-head">
+        <h3 id="appearance-mode">Mode</h3>
+        <p class="muted">
+          System follows this device's light or dark setting{{
+            draft().mode === 'system'
+              ? ' (now ' + (theme.systemPrefersDark() ? 'dark' : 'light') + ')'
+              : ''
+          }}.
+        </p>
+      </div>
+      <div class="segmented" role="group" aria-label="Mode">
+        @for (option of modeOptions; track option.value) {
+          <button
+            type="button"
+            [class.active]="draft().mode === option.value"
+            [attr.aria-pressed]="draft().mode === option.value"
+            [attr.data-testid]="'mode-' + option.value"
+            (click)="update({ mode: option.value })"
+          >
+            <i [class]="option.icon" aria-hidden="true"></i>
+            {{ option.label }}
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="appearance-themes">
+      <div class="card-head">
+        <h3 id="appearance-themes">Theme</h3>
+        <p class="muted">
+          Choose one light and one dark theme. The header button switches between them.
+        </p>
+      </div>
+
+      @for (group of [lightThemes, darkThemes]; track $index) {
+        <h4 class="group-label">{{ $index === 0 ? 'Light themes' : 'Dark themes' }}</h4>
+        <div class="theme-grid">
+          @for (option of group; track option.id) {
+            <button
+              type="button"
+              class="theme-card"
+              [class.selected]="isSelected(option)"
+              [attr.aria-pressed]="isSelected(option)"
+              [attr.data-testid]="'theme-' + option.id"
+              (click)="pickTheme(option)"
+            >
+              <span
+                class="preview"
+                aria-hidden="true"
+                [style.background]="option.palette.appBg"
+                [style.border-color]="option.palette.borderStrong"
+              >
+                <span class="preview-card" [style.background]="option.palette.surface1">
+                  <span class="preview-line" [style.background]="option.palette.text"></span>
+                  <span
+                    class="preview-line short"
+                    [style.background]="option.palette.textMuted"
+                  ></span>
+                  <span class="preview-row">
+                    <span class="preview-pill" [style.background]="previewAccent(option)"></span>
+                    <span class="preview-dot" [style.background]="option.palette.success"></span>
+                    <span class="preview-dot" [style.background]="option.palette.warning"></span>
+                    <span class="preview-dot" [style.background]="option.palette.danger"></span>
+                  </span>
+                </span>
+              </span>
+              <span class="theme-meta">
+                <span class="theme-name">
+                  {{ option.label }}
+                  @if (isSelected(option)) {
+                    <i class="pi pi-check-circle" aria-hidden="true"></i>
+                  }
+                </span>
+                <span class="theme-desc">
+                  @if (isShowing(option)) {
+                    Showing now
+                  } @else {
+                    {{ option.description }}
+                  }
+                </span>
+              </span>
+            </button>
+          }
+        </div>
+      }
+    </section>
+
+    <section class="card" aria-labelledby="appearance-accent">
+      <div class="card-head">
+        <h3 id="appearance-accent">Accent colour</h3>
+        <p class="muted">Buttons, links, switches and highlights.</p>
+      </div>
+      <div class="swatches" role="group" aria-label="Accent colour">
+        <button
+          type="button"
+          class="swatch theme-default"
+          [class.active]="draft().accentColor === null"
+          [attr.aria-pressed]="draft().accentColor === null"
+          [style.background]="activeTheme().palette.accent"
+          aria-label="Theme's own accent"
+          title="Theme's own accent"
+          data-testid="accent-default"
+          (click)="pickAccent(null)"
+        >
+          <span>A</span>
+        </button>
+        @for (swatch of swatches; track swatch.value) {
+          <button
+            type="button"
+            class="swatch"
+            [class.active]="draft().accentColor === swatch.value"
+            [attr.aria-pressed]="draft().accentColor === swatch.value"
+            [style.background]="swatch.value"
+            [attr.aria-label]="swatch.label"
+            [title]="swatch.label"
+            (click)="pickAccent(swatch.value)"
+          ></button>
+        }
+      </div>
+      <div class="custom-accent">
+        <label class="color-well" [style.background]="accentInUse()">
+          <span class="sr-only">Pick a custom accent colour</span>
+          <input type="color" [value]="accentInUse()" (input)="onColorInput($event)" />
+        </label>
+        <label class="field hex-field">
+          <span class="field-label">Custom hex</span>
+          <input
+            type="text"
+            inputmode="text"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            maxlength="7"
+            placeholder="#0a84ff"
+            data-testid="accent-hex"
+            [value]="hexInput()"
+            (input)="onHexInput($event)"
+          />
+        </label>
+      </div>
+      <p class="muted contrast-note" data-testid="accent-contrast">
+        Contrast on cards {{ accentReport().ratio.toFixed(1) }}:1.
+        @if (accentReport().adjusted) {
+          Shown slightly {{ activeTheme().scheme === 'dark' ? 'lighter' : 'darker' }} on this theme
+          so it stays readable.
+        }
+      </p>
+    </section>
+
+    <section class="card" aria-labelledby="appearance-layout">
+      <div class="card-head">
+        <h3 id="appearance-layout">Layout</h3>
+      </div>
+      <div class="option-row">
+        <span class="field-label" id="radius-label">Corners</span>
+        <div class="segmented" role="group" aria-labelledby="radius-label">
+          @for (option of radiusOptions; track option.value) {
+            <button
+              type="button"
+              [class.active]="draft().radius === option.value"
+              [attr.aria-pressed]="draft().radius === option.value"
+              [attr.data-testid]="'radius-' + option.value"
+              (click)="update({ radius: option.value })"
+            >
+              {{ option.label }}
+            </button>
+          }
+        </div>
+      </div>
+      <div class="option-row">
+        <span class="field-label" id="density-label">Density</span>
+        <div class="segmented" role="group" aria-labelledby="density-label">
+          @for (option of densityOptions; track option.value) {
+            <button
+              type="button"
+              [class.active]="draft().density === option.value"
+              [attr.aria-pressed]="draft().density === option.value"
+              [attr.data-testid]="'density-' + option.value"
+              (click)="update({ density: option.value })"
+            >
+              {{ option.label }}
+            </button>
+          }
+        </div>
+      </div>
+      <div class="option-row">
+        <span class="field-label" id="font-scale-label">Text size</span>
+        <div class="segmented" role="group" aria-labelledby="font-scale-label">
+          @for (option of fontScaleOptions; track option.value) {
+            <button
+              type="button"
+              [class.active]="draft().fontScale === option.value"
+              [attr.aria-pressed]="draft().fontScale === option.value"
+              [attr.data-testid]="'font-' + option.value"
+              (click)="update({ fontScale: option.value })"
+            >
+              {{ option.label }}
+            </button>
+          }
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="appearance-css">
+      <div class="card-head">
+        <h3 id="appearance-css">Custom CSS</h3>
+        <p class="muted">
+          Advanced: extra CSS applied after the theme, on every device. Stored as plain text.
+        </p>
+      </div>
+      <label class="field">
+        <span class="sr-only">Custom CSS</span>
+        <textarea
+          class="css-input"
+          rows="6"
+          spellcheck="false"
+          autocapitalize="off"
+          autocomplete="off"
+          placeholder=":root &#123; --radius-lg: 12px; &#125;"
+          data-testid="custom-css"
+          [attr.maxlength]="customCssMax"
+          [value]="draft().customCss"
+          (input)="onCustomCssInput($event)"
+        ></textarea>
+      </label>
+      <p class="muted count">{{ draft().customCss.length }} / {{ customCssMax }}</p>
+    </section>
+
+    <div class="actions-bar" [class.dirty]="dirty()">
+      @if (message(); as m) {
+        <p class="status" [class.error]="m.kind === 'error'" role="status">{{ m.text }}</p>
+      } @else if (dirty()) {
+        <p class="muted" role="status">Previewing unsaved changes.</p>
+      }
+      <div class="actions">
+        <button
+          type="button"
+          class="button danger"
+          data-testid="appearance-reset"
+          [disabled]="saving()"
+          (click)="resetToDefaults()"
+        >
+          Reset to defaults
+        </button>
+        <span class="spacer"></span>
+        @if (dirty()) {
+          <button type="button" class="button secondary" [disabled]="saving()" (click)="discard()">
+            Discard
+          </button>
+        }
+        <button
+          type="button"
+          class="button"
+          data-testid="appearance-save"
+          [disabled]="saving() || !dirty()"
+          (click)="save()"
+        >
+          {{ saving() ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+    </div>
+  }
+</section>

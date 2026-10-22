@@ -1,0 +1,11 @@
+<div class="app-shell">
+  <div class="global-controls">
+    <app-theme-toggle class="global-theme-toggle" />
+    <app-image-obscuration-toggle class="global-image-obscuration-toggle" />
+  </div>
+  <router-outlet></router-outlet>
+  <app-release-picker-host />
+  <app-lock-screen />
+  <p-toast key="global" position="bottom-right" styleClass="app-toast" [baseZIndex]="1200" />
+  <p-confirmdialog key="app-destructive" styleClass="app-confirm-dialog" [baseZIndex]="1250" />
+</div>

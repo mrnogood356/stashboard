@@ -1,0 +1,21 @@
+@if (count() > 0) {
+  <section
+    class="processing-card"
+    aria-labelledby="processing-card-title"
+    data-testid="processing-card"
+  >
+    <a class="processing-card-head" routerLink="/processing">
+      <h2 id="processing-card-title" class="processing-card-title">Processing</h2>
+      <span class="processing-card-count">{{ count() }}</span>
+      <i class="pi pi-chevron-right" aria-hidden="true"></i>
+    </a>
+    <ul class="processing-card-list">
+      @for (item of items(); track item.id) {
+        <li class="processing-card-item">
+          <span class="processing-card-name">{{ item.title }}</span>
+          <span class="processing-card-status">{{ item.status }}</span>
+        </li>
+      }
+    </ul>
+  </section>
+}

@@ -1,0 +1,48 @@
+<div class="integration-form-fields" [formGroup]="form">
+  <label>
+    <span class="field-label">Name</span>
+    <input pInputText type="text" formControlName="name" />
+  </label>
+
+  <label>
+    <span class="field-label">Base URL</span>
+    <input pInputText type="text" formControlName="baseUrl" placeholder="http://localhost:9999" />
+  </label>
+
+  <label>
+    <span class="field-label">API Key</span>
+    <input pInputText type="password" formControlName="apiKey" placeholder="Enter to update key" />
+  </label>
+
+  @if (hasStoredApiKey) {
+    <p-message
+      severity="info"
+      text="API key already stored. Leave blank to keep current key."
+      styleClass="integration-inline-message"
+    />
+    <div class="switch-row">
+      <span>Remove the saved key (for a server that doesn't use one)</span>
+      <input
+        type="checkbox"
+        class="app-switch"
+        role="switch"
+        formControlName="clearApiKey"
+        aria-label="Remove the saved key"
+      />
+    </div>
+  }
+
+  @if (showEnabledToggle) {
+    <div class="switch-row">
+      <span>Enabled</span>
+      <input
+        type="checkbox"
+        class="app-switch"
+        role="switch"
+        formControlName="enabled"
+        aria-label="Enabled"
+        [id]="enabledInputId"
+      />
+    </div>
+  }
+</div>

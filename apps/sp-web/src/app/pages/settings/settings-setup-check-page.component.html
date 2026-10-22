@@ -1,0 +1,76 @@
+<section class="setup-check-page">
+  <header class="section-head">
+    <div>
+      <h2>{{ checks() ? headline() : 'Setup check' }}</h2>
+      <p class="lede">
+        Checks how Stash, StashDB, Whisparr and Stashboard are set up together, and fixes what it
+        safely can.
+      </p>
+    </div>
+    <button type="button" class="pill" [disabled]="loading()" (click)="load()">
+      <i class="pi pi-refresh" [class.pi-spin]="loading()" aria-hidden="true"></i>
+      {{ loading() ? 'Checking…' : 'Check again' }}
+    </button>
+  </header>
+
+  @if (error(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+
+  @if (checks(); as list) {
+    <ul class="checks">
+      @for (check of list; track check.id) {
+        <li class="check" [attr.data-status]="check.status">
+          <div class="check-head">
+            <i [class]="statusIcon(check.status) + ' status-icon'" aria-hidden="true"></i>
+            <div class="check-copy">
+              <strong>{{ check.title }}</strong>
+              <span class="status-label">{{ statusLabel(check.status) }}</span>
+              <p>{{ check.summary }}</p>
+            </div>
+          </div>
+          @if (check.detail && (check.status === 'warn' || check.status === 'fail')) {
+            <button
+              type="button"
+              class="link"
+              [attr.aria-expanded]="open().has(check.id)"
+              (click)="toggle(check.id)"
+            >
+              {{ open().has(check.id) ? 'Hide details' : 'How to fix' }}
+            </button>
+            @if (open().has(check.id)) {
+              <p class="detail">{{ check.detail }}</p>
+            }
+          }
+          @if (check.fix || check.link) {
+            <div class="actions">
+              @if (check.fix; as fix) {
+                <button
+                  type="button"
+                  class="pill primary"
+                  [disabled]="fixing() !== null"
+                  (click)="applyFix(check)"
+                >
+                  {{ fixing() === check.id ? 'Fixing…' : fix.label }}
+                </button>
+              }
+              @if (check.link; as link) {
+                <a class="pill" [routerLink]="link.route">{{ link.label }}</a>
+              }
+            </div>
+          }
+        </li>
+      }
+    </ul>
+    @if (checkedAt(); as at) {
+      <p class="muted small">Checked at {{ time(at) }}.</p>
+    }
+    <p class="muted small">
+      Something still not working?
+      <a class="inline-link" routerLink="/settings/about">About &amp; health</a> shows the running
+      version, what’s reachable, and recent errors to copy into a support message.
+    </p>
+  } @else if (loading()) {
+    <p class="muted" role="status">Checking your setup…</p>
+  }
+</section>

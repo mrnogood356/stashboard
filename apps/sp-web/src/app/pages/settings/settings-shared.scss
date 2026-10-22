@@ -1,0 +1,210 @@
+/*
+ * One look for every settings page, loaded after each page's own styles:
+ * flat grouped cards, calm status pills
+ * (a coloured dot, not a coloured block), and the app's blue for actions.
+ */
+
+/* Section labels: a quiet caption, not spaced-out capitals. */
+.eyebrow {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-muted);
+}
+
+h2 {
+  font-size: 1.3rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+
+h3 {
+  font-weight: 700;
+}
+
+/* Cards: flat grouped surfaces with no borders, glows or tints. */
+.hero-card,
+.settings-overview,
+.global-health,
+.global-danger,
+.summary-card,
+.job-card,
+.info-card,
+.card,
+.repair-card,
+.account-card {
+  border: 0 !important;
+  border-radius: calc(18px * var(--radius-scale, 1));
+  background: var(--surface-1) !important;
+  box-shadow: none !important;
+}
+
+/* On a phone a long path, URL or error wraps inside its card instead of widening the page. */
+:is(
+    .hero-card,
+    .settings-overview,
+    .global-health,
+    .global-danger,
+    .summary-card,
+    .job-card,
+    .info-card,
+    .card,
+    .repair-card,
+    .account-card
+  )
+  > * {
+  min-width: 0;
+}
+
+.indexing-page > .page-head {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+/* Tiles inside a card. */
+.checklist-item,
+.checklist-item.is-ready,
+.checklist-item.is-saved,
+.checklist-item.is-pending {
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+.checklist-item.is-error {
+  border: 0;
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface-2));
+  color: var(--text-primary);
+}
+
+.checklist-item p {
+  color: var(--text-muted);
+}
+
+/* Status pills: neutral chip with a coloured dot. */
+.status-pill,
+.progress-pill,
+.state-badge,
+.identity-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 1.75rem;
+  padding: 0.2rem 0.65rem;
+  border: 0 !important;
+  border-radius: 999px;
+  background: var(--chip-bg) !important;
+  color: var(--text-primary) !important;
+  font-size: 0.8rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.status-pill::before,
+.progress-pill::before,
+.state-badge::before {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.status-pill.tone-good::before,
+.progress-pill.is-complete::before,
+.state-badge.is-ready::before {
+  background: var(--success);
+}
+
+.status-pill.tone-warn::before,
+.state-badge.is-saved::before {
+  background: var(--warning);
+}
+
+.state-badge.is-error::before {
+  background: var(--danger);
+}
+
+/*
+ * Switch rows: text on the left, the global .app-switch on the right. Only
+ * the switch toggles; the text is plain text, never a wrapping <label>.
+ */
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.switch-row > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Text fields: filled, rounded, 16px so iOS doesn't zoom in. */
+input[type='text'],
+input[type='password'],
+input[type='url'],
+input[type='email'],
+input[type='number'],
+input[type='search'],
+input:not([type]),
+select,
+textarea {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.85rem;
+  border: 0;
+  border-radius: calc(12px * var(--radius-scale, 1));
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 16px;
+  box-shadow: none;
+}
+
+input[type='text']:focus-visible,
+input[type='password']:focus-visible,
+input[type='url']:focus-visible,
+input[type='email']:focus-visible,
+input[type='number']:focus-visible,
+input[type='search']:focus-visible,
+input:not([type]):focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 0;
+}
+
+/* Buttons: pills in the app's blue. */
+.p-button,
+.button {
+  border-radius: 999px;
+}
+
+/* Destructive actions: outlined in red, never a solid full-width bar. */
+.p-button.danger,
+.button.danger {
+  justify-self: start;
+  width: auto;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  background: transparent;
+  color: var(--danger);
+  font-weight: 650;
+}
+
+.p-button.danger:not(:disabled):hover,
+.button.danger:not(:disabled):hover {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+}
+
+.p-button.danger:focus-visible,
+.button.danger:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

@@ -1,0 +1,161 @@
+<section class="finished-downloads" aria-labelledby="finished-downloads-title">
+  <h3 id="finished-downloads-title">Finished downloads</h3>
+  <p class="lead">
+    Off unless you turn it on. Then Find downloads sends usenet releases to SABnzbd in its own
+    category, and Stashboard moves each finished video into your library, links it to the scene and
+    puts it in its own folder named by your rename pattern. Nothing else in SABnzbd is touched.
+  </p>
+
+  @if (!sabnzbdReady) {
+    <p class="note">Save &amp; Test SABnzbd above first.</p>
+  }
+
+  @if (loadError()) {
+    <p-message severity="error" styleClass="inline-message">
+      Couldn’t load these settings. Reload the page to try again.
+    </p-message>
+  } @else {
+    <form
+      class="handoff-form"
+      aria-label="Finished downloads"
+      (submit)="$event.preventDefault(); save()"
+    >
+      <label class="switch-row">
+        <input
+          type="checkbox"
+          name="enabled"
+          [disabled]="!loaded()"
+          [checked]="enabled()"
+          (change)="setEnabled($event)"
+        />
+        <span>Move finished downloads into my library</span>
+      </label>
+
+      <label>
+        <span class="field-label">SABnzbd category</span>
+        <input
+          type="text"
+          name="category"
+          spellcheck="false"
+          autocapitalize="off"
+          autocomplete="off"
+          placeholder="stashboard"
+          [disabled]="!loaded()"
+          [value]="category()"
+          (input)="category.set(inputValue($event))"
+        />
+        <span class="hint">Only downloads Stashboard sends here are moved.</span>
+      </label>
+
+      <label>
+        <span class="field-label">Move them to</span>
+        <input
+          type="text"
+          name="destination"
+          list="finished-downloads-roots"
+          spellcheck="false"
+          autocapitalize="off"
+          autocomplete="off"
+          placeholder="/data/downloads"
+          [disabled]="!loaded()"
+          [value]="destination()"
+          (input)="destination.set(inputValue($event))"
+        />
+        <datalist id="finished-downloads-roots">
+          @for (root of libraryRoots(); track root) {
+            <option [value]="root"></option>
+          }
+        </datalist>
+        <span class="hint">
+          A folder inside one of Stash’s library folders
+          @if (libraryRoots().length) {
+            ({{ libraryRoots().join(', ') }})
+          }
+        </span>
+      </label>
+
+      <label>
+        <span class="field-label">Path in SABnzbd</span>
+        <input
+          type="text"
+          name="sabPathFrom"
+          spellcheck="false"
+          autocapitalize="off"
+          autocomplete="off"
+          placeholder="/downloads"
+          [disabled]="!loaded()"
+          [value]="sabPathFrom()"
+          (input)="sabPathFrom.set(inputValue($event))"
+        />
+      </label>
+
+      <label>
+        <span class="field-label">Same folder in Stashboard</span>
+        <input
+          type="text"
+          name="sabPathTo"
+          spellcheck="false"
+          autocapitalize="off"
+          autocomplete="off"
+          placeholder="/mnt/downloads"
+          [disabled]="!loaded()"
+          [value]="sabPathTo()"
+          (input)="sabPathTo.set(inputValue($event))"
+        />
+      </label>
+
+      <label>
+        <span class="field-label">How</span>
+        <select
+          name="importMode"
+          [disabled]="!loaded()"
+          [value]="importMode()"
+          (change)="setMode($event)"
+        >
+          <option value="move">Move (SABnzbd keeps nothing)</option>
+          <option value="copy">Copy (leave SABnzbd’s copy)</option>
+        </select>
+      </label>
+
+      <div class="drop-ins">
+        <label class="switch-row">
+          <input
+            type="checkbox"
+            name="dropIns"
+            [disabled]="!loaded()"
+            [checked]="dropIns()"
+            (change)="setDropIns($event)"
+          />
+          <span>Also bring in files I put in this folder</span>
+        </label>
+        <span class="hint">
+          Videos you drop into
+          {{ dropInFolder() ?? 'SABnzbd’s “' + category() + '” folder' }}
+          are moved in and identified like new files; SABnzbd’s own downloads are left alone.
+        </span>
+      </div>
+
+      <div class="actions">
+        <button pButton type="submit" class="save" [disabled]="!loaded() || saving()">
+          {{ saving() ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+    </form>
+
+    @if (saveError(); as message) {
+      <p-message severity="error" styleClass="inline-message save-error">{{ message }}</p-message>
+    }
+  }
+
+  <a class="processing-link" routerLink="/processing" data-testid="finished-downloads-processing">
+    <i class="pi pi-sync" aria-hidden="true"></i>
+    <span>
+      <strong>See what’s processing</strong>
+      <span class="hint">
+        Downloads in SABnzbd, files being brought in from the folder, and whether it’s being
+        watched.
+      </span>
+    </span>
+    <i class="pi pi-chevron-right" aria-hidden="true"></i>
+  </a>
+</section>

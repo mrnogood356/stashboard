@@ -1,0 +1,62 @@
+:host {
+  display: block;
+}
+
+.account-card {
+  display: grid;
+  gap: 1.1rem;
+  align-content: start;
+  padding: 1rem;
+}
+
+.card-head {
+  display: grid;
+  gap: 0.3rem;
+}
+
+h3,
+.summary {
+  margin: 0;
+}
+
+h3 {
+  font-size: 1.05rem;
+}
+
+.summary {
+  color: var(--text-muted);
+}
+
+.summary strong {
+  color: var(--text-primary);
+}
+
+form {
+  display: grid;
+  gap: 1rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.field-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+input {
+  width: 100%;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.actions .p-button {
+  min-height: 2.5rem;
+  padding-inline: 1.1rem;
+}

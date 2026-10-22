@@ -1,0 +1,87 @@
+<section class="timeline" [class.app-section-panel]="heading" aria-label="Timeline">
+  @if (heading) {
+    <div class="timeline-head">
+      <h2>Timeline</h2>
+      <button type="button" class="timeline-link" (click)="details.emit()">Details</button>
+    </div>
+  }
+
+  @if (error(); as message) {
+    <p class="timeline-error" role="alert">{{ message }}</p>
+    <div>
+      <button type="button" class="app-btn" (click)="load()">Try again</button>
+    </div>
+  } @else if (timeline(); as timeline) {
+    @if (heading) {
+      <!-- Inside a card, the card's own "Where it is now" line says this. -->
+      <p class="timeline-now" [attr.data-tone]="tone(timeline)">{{ timeline.now }}</p>
+    }
+
+    <ol class="timeline-steps">
+      @for (step of timeline.steps; track step.step) {
+        <li class="timeline-step" [attr.data-status]="step.status" [attr.data-step]="step.step">
+          <span class="timeline-dot" aria-hidden="true"><i [class]="icon(step.status)"></i></span>
+          <div class="timeline-body">
+            <p class="timeline-label">
+              <span>{{ step.label }}</span>
+              @if (step.status !== 'done') {
+                <span class="timeline-status">{{ statusText(step.status) }}</span>
+              }
+              @if (step.at) {
+                <time class="timeline-at" [attr.datetime]="step.at">{{ when(step.at) }}</time>
+              }
+            </p>
+            @if (step.detail) {
+              <p class="timeline-detail">{{ step.detail }}</p>
+            }
+            @if (step.progress !== null) {
+              <div
+                class="timeline-progress"
+                role="progressbar"
+                aria-label="Download progress"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                [attr.aria-valuenow]="step.progress"
+              >
+                <span [style.width.%]="step.progress"></span>
+              </div>
+            }
+            @if (step.action; as action) {
+              @if (actionLink[action.kind]; as link) {
+                <a class="timeline-action" [routerLink]="link">{{ action.label }}</a>
+              } @else if (action.kind === 'open-whisparr') {
+                @if (whisparrUrl) {
+                  <a
+                    class="timeline-action"
+                    [href]="whisparrUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >{{ action.label }}</a
+                  >
+                }
+              } @else {
+                <button
+                  type="button"
+                  class="timeline-action"
+                  [attr.data-testid]="'timeline-action-' + action.kind"
+                  (click)="act.emit(action)"
+                >
+                  {{ action.label }}
+                </button>
+              }
+            }
+          </div>
+        </li>
+      }
+    </ol>
+
+    @if (timeline.unknown.length > 0) {
+      <p class="timeline-note">{{ unknownNote(timeline) }}</p>
+    }
+    @if (!heading) {
+      <button type="button" class="timeline-link" (click)="details.emit()">Details</button>
+    }
+  } @else {
+    <p class="timeline-note" role="status">Checking where it is…</p>
+  }
+</section>

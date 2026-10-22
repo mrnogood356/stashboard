@@ -1,0 +1,14 @@
+<button
+  type="button"
+  class="theme-toggle"
+  [attr.aria-label]="label()"
+  [attr.aria-pressed]="isDark()"
+  [title]="label()"
+  (click)="toggle()"
+>
+  @if (isDark()) {
+    <i class="pi pi-sun" aria-hidden="true"></i>
+  } @else {
+    <i class="pi pi-moon" aria-hidden="true"></i>
+  }
+</button>

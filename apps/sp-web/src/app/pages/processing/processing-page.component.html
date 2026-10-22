@@ -1,0 +1,331 @@
+<main class="app-page-shell processing">
+  <h1 class="page-title">Processing</h1>
+  <p class="page-lede">
+    Downloads and dropped-in files on their way into your library. This page updates every few
+    seconds.
+  </p>
+
+  @if (loadError() && !data()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+      <span>Couldn’t load what’s processing. Trying again…</span>
+    </div>
+  }
+
+  @if (data(); as d) {
+    <!-- SABnzbd downloads -->
+    <section class="block" aria-labelledby="processing-downloads">
+      <div class="block-head">
+        <h2 id="processing-downloads">SABnzbd downloads</h2>
+        @if (d.handoffs.length) {
+          <span class="count-badge">{{ d.handoffs.length }}</span>
+        }
+      </div>
+
+      @if (!d.handoff.enabled) {
+        <p class="muted line">
+          Finished downloads is off, so downloads aren’t sent to SABnzbd.
+          <a routerLink="/settings/integrations">Turn it on in Settings</a>
+        </p>
+      } @else if (!d.handoff.sabnzbdReady) {
+        <p class="muted line">
+          SABnzbd isn’t set up. <a routerLink="/settings/integrations">Set it up in Settings</a>
+        </p>
+      }
+      @if (d.handoff.sabnzbdUnreachable) {
+        <div class="notice" role="status">
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+          <span>Couldn’t reach SABnzbd just now, so progress isn’t shown.</span>
+        </div>
+      }
+
+      @if (d.handoffs.length === 0) {
+        <p class="muted line" data-testid="no-downloads">Nothing downloading right now.</p>
+      } @else {
+        <ul class="items">
+          @for (entry of d.handoffs; track entry.id) {
+            <li class="item panel" [attr.data-stage]="entry.stage" data-testid="handoff">
+              <div class="item-head">
+                <p class="item-title">{{ entry.releaseTitle }}</p>
+                <span class="stage">{{ stageLabel(entry.stage) }}</span>
+              </div>
+              <ol class="steps" aria-label="Steps">
+                @for (step of steps; track step.stage; let i = $index) {
+                  <li [attr.data-state]="stepState(entry, i)" [attr.title]="step.label">
+                    <span class="sr-only">{{ step.label }}</span>
+                  </li>
+                }
+              </ol>
+              @if (entry.stage === 'downloading' || entry.progress !== null) {
+                @if (entry.progress !== null) {
+                  <div
+                    class="bar"
+                    role="progressbar"
+                    [attr.aria-valuenow]="entry.progress"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    [attr.aria-label]="entry.releaseTitle"
+                  >
+                    <span [style.width.%]="entry.progress"></span>
+                  </div>
+                }
+                <p class="meta">
+                  @if (entry.progress !== null) {
+                    {{ entry.progress }}%
+                  }
+                  @if (entry.timeLeft) {
+                    · {{ entry.timeLeft }} left
+                  }
+                </p>
+              }
+              @if (entry.detail) {
+                <p class="detail">{{ entry.detail }}</p>
+              }
+              @if (entry.canIgnore) {
+                <div class="actions">
+                  <button
+                    type="button"
+                    class="btn small"
+                    [disabled]="busy() === entry.id"
+                    (click)="ignore(entry)"
+                  >
+                    Stop watching
+                  </button>
+                </div>
+              }
+            </li>
+          }
+        </ul>
+      }
+
+      @if (d.recentHandoffs.length) {
+        <h3 class="sub">Recently</h3>
+        <ul class="items compact">
+          @for (entry of d.recentHandoffs; track entry.id) {
+            <li class="item panel" [attr.data-stage]="entry.stage" data-testid="recent-handoff">
+              <div class="item-head">
+                <p class="item-title">{{ entry.releaseTitle }}</p>
+                <span class="stage">{{ stageLabel(entry.stage) }}</span>
+              </div>
+              @if (entry.detail) {
+                <p class="detail">{{ entry.detail }}</p>
+              }
+              <p class="meta">{{ ago(entry.updatedAt) }}</p>
+              @if (entry.canRetry) {
+                <div class="actions">
+                  <button
+                    type="button"
+                    class="btn small primary"
+                    [disabled]="busy() === entry.id"
+                    (click)="retryHandoff(entry)"
+                  >
+                    Try again
+                  </button>
+                </div>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <!-- Drop-ins -->
+    <section class="block" aria-labelledby="processing-drop-ins">
+      <div class="block-head">
+        <h2 id="processing-drop-ins">Files you drop in</h2>
+      </div>
+
+      @if (watch(); as w) {
+        <div class="watch panel" [attr.data-state]="w.state" data-testid="watch-card">
+          <div class="item-head">
+            <p class="item-title">
+              <i
+                [class]="
+                  w.state === 'watching'
+                    ? 'pi pi-eye'
+                    : w.state === 'problem'
+                      ? 'pi pi-exclamation-triangle'
+                      : 'pi pi-eye-slash'
+                "
+                aria-hidden="true"
+              ></i>
+              {{ w.state === 'watching' ? 'Watching the drop-in folder' : 'Drop-in folder' }}
+            </p>
+            <span class="stage watch-state">{{ watchLabel() }}</span>
+          </div>
+
+          @if (w.message) {
+            <p class="detail strong" data-testid="watch-message">{{ w.message }}</p>
+          }
+          @if (w.hint) {
+            <p class="detail">{{ w.hint }}</p>
+          }
+
+          <dl class="facts">
+            @if (w.folder) {
+              <div>
+                <dt>Folder</dt>
+                <dd class="path" data-testid="watch-folder">{{ w.folder }}</dd>
+              </div>
+            }
+            @if (w.sabFolder && w.sabFolder !== w.folder) {
+              <div>
+                <dt>In SABnzbd</dt>
+                <dd class="path">{{ w.sabFolder }}</dd>
+              </div>
+            }
+            <div>
+              <dt>Last check</dt>
+              <dd>
+                {{ ago(w.lastCheckAt) ?? 'Not yet' }}
+                @if (w.lastResult && w.state === 'watching') {
+                  · {{ w.lastResult }}
+                }
+              </dd>
+            </div>
+            @if (w.state !== 'off' && w.nextCheckAt) {
+              <div>
+                <dt>Next check</dt>
+                <dd>{{ ago(w.nextCheckAt) }}</dd>
+              </div>
+            }
+            @if (w.lastError) {
+              <div>
+                <dt>Last error</dt>
+                <dd class="path">{{ w.lastError.message }} ({{ ago(w.lastError.at) }})</dd>
+              </div>
+            }
+          </dl>
+
+          <div class="actions">
+            <button
+              type="button"
+              class="btn small primary"
+              data-testid="check-now"
+              [disabled]="checking() || w.checking"
+              (click)="checkNow()"
+            >
+              @if (checking() || w.checking) {
+                <span class="spinner" aria-hidden="true"></span> Checking…
+              } @else {
+                <i class="pi pi-refresh" aria-hidden="true"></i> Check now
+              }
+            </button>
+            <a class="btn small" routerLink="/settings/integrations">Settings</a>
+          </div>
+        </div>
+
+        @if (w.settling.length) {
+          <h3 class="sub">Waiting until they stop changing</h3>
+          <ul class="items compact">
+            @for (file of w.settling; track file.path) {
+              <li class="item panel" data-stage="settling" data-testid="settling">
+                <div class="item-head">
+                  <p class="item-title">{{ file.name }}</p>
+                  <span class="stage">Settling</span>
+                </div>
+                <p class="detail path">{{ file.path }}</p>
+                <p class="meta">
+                  @if (fileSize(file.size); as size) {
+                    {{ size }} ·
+                  }
+                  noticed {{ ago(file.firstSeenAt) }} · brought in once it hasn’t changed for
+                  {{ w.settleSeconds }} s
+                </p>
+              </li>
+            }
+          </ul>
+        }
+      }
+
+      @if (d.dropIns.active.length) {
+        <h3 class="sub">Moved in, waiting for Stash</h3>
+        <ul class="items compact">
+          @for (entry of d.dropIns.active; track entry.id) {
+            <li class="item panel" data-stage="linking" data-testid="drop-in-active">
+              <div class="item-head">
+                <p class="item-title">{{ entry.name }}</p>
+                <span class="stage">Waiting for Stash</span>
+              </div>
+              <p class="detail">
+                {{ entry.error ?? 'Waiting for Stash to scan and identify it.' }}
+              </p>
+            </li>
+          }
+        </ul>
+      }
+
+      @if (failedDropIns().length) {
+        <h3 class="sub">Problems</h3>
+        <ul class="items compact">
+          @for (entry of failedDropIns(); track entry.id) {
+            <li class="item panel" data-stage="failed" data-testid="drop-in-failed">
+              <div class="item-head">
+                <p class="item-title">{{ entry.name }}</p>
+                <span class="stage">Failed</span>
+              </div>
+              @if (entry.error) {
+                <p class="detail">{{ entry.error }}</p>
+              }
+              <p class="meta">{{ ago(entry.updatedAt) }}</p>
+              @if (entry.canRetry) {
+                <div class="actions">
+                  <button
+                    type="button"
+                    class="btn small primary"
+                    [disabled]="busy() === entry.id"
+                    (click)="retryDropIn(entry)"
+                  >
+                    Try again
+                  </button>
+                </div>
+              }
+            </li>
+          }
+        </ul>
+      }
+
+      @if (broughtIn().length) {
+        <h3 class="sub">Recently brought in</h3>
+        <ul class="items compact">
+          @for (entry of broughtIn(); track entry.id) {
+            <li class="item panel" data-stage="done" data-testid="drop-in-done">
+              <div class="item-head">
+                <p class="item-title">{{ entry.name }}</p>
+                <span class="stage">In your library</span>
+              </div>
+              @if (entry.finalPath) {
+                <p class="detail path">{{ entry.finalPath }}</p>
+              }
+              <p class="meta">{{ ago(entry.updatedAt) }}</p>
+            </li>
+          }
+        </ul>
+      }
+
+      @if (watch()?.skipped?.length) {
+        <details class="skipped panel">
+          <summary>Left alone ({{ watch()!.skipped.length }})</summary>
+          <ul>
+            @for (entry of watch()!.skipped; track entry.path) {
+              <li data-testid="skipped">
+                <span class="item-title">{{ entry.name }}</span>
+                <span class="detail">{{ entry.detail }}</span>
+              </li>
+            }
+          </ul>
+        </details>
+      }
+    </section>
+
+    <section class="block" aria-labelledby="processing-whisparr">
+      <div class="block-head">
+        <h2 id="processing-whisparr">Whisparr</h2>
+      </div>
+      <p class="muted line">
+        Requests Whisparr downloads and imports are followed on
+        <a routerLink="/acquisition">Acquisition</a>.
+      </p>
+    </section>
+  }
+</main>

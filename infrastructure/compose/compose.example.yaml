@@ -1,0 +1,62 @@
+x-db-env: &db-env
+  POSTGRES_DB: stashboard
+  POSTGRES_USER: stashboard
+  # Change this once before your first start.
+  POSTGRES_PASSWORD: change-this-password
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      <<: *db-env
+    volumes:
+      - stashboard_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  app:
+    # Change latest to an exact release like v0.1.0 if you want to pin upgrades.
+    image: ghcr.io/mrnogood356/stashboard:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - stashboard_app_data:/var/lib/stashboard
+    environment:
+      <<: *db-env
+      DATABASE_HOST: postgres
+      DATABASE_URL: ""
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_MIGRATION_MAX_ATTEMPTS: 30
+      DATABASE_MIGRATION_RETRY_DELAY_SECONDS: 2
+      # Optional advanced override. Leave unset to let Stashboard generate and persist
+      # a unique session secret for this install in the app data volume.
+      # SESSION_SECRET: your-own-long-random-secret
+      # Optional: uncomment if catalog provider checks time out on IPv4-only Docker networks.
+      # NODE_OPTIONS: --no-network-family-autoselection
+      # Optional: set to true when serving Stashboard over HTTPS.
+      SESSION_COOKIE_SECURE: "false"
+      # The user Stashboard runs as. It can only rename and clean up media this user
+      # may change, so match your media's owner (Unraid: 99/100; most Linux: 1000/1000).
+      PUID: 99
+      PGID: 100
+      # Optional: error, warn, info (default), debug or trace. Settings → Logs can
+      # change it while running; log files go to /var/lib/stashboard/logs.
+      # LOG_LEVEL: info
+      # LOG_FORMAT: json
+    ports:
+      # Change the left side if port 3000 is already in use on the host.
+      - "3000:3000"
+    restart: unless-stopped
+
+volumes:
+  stashboard_postgres_data:
+    name: stashboard_postgres_data
+  stashboard_app_data:
+    name: stashboard_app_data

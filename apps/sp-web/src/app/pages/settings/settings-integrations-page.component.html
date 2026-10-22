@@ -1,0 +1,278 @@
+<section class="integrations-page">
+  <header class="page-head">
+    <h2>Repair integrations</h2>
+    <p class="lede">
+      Use the same readiness model as setup to restore Stash, Whisparr, and the locked catalog
+      provider without guessing what is still broken.
+    </p>
+  </header>
+
+  @if (loading()) {
+    <div class="app-blocking-loader" role="status" aria-live="polite">
+      <p-progressspinner
+        styleClass="app-blocking-spinner"
+        strokeWidth="4"
+        [style]="{ width: '2.25rem', height: '2.25rem' }"
+      />
+      <p>Loading integration settings...</p>
+    </div>
+  } @else if (loadError()) {
+    <p-message severity="error" styleClass="state-message">{{ loadError() }}</p-message>
+  } @else {
+    <section class="settings-overview">
+      <div class="overview-head">
+        <div>
+          <p class="eyebrow">Readiness</p>
+          <h3>{{ progressSummary() }}</h3>
+          <p class="overview-lead">{{ integrationHealthLead() }}</p>
+        </div>
+        <div class="progress-pill" [class.is-complete]="allRequiredReady()">
+          {{ readyCount() }}/{{ checklistItems().length }} ready
+        </div>
+      </div>
+
+      <div class="overview-meta">
+        <p>
+          Catalog provider: <strong>{{ configuredCatalogProviderLabel() ?? 'Not chosen' }}</strong>
+        </p>
+        <p>Primary repair path: <strong>Save & Test</strong></p>
+      </div>
+
+      <p class="overview-summary">{{ integrationHealthSummary() }}</p>
+
+      @if (repairWarning(); as message) {
+        <p-message severity="warn" styleClass="state-message">{{ message }}</p-message>
+      }
+
+      <div class="checklist-grid">
+        @for (item of checklistItems(); track item.key) {
+          <article
+            class="checklist-item"
+            [class.is-ready]="item.state === 'READY'"
+            [class.is-error]="item.state === 'TEST_FAILED'"
+            [class.is-saved]="item.state === 'SAVED'"
+            [class.is-pending]="item.state === 'NOT_SAVED'"
+          >
+            <div class="checklist-item-head">
+              <h3>{{ item.title }}</h3>
+              <span
+                class="state-badge"
+                [class.is-ready]="item.state === 'READY'"
+                [class.is-error]="item.state === 'TEST_FAILED'"
+                [class.is-saved]="item.state === 'SAVED'"
+                [class.is-pending]="item.state === 'NOT_SAVED'"
+              >
+                @switch (item.state) {
+                  @case ('NOT_SAVED') {
+                    Not Saved
+                  }
+                  @case ('SAVED') {
+                    Saved
+                  }
+                  @case ('TEST_FAILED') {
+                    Test Failed
+                  }
+                  @case ('READY') {
+                    Ready
+                  }
+                }
+              </span>
+            </div>
+            <p>{{ item.summary }}</p>
+          </article>
+        }
+      </div>
+    </section>
+
+    <section class="operations-grid">
+      <article class="global-health">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Runtime</p>
+            <h3>Service health</h3>
+          </div>
+          <button pButton type="button" [disabled]="refreshingHealth()" (click)="refreshHealth()">
+            {{ refreshingHealth() ? 'Refreshing...' : 'Refresh health' }}
+          </button>
+        </div>
+
+        @if (health(); as health) {
+          <div class="health-grid">
+            <p>
+              Service: <strong>{{ health.service }}</strong>
+            </p>
+            <p>
+              API: <strong>{{ health.status }}</strong>
+            </p>
+            <p>
+              Database: <strong>{{ health.database }}</strong>
+            </p>
+            <p>
+              Version: <strong>{{ health.version }}</strong>
+            </p>
+          </div>
+        }
+
+        @if (healthError()) {
+          <p-message severity="error" styleClass="inline-message">{{ healthError() }}</p-message>
+        }
+      </article>
+
+      <article class="global-danger">
+        <p class="eyebrow">Danger zone</p>
+        <h3>Reset all integrations</h3>
+        <p>
+          Resetting all integrations clears Stash, Whisparr, and the locked catalog provider choice
+          for this instance.
+        </p>
+
+        <button
+          pButton
+          type="button"
+          class="danger"
+          [disabled]="pageMutationRunning()"
+          (click)="requestResetAll()"
+        >
+          {{ resettingAll() ? 'Resetting all...' : 'Reset all integrations' }}
+        </button>
+      </article>
+    </section>
+
+    <section class="cards">
+      @for (type of serviceTypes(); track type) {
+        <app-integration-repair-panel
+          class="service-panel"
+          [label]="labelFor(type)"
+          [sectionLabel]="sectionLabel(type)"
+          [state]="readinessState(type)"
+          [summary]="readinessSummary(type)"
+          [helpText]="catalogProviderHelp(type)"
+          [form]="formFor(type)"
+          [hasStoredApiKey]="hasStoredApiKey(type)"
+          [enabledInputId]="'settings-enabled-' + type"
+          [showEnabledToggle]="showEnabledToggle(type)"
+          [lastHealthyAt]="lastHealthyAt(type)"
+          [lastErrorAt]="lastErrorAt(type)"
+          [errorMessage]="integrations()[type]?.lastErrorMessage ?? null"
+          [primaryActionLabel]="isSaveAndTesting(type) ? 'Saving & testing...' : 'Save & Test'"
+          [primaryDisabled]="pageMutationRunning()"
+          [secondaryActionLabel]="isSaving(type) ? 'Saving...' : 'Save only'"
+          [secondaryDisabled]="pageMutationRunning()"
+          [actionHint]="actionHint(type)"
+          [messages]="messagesFor(type)"
+          submitAction="primary"
+          (primaryAction)="saveAndTestIntegration(type)"
+          (secondaryAction)="saveIntegration(type)"
+        >
+          @if (type === 'WHISPARR') {
+            <section
+              panel-footer
+              class="mapping-section"
+              [id]="mappingAnchor"
+              aria-labelledby="whisparr-mapping-title"
+            >
+              <h3 id="whisparr-mapping-title">Folder mapping</h3>
+              <p class="mapping-lead">
+                Whisparr and Stash may see your files under different paths. Tell Stashboard where
+                each one sees your media folder so it can hand files between them.
+              </p>
+              @if (mappingLoadError()) {
+                <p-message severity="error" styleClass="inline-message">
+                  Couldn’t load the folder mapping. Reload the page to try again.
+                </p-message>
+              } @else {
+                <form
+                  class="mapping-form"
+                  (submit)="$event.preventDefault(); saveMapping()"
+                  aria-label="Whisparr folder mapping"
+                >
+                  <label>
+                    <span class="field-label">Path in Stash</span>
+                    <input
+                      type="text"
+                      name="whisparrPathFrom"
+                      spellcheck="false"
+                      autocapitalize="off"
+                      autocomplete="off"
+                      placeholder="/data"
+                      [disabled]="!mappingLoaded()"
+                      [value]="mappingFrom()"
+                      (input)="mappingFrom.set($any($event.target).value)"
+                    />
+                  </label>
+                  <label>
+                    <span class="field-label">Path in Whisparr</span>
+                    <input
+                      type="text"
+                      name="whisparrPathTo"
+                      spellcheck="false"
+                      autocapitalize="off"
+                      autocomplete="off"
+                      placeholder="/mnt/user/media"
+                      [disabled]="!mappingLoaded()"
+                      [value]="mappingTo()"
+                      (input)="mappingTo.set($any($event.target).value)"
+                    />
+                  </label>
+                  <div class="mapping-actions">
+                    <button
+                      pButton
+                      type="button"
+                      class="find-path"
+                      [disabled]="!mappingLoaded() || mappingBusy()"
+                      (click)="detectMapping()"
+                    >
+                      <i class="pi pi-search" aria-hidden="true"></i>
+                      {{ detectingMapping() ? 'Looking from Whisparr…' : 'Find it for me' }}
+                    </button>
+                    <button
+                      pButton
+                      text
+                      type="submit"
+                      class="save-mapping"
+                      [disabled]="!mappingLoaded() || mappingBusy()"
+                    >
+                      {{ checkingMapping() ? 'Checking…' : 'Save and check' }}
+                    </button>
+                  </div>
+                </form>
+                @if (mappingCheck(); as check) {
+                  <p-message
+                    [severity]="check.ok ? 'success' : 'error'"
+                    styleClass="inline-message mapping-result"
+                  >
+                    <span>
+                      {{ check.message }}
+                      @if (check.whisparrPath) {
+                        <br /><code>{{ check.whisparrPath }}</code>
+                      }
+                    </span>
+                  </p-message>
+                }
+              }
+            </section>
+          }
+          @if (type === 'SABNZBD') {
+            <app-finished-downloads
+              panel-footer
+              [sabnzbdReady]="readinessState('SABNZBD') === 'READY'"
+            />
+          }
+          <div panel-footer class="danger-card">
+            <h3>{{ dangerTitle(type) }}</h3>
+            <p>{{ dangerSummary(type) }}</p>
+            <button
+              pButton
+              type="button"
+              class="danger"
+              [disabled]="pageMutationRunning()"
+              (click)="requestIntegrationReset(type)"
+            >
+              {{ resetActionLabel(type) }}
+            </button>
+          </div>
+        </app-integration-repair-panel>
+      }
+    </section>
+  }
+</section>
