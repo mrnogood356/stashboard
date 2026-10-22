@@ -524,8 +524,8 @@ a {
   margin-bottom: 1rem;
 }
 
-.toolbar-field select {
-  cursor: pointer;
+.toolbar-field {
+  min-width: 0;
 }
 
 @media (max-width: 560px) {

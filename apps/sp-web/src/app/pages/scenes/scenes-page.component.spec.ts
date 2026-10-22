@@ -225,6 +225,7 @@ describe('ScenesPageComponent', () => {
       [],
       expect.any(Array),
       false,
+      '',
     );
     expect(navigateSpy).not.toHaveBeenCalled();
     expect(resetButton?.disabled).toBe(true);
@@ -290,6 +291,7 @@ describe('ScenesPageComponent', () => {
       [],
       expect.any(Array),
       false,
+      '',
     );
     expect(navigateSpy).toHaveBeenCalledWith([], {
       relativeTo: expect.anything(),
@@ -309,6 +311,7 @@ describe('ScenesPageComponent', () => {
         studioNames: null,
         exclude: null,
         showHidden: null,
+        q: null,
       },
       queryParamsHandling: 'merge',
       replaceUrl: false,
@@ -335,6 +338,7 @@ describe('ScenesPageComponent', () => {
       [],
       expect.any(Array),
       false,
+      '',
     );
     expect(navigateSpy).toHaveBeenCalledWith([], {
       relativeTo: expect.anything(),
@@ -354,6 +358,7 @@ describe('ScenesPageComponent', () => {
         studioNames: null,
         exclude: null,
         showHidden: null,
+        q: null,
       },
       queryParamsHandling: 'merge',
       replaceUrl: true,
@@ -379,6 +384,7 @@ describe('ScenesPageComponent', () => {
       ['trans', 'transgender'],
       expect.any(Array),
       false,
+      '',
     );
     expect(input.value).toBe('trans, transgender');
     expect(resetButton?.disabled).toBe(false);
@@ -402,6 +408,7 @@ describe('ScenesPageComponent', () => {
       [],
       ['Anal', 'POV'],
       false,
+      '',
     );
     expect(
       fixture.nativeElement.querySelector('[data-testid="unknown-tags"]')?.textContent,
@@ -430,6 +437,7 @@ describe('ScenesPageComponent', () => {
       ['trans', 'transgender'],
       expect.any(Array),
       false,
+      '',
     );
     expect(navigateSpy).toHaveBeenCalledWith(
       [],
@@ -464,6 +472,7 @@ describe('ScenesPageComponent', () => {
       [],
       [],
       true,
+      '',
     );
     expect(navigateSpy).toHaveBeenCalledWith(
       [],
@@ -491,8 +500,58 @@ describe('ScenesPageComponent', () => {
       [],
       [],
       true,
+      '',
     );
     expect(fixture.nativeElement.textContent).toContain('Showing hidden scenes');
+  });
+
+  it('searches the text from q=… (Search’s "See all") and can drop it', async () => {
+    const { fixture, discoverService, navigateSpy } = await renderPage({ q: 'blue studio' });
+
+    expect(discoverService.getScenesFeed).toHaveBeenLastCalledWith(
+      1,
+      24,
+      'TRENDING',
+      'DESC',
+      [],
+      'OR',
+      undefined,
+      [],
+      [],
+      [],
+      false,
+      'blue studio',
+    );
+    const chip = fixture.nativeElement.querySelector(
+      '[data-testid="scenes-text-query"]',
+    ) as HTMLElement;
+    expect(chip.textContent).toContain('Matching “blue studio”');
+    expect(
+      (fixture.nativeElement.querySelector('.reset-filters-button') as HTMLButtonElement).disabled,
+    ).toBe(false);
+
+    (chip.querySelector('button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(discoverService.getScenesFeed).toHaveBeenLastCalledWith(
+      1,
+      24,
+      'TRENDING',
+      'DESC',
+      [],
+      'OR',
+      undefined,
+      [],
+      [],
+      [],
+      false,
+      '',
+    );
+    expect(navigateSpy).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({ queryParams: expect.objectContaining({ q: null }) }),
+    );
+    expect(fixture.nativeElement.querySelector('[data-testid="scenes-text-query"]')).toBeNull();
   });
 
   it('adds up hidden scenes across the pages it loads', async () => {
@@ -533,6 +592,7 @@ describe('ScenesPageComponent', () => {
       ['trans'],
       expect.any(Array),
       false,
+      '',
     );
     expect(fixture.nativeElement.textContent).toContain('Keep looking');
   });

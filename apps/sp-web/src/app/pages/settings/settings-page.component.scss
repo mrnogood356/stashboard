@@ -45,75 +45,14 @@ p {
   color: var(--text-muted);
 }
 
-/* Segmented control that scrolls sideways on phones. */
+/* The section picker's list overlays the page below it. */
 .settings-nav {
-  display: flex;
-  gap: 0.2rem;
-  width: fit-content;
-  max-width: 100%;
-  padding: 0.2rem;
-  border-radius: 12px;
-  background: var(--chip-bg);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.settings-nav::-webkit-scrollbar {
-  display: none;
-}
-
-.settings-nav-link {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.1rem;
-  padding: 0 0.95rem;
-  border-radius: 9px;
-  color: var(--text-muted);
-  text-decoration: none;
-  font-size: 0.88rem;
-  font-weight: 600;
-  white-space: nowrap;
-  transition:
-    background-color 160ms ease,
-    color 160ms ease,
-    box-shadow 160ms ease;
-}
-
-.settings-nav-link:hover {
-  color: var(--text-primary);
-}
-
-.settings-nav-link.active {
-  background: var(--surface-1);
-  color: var(--text-primary);
-  box-shadow:
-    0 1px 3px rgb(0 0 0 / 18%),
-    0 0 0 0.5px rgb(0 0 0 / 4%);
-}
-
-:host-context([data-theme='dark']) .settings-nav-link.active {
-  background: var(--surface-raised);
+  position: relative;
+  z-index: 10;
 }
 
 @media (max-width: 640px) {
   .settings-shell {
     padding-inline: 0.85rem;
-  }
-
-  .settings-nav {
-    width: auto;
-    /* Room at both ends so the first and last tabs can scroll clear of the fade. */
-    padding-inline: 0.9rem;
-    scroll-padding-inline: 0.9rem;
-    /* Hint that there are more tabs to either side. */
-    mask-image: linear-gradient(
-      to right,
-      transparent,
-      #000 0.9rem,
-      #000 calc(100% - 0.9rem),
-      transparent
-    );
   }
 }

@@ -34,16 +34,21 @@ import { SceneCardComponent } from '../../shared/scene-card/scene-card.component
 import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
+import { OverflowXDirective } from '../../shared/overflow-x/overflow-x.directive';
 
 interface SearchResults {
   library: LibrarySceneItem[];
   libraryTotal: number;
   local: LocalSearchResults;
   catalogScenes: SceneExplorerItem[];
+  /** Every catalog scene that matches, not just the ones shown. */
+  catalogScenesTotal: number;
   /** Catalog scenes Settings → Hidden content left out. */
   catalogHidden: number;
   catalogPerformers: PerformerFeedItem[];
+  catalogPerformersTotal: number;
   catalogStudios: StudioFeedItem[];
+  catalogStudiosTotal: number;
 }
 
 const RECENT_KEY = 'stashboard.recentSearches';
@@ -55,9 +60,12 @@ const EMPTY: SearchResults = {
   libraryTotal: 0,
   local: { performers: [], studios: [] },
   catalogScenes: [],
+  catalogScenesTotal: 0,
   catalogHidden: 0,
   catalogPerformers: [],
+  catalogPerformersTotal: 0,
   catalogStudios: [],
+  catalogStudiosTotal: 0,
 };
 
 /**
@@ -67,7 +75,13 @@ const EMPTY: SearchResults = {
  */
 @Component({
   selector: 'app-search-page',
-  imports: [RouterLink, SceneCardComponent, SceneRequestModalComponent, HiddenCountComponent],
+  imports: [
+    RouterLink,
+    SceneCardComponent,
+    SceneRequestModalComponent,
+    HiddenCountComponent,
+    OverflowXDirective,
+  ],
   templateUrl: './search-page.component.html',
   styleUrl: './search-page.component.scss',
 })
@@ -92,6 +106,15 @@ export class SearchPageComponent implements OnInit, OnDestroy {
   protected readonly requestContext = signal<SceneRequestContext | null>(null);
   /** Show catalog scenes Settings → Hidden content leaves out, for this search. */
   protected readonly showHidden = signal(false);
+  /** "Show all" on your performers and studios: wraps the row instead of scrolling it. */
+  protected readonly peopleExpanded = signal(false);
+  /** Query params for the full results pages "See all" opens. */
+  protected readonly libraryParams = computed(() => ({ query: this.query().trim() }));
+  protected readonly catalogParams = computed(() => ({
+    q: this.query().trim(),
+    showHidden: this.showHidden() ? '1' : null,
+  }));
+  protected readonly nameParams = computed(() => ({ q: this.query().trim() }));
   protected readonly searched = computed(() => this.query().trim().length >= MIN_QUERY);
   protected readonly nothingFound = computed(() => {
     const result = this.results();
@@ -125,6 +148,7 @@ export class SearchPageComponent implements OnInit, OnDestroy {
       )
       .subscribe((results) => {
         this.results.set(results);
+        this.peopleExpanded.set(false);
         this.searching.set(false);
       });
 
@@ -158,6 +182,7 @@ export class SearchPageComponent implements OnInit, OnDestroy {
         this.results.update((results) => ({
           ...results,
           catalogScenes: response.items,
+          catalogScenesTotal: response.total ?? response.items.length,
           catalogHidden: response.hidden ?? 0,
         }));
       });
@@ -207,6 +232,16 @@ export class SearchPageComponent implements OnInit, OnDestroy {
     return this.router.url;
   }
 
+  /**
+   * "See all 57", or "All 40 performers" for a kind. The total is what the
+   * source reported, never fewer than are already shown.
+   */
+  protected seeAll(total: number, shown: number, kind?: string): string {
+    const count = Math.max(total, shown);
+    const formatted = count.toLocaleString('en-US');
+    return kind ? `All ${formatted} ${kind}${count === 1 ? '' : 's'}` : `See all ${formatted}`;
+  }
+
   protected initial(name: string): string {
     return name.trim().charAt(0).toUpperCase() || '?';
   }
@@ -251,9 +286,12 @@ export class SearchPageComponent implements OnInit, OnDestroy {
         libraryTotal: result.library?.total ?? 0,
         local: result.local,
         catalogScenes: result.catalogScenes?.items ?? [],
+        catalogScenesTotal: result.catalogScenes?.total ?? 0,
         catalogHidden: result.catalogScenes?.hidden ?? 0,
         catalogPerformers: result.catalogPerformers?.items ?? [],
+        catalogPerformersTotal: result.catalogPerformers?.total ?? 0,
         catalogStudios: result.catalogStudios?.items ?? [],
+        catalogStudiosTotal: result.catalogStudios?.total ?? 0,
       })),
     );
   }
