@@ -64,7 +64,7 @@ legend,
   padding: 0 0.8rem;
   border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--border-strong) 70%, transparent);
-  background: var(--app-control-bg, var(--surface-elevated));
+  background: var(--surface-elevated);
   color: var(--text-primary);
   font: inherit;
   /* 16px or more, so iOS doesn't zoom in on focus. */

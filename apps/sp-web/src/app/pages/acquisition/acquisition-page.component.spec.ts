@@ -1,6 +1,9 @@
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { NgModel } from '@angular/forms';
+import { By } from '@angular/platform-browser';
+import { Select } from 'primeng/select';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { SceneTimeline, TimelineApiService } from '../../core/api/timeline.service';
@@ -749,12 +752,12 @@ describe('AcquisitionPageComponent', () => {
 
   it('sorts by date as one list instead of grouping by stage', async () => {
     const { fixture, router, acquisitionService } = await renderPage();
-    const select = fixture.nativeElement.querySelector(
-      '[data-testid="acquisition-sort"]',
-    ) as HTMLSelectElement;
+    // The themed PrimeNG dropdown (a native <select> popup ignores the theme).
+    const sort = fixture.debugElement.query(By.css('[data-testid="acquisition-sort"]'));
+    expect(sort.componentInstance).toBeInstanceOf(Select);
+    expect(fixture.nativeElement.querySelector('select')).toBeNull();
 
-    select.value = 'requested-desc';
-    select.dispatchEvent(new Event('change'));
+    sort.injector.get(NgModel).viewToModelUpdate('requested-desc');
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -784,9 +787,9 @@ describe('AcquisitionPageComponent', () => {
       q: '',
       sort: 'released-asc',
     });
-    expect(
-      (fixture.nativeElement.querySelector('[data-testid="acquisition-sort"]') as HTMLSelectElement)
-        .value,
-    ).toBe('released-asc');
+    await fixture.whenStable();
+    const sort = fixture.debugElement.query(By.css('[data-testid="acquisition-sort"]'));
+    expect(sort.injector.get(NgModel).value).toBe('released-asc');
+    expect(sort.nativeElement.textContent).toContain('Oldest release');
   });
 });

@@ -13,7 +13,9 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { finalize, Subscription } from 'rxjs';
+import { FormsModule } from '@angular/forms';
 import { Message } from 'primeng/message';
+import { Select } from 'primeng/select';
 import { ProgressSpinner } from 'primeng/progressspinner';
 import { AcquisitionService } from '../../core/api/acquisition.service';
 import { ReleaseSearchService } from '../../core/releases/release-search.service';
@@ -89,7 +91,9 @@ interface AcquisitionPageAlert {
   selector: 'app-acquisition-page',
   imports: [
     RouterLink,
+    FormsModule,
     Message,
+    Select,
     ProgressSpinner,
     SceneStatusBadgeComponent,
     SelectionBarComponent,
@@ -318,7 +322,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   protected readonly items = signal<AcquisitionSceneItem[]>([]);
   protected readonly runtimeHealth = this.runtimeHealthService.status;
   protected readonly selectedLifecycle = signal<AcquisitionLifecycleFilter>('ANY');
-  protected readonly sortOptions = ACQUISITION_SORT_OPTIONS;
+  protected readonly sortOptions = [...ACQUISITION_SORT_OPTIONS];
   /** The search the list is showing; `searchDraft` is what is typed so far. */
   protected readonly searchQuery = signal('');
   protected readonly searchDraft = signal('');
