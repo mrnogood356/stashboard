@@ -2,14 +2,11 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { ButtonDirective } from 'primeng/button';
-import { InputText } from 'primeng/inputtext';
-import { Message } from 'primeng/message';
 import { AuthService } from '../../core/api/auth.service';
 
 @Component({
   selector: 'app-bootstrap-page',
-  imports: [ReactiveFormsModule, ButtonDirective, InputText, Message],
+  imports: [ReactiveFormsModule],
   templateUrl: './bootstrap-page.component.html',
   styleUrl: './bootstrap-page.component.scss',
 })
@@ -20,6 +17,7 @@ export class BootstrapPageComponent {
   protected readonly submitting = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly handoffMessage = signal<string | null>(null);
+  protected readonly showPassword = signal(false);
 
   protected readonly form = new FormGroup({
     username: new FormControl('', {
@@ -63,6 +61,10 @@ export class BootstrapPageComponent {
         this.errorMessage.set(describeBootstrapError(error));
       },
     });
+  }
+
+  protected togglePassword(): void {
+    this.showPassword.update((shown) => !shown);
   }
 
   protected passwordMismatch(): boolean {

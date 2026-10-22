@@ -1,38 +1,125 @@
 <main class="auth-page">
-  <section class="auth-card">
-    <p class="eyebrow">Protected local access</p>
-    <h1>Sign in to Stashboard</h1>
-    <p class="lead">
-      Local app pages and protected API routes now require the configured admin account.
-    </p>
+  <div class="auth-wrap">
+    <header class="brand">
+      <img class="brand-icon" src="/icons/icon-192.png" alt="" width="76" height="76" />
+      <h1>Stashboard</h1>
+      <p class="brand-lead">Welcome back. Sign in to your library.</p>
+    </header>
 
-    <form [formGroup]="form" (ngSubmit)="submit()">
-      <label class="field">
-        <span>Username</span>
-        <input pInputText type="text" formControlName="username" autocomplete="username" />
-      </label>
+    <section class="auth-card" aria-label="Sign in">
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <div class="field">
+          <label for="login-username">Username</label>
+          <div class="input-shell">
+            <i class="pi pi-user input-icon" aria-hidden="true"></i>
+            <input
+              id="login-username"
+              type="text"
+              formControlName="username"
+              autocomplete="username"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+              enterkeyhint="next"
+              [attr.aria-invalid]="form.controls.username.touched && form.controls.username.invalid"
+              aria-describedby="login-error"
+            />
+          </div>
+        </div>
 
-      <label class="field">
-        <span>Password</span>
-        <input
-          pInputText
-          type="password"
-          formControlName="password"
-          autocomplete="current-password"
-        />
-      </label>
+        <div class="field">
+          <label for="login-password">Password</label>
+          <div class="input-shell">
+            <i class="pi pi-lock input-icon" aria-hidden="true"></i>
+            <input
+              id="login-password"
+              class="has-toggle"
+              [type]="showPassword() ? 'text' : 'password'"
+              formControlName="password"
+              autocomplete="current-password"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+              enterkeyhint="go"
+              [attr.aria-invalid]="form.controls.password.touched && form.controls.password.invalid"
+              aria-describedby="login-error"
+            />
+            <button
+              type="button"
+              class="reveal-toggle"
+              aria-controls="login-password"
+              [attr.aria-pressed]="showPassword()"
+              [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'"
+              (click)="togglePassword()"
+            >
+              <i
+                class="pi"
+                [class.pi-eye]="!showPassword()"
+                [class.pi-eye-slash]="showPassword()"
+                aria-hidden="true"
+              ></i>
+            </button>
+          </div>
+        </div>
 
-      @if (errorMessage()) {
-        <p-message severity="error" styleClass="state-message">{{ errorMessage() }}</p-message>
+        <label class="remember">
+          <input type="checkbox" formControlName="rememberMe" />
+          <span>Keep me signed in</span>
+        </label>
+
+        <div id="login-error" class="error-area" role="alert" aria-live="assertive">
+          @if (errorMessage(); as message) {
+            <p class="auth-error">
+              <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+              <span>{{ message }}</span>
+            </p>
+          }
+        </div>
+
+        <button type="submit" class="primary-action" [disabled]="busy()">
+          @if (submitting()) {
+            <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+            Signing in…
+          } @else {
+            Sign in
+          }
+        </button>
+
+        @if (showPasskey()) {
+          <button
+            type="button"
+            class="secondary-action"
+            [disabled]="busy()"
+            (click)="signInWithPasskey()"
+          >
+            <svg
+              class="face-id"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M7 3H5a2 2 0 0 0-2 2v2M17 3h2a2 2 0 0 1 2 2v2M7 21H5a2 2 0 0 1-2-2v-2M17 21h2a2 2 0 0 0 2-2v-2M9 9v1M15 9v1M12 9v4h-1M9 16c1.5 1 4.5 1 6 0"
+              />
+            </svg>
+            {{ passkeyBusy() ? 'Waiting for Face ID…' : 'Sign in with Face ID' }}
+          </button>
+        }
+      </form>
+
+      @if (bootstrapRequired()) {
+        <p class="support-copy">
+          Fresh install? <a routerLink="/bootstrap">Create the first admin account</a>
+        </p>
       }
+    </section>
 
-      <button pButton type="submit" [disabled]="submitting()">
-        {{ submitting() ? 'Signing in...' : 'Sign in' }}
-      </button>
-    </form>
-
-    <p class="support-copy">
-      Fresh install? <a routerLink="/bootstrap">Create the first admin account</a>
-    </p>
-  </section>
+    <footer class="auth-footer">
+      Stashboard{{ version() ? ' ' + version() : '' }} · Self-hosted
+    </footer>
+  </div>
 </main>

@@ -18,6 +18,11 @@ export interface AuthStatusResponse {
   bootstrapRequired: boolean;
   authenticated: boolean;
   username: string | null;
+  /**
+   * Signed out, and Face ID sign-in can work here: a passkey exists and the
+   * site is on HTTPS with a domain name. Says nothing about whose passkey.
+   */
+  passkeySignIn: boolean;
 }
 
 export type AuthenticatedRequest = Request & {

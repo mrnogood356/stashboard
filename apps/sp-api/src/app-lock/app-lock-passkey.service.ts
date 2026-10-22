@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   type AuthenticatorTransport,
@@ -15,6 +16,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AppLockService } from './app-lock.service';
 
 const CHALLENGE_TTL_MS = 5 * 60_000;
+/**
+ * Sign-in challenges are asked for before anyone is signed in, so they're
+ * kept by the challenge itself; this caps how many wait at once.
+ */
+const MAX_LOGIN_CHALLENGES = 50;
 
 interface PendingChallenge {
   challenge: string;
@@ -30,6 +36,8 @@ interface PendingChallenge {
 @Injectable()
 export class AppLockPasskeyService {
   private readonly challenges = new Map<string, PendingChallenge>();
+  /** Sign-in challenges handed out, by challenge, with when they run out. */
+  private readonly loginChallenges = new Map<string, number>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -183,6 +191,114 @@ export class AppLockPasskeyService {
     await this.appLock.markUnlocked(sessionId);
   }
 
+  /** Whether anyone could sign in with a passkey from this request's site. */
+  async loginAvailable(request: Request): Promise<boolean> {
+    try {
+      this.relyingParty(request);
+    } catch {
+      return false;
+    }
+    return (await this.prisma.appLockPasskey.count()) > 0;
+  }
+
+  /**
+   * Options for signing in with a passkey added for App Lock. Asked for
+   * before anyone is signed in.
+   */
+  async loginOptions(request: Request) {
+    const { rpID } = this.relyingParty(request);
+    const passkeys = await this.prisma.appLockPasskey.findMany({
+      select: { credentialId: true, transports: true },
+    });
+    if (passkeys.length === 0) {
+      throw new BadRequestException('Face ID sign-in is not set up.');
+    }
+
+    const options = await generateAuthenticationOptions({
+      rpID,
+      userVerification: 'required',
+      // Listed so passkeys saved without a discoverable credential work too.
+      allowCredentials: passkeys.map((passkey) => ({
+        id: passkey.credentialId,
+        transports: passkey.transports as AuthenticatorTransport[],
+      })),
+    });
+
+    const now = Date.now();
+    for (const [challenge, expiresAt] of this.loginChallenges) {
+      if (expiresAt < now) {
+        this.loginChallenges.delete(challenge);
+      }
+    }
+    while (this.loginChallenges.size >= MAX_LOGIN_CHALLENGES) {
+      const oldest = this.loginChallenges.keys().next().value;
+      if (oldest === undefined) break;
+      this.loginChallenges.delete(oldest);
+    }
+    this.loginChallenges.set(options.challenge, now + CHALLENGE_TTL_MS);
+    return options;
+  }
+
+  /**
+   * Checks a passkey sign-in and returns whose passkey it was. Each challenge
+   * works once. Throws an HttpException for any refusal.
+   */
+  async verifyLogin(
+    request: Request,
+    response: Record<string, unknown>,
+  ): Promise<string> {
+    const { rpID, origin } = this.relyingParty(request);
+    const challenge = readChallenge(response);
+    const expiresAt = challenge
+      ? this.loginChallenges.get(challenge)
+      : undefined;
+    if (challenge) {
+      this.loginChallenges.delete(challenge);
+    }
+    if (!challenge || expiresAt === undefined || expiresAt < Date.now()) {
+      throw new BadRequestException('That request expired. Try again.');
+    }
+
+    const credentialId = typeof response.id === 'string' ? response.id : '';
+    const passkey = credentialId
+      ? await this.prisma.appLockPasskey.findUnique({
+          where: { credentialId },
+        })
+      : null;
+    if (!passkey) {
+      throw new UnauthorizedException('Face ID sign-in failed.');
+    }
+
+    const verification = await verifyAuthenticationResponse({
+      response: response as unknown as Parameters<
+        typeof verifyAuthenticationResponse
+      >[0]['response'],
+      expectedChallenge: challenge,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
+      requireUserVerification: true,
+      credential: {
+        id: passkey.credentialId,
+        publicKey: new Uint8Array(passkey.publicKey),
+        counter: passkey.counter,
+        transports: passkey.transports,
+      },
+    }).catch(() => null);
+
+    if (!verification?.verified) {
+      throw new UnauthorizedException('Face ID sign-in failed.');
+    }
+
+    await this.prisma.appLockPasskey.update({
+      where: { id: passkey.id },
+      data: {
+        counter: verification.authenticationInfo.newCounter,
+        lastUsedAt: new Date(),
+      },
+    });
+    return passkey.userId;
+  }
+
   async remove(userId: string, passkeyId: string): Promise<void> {
     await this.prisma.appLockPasskey.deleteMany({
       where: { id: passkeyId, userId },
@@ -248,5 +364,29 @@ export class AppLockPasskeyService {
     if (/Android/.test(agent)) return 'Android';
     if (/Windows/.test(agent)) return 'Windows';
     return 'This device';
+  }
+}
+
+/** The challenge the browser signed, read from its client data. */
+function readChallenge(response: Record<string, unknown>): string | null {
+  const inner = response.response;
+  if (typeof inner !== 'object' || inner === null) {
+    return null;
+  }
+  const clientDataJSON = (inner as Record<string, unknown>).clientDataJSON;
+  if (typeof clientDataJSON !== 'string' || clientDataJSON.length > 4096) {
+    return null;
+  }
+  try {
+    const clientData = JSON.parse(
+      Buffer.from(clientDataJSON, 'base64url').toString('utf8'),
+    ) as unknown;
+    const challenge =
+      typeof clientData === 'object' && clientData !== null
+        ? (clientData as Record<string, unknown>).challenge
+        : undefined;
+    return typeof challenge === 'string' && challenge ? challenge : null;
+  } catch {
+    return null;
   }
 }

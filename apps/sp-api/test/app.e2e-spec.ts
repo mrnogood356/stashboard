@@ -382,6 +382,63 @@ describe('Stashboard API (e2e)', () => {
       .expect(400);
   });
 
+  it('keeps a month-long cookie unless "keep me signed in" is unticked', async () => {
+    const setCookie = (response: request.Response) =>
+      ([] as string[])
+        .concat(response.headers['set-cookie'] ?? [])
+        .find((cookie) => cookie.startsWith('stashboard_session='))!;
+    const prisma = app.get(PrismaService);
+
+    const kept = await request(server)
+      .post('/api/auth/login')
+      .send(admin)
+      .expect(201);
+    expect(setCookie(kept)).toMatch(/Expires=/i);
+
+    const short = await request(server)
+      .post('/api/auth/login')
+      .send({ ...admin, rememberMe: false })
+      .expect(201);
+    expect(setCookie(short)).not.toMatch(/Expires=|Max-Age=/i);
+    const cookie = sessionCookie(short);
+    const value = decodeURIComponent(cookie.split('=')[1]);
+    const session = await prisma.adminSession.findUniqueOrThrow({
+      where: { id: value.slice(0, value.lastIndexOf('.')) },
+    });
+    expect(session.persistent).toBe(false);
+    expect(session.expiresAt.getTime() - Date.now()).toBeLessThanOrEqual(
+      12 * 60 * 60 * 1000,
+    );
+    await request(server)
+      .get('/api/setup/status')
+      .set('Cookie', cookie)
+      .expect(200);
+
+    await request(server)
+      .post('/api/auth/login')
+      .send({ ...admin, rememberMe: 'no' })
+      .expect(400);
+  });
+
+  it('offers Face ID sign-in only where it can work, and refuses it over plain HTTP', async () => {
+    const status = await request(server).get('/api/auth/status').expect(200);
+    expect(status.body).toEqual({
+      bootstrapRequired: false,
+      authenticated: false,
+      username: null,
+      passkeySignIn: false,
+    });
+    await request(server).post('/api/auth/login/passkey/options').expect(400);
+    await request(server)
+      .post('/api/auth/login/passkey')
+      .send({ response: { id: 'x' }, extra: true })
+      .expect(400);
+    await request(server)
+      .post('/api/auth/login/passkey')
+      .send({ response: { id: 'x' }, rememberMe: false })
+      .expect(400);
+  });
+
   it('ends the session on logout', async () => {
     const login = await request(server)
       .post('/api/auth/login')

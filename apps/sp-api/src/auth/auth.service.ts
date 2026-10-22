@@ -10,10 +10,12 @@ import type { AdminUser } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { randomBytes } from 'node:crypto';
 import type { Request, Response } from 'express';
+import { AppLockPasskeyService } from '../app-lock/app-lock-passkey.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BootstrapAdminDto } from './dto/bootstrap-admin.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { PasskeyLoginDto } from './dto/passkey-login.dto';
 import {
   type AuthStatusResponse,
   type AuthenticatedAdmin,
@@ -36,13 +38,18 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly sessionCookieService: SessionCookieService,
     private readonly loginAttemptService: LoginAttemptService,
+    private readonly passkeys: AppLockPasskeyService,
   ) {}
 
   async getStatus(
     request: Request,
     response: Response,
   ): Promise<AuthStatusResponse> {
-    return this.toStatus(await this.resolveRequestAuth(request, response));
+    const authContext = await this.resolveRequestAuth(request, response);
+    return this.toStatus(
+      authContext,
+      await this.passkeySignInAvailable(authContext, request),
+    );
   }
 
   async bootstrapAdmin(
@@ -158,6 +165,7 @@ export class AuthService {
         adminUser.id,
         adminUser.sessionVersion,
         response,
+        dto.rememberMe ?? true,
       );
       this.logger.log(`“${adminUser.username}” logged in from ${ipAddress}.`);
       return this.toStatus(
@@ -180,6 +188,79 @@ export class AuthService {
       }
       throw error;
     }
+  }
+
+  /** Options for signing in with Face ID (a passkey added for App Lock). */
+  async passkeyLoginOptions(request: Request) {
+    // Refused while this address is blocked, though asking isn't a guess.
+    this.loginAttemptService.assertAllowed(
+      this.loginAttemptIpKey(this.getRequestIp(request)),
+    );
+    return this.passkeys.loginOptions(request);
+  }
+
+  /**
+   * Signs in with Face ID: throttled with password logins from the same
+   * address, and starts the same kind of session.
+   */
+  async loginWithPasskey(
+    dto: PasskeyLoginDto,
+    request: Request,
+    response: Response,
+  ): Promise<AuthStatusResponse> {
+    // A site passkeys can't work on isn't a wrong guess: refused uncounted.
+    this.passkeys.relyingParty(request);
+    const ipAddress = this.getRequestIp(request);
+    const attemptKeys = [
+      this.loginAttemptIpKey(ipAddress),
+      `passkey-login:${ipAddress}`,
+    ];
+
+    let adminUser: AdminUser | null;
+    try {
+      adminUser = await this.loginAttemptService.withReserved(
+        attemptKeys,
+        async () => {
+          const userId = await this.passkeys.verifyLogin(request, dto.response);
+          const user = await this.prisma.adminUser.findUnique({
+            where: { id: userId },
+          });
+          if (!user) {
+            throw new UnauthorizedException('Face ID sign-in failed.');
+          }
+          return user;
+        },
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Face ID sign-in from ${ipAddress} refused: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
+    }
+
+    attemptKeys.forEach((key) => this.loginAttemptService.clear(key));
+    const sessionId = await this.startSession(
+      adminUser.id,
+      adminUser.sessionVersion,
+      response,
+      dto.rememberMe ?? true,
+    );
+    this.logger.log(
+      `“${adminUser.username}” signed in with Face ID from ${ipAddress}.`,
+    );
+    return this.toStatus(
+      this.writeCachedRequestAuth(request, {
+        bootstrapRequired: false,
+        authenticated: true,
+        user: {
+          id: adminUser.id,
+          username: adminUser.username,
+          normalizedUsername: adminUser.normalizedUsername,
+          sessionVersion: adminUser.sessionVersion,
+        },
+        sessionId,
+      }),
+    );
   }
 
   async logout(
@@ -211,7 +292,10 @@ export class AuthService {
     };
     this.writeCachedRequestAuth(request, unauthenticatedStatus);
 
-    return this.toStatus(unauthenticatedStatus);
+    return this.toStatus(
+      unauthenticatedStatus,
+      await this.passkeySignInAvailable(unauthenticatedStatus, request),
+    );
   }
 
   async changePassword(
@@ -257,7 +341,12 @@ export class AuthService {
     }
 
     const nextSessionVersion = adminUser.sessionVersion + 1;
-    const nextExpiresAt = this.buildSessionExpiry();
+    const currentSession = await this.prisma.adminSession.findUnique({
+      where: { id: authContext.sessionId },
+      select: { persistent: true },
+    });
+    const persistent = currentSession?.persistent ?? true;
+    const nextExpiresAt = this.buildSessionExpiry(persistent);
 
     await this.prisma.$transaction([
       this.prisma.adminUser.update({
@@ -295,6 +384,7 @@ export class AuthService {
       response,
       authContext.sessionId,
       nextExpiresAt,
+      persistent,
     );
     this.writeCachedRequestAuth(request, {
       bootstrapRequired: false,
@@ -445,22 +535,29 @@ export class AuthService {
     userId: string,
     sessionVersion: number,
     response: Response,
+    persistent = true,
   ): Promise<string> {
     // Sessions are otherwise only deleted when their cookie comes back, so
     // ones from browsers that never return would pile up.
     await this.prisma.adminSession
       .deleteMany({ where: { expiresAt: { lt: new Date() } } })
       .catch(() => undefined);
-    const expiresAt = this.buildSessionExpiry();
+    const expiresAt = this.buildSessionExpiry(persistent);
     const session = await this.prisma.adminSession.create({
       data: {
         userId,
         sessionVersion,
         expiresAt,
+        persistent,
       },
     });
 
-    this.sessionCookieService.setSessionCookie(response, session.id, expiresAt);
+    this.sessionCookieService.setSessionCookie(
+      response,
+      session.id,
+      expiresAt,
+      persistent,
+    );
     return session.id;
   }
 
@@ -472,8 +569,10 @@ export class AuthService {
     return this.dummyPasswordHash;
   }
 
-  private buildSessionExpiry(): Date {
-    return new Date(Date.now() + this.sessionCookieService.sessionTtlMs);
+  private buildSessionExpiry(persistent: boolean): Date {
+    return new Date(
+      Date.now() + this.sessionCookieService.sessionTtlFor(persistent),
+    );
   }
 
   private async loadSessionRecord(sessionId: string) {
@@ -509,7 +608,10 @@ export class AuthService {
       return;
     }
 
-    const expiresAt = this.buildSessionExpiry();
+    // Sessions not kept signed in last 12 hours from the last visit; the
+    // others a month.
+    const persistent = session.persistent ?? true;
+    const expiresAt = this.buildSessionExpiry(persistent);
     await this.prisma.adminSession.update({
       where: {
         id: session.id,
@@ -519,7 +621,12 @@ export class AuthService {
         lastSeenAt: new Date(),
       },
     });
-    this.sessionCookieService.setSessionCookie(response, session.id, expiresAt);
+    this.sessionCookieService.setSessionCookie(
+      response,
+      session.id,
+      expiresAt,
+      persistent,
+    );
   }
 
   private reserveLoginAttempt(
@@ -567,12 +674,30 @@ export class AuthService {
     return request.ip || request.socket.remoteAddress || 'unknown';
   }
 
-  private toStatus(authContext: RequestAuthContext): AuthStatusResponse {
+  private toStatus(
+    authContext: RequestAuthContext,
+    passkeySignIn = false,
+  ): AuthStatusResponse {
     return {
       bootstrapRequired: authContext.bootstrapRequired,
       authenticated: authContext.authenticated,
       username: authContext.user?.username ?? null,
+      passkeySignIn,
     };
+  }
+
+  /**
+   * Whether the sign-in page should offer Face ID: only to someone signed
+   * out, on a site passkeys work on, once a passkey has been added.
+   */
+  private async passkeySignInAvailable(
+    authContext: RequestAuthContext,
+    request: Request,
+  ): Promise<boolean> {
+    if (authContext.authenticated || authContext.bootstrapRequired) {
+      return false;
+    }
+    return this.passkeys.loginAvailable(request).catch(() => false);
   }
 
   private writeCachedRequestAuth(
