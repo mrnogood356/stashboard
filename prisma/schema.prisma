@@ -40,6 +40,9 @@ model AdminSession {
   lastActiveAt   DateTime?
   /// The app installed on a phone's home screen. App Lock only applies there.
   phoneApp       Boolean   @default(false)
+  /// "Keep me signed in": a month-long cookie. Off, the cookie ends with the
+  /// browser and the session after 12 hours away.
+  persistent     Boolean   @default(true)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   user           AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
