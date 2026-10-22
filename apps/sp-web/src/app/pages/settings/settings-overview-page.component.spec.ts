@@ -7,6 +7,7 @@ import { HealthService } from '../../core/api/health.service';
 import { SetupService } from '../../core/api/setup.service';
 import { SetupStatusStore } from '../../core/api/setup-status.store';
 import { SettingsOverviewPageComponent } from './settings-overview-page.component';
+import { SETTINGS_SECTIONS } from './settings-nav';
 
 describe('SettingsOverviewPageComponent', () => {
   afterEach(() => {
@@ -70,5 +71,46 @@ describe('SettingsOverviewPageComponent', () => {
     expect(text).not.toContain('Healthy');
     expect(heroCard?.classList.contains('tone-warn')).toBe(true);
     expect(statusPill?.classList.contains('tone-warn')).toBe(true);
+  });
+
+  it('lists every section as a grouped card, and says when the setup check is failing', async () => {
+    await TestBed.configureTestingModule({
+      imports: [SettingsOverviewPageComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: SetupCheckApiService,
+          useValue: {
+            run: () =>
+              of({
+                checkedAt: '',
+                checks: [{ status: 'fail' }, { status: 'fail' }, { status: 'pass' }],
+              }),
+          },
+        },
+        { provide: SetupService, useValue: { getStatus: () => throwError(() => new Error('x')) } },
+        { provide: SetupStatusStore, useValue: { sync: vi.fn() } },
+        { provide: HealthService, useValue: { getStatus: () => of(null) } },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(SettingsOverviewPageComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+
+    expect(Array.from(root.querySelectorAll('.group-title'), (h) => h.textContent?.trim())).toEqual(
+      ['Setup', 'Behaviour', 'Look & privacy', 'System'],
+    );
+    const cards = Array.from(root.querySelectorAll<HTMLAnchorElement>('a.tool'));
+    expect(cards.map((card) => card.getAttribute('href'))).toEqual(
+      SETTINGS_SECTIONS.map((section) => section.route),
+    );
+    const check = cards.find((card) => card.getAttribute('href') === '/settings/setup-check')!;
+    expect(check.textContent).toContain('2 things need fixing');
+    const logs = cards.find((card) => card.getAttribute('href') === '/settings/logs')!;
+    expect(logs.textContent).toContain('Logs');
+    expect(logs.querySelector('i.pi-list')).not.toBeNull();
   });
 });

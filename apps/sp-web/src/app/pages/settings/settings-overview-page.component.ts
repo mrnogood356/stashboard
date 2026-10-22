@@ -11,6 +11,7 @@ import { integrationLabel } from '../../core/api/integrations.types';
 import { SetupService } from '../../core/api/setup.service';
 import { SetupStatusStore } from '../../core/api/setup-status.store';
 import { SetupStatusResponse, summarizeDegradedSetupState } from '../../core/api/setup.types';
+import { SETTINGS_SECTIONS, groupSettingsNav } from './settings-nav';
 
 @Component({
   selector: 'app-settings-overview-page',
@@ -25,6 +26,7 @@ export class SettingsOverviewPageComponent implements OnInit {
   private readonly setupCheck = inject(SetupCheckApiService);
 
   /** How many setup checks failed, so the overview can point at them. */
+  protected readonly sectionGroups = groupSettingsNav(SETTINGS_SECTIONS);
   protected readonly failingChecks = signal(0);
 
   protected readonly loading = signal(true);

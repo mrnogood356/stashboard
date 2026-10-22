@@ -5,6 +5,12 @@
 .overview-page {
   display: grid;
   gap: 1rem;
+}
+
+/* The status card and banner keep a readable width; the cards use the page. */
+.overview-page > .hero-card,
+.overview-page > .setup-check-banner,
+.overview-page > .app-blocking-loader {
   max-width: 56rem;
 }
 
@@ -111,4 +117,69 @@ p {
 .setup-check-banner span {
   flex: 1;
   min-width: 0;
+}
+
+/* Section cards: the same look as Library tools. */
+.group-title {
+  margin: 0.6rem 0 -0.4rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr));
+  gap: 0.8rem;
+}
+
+.tool {
+  border-radius: 18px;
+  background: var(--surface-1);
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  padding: 1.1rem;
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: transform 0.12s ease;
+}
+
+.tool:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.tool:active {
+  transform: scale(0.98);
+}
+
+.tool i {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1.1rem;
+}
+
+.tool-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.tool-detail {
+  font-size: 0.86rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool {
+    transition: none;
+  }
 }

@@ -45,10 +45,10 @@ p {
   color: var(--text-muted);
 }
 
-/* The section picker's list overlays the page below it. */
-.settings-nav {
-  position: relative;
-  z-index: 10;
+/* The back link sits on its own line above the section. */
+.back-link {
+  justify-self: start;
+  margin-bottom: 0;
 }
 
 @media (max-width: 640px) {

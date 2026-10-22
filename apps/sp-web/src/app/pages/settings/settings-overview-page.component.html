@@ -62,4 +62,27 @@
       }
     </section>
   }
+
+  @for (group of sectionGroups; track group.id) {
+    <h2 class="group-title">{{ group.label }}</h2>
+    <div class="tool-grid">
+      @for (section of group.items; track section.route) {
+        <a class="tool" [routerLink]="section.route">
+          <i class="pi {{ section.icon ?? 'pi-cog' }}" aria-hidden="true"></i>
+          <span class="tool-title">{{ section.label }}</span>
+          <span class="tool-detail">
+            @if (section.route === '/settings/setup-check' && failingChecks() > 0) {
+              {{
+                failingChecks() === 1
+                  ? '1 thing needs fixing'
+                  : failingChecks() + ' things need fixing'
+              }}
+            } @else {
+              {{ section.detail }}
+            }
+          </span>
+        </a>
+      }
+    </div>
+  }
 </section>

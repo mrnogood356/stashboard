@@ -1,12 +1,14 @@
 <section class="settings-shell">
-  <header class="shell-head">
-    <div class="shell-copy">
-      <h1>Settings</h1>
-      <p>Integrations, indexing, notifications, appearance, privacy and your account.</p>
-    </div>
-  </header>
-
-  <app-settings-section-picker class="settings-nav" [items]="navItems" />
+  @if (atHome()) {
+    <header class="shell-head">
+      <div class="shell-copy">
+        <h1>Settings</h1>
+        <p>Integrations, indexing, notifications, appearance, privacy and your account.</p>
+      </div>
+    </header>
+  } @else {
+    <a class="back-link app-back-link app-back-link--media" routerLink="/settings">Settings</a>
+  }
 
   <router-outlet />
 </section>
