@@ -5,6 +5,20 @@
       @if (!loading() && !error()) {
         <p class="state">{{ scenesTotalLabel() }}</p>
       }
+      @if (textQuery()) {
+        <p class="text-query-chip" data-testid="scenes-text-query">
+          <span
+            >Matching <strong>“{{ textQuery() }}”</strong></span
+          >
+          <button
+            type="button"
+            [attr.aria-label]="'Stop matching ' + textQuery()"
+            (click)="clearTextQuery()"
+          >
+            <i class="pi pi-times" aria-hidden="true"></i>
+          </button>
+        </p>
+      }
       <app-hidden-count
         [count]="hiddenCount()"
         [showing]="showHidden()"

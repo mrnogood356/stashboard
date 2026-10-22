@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,6 +7,7 @@ import { DiscoverService } from '../../core/api/discover.service';
 import { LibraryService } from '../../core/api/library.service';
 import { LocalLibraryService } from '../../core/api/local-library.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
+import { OverflowXDirective } from '../../shared/overflow-x/overflow-x.directive';
 import { SearchPageComponent } from './search-page.component';
 
 describe('SearchPageComponent', () => {
@@ -172,6 +174,166 @@ describe('SearchPageComponent', () => {
     expect(discover['searchScenes']).toHaveBeenLastCalledWith('ana', 1, 12, true);
     expect(root.textContent).toContain('Showing hidden scenes');
     expect(root.textContent).toContain('Catalog Scene');
+  });
+
+  async function search(text: string) {
+    vi.useFakeTimers();
+    const rendered = await render();
+    const input = rendered.root.querySelector<HTMLInputElement>('input[type="search"]')!;
+    input.value = text;
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(350);
+    rendered.fixture.detectChanges();
+    return rendered;
+  }
+
+  const catalogScene = (id: string) => ({
+    id,
+    title: `Catalog ${id}`,
+    description: null,
+    imageUrl: null,
+    cardImageUrl: null,
+    studioId: null,
+    studio: null,
+    studioImageUrl: null,
+    releaseDate: null,
+    duration: null,
+    type: 'SCENE',
+    source: 'STASHDB',
+    status: { state: 'NOT_REQUESTED' },
+    requestable: true,
+    localSceneId: null,
+  });
+
+  it('links each section that has more results to the full list, with the query', async () => {
+    discover['searchScenes'] = vi.fn(() =>
+      of({
+        total: 1234,
+        page: 1,
+        perPage: 12,
+        hasMore: true,
+        hidden: 0,
+        items: [catalogScene('a'), catalogScene('b')],
+      }),
+    );
+    discover['getPerformersFeed'] = vi.fn(() =>
+      of({
+        total: 40,
+        page: 1,
+        perPage: 12,
+        hasMore: true,
+        items: [
+          {
+            id: 'c1',
+            name: 'Ana Catalog',
+            gender: null,
+            sceneCount: 3,
+            isFavorite: false,
+            imageUrl: null,
+            cardImageUrl: null,
+          },
+        ],
+      }),
+    );
+    discover['getStudiosFeed'] = vi.fn(() =>
+      of({
+        total: 1,
+        page: 1,
+        perPage: 12,
+        hasMore: false,
+        items: [{ id: 'st1', name: 'Ana Studio', imageUrl: null }],
+      }),
+    );
+    const { root } = await search('ana lee');
+    const link = (id: string) => root.querySelector<HTMLAnchorElement>(`[data-testid="${id}"]`);
+
+    expect(link('search-see-all-library')?.textContent).toContain('See all 30');
+    expect(link('search-see-all-library')?.getAttribute('href')).toBe('/library?query=ana%20lee');
+
+    expect(link('search-see-all-catalog')?.textContent).toContain('See all 1,234');
+    expect(link('search-see-all-catalog')?.getAttribute('href')).toBe('/scenes?q=ana%20lee');
+
+    expect(link('search-see-all-performers')?.textContent).toContain('All 40 performers');
+    expect(link('search-see-all-performers')?.getAttribute('href')).toBe('/performers?q=ana%20lee');
+    // Every matching studio is already shown.
+    expect(link('search-see-all-studios')).toBeNull();
+    // Your own performers fit on screen: nothing to expand.
+    expect(link('search-see-all-local-people')).toBeNull();
+
+    // The link sits in the section header, next to the title.
+    expect(link('search-see-all-catalog')?.parentElement?.querySelector('h2')?.textContent).toBe(
+      'On the catalog',
+    );
+  });
+
+  it('keeps hidden scenes showing when the catalog "See all" opens Scenes', async () => {
+    discover['searchScenes'] = vi.fn(() =>
+      of({ total: 50, page: 1, perPage: 12, hasMore: true, hidden: 2, items: [catalogScene('a')] }),
+    );
+    const { fixture, root } = await search('ana');
+    (root.querySelector('[data-testid="hidden-count"] button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(root.querySelector('[data-testid="search-see-all-catalog"]')?.getAttribute('href')).toBe(
+      '/scenes?q=ana&showHidden=1',
+    );
+  });
+
+  it('offers "See all" when a rail is cut off even if every result is loaded', async () => {
+    library['getScenesFeed'] = vi.fn(() =>
+      of({ total: 1, page: 1, perPage: 12, hasMore: false, latestSyncAt: null, items: [] }),
+    );
+    discover['searchScenes'] = vi.fn(() =>
+      of({
+        total: 2,
+        page: 1,
+        perPage: 12,
+        hasMore: false,
+        hidden: 0,
+        items: [catalogScene('a'), catalogScene('b')],
+      }),
+    );
+    const { fixture, root } = await search('ana');
+    expect(root.querySelector('[data-testid="search-see-all-catalog"]')).toBeNull();
+
+    const rail = fixture.debugElement.query(By.css('.rail'));
+    Object.defineProperty(rail.nativeElement, 'scrollWidth', { value: 900 });
+    Object.defineProperty(rail.nativeElement, 'clientWidth', { value: 375 });
+    rail.injector.get(OverflowXDirective).check();
+    fixture.detectChanges();
+
+    expect(root.querySelector('[data-testid="search-see-all-catalog"]')?.textContent).toContain(
+      'See all 2',
+    );
+  });
+
+  it('expands your performers and studios in place when the row is cut off', async () => {
+    const { fixture, root } = await search('ana');
+    const row = fixture.debugElement.query(By.css('#search-local-people'));
+    Object.defineProperty(row.nativeElement, 'scrollWidth', { value: 900, configurable: true });
+    Object.defineProperty(row.nativeElement, 'clientWidth', { value: 375, configurable: true });
+    row.injector.get(OverflowXDirective).check();
+    fixture.detectChanges();
+
+    const toggle = () =>
+      root.querySelector<HTMLButtonElement>('[data-testid="search-see-all-local-people"]')!;
+    expect(toggle().textContent).toContain('Show all 1');
+    expect(toggle().getAttribute('aria-expanded')).toBe('false');
+    expect(toggle().getAttribute('aria-controls')).toBe('search-local-people');
+
+    toggle().click();
+    // Wrapped, nothing is cut off any more; the button stays to fold it back.
+    Object.defineProperty(row.nativeElement, 'scrollWidth', { value: 375 });
+    row.injector.get(OverflowXDirective).check();
+    fixture.detectChanges();
+
+    expect(row.nativeElement.classList).toContain('expanded');
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    expect(toggle().textContent).toContain('Show less');
+
+    toggle().click();
+    fixture.detectChanges();
+    expect(row.nativeElement.classList).not.toContain('expanded');
   });
 
   it('remembers searches you act on and lets you clear them', async () => {
