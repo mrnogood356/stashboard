@@ -1,58 +1,107 @@
 <main class="auth-page">
-  <section class="auth-card">
-    <p class="eyebrow">First-run protection</p>
-    <h1>Create the Stashboard admin account</h1>
-    <p class="lead">
-      Before anyone on your LAN can use Stashboard, create the single local admin account that
-      protects this instance.
-    </p>
+  <div class="auth-wrap">
+    <header class="brand">
+      <img class="brand-icon" src="/icons/icon-192.png" alt="" width="76" height="76" />
+      <h1>Welcome to Stashboard</h1>
+      <p class="brand-lead">Create the admin account that protects this Stashboard.</p>
+    </header>
 
-    <div class="auth-note">
-      <p>This account signs into the app, unlocks setup, and can change its password later.</p>
-      <p>
-        After this, Stashboard opens required integration setup for catalog, Stash, and Whisparr.
-      </p>
-      <p>Use a strong password now even if this is a private home network install.</p>
-    </div>
+    <section class="auth-card" aria-label="Create the admin account">
+      <ul class="auth-note">
+        <li>This account signs into the app, unlocks setup, and can change its password later.</li>
+        <li>
+          After this, Stashboard opens required integration setup for catalog, Stash, and Whisparr.
+        </li>
+        <li>Use a strong password now even if this is a private home network install.</li>
+      </ul>
 
-    <form [formGroup]="form" (ngSubmit)="submit()">
-      <label class="field">
-        <span>Username</span>
-        <input pInputText type="text" formControlName="username" autocomplete="username" />
-      </label>
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <div class="field">
+          <label for="bootstrap-username">Username</label>
+          <div class="input-shell">
+            <i class="pi pi-user input-icon" aria-hidden="true"></i>
+            <input
+              id="bootstrap-username"
+              type="text"
+              formControlName="username"
+              autocomplete="username"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+            />
+          </div>
+        </div>
 
-      <label class="field">
-        <span>Password</span>
-        <input pInputText type="password" formControlName="password" autocomplete="new-password" />
-      </label>
+        <div class="field">
+          <label for="bootstrap-password">Password</label>
+          <div class="input-shell">
+            <i class="pi pi-lock input-icon" aria-hidden="true"></i>
+            <input
+              id="bootstrap-password"
+              class="has-toggle"
+              [type]="showPassword() ? 'text' : 'password'"
+              formControlName="password"
+              autocomplete="new-password"
+              aria-describedby="bootstrap-password-hint"
+            />
+            <button
+              type="button"
+              class="reveal-toggle"
+              aria-controls="bootstrap-password bootstrap-confirm"
+              [attr.aria-pressed]="showPassword()"
+              [attr.aria-label]="showPassword() ? 'Hide passwords' : 'Show passwords'"
+              (click)="togglePassword()"
+            >
+              <i
+                class="pi"
+                [class.pi-eye]="!showPassword()"
+                [class.pi-eye-slash]="showPassword()"
+                aria-hidden="true"
+              ></i>
+            </button>
+          </div>
+          <p id="bootstrap-password-hint" class="field-hint">At least 12 characters.</p>
+        </div>
 
-      <label class="field">
-        <span>Confirm password</span>
-        <input
-          pInputText
-          type="password"
-          formControlName="confirmPassword"
-          autocomplete="new-password"
-        />
-      </label>
+        <div class="field">
+          <label for="bootstrap-confirm">Confirm password</label>
+          <div class="input-shell">
+            <i class="pi pi-lock input-icon" aria-hidden="true"></i>
+            <input
+              id="bootstrap-confirm"
+              [type]="showPassword() ? 'text' : 'password'"
+              formControlName="confirmPassword"
+              autocomplete="new-password"
+            />
+          </div>
+        </div>
 
-      @if (passwordMismatch()) {
-        <p-message severity="error" styleClass="state-message">
-          New password and confirmation must match.
-        </p-message>
-      }
+        <div class="error-area" role="alert" aria-live="assertive">
+          @if (passwordMismatch()) {
+            <p class="auth-error">
+              <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+              <span>New password and confirmation must match.</span>
+            </p>
+          }
+          @if (errorMessage(); as message) {
+            <p class="auth-error">
+              <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+              <span>{{ message }}</span>
+            </p>
+          }
+        </div>
 
-      @if (errorMessage()) {
-        <p-message severity="error" styleClass="state-message">{{ errorMessage() }}</p-message>
-      }
+        @if (handoffMessage(); as message) {
+          <p class="auth-success" role="status">
+            <i class="pi pi-check-circle" aria-hidden="true"></i>
+            <span>{{ message }}</span>
+          </p>
+        }
 
-      @if (handoffMessage()) {
-        <p-message severity="success" styleClass="state-message">{{ handoffMessage() }}</p-message>
-      }
-
-      <button pButton type="submit" [disabled]="submitting()">
-        {{ submitting() ? 'Creating admin and opening setup...' : 'Create admin account' }}
-      </button>
-    </form>
-  </section>
+        <button type="submit" class="primary-action" [disabled]="submitting()">
+          {{ submitting() ? 'Creating admin and opening setup…' : 'Create admin account' }}
+        </button>
+      </form>
+    </section>
+  </div>
 </main>
