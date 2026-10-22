@@ -28,6 +28,7 @@ import {
 } from '../providers/catalog/catalog-provider.util';
 import {
   SabnzbdAdapter,
+  SABNZBD_LIST_LIMIT,
   SabnzbdAdapterBaseConfig,
   SabnzbdHistoryEntry,
 } from '../providers/sabnzbd/sabnzbd.adapter';
@@ -70,6 +71,8 @@ const SAB_WORK_FOLDER = /^_(UNPACK|FAILED)_/i;
 /** Not in SABnzbd's queue or history this long after sending: it was removed there. */
 const FORGOTTEN_AFTER_MS = 3 * 24 * 3600_000;
 const RECENT_LIMIT = 20;
+/** Pages of SABnzbd history read when looking for jobs added by hand. */
+const MAX_HISTORY_PAGES = 10;
 
 /**
  * Finished downloads: "Find downloads" sends usenet releases to SABnzbd
@@ -479,7 +482,7 @@ export class DownloadHandoffService {
         `Bringing in downloads added to SABnzbd’s “${settings.category}” category by hand, finished since ${cutoff.toISOString()}.`,
       );
     }
-    const history = await this.sabnzbd.history(config, settings.category);
+    const history = await this.historySince(config, settings.category, cutoff);
     const completed = history.filter(
       (entry) => entry.status.toLowerCase() === 'completed',
     );
@@ -963,6 +966,35 @@ export class DownloadHandoffService {
   }
 
   /**
+   * SABnzbd's history for a category, newest first, read a page at a time
+   * until it reaches jobs finished before the cutoff, so a long gap between
+   * checks doesn't push eligible jobs past the first page.
+   */
+  private async historySince(
+    config: SabnzbdAdapterBaseConfig,
+    category: string,
+    cutoff: Date,
+  ): Promise<SabnzbdHistoryEntry[]> {
+    const entries: SabnzbdHistoryEntry[] = [];
+    for (let page = 0; page < MAX_HISTORY_PAGES; page += 1) {
+      const slots = await this.sabnzbd.history(
+        config,
+        category,
+        entries.length,
+      );
+      entries.push(...slots);
+      const oldest = slots.at(-1)?.completedAt;
+      if (
+        slots.length < SABNZBD_LIST_LIMIT ||
+        (oldest && oldest.getTime() < cutoff.getTime())
+      ) {
+        break;
+      }
+    }
+    return entries;
+  }
+
+  /**
    * A download added in SABnzbd by hand, now in Stash: there's no catalog
    * scene it was sent for, so it's identified the way new files and
    * drop-ins are (a fingerprint match is saved, a likely one waits in
@@ -976,9 +1008,13 @@ export class DownloadHandoffService {
   ): Promise<void> {
     const result = await this.identifyScene(sceneId);
     if (result.error) {
-      this.logger.warn(
-        `Couldn't identify “${row.releaseTitle}” (Stash scene ${sceneId}): ${result.error}`,
+      // Tried again on the next checks, like a failed link.
+      await this.retryLater(
+        row,
+        `Moved to ${finalPath}, but identifying it failed: ${result.error}`,
+        sceneId,
       );
+      return;
     }
     const placed = result.identified
       ? await this.placeInFolder(sceneId, finalPath)

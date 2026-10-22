@@ -52,7 +52,8 @@ export interface SabnzbdCategoryFolders {
 
 const UPLOAD_TIMEOUT_MS = 60_000;
 /** History and queue are read a page at a time; this is plenty for one category. */
-const LIST_LIMIT = 200;
+export const SABNZBD_LIST_LIMIT = 200;
+const LIST_LIMIT = SABNZBD_LIST_LIMIT;
 
 /**
  * Talks to SABnzbd's API: checks the connection and its categories, adds an
@@ -200,10 +201,12 @@ export class SabnzbdAdapter {
   async history(
     config: SabnzbdAdapterBaseConfig,
     category: string,
+    start = 0,
   ): Promise<SabnzbdHistoryEntry[]> {
     const payload = await this.call(config, 'history', {
       category,
       limit: String(LIST_LIMIT),
+      ...(start > 0 ? { start: String(start) } : {}),
     });
     const slots = (payload as { history?: { slots?: unknown } } | null)?.history
       ?.slots;

@@ -238,6 +238,9 @@ describe('SabnzbdAdapter', () => {
       },
     ]);
     expect(calledUrl().searchParams.get('category')).toBe('stashboard');
+    expect(calledUrl().searchParams.has('start')).toBe(false);
+    await adapter.history(config, 'stashboard', 200);
+    expect(calledUrl().searchParams.get('start')).toBe('200');
     await expect(adapter.queue(config, 'stashboard')).resolves.toEqual([
       {
         nzoId: 'SABnzbd_nzo_2',

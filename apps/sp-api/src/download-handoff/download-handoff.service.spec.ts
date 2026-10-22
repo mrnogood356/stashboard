@@ -971,6 +971,74 @@ describe('DownloadHandoffService', () => {
       expect(await exists(manualVideo())).toBe(true);
     });
 
+    it('tries identifying again later when it fails, instead of calling it done', async () => {
+      organizer.identifyNewScenes.mockRejectedValue(
+        new Error('StashDB is down'),
+      );
+      await write(manualVideo(), 5_000);
+      sabnzbd.history.mockResolvedValue([manualEntry()]);
+      await service.checkOpen();
+      expect(manualRows()[0]).toMatchObject({
+        status: 'completed',
+        attempts: 1,
+        stashSceneId: '77',
+      });
+      expect(manualRows()[0].error).toContain(
+        'identifying it failed: StashDB is down',
+      );
+
+      organizer.identifyNewScenes.mockResolvedValue({
+        linked: [],
+        matched: ['77'],
+        proposed: [],
+        left: [],
+      });
+      await service.checkOpen();
+      expect(manualRows()[0]).toMatchObject({
+        status: 'imported',
+        error: null,
+      });
+    });
+
+    it('reads further back in SABnzbd’s history until it passes the cutoff', async () => {
+      const recent = Array.from({ length: 200 }, (_, i) =>
+        historyEntry({
+          nzoId: `SABnzbd_nzo_sent_${i}`,
+          status: 'Failed',
+          completedAt: new Date(),
+        }),
+      );
+      sabnzbd.history
+        .mockResolvedValueOnce(recent)
+        .mockResolvedValueOnce([manualEntry()])
+        .mockResolvedValue([]);
+      await write(manualVideo(), 5_000);
+      await service.checkOpen();
+      expect(sabnzbd.history).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        'stashboard',
+        200,
+      );
+      expect(manualRows()).toHaveLength(1);
+    });
+
+    it('stops reading history once it reaches jobs older than the cutoff', async () => {
+      const old = Array.from({ length: 200 }, (_, i) =>
+        historyEntry({
+          nzoId: `SABnzbd_nzo_old_${i}`,
+          completedAt: new Date(Date.now() - 7 * 24 * 3600_000),
+        }),
+      );
+      sabnzbd.history.mockResolvedValue(old);
+      await service.checkOpen();
+      const manualCalls = sabnzbd.history.mock.calls.filter(
+        (call) => (call[2] ?? 0) > 0,
+      );
+      expect(manualCalls).toHaveLength(0);
+      expect(manualRows()).toHaveLength(0);
+    });
+
     it('leaves it unplaced when there’s only a likely match, saying so', async () => {
       organizer.identifyNewScenes.mockResolvedValue({
         linked: [],
