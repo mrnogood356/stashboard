@@ -162,10 +162,9 @@ function isValidDate(year: number, month: number, day: number): boolean {
 
 function tokenize(value: string): string[] {
   return (
-    value
+    dropBracketed(value)
       // Release group at the end: "...-GROUP"
       .replace(/-[A-Za-z0-9]{2,12}$/, ' ')
-      .replace(/\[[^\]]*\]|\{[^}]*\}/g, ' ')
       .replace(/([a-z])([A-Z])/g, '$1 $2')
       .toLowerCase()
       .split(/[^\p{L}\p{N}']+/u)
@@ -268,6 +267,35 @@ export function scoreByName(
     confidence: clamped >= 0.7 ? 'strong' : clamped >= 0.45 ? 'likely' : 'weak',
     reasons,
   };
+}
+
+/**
+ * The text with each [...] and {...} group replaced by a space; one pass, as
+ * `/\[[^\]]*\]/g` rescans the rest of the text from every unclosed "[".
+ * An opening bracket that's never closed is kept, as the regex did.
+ */
+export function dropBracketed(text: string): string {
+  // Once a closing bracket isn't found, none is further on either: each
+  // search runs at most to the end once.
+  const unclosed = { ']': false, '}': false };
+  let out = '';
+  let index = 0;
+  while (index < text.length) {
+    const char = text[index];
+    const close = char === '[' ? ']' : char === '{' ? '}' : null;
+    const end = close && !unclosed[close] ? text.indexOf(close, index + 1) : -1;
+    if (end === -1) {
+      if (close) {
+        unclosed[close] = true;
+      }
+      out += char;
+      index += 1;
+      continue;
+    }
+    out += ' ';
+    index = end + 1;
+  }
+  return out;
 }
 
 /** The word without ' at either end; a loop, as `/'+$/` backtracks on long runs. */
