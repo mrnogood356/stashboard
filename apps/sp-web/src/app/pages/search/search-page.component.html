@@ -91,19 +91,22 @@
       @if (result.library.length > 0) {
         <section class="block">
           <div class="block-head">
-            <h2>In your library</h2>
-            @if (result.libraryTotal > result.library.length) {
+            <h2 id="search-library-title">In your library</h2>
+            @if (result.libraryTotal > result.library.length || libraryRail.overflowing()) {
               <a
-                class="link-button"
+                class="link-button see-all"
+                data-testid="search-see-all-library"
+                aria-describedby="search-library-title"
                 [routerLink]="['/library']"
-                [queryParams]="{ query: query().trim() }"
+                [queryParams]="libraryParams()"
                 (click)="remember()"
               >
-                See all {{ result.libraryTotal }}
+                {{ seeAll(result.libraryTotal, result.library.length) }}
+                <i class="pi pi-chevron-right" aria-hidden="true"></i>
               </a>
             }
           </div>
-          <div class="rail">
+          <div class="rail" appOverflowX #libraryRail="overflowX">
             @for (item of result.library; track item.id) {
               <app-scene-card
                 class="rail-card"
@@ -122,8 +125,39 @@
 
       @if (result.local.performers.length > 0 || result.local.studios.length > 0) {
         <section class="block">
-          <h2>Performers and studios you have</h2>
-          <div class="people">
+          <div class="block-head">
+            <h2 id="search-local-people-title">Performers and studios you have</h2>
+            @if (peopleExpanded() || localPeople.overflowing()) {
+              <button
+                type="button"
+                class="link-button see-all"
+                data-testid="search-see-all-local-people"
+                aria-controls="search-local-people"
+                aria-describedby="search-local-people-title"
+                [attr.aria-expanded]="peopleExpanded()"
+                (click)="peopleExpanded.set(!peopleExpanded())"
+              >
+                @if (peopleExpanded()) {
+                  Show less
+                } @else {
+                  Show all {{ result.local.performers.length + result.local.studios.length }}
+                }
+                <i
+                  class="pi"
+                  [class.pi-chevron-down]="!peopleExpanded()"
+                  [class.pi-chevron-up]="peopleExpanded()"
+                  aria-hidden="true"
+                ></i>
+              </button>
+            }
+          </div>
+          <div
+            id="search-local-people"
+            class="people"
+            [class.expanded]="peopleExpanded()"
+            appOverflowX
+            #localPeople="overflowX"
+          >
             @for (performer of result.local.performers; track performer.id) {
               <a
                 class="person"
@@ -166,13 +200,30 @@
 
       @if (result.catalogScenes.length > 0 || result.catalogHidden > 0 || showHidden()) {
         <section class="block">
-          <h2>On the catalog</h2>
+          <div class="block-head">
+            <h2 id="search-catalog-title">On the catalog</h2>
+            @if (
+              result.catalogScenesTotal > result.catalogScenes.length || catalogRail.overflowing()
+            ) {
+              <a
+                class="link-button see-all"
+                data-testid="search-see-all-catalog"
+                aria-describedby="search-catalog-title"
+                [routerLink]="['/scenes']"
+                [queryParams]="catalogParams()"
+                (click)="remember()"
+              >
+                {{ seeAll(result.catalogScenesTotal, result.catalogScenes.length) }}
+                <i class="pi pi-chevron-right" aria-hidden="true"></i>
+              </a>
+            }
+          </div>
           <app-hidden-count
             [count]="result.catalogHidden"
             [showing]="showHidden()"
             (toggled)="onShowHiddenChanged($event)"
           />
-          <div class="rail">
+          <div class="rail" appOverflowX #catalogRail="overflowX">
             @for (item of result.catalogScenes; track item.id) {
               <app-scene-card
                 class="rail-card"
@@ -190,8 +241,50 @@
 
       @if (result.catalogPerformers.length > 0 || result.catalogStudios.length > 0) {
         <section class="block">
-          <h2>Catalog performers and studios</h2>
-          <div class="people">
+          <div class="block-head">
+            <h2>Catalog performers and studios</h2>
+            <div class="see-all-links">
+              @if (
+                result.catalogPerformers.length > 0 &&
+                (result.catalogPerformersTotal > result.catalogPerformers.length ||
+                  catalogPeople.overflowing())
+              ) {
+                <a
+                  class="link-button see-all"
+                  data-testid="search-see-all-performers"
+                  [routerLink]="['/performers']"
+                  [queryParams]="nameParams()"
+                  (click)="remember()"
+                >
+                  {{
+                    seeAll(
+                      result.catalogPerformersTotal,
+                      result.catalogPerformers.length,
+                      'performer'
+                    )
+                  }}
+                  <i class="pi pi-chevron-right" aria-hidden="true"></i>
+                </a>
+              }
+              @if (
+                result.catalogStudios.length > 0 &&
+                (result.catalogStudiosTotal > result.catalogStudios.length ||
+                  catalogPeople.overflowing())
+              ) {
+                <a
+                  class="link-button see-all"
+                  data-testid="search-see-all-studios"
+                  [routerLink]="['/studios']"
+                  [queryParams]="nameParams()"
+                  (click)="remember()"
+                >
+                  {{ seeAll(result.catalogStudiosTotal, result.catalogStudios.length, 'studio') }}
+                  <i class="pi pi-chevron-right" aria-hidden="true"></i>
+                </a>
+              }
+            </div>
+          </div>
+          <div class="people" appOverflowX #catalogPeople="overflowX">
             @for (performer of result.catalogPerformers; track performer.id) {
               <a
                 class="person"

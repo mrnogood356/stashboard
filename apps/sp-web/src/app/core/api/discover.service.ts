@@ -67,8 +67,14 @@ export class DiscoverService {
     tagNames?: string[],
     /** Also show scenes Settings → Hidden content leaves out. */
     showHidden?: boolean,
+    /** Text to find in scene titles and details (Search's "See all"). */
+    query?: string,
   ): Observable<ScenesFeedResponse> {
     let params = new HttpParams().set('page', page.toString()).set('perPage', perPage.toString());
+
+    if (query?.trim()) {
+      params = params.set('query', query.trim());
+    }
 
     if (sort) {
       params = params.set('sort', sort);

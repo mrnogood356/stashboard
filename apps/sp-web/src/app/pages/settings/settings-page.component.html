@@ -6,21 +6,7 @@
     </div>
   </header>
 
-  <nav class="settings-nav" aria-label="Settings sections">
-    @for (item of navItems; track item.route) {
-      <a
-        #link
-        (isActiveChange)="onActiveChange($event, link)"
-        class="settings-nav-link"
-        [routerLink]="item.route"
-        routerLinkActive="active"
-        [routerLinkActiveOptions]="{ exact: item.exact ?? true }"
-        [attr.data-testid]="'settings-nav-' + item.label.toLowerCase()"
-      >
-        {{ item.label }}
-      </a>
-    }
-  </nav>
+  <app-settings-section-picker class="settings-nav" [items]="navItems" />
 
   <router-outlet />
 </section>

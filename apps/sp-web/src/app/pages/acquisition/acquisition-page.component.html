@@ -39,7 +39,7 @@
   }
 
   <form
-    class="list-toolbar"
+    class="list-toolbar app-control-shell"
     role="search"
     aria-label="Find tracked scenes"
     (submit)="$event.preventDefault(); submitSearch()"
@@ -60,21 +60,22 @@
       />
     </label>
 
-    <label class="toolbar-field app-control-field">
-      <span class="app-control-label">Sort</span>
-      <select
-        class="app-control-input"
-        name="sort"
+    <div class="toolbar-field app-control-field">
+      <span id="acquisition-sort-label" class="app-control-label">Sort</span>
+      <p-select
+        inputId="acquisition-sort"
+        ariaLabelledBy="acquisition-sort-label"
         data-testid="acquisition-sort"
-        (change)="selectSort($any($event.target).value)"
-      >
-        @for (option of sortOptions; track option.value) {
-          <option [value]="option.value" [selected]="option.value === selectedSort()">
-            {{ option.label }}
-          </option>
-        }
-      </select>
-    </label>
+        [ngModel]="selectedSort()"
+        (ngModelChange)="selectSort($event)"
+        [ngModelOptions]="{ standalone: true }"
+        [options]="sortOptions"
+        optionLabel="label"
+        optionValue="value"
+        [appendTo]="'body'"
+        panelStyleClass="app-overlay-panel"
+      />
+    </div>
   </form>
 
   @if (loading()) {

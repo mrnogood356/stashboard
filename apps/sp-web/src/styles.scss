@@ -630,6 +630,67 @@ h3 {
   scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
+/*
+ * Native form controls follow the theme. The colour scheme is also set inline
+ * on <html> by theme-boot.js / theme-dom.ts; these rules cover the moment
+ * before that runs and any control a page leaves unstyled.
+ */
+:root {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+select,
+input,
+textarea,
+button {
+  color-scheme: inherit;
+}
+
+/*
+ * A native <select>'s option list is drawn by the browser. Options inherit the
+ * select's text colour, but where the select's own background is transparent
+ * (or a page sets one) the list falls back to the system's light Canvas, which
+ * left light text on white in dark themes. Give the list its own themed
+ * background and text so every theme reads, whatever the select looks like.
+ */
+select {
+  background-color: var(--app-control-bg);
+  color: var(--app-control-text);
+}
+
+select option,
+select optgroup {
+  background-color: var(--surface-elevated);
+  color: var(--text-primary);
+}
+
+select optgroup {
+  font-weight: 700;
+}
+
+select option:disabled {
+  color: var(--text-muted);
+}
+
+select option:checked {
+  background-color: color-mix(in srgb, var(--accent) 22%, var(--surface-elevated));
+  color: var(--text-primary);
+}
+
+select option:hover,
+select option:focus {
+  background-color: var(--surface-raised);
+  color: var(--text-primary);
+}
+
+select:disabled {
+  color: var(--text-muted);
+}
+
 .app-page-shell {
   --app-page-max-width: min(1240px, 96vw);
   --app-page-padding-start: 1.2rem;
@@ -804,12 +865,20 @@ h3 {
   color: var(--app-chip-text, var(--chip-text));
 }
 
-.app-control-shell {
+/*
+ * Control tokens live on :root so an .app-control-input (or a bare <select>)
+ * outside an .app-control-shell still gets a themed background and border
+ * instead of an invalid var() that falls back to transparent.
+ */
+:root {
   --app-control-height: 2.6rem;
   --app-control-radius: var(--radius-sm);
   --app-control-border: var(--border-subtle);
   --app-control-bg: var(--surface-2);
   --app-control-text: var(--text-primary);
+}
+
+.app-control-shell {
   display: grid;
   gap: 0.65rem;
 }

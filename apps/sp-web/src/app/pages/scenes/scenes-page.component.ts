@@ -206,6 +206,8 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly excludeTerms = signal<string[]>([]);
   /** Show scenes Settings → Hidden content leaves out ("showHidden=1" in the URL). */
   protected readonly showHidden = signal(false);
+  /** Text to find in titles and details ("q" in the URL), set by Search's "See all". */
+  protected readonly textQuery = signal('');
   /** How many scenes the loaded pages left out for Settings → Hidden content. */
   protected readonly hiddenCount = signal(0);
   protected readonly selectedTagMode = signal<SceneTagMatchMode>(
@@ -314,6 +316,17 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.resetFeedAndReload();
   }
 
+  /** Drops the text search Search's "See all" brought along. */
+  protected clearTextQuery(): void {
+    if (!this.textQuery()) {
+      return;
+    }
+
+    this.textQuery.set('');
+    this.syncUrlWithCurrentFilters(false);
+    this.resetFeedAndReload();
+  }
+
   protected isRequestable(item: SceneExplorerItem): boolean {
     return item.requestable && isSceneStatusRequestable(item.status);
   }
@@ -396,7 +409,8 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
       this.selectedTagMode() !== ScenesPageComponent.DEFAULT_TAG_MODE ||
       this.selectedTags().length > 0 ||
       this.selectedStudios().length > 0 ||
-      this.excludeTerms().length > 0
+      this.excludeTerms().length > 0 ||
+      this.textQuery().length > 0
     );
   }
 
@@ -423,6 +437,7 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.studioSearchError.set(null);
     this.excludeInput.set('');
     this.excludeTerms.set([]);
+    this.textQuery.set('');
     this.tagSearchTerms.next('');
     this.studioSearchTerms.next('');
     this.syncUrlWithCurrentFilters(false);
@@ -626,6 +641,7 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
         this.excludeTerms(),
         this.selectedTags().map((tag) => tag.name),
         this.showHidden(),
+        this.textQuery(),
       )
       .pipe(
         finalize(() => {
@@ -773,6 +789,7 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
     studioNamesById: Map<string, string>;
     excludeTerms: string[];
     showHidden: boolean;
+    query: string;
   } {
     const sortParam = queryParamMap.get('sort');
     const sort: SceneFeedSort =
@@ -844,6 +861,7 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
       studioNamesById,
       excludeTerms: this.parseExcludeTerms(queryParamMap.get('exclude') ?? ''),
       showHidden: queryParamMap.get('showHidden') === '1',
+      query: (queryParamMap.get('q') ?? '').trim(),
     };
   }
 
@@ -858,6 +876,7 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
     studioNamesById: Map<string, string>;
     excludeTerms: string[];
     showHidden: boolean;
+    query: string;
   }): boolean {
     const currentSelectedIds = this.selectedTagIds();
     const currentSelectedStudioIds = this.selectedStudioIds();
@@ -872,7 +891,8 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
       tagsChanged ||
       studiosChanged ||
       excludeChanged ||
-      this.showHidden() !== state.showHidden;
+      this.showHidden() !== state.showHidden ||
+      this.textQuery() !== state.query;
 
     if (!changed) {
       return false;
@@ -883,6 +903,7 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.selectedFavorites.set(state.favorites);
     this.selectedTagMode.set(state.mode);
     this.showHidden.set(state.showHidden);
+    this.textQuery.set(state.query);
     this.selectedTagIdsModel.set(state.tagIds);
 
     if (tagsChanged) {
@@ -960,6 +981,7 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
           : null,
       exclude: this.excludeTerms().length > 0 ? this.excludeTerms().join(',') : null,
       showHidden: this.showHidden() ? '1' : null,
+      q: this.textQuery() || null,
     };
 
     const current = this.route.snapshot.queryParamMap;
@@ -978,6 +1000,7 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const currentStudioNames = current.get('studioNames');
     const currentExclude = current.get('exclude');
     const currentShowHidden = current.get('showHidden');
+    const currentQuery = current.get('q');
     if (
       (currentSort ?? null) === next.sort &&
       (currentDir ?? null) === next.dir &&
@@ -993,7 +1016,8 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
       (currentStudios ?? null) === next.studios &&
       (currentStudioNames ?? null) === next.studioNames &&
       (currentExclude ?? null) === next.exclude &&
-      (currentShowHidden ?? null) === next.showHidden
+      (currentShowHidden ?? null) === next.showHidden &&
+      (currentQuery ?? null) === next.q
     ) {
       return;
     }
