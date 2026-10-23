@@ -1128,6 +1128,12 @@ export class DownloadHandoffService {
     }
     const job = await this.stash.scanLibraryFolders(config, [folder]);
     this.logger.log(`Asked Stash to scan ${folder}.`);
+    // The same scan another file is already waiting on (Stash hands back a
+    // queued one): it's still waiting its turn, so no need to wait again.
+    if (job && [...this.scans.values()].includes(job)) {
+      this.scans.set(file, job);
+      throw new StashBusyError(folder);
+    }
     if (job) {
       const result = await this.stash.waitForJob(config, job, {
         sleep: this.sleep,
@@ -1207,7 +1213,6 @@ export class DownloadHandoffService {
       );
   }
 
-  /** Waits for the next check; after a few misses, gives up with the reason. */
   /** Stash hasn't scanned it yet: noted on the download, not counted as a try. */
   private async waitForStash(
     row: DownloadHandoff,
@@ -1220,6 +1225,7 @@ export class DownloadHandoffService {
     });
   }
 
+  /** Waits for the next check; after a few misses, gives up with the reason. */
   private async retryLater(
     row: DownloadHandoff,
     reason: string,

@@ -382,6 +382,25 @@ describe('DownloadHandoffService', () => {
       expect(stash.scanLibraryFolders).toHaveBeenCalledTimes(1);
     });
 
+    it('doesn’t wait again for a scan another download in the folder is waiting on', async () => {
+      const second = path.join(destination, 'Other.mkv');
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      stash.waitForJob.mockResolvedValue('TIMEOUT');
+      stash.getJobQueue = jest
+        .fn()
+        .mockResolvedValue([{ id: 'job-1', status: 'READY' }]);
+      const config = { baseUrl: 'http://stash', apiKey: 'k' };
+
+      await expect(
+        service.findInStash(config, path.join(destination, 'First.mkv')),
+      ).rejects.toThrow('busy with other jobs');
+      // Stash hands the same queued scan back for the second file.
+      await expect(service.findInStash(config, second)).rejects.toThrow(
+        'busy with other jobs',
+      );
+      expect(stash.waitForJob).toHaveBeenCalledTimes(1);
+    });
+
     it('scans the folder, finds the scene by path and links the stored scene', async () => {
       rows.push(handoff({ id: 'h1' }));
       await write(video());
