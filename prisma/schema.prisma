@@ -359,6 +359,8 @@ model OrganizerSettings {
   moveUnmatched      Boolean   @default(true)
   /// Remove folders left empty after files are moved (needs the media folder mounted into Stashboard).
   cleanEmptyFolders  Boolean   @default(true)
+  /// Folders the clean-up never removes, with everything inside them.
+  keepFolders        String[]  @default([])
   /// Leave files Whisparr manages alone (Whisparr renames those itself).
   skipWhisparrFiles  Boolean   @default(true)
   /// Try to match the whole backlog once a night.

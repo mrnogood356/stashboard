@@ -24,8 +24,10 @@ import { StashdbAdapter } from '../providers/stashdb/stashdb.adapter';
 import {
   canSee,
   foldersLeftBehind,
+  insideAny,
   removeEmptyFolders,
 } from './folder-cleanup.util';
+import { HANDOFF_SETTINGS_KEY } from '../download-handoff/download-handoff.model';
 import {
   HandoffResult,
   WhisparrHandoffService,
@@ -180,6 +182,9 @@ export abstract class OrganizerCore {
         ...(update.cleanEmptyFolders !== undefined
           ? { cleanEmptyFolders: update.cleanEmptyFolders }
           : {}),
+        ...(update.keepFolders !== undefined
+          ? { keepFolders: checkKeepFolders(update.keepFolders) }
+          : {}),
         ...(update.skipWhisparrFiles !== undefined
           ? { skipWhisparrFiles: update.skipWhisparrFiles }
           : {}),
@@ -257,7 +262,28 @@ export abstract class OrganizerCore {
         );
       }),
     ]);
-    return [...roots, ...whisparrRoots];
+    // Finished downloads puts files there before they're moved on: an
+    // empty destination is waiting for the next one, not left behind.
+    const destination = await this.downloadDestination();
+    return [
+      ...roots,
+      ...whisparrRoots,
+      ...(destination ? [destination] : []),
+      ...(settings.keepFolders ?? []),
+    ];
+  }
+
+  /** Finished downloads' destination folder, when it's set. */
+  protected async downloadDestination(): Promise<string | null> {
+    try {
+      const row = await this.prisma.downloadHandoffSettings.findUnique({
+        where: { key: HANDOFF_SETTINGS_KEY },
+        select: { destination: true },
+      });
+      return row?.destination?.trim() || null;
+    } catch {
+      return null;
+    }
   }
 
   /** After moves: remove the folders those files left empty (only if truly empty). */
@@ -283,7 +309,11 @@ export abstract class OrganizerCore {
           continue;
         }
         foldersLeftBehind(from, root)
-          .filter((folder) => !keep.has(trimTrailingSeparators(folder)))
+          .filter(
+            (folder) =>
+              !keep.has(trimTrailingSeparators(folder)) &&
+              !insideAny(folder, settings.keepFolders ?? []),
+          )
           .forEach((folder) => candidates.add(folder));
       }
       // Deepest first; each is removed only if nothing real is left in it.
@@ -646,6 +676,7 @@ export abstract class OrganizerCore {
       renameAfterMatch: settings.renameAfterMatch,
       moveUnmatched: settings.moveUnmatched,
       cleanEmptyFolders: settings.cleanEmptyFolders,
+      keepFolders: settings.keepFolders ?? [],
       folderAccess,
       skipWhisparrFiles: settings.skipWhisparrFiles,
       autoMatchNightly: settings.autoMatchNightly,
@@ -722,4 +753,30 @@ function activityKind(kind: string): ActivityKind {
   return (ACTIVITY_KINDS as readonly string[]).includes(kind)
     ? (kind as ActivityKind)
     : 'whisparr';
+}
+
+/**
+ * The folders to keep as saved: full paths, without a trailing slash, no
+ * "." or ".." parts, each once.
+ */
+export function checkKeepFolders(values: string[]): string[] {
+  const folders: string[] = [];
+  for (const value of values) {
+    const folder = trimTrailingSeparators(value.trim());
+    if (!folder) {
+      continue;
+    }
+    if (
+      !/^([\\/]|[a-z]:[\\/])/i.test(folder) ||
+      folder.split(/[\\/]/).some((part) => part === '..' || part === '.')
+    ) {
+      throw new BadRequestException(
+        `“${folder}” isn’t a full folder path. Use the path as Stash sees it, like /data/stash content/fansdb.`,
+      );
+    }
+    if (!folders.includes(folder)) {
+      folders.push(folder);
+    }
+  }
+  return folders;
 }

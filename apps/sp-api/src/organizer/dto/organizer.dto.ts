@@ -97,6 +97,14 @@ export class UpdateOrganizerSettingsDto {
   @IsBoolean()
   cleanEmptyFolders?: boolean;
 
+  /** Folders the clean-up never removes (full paths as Stash sees them). */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @MaxLength(1000, { each: true })
+  keepFolders?: string[];
+
   @IsOptional()
   @IsBoolean()
   skipWhisparrFiles?: boolean;

@@ -30,6 +30,7 @@ import {
   staticPrefix,
   withoutRepeatedPrefix,
 } from './organizer.service';
+import { checkKeepFolders } from './organizer-core';
 import type { WhisparrHandoffService } from './whisparr-handoff.service';
 
 /** Background runs finish on their own; wait for that rather than a fixed time. */
@@ -1780,6 +1781,65 @@ describe('OrganizerService', () => {
     expect(existsSync(path.join(lib, 'scenes', 'scenes'))).toBe(false);
     expect(existsSync(target)).toBe(true);
     expect(existsSync(path.join(lib, 'whisparr-root'))).toBe(true);
+  });
+
+  it('never removes the Finished downloads destination or a folder kept in settings', async () => {
+    const lib = mkdtempSync(path.join(tmpdir(), 'lib-'));
+    const destination = path.join(lib, 'fansdb');
+    const kept = path.join(lib, 'Keep me');
+    mkdirSync(destination);
+    mkdirSync(path.join(kept, 'Empty inside'), { recursive: true });
+    writeFileSync(path.join(destination, 'a.mp4'), 'x');
+    settings.cleanEmptyFolders = true;
+    settings.renamePattern = '{studio}/{title}';
+    settings.keepFolders = [kept];
+    prisma.downloadHandoffSettings = {
+      findUnique: jest.fn().mockResolvedValue({ destination }),
+    };
+    stash.getLibraryRoots.mockResolvedValue([lib]);
+    handoff.rootFoldersAsStashSees.mockResolvedValue([]);
+    const scene = localScene({
+      title: 'T',
+      studio: { id: 's', name: 'S' },
+      stashIds: [{ endpoint: 'e', stashId: 'x' }],
+      files: [
+        { ...localScene().files[0], path: path.join(destination, 'a.mp4') },
+      ],
+    });
+    const target = path.join(lib, 'S', 'T.mp4');
+    stash.getOrganizerScene.mockResolvedValueOnce(scene).mockResolvedValue({
+      ...scene,
+      files: [{ ...scene.files[0], path: target }],
+    });
+    stash.moveFile.mockImplementation(async () => {
+      mkdirSync(path.dirname(target), { recursive: true });
+      renameSync(path.join(destination, 'a.mp4'), target);
+    });
+
+    await service.renameScenes(['7'], 'b');
+    // Moved on, and the now-empty destination is still there for the next one.
+    expect(existsSync(target)).toBe(true);
+    expect(existsSync(destination)).toBe(true);
+
+    // "Clean up" leaves the kept folder, and what's inside it, alone too.
+    const found = await service.emptyFolders();
+    expect(found.folders).not.toContain(destination);
+    expect(found.folders.some((folder) => folder.startsWith(kept))).toBe(false);
+    await service.cleanEmptyFolders();
+    expect(existsSync(path.join(kept, 'Empty inside'))).toBe(true);
+    expect(existsSync(destination)).toBe(true);
+  });
+
+  it('saves folders to keep as full paths, once each, and refuses anything else', () => {
+    expect(
+      checkKeepFolders(['/data/fansdb/', '/data/fansdb', '  ', 'D:\\Media']),
+    ).toEqual(['/data/fansdb', 'D:\\Media']);
+    expect(() => checkKeepFolders(['fansdb'])).toThrow(
+      'isn’t a full folder path',
+    );
+    expect(() => checkKeepFolders(['/data/../etc'])).toThrow(
+      'isn’t a full folder path',
+    );
   });
 
   it('removes no folders when it can’t ask Whisparr for its root folders', async () => {

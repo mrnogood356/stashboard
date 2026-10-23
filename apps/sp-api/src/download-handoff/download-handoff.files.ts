@@ -75,6 +75,25 @@ export async function findMainVideo(target: string): Promise<string | null> {
 }
 
 /**
+ * Makes the folder again when it's missing but the folder it sits in is
+ * there; a missing parent means a wrong path or mount, so that's left to
+ * fail with its own message.
+ */
+async function recreateFolder(folder: string): Promise<void> {
+  if (await exists(folder)) {
+    return;
+  }
+  const parent = path.dirname(folder);
+  if (
+    parent === folder ||
+    !(await fs.stat(parent).catch(() => null))?.isDirectory()
+  ) {
+    return;
+  }
+  await fs.mkdir(folder).catch(() => undefined);
+}
+
+/**
  * Moves (or copies) one finished video into the destination folder, under
  * its own name. Before anything moves:
  *
@@ -120,6 +139,9 @@ export async function placeVideo(options: {
     }
   }
 
+  // Gone (an empty-folder clean-up, say) while its parent is still there:
+  // put it back rather than stop every download.
+  await recreateFolder(options.destination);
   const destination = await realPath(
     options.destination,
     `Stashboard can’t see the destination folder ${options.destination}.`,

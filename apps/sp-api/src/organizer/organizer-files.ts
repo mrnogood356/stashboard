@@ -304,9 +304,13 @@ export abstract class OrganizerFiles extends OrganizerCore {
     const keep = await this.protectedFolders(config, settings);
     const found = new Set<string>();
     for (const root of roots) {
-      (await findEmptyFolders(trimTrailingSeparators(root), keep)).forEach(
-        (folder) => found.add(folder),
-      );
+      (
+        await findEmptyFolders(
+          trimTrailingSeparators(root),
+          keep,
+          settings.keepFolders ?? [],
+        )
+      ).forEach((folder) => found.add(folder));
     }
     const checked = await this.withoutGalleries(config, [...found]);
     const folders = checked.folders.sort();
@@ -337,7 +341,13 @@ export abstract class OrganizerFiles extends OrganizerCore {
     const keep = await this.protectedFolders(config, settings);
     const all: string[] = [];
     for (const root of roots) {
-      all.push(...(await findEmptyFolders(trimTrailingSeparators(root), keep)));
+      all.push(
+        ...(await findEmptyFolders(
+          trimTrailingSeparators(root),
+          keep,
+          settings.keepFolders ?? [],
+        )),
+      );
     }
     const checked = await this.withoutGalleries(config, [...new Set(all)]);
     if (checked.error) {

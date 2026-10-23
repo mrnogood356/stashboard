@@ -5,6 +5,7 @@ import {
   classifyFile,
   findEmptyFolders,
   foldersLeftBehind,
+  insideAny,
   removeEmptyFolders,
 } from './folder-cleanup.util';
 
@@ -129,5 +130,26 @@ describe('empty folder cleanup', () => {
       found.map((folder) => path.join(root, folder)),
     );
     expect(removed).toHaveLength(2);
+  });
+
+  it('leaves a kept folder, and everything inside it, out of the clean-up', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'lib-'));
+    const make = (rel: string) => {
+      mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+      writeFileSync(path.join(root, rel), 'x');
+    };
+    make('Keep/Empty/info.txt');
+    make('Other/info.txt');
+    const found = (await findEmptyFolders(root, [], [path.join(root, 'Keep')]))
+      .map((folder) => path.relative(root, folder))
+      .sort();
+    expect(found).toEqual(['Other']);
+  });
+
+  it('tells a folder inside a kept one from one that only starts the same', () => {
+    expect(insideAny('/data/Keep/a', ['/data/Keep/'])).toBe(true);
+    expect(insideAny('/data/Keep', ['/data/Keep'])).toBe(true);
+    expect(insideAny('/data/Keeper', ['/data/Keep'])).toBe(false);
+    expect(insideAny('/data/a', [''])).toBe(false);
   });
 });

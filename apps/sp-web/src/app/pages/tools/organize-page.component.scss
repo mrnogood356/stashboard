@@ -1132,3 +1132,68 @@
 .scene.picked .pick-overlay {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
+
+/* Empty folders: a folder per row with its Keep / remove button. */
+.folder-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.folder-row code {
+  min-width: 0;
+}
+
+.keep-btn {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 0.7rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.keep-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.keep-folders {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.keep-add {
+  display: flex;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.keep-add input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

@@ -707,6 +707,48 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** The folder typed into "Never remove". */
+  protected readonly keepInput = signal('');
+
+  /** Adds a folder to "Never remove": typed in, or from the empty-folder list. */
+  protected keepFolder(folder = this.keepInput()): void {
+    const settings = this.settings();
+    const wanted = folder.trim();
+    if (!settings || !wanted || this.saving()) {
+      return;
+    }
+    if (!settings.keepFolders.includes(wanted)) {
+      this.saveKeepFolders([...settings.keepFolders, wanted], () => this.keepInput.set(''));
+    }
+  }
+
+  protected unkeepFolder(folder: string): void {
+    const settings = this.settings();
+    if (!settings || this.saving()) {
+      return;
+    }
+    this.saveKeepFolders(settings.keepFolders.filter((kept) => kept !== folder));
+  }
+
+  private saveKeepFolders(keepFolders: string[], saved?: () => void): void {
+    this.saving.set('keepFolders');
+    this.api.update({ keepFolders }).subscribe({
+      next: (result) => {
+        this.saving.set(null);
+        this.settings.set(result);
+        saved?.();
+        this.loadEmptyFolders();
+      },
+      error: (error: { error?: { message?: string } }) => {
+        this.saving.set(null);
+        this.notifications.error(
+          'Couldn’t save',
+          error?.error?.message ?? 'Try again in a moment.',
+        );
+      },
+    });
+  }
+
   /** Rescan, remove extra copies and link waiting scenes, in the background. */
   protected syncWithWhisparr(): void {
     this.startRun(this.api.syncWithWhisparr());
