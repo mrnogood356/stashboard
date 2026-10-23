@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.2](https://github.com/mrnogood356/stashboard/compare/v1.0.1...v1.0.2) (2026-10-23)
+
+
+### Bug Fixes
+
+* **downloads:** don't wait again for a scan another file is waiting on ([4a95f31](https://github.com/mrnogood356/stashboard/commit/4a95f31b292684ba7b50cefd8f65b5dfb0778f9e))
+* **organizer:** never clean up the downloads destination; add folders to keep ([c4544e4](https://github.com/mrnogood356/stashboard/commit/c4544e4dee71114af33c16925ac1b1427007ee25))
+* **organizer:** never clean up the downloads destination; add folders to keep ([0c9e7a9](https://github.com/mrnogood356/stashboard/commit/0c9e7a93b37cc3c25160418baf216236a2637b69))
+* **stash:** stop queuing the same Stash job again while it waits ([e5402e1](https://github.com/mrnogood356/stashboard/commit/e5402e1965ec8ec71d948dea5bbb0bd884a08b9e))
+* **stash:** stop queuing the same Stash job again while it waits ([f1a9ce0](https://github.com/mrnogood356/stashboard/commit/f1a9ce0f730a7217d62644e8d85ab5ffc68c6a6e))
+
 ## [1.0.1](https://github.com/mrnogood356/stashboard/compare/v1.0.0...v1.0.1) (2026-10-22)
 
 
