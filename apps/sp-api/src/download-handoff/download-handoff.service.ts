@@ -63,8 +63,20 @@ import { trimTrailingSeparators } from '../path-separators';
 const WATCH_INTERVAL_MS = 2 * 60_000;
 /** Open downloads looked at per check, oldest first. */
 const MAX_OPEN = 50;
-/** How long Stash gets to scan the destination folder. */
-const SCAN_TIMEOUT_MS = 30 * 60_000;
+/**
+ * How long one check waits for Stash's scan. Longer than that (Stash busy
+ * with other jobs, say), the scan is remembered and looked at next check.
+ */
+const SCAN_WAIT_MS = 2 * 60_000;
+
+/** Stash hasn't got to the scan yet: not a failed attempt, just not yet. */
+export class StashBusyError extends Error {
+  constructor(folder: string) {
+    super(
+      `Waiting for Stash to scan ${folder}; it’s busy with other jobs. Checked again shortly.`,
+    );
+  }
+}
 /** Checks in a row Stash may miss the moved file (or linking may fail) before giving up. */
 const MAX_LINK_ATTEMPTS = 5;
 /** SABnzbd's folders for a download it's still unpacking, or that failed. */
@@ -98,6 +110,8 @@ export class DownloadHandoffService {
   private watching = false;
   /** The last problem picking up SABnzbd's own downloads, said once. */
   private manualProblem: string | null = null;
+  /** The Stash scan queued for each moved file, until it has run. */
+  private readonly scans = new Map<string, string>();
   /** Used by tests to avoid real waiting. */
   sleep: (ms: number) => Promise<void> = (ms) =>
     new Promise((resolve) => setTimeout(resolve, ms));
@@ -898,6 +912,10 @@ export class DownloadHandoffService {
     try {
       sceneId = await this.findInStash(config, finalPath);
     } catch (error) {
+      if (error instanceof StashBusyError) {
+        await this.waitForStash(row, error.message);
+        return;
+      }
       await this.retryLater(
         row,
         `Moved to ${finalPath}, but Stash couldn’t scan it: ${messageOf(error)}`,
@@ -1082,24 +1100,51 @@ export class DownloadHandoffService {
   }
 
   /**
-   * Has Stash scan the folder a file went to and finds its scene by the
-   * exact path; undefined when Stash hasn't picked it up. Throws when Stash
+   * Finds a moved file's scene in Stash, having Stash scan its folder when
+   * it doesn't know the file yet. The scan is queued once per file: while it
+   * waits behind Stash's other jobs, StashBusyError says so and the next
+   * check looks again rather than queuing another. Throws when Stash
    * couldn't scan.
    */
   async findInStash(
     config: StashAdapterBaseConfig,
     file: string,
   ): Promise<string | undefined> {
-    const job = await this.stash.scanLibraryFolders(config, [
-      path.dirname(file),
-    ]);
-    this.logger.log(`Started a Stash scan of ${path.dirname(file)}.`);
-    if (job) {
-      await this.stash.waitForJob(config, job, {
-        sleep: this.sleep,
-        timeoutMs: SCAN_TIMEOUT_MS,
-      });
+    const known = await this.sceneFor(config, file);
+    if (known) {
+      this.scans.delete(file);
+      return known;
     }
+    const folder = path.dirname(file);
+    const earlier = this.scans.get(file);
+    if (earlier) {
+      const queue = await this.stash.getJobQueue(config);
+      const job = queue.find((entry) => entry.id === earlier);
+      if (job && !['FINISHED', 'FAILED', 'CANCELLED'].includes(job.status)) {
+        throw new StashBusyError(folder);
+      }
+      // That scan has run without finding it: scan again.
+      this.scans.delete(file);
+    }
+    const job = await this.stash.scanLibraryFolders(config, [folder]);
+    this.logger.log(`Asked Stash to scan ${folder}.`);
+    if (job) {
+      const result = await this.stash.waitForJob(config, job, {
+        sleep: this.sleep,
+        timeoutMs: SCAN_WAIT_MS,
+      });
+      if (result === 'TIMEOUT') {
+        this.scans.set(file, job);
+        throw new StashBusyError(folder);
+      }
+    }
+    return this.sceneFor(config, file);
+  }
+
+  private async sceneFor(
+    config: StashAdapterBaseConfig,
+    file: string,
+  ): Promise<string | undefined> {
     const [sceneId] = await this.stash.sceneIdsForPaths(config, [file]);
     this.logger.debug(
       sceneId
@@ -1163,6 +1208,18 @@ export class DownloadHandoffService {
   }
 
   /** Waits for the next check; after a few misses, gives up with the reason. */
+  /** Stash hasn't scanned it yet: noted on the download, not counted as a try. */
+  private async waitForStash(
+    row: DownloadHandoff,
+    reason: string,
+  ): Promise<void> {
+    this.logger.debug(`“${row.releaseTitle}”: ${reason}`);
+    await this.prisma.downloadHandoff.update({
+      where: { id: row.id },
+      data: { error: reason },
+    });
+  }
+
   private async retryLater(
     row: DownloadHandoff,
     reason: string,

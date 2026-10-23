@@ -413,6 +413,74 @@ describe('StashAdapter', () => {
     });
   });
 
+  describe('queuing a job Stashboard already queued', () => {
+    const config = { baseUrl: 'http://stash.local' };
+    let nextJob: number;
+    let queue: Array<{ id: string; status: string }>;
+    const mutations = () =>
+      fetchMock.mock.calls.filter(([, init]) =>
+        String(init?.body).includes('mutation'),
+      ).length;
+
+    beforeEach(() => {
+      nextJob = 50;
+      queue = [];
+      fetchMock.mockImplementation((_url, init) => {
+        const body = String(init?.body);
+        if (body.includes('jobQueue')) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ data: { jobQueue: queue } })),
+          );
+        }
+        const id = String((nextJob += 1));
+        const field = body.includes('metadataGenerate')
+          ? 'metadataGenerate'
+          : 'metadataScan';
+        return Promise.resolve(
+          new Response(JSON.stringify({ data: { [field]: id } })),
+        );
+      });
+    });
+
+    it('gets the waiting scan of the same folder back instead of another', async () => {
+      const first = await adapter.scanLibraryFolders(config, ['/data/a']);
+      queue = [{ id: first!, status: 'READY' }];
+      await expect(
+        adapter.scanLibraryFolders(config, ['/data/a/']),
+      ).resolves.toBe(first);
+      expect(mutations()).toBe(1);
+    });
+
+    it('queues another once the first has started, as it may have passed the folder', async () => {
+      const first = await adapter.scanLibraryFolders(config, ['/data/a']);
+      queue = [{ id: first!, status: 'RUNNING' }];
+      const second = await adapter.scanLibraryFolders(config, ['/data/a']);
+      expect(second).not.toBe(first);
+      expect(mutations()).toBe(2);
+    });
+
+    it('lets a waiting full scan cover a folder scan', async () => {
+      const full = await adapter.startLibraryTask(config, 'scan');
+      queue = [{ id: full!, status: 'READY' }];
+      await expect(
+        adapter.scanLibraryFolders(config, ['/data/b']),
+      ).resolves.toBe(full);
+      expect(mutations()).toBe(1);
+    });
+
+    it('keeps different scenes’ previews apart', async () => {
+      const one = await adapter.startLibraryTask(config, 'generate', ['1']);
+      queue = [{ id: one!, status: 'READY' }];
+      await expect(
+        adapter.startLibraryTask(config, 'generate', ['1']),
+      ).resolves.toBe(one);
+      await expect(
+        adapter.startLibraryTask(config, 'generate', ['2']),
+      ).resolves.not.toBe(one);
+      expect(mutations()).toBe(2);
+    });
+  });
+
   it('throws BadGatewayException when provider request fails', async () => {
     fetchMock.mockRejectedValue(new Error('network failure'));
 
