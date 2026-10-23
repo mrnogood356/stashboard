@@ -238,6 +238,8 @@ describe('DownloadDropInService', () => {
       to: inFolder,
       reason: null,
     });
+    // Not in Stash until it has scanned the folder.
+    stash.sceneIdsForPaths.mockResolvedValueOnce([]);
 
     await service.check(later());
     // Seen once: it may still be being written.

@@ -356,6 +356,51 @@ describe('DownloadHandoffService', () => {
       });
     });
 
+    it('waits for a busy Stash without queuing more scans or using up tries', async () => {
+      rows.push(handoff({ id: 'h1' }));
+      await write(video());
+      sabnzbd.history.mockResolvedValue([historyEntry()]);
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      stash.waitForJob.mockResolvedValue('TIMEOUT');
+      stash.getJobQueue = jest
+        .fn()
+        .mockResolvedValue([{ id: 'job-1', status: 'READY' }]);
+
+      await service.checkOpen();
+      await service.checkOpen();
+      await service.checkOpen();
+
+      expect(stash.scanLibraryFolders).toHaveBeenCalledTimes(1);
+      expect(row()).toMatchObject({ status: 'completed', attempts: 0 });
+      expect(row().error).toContain('busy with other jobs');
+
+      // Stash gets to it: the scene turns up and it's linked.
+      stash.getJobQueue.mockResolvedValue([]);
+      stash.sceneIdsForPaths.mockResolvedValue(['77']);
+      await service.checkOpen();
+      expect(row()).toMatchObject({ status: 'imported', error: null });
+      expect(stash.scanLibraryFolders).toHaveBeenCalledTimes(1);
+    });
+
+    it('doesn’t wait again for a scan another download in the folder is waiting on', async () => {
+      const second = path.join(destination, 'Other.mkv');
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      stash.waitForJob.mockResolvedValue('TIMEOUT');
+      stash.getJobQueue = jest
+        .fn()
+        .mockResolvedValue([{ id: 'job-1', status: 'READY' }]);
+      const config = { baseUrl: 'http://stash', apiKey: 'k' };
+
+      await expect(
+        service.findInStash(config, path.join(destination, 'First.mkv')),
+      ).rejects.toThrow('busy with other jobs');
+      // Stash hands the same queued scan back for the second file.
+      await expect(service.findInStash(config, second)).rejects.toThrow(
+        'busy with other jobs',
+      );
+      expect(stash.waitForJob).toHaveBeenCalledTimes(1);
+    });
+
     it('scans the folder, finds the scene by path and links the stored scene', async () => {
       rows.push(handoff({ id: 'h1' }));
       await write(video());
@@ -370,6 +415,8 @@ describe('DownloadHandoffService', () => {
         to: inFolder,
         reason: null,
       });
+      // Not in Stash until it has scanned the folder.
+      stash.sceneIdsForPaths.mockResolvedValueOnce([]);
 
       await service.checkOpen();
 

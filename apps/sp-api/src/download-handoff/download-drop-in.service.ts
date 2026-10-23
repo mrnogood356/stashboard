@@ -34,6 +34,7 @@ import {
   insideLibrary,
   placedLines,
   type SabFolders,
+  StashBusyError,
 } from './download-handoff.service';
 import {
   DEFAULT_HANDOFF_CATEGORY,
@@ -842,6 +843,13 @@ export class DownloadDropInService {
     try {
       sceneId = await this.handoff.findInStash(config, finalPath);
     } catch (error) {
+      if (error instanceof StashBusyError) {
+        await this.prisma.downloadDropIn.update({
+          where: { id: row.id },
+          data: { error: error.message },
+        });
+        return;
+      }
       await this.retryLater(
         row,
         `Moved to ${finalPath}, but Stash couldn’t scan it: ${messageOf(error)}`,

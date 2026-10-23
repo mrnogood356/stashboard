@@ -18,6 +18,51 @@ import { trimTrailingSeparators } from '../../path-separators';
  * saving matches.
  */
 export abstract class StashLibraryToolsApi extends StashGraphqlClient {
+  /**
+   * Jobs Stashboard queued, by what they do. Stash runs one job at a time, so
+   * while one still waits its turn, asking again for the same scan or the
+   * same scenes' previews gets that job back instead of a copy behind it.
+   */
+  private readonly queuedJobs = new Map<string, Promise<string | null>>();
+
+  protected async queueOnce(
+    config: StashAdapterBaseConfig,
+    key: string,
+    start: () => Promise<string | null>,
+    alsoReuse: string[] = [],
+  ): Promise<string | null> {
+    const fullKey = `${config.baseUrl}|${key}`;
+    const candidates = [
+      fullKey,
+      ...alsoReuse.map((k) => `${config.baseUrl}|${k}`),
+    ];
+    const earlier = candidates
+      .map((candidate) => this.queuedJobs.get(candidate))
+      .filter((job): job is Promise<string | null> => !!job);
+    if (earlier.length > 0) {
+      const ids = (
+        await Promise.all(earlier.map((job) => job.catch(() => null)))
+      ).filter((id): id is string => !!id);
+      if (ids.length > 0) {
+        const queue = await this.getJobQueue(config).catch(() => []);
+        const waiting = ids.find((id) =>
+          queue.some((job) => job.id === id && job.status === 'READY'),
+        );
+        if (waiting) {
+          return waiting;
+        }
+      }
+    }
+    const started = start();
+    this.queuedJobs.set(fullKey, started);
+    started.catch(() => {
+      if (this.queuedJobs.get(fullKey) === started) {
+        this.queuedJobs.delete(fullKey);
+      }
+    });
+    return started;
+  }
+
   async getJobQueue(config: StashAdapterBaseConfig): Promise<StashJob[]> {
     const payload = (await this.executeQuery(
       config,
@@ -151,16 +196,24 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
     if (paths.length === 0) {
       return null;
     }
-    const payload = (await this.executeQuery(
+    // A waiting scan of the same folders, or of everything, covers this one.
+    return this.queueOnce(
       config,
-      `mutation ScanFolders($input: ScanMetadataInput!) { metadataScan(input: $input) }`,
-      { input: { paths } },
-      false,
-    )) as unknown as { data?: { metadataScan?: unknown } };
-    const job = payload.data?.metadataScan;
-    return typeof job === 'string' || typeof job === 'number'
-      ? String(job)
-      : null;
+      `scan:${[...paths].sort().join('\n')}`,
+      async () => {
+        const payload = (await this.executeQuery(
+          config,
+          `mutation ScanFolders($input: ScanMetadataInput!) { metadataScan(input: $input) }`,
+          { input: { paths } },
+          false,
+        )) as unknown as { data?: { metadataScan?: unknown } };
+        const job = payload.data?.metadataScan;
+        return typeof job === 'string' || typeof job === 'number'
+          ? String(job)
+          : null;
+      },
+      ['scan:*'],
+    );
   }
 
   async startLibraryTask(
@@ -220,18 +273,21 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
         variables = { input: { dryRun: false } };
         break;
     }
-    const payload = (await this.executeQuery(
-      config,
-      mutation,
-      variables,
-      false,
-    )) as unknown as {
-      data?: Record<string, unknown>;
-    };
-    const value = Object.values(payload.data ?? {})[0];
-    return typeof value === 'string' || typeof value === 'number'
-      ? String(value)
-      : null;
+    const scope = ids?.length ? [...ids].sort().join(',') : '*';
+    return this.queueOnce(config, `${task}:${scope}`, async () => {
+      const payload = (await this.executeQuery(
+        config,
+        mutation,
+        variables,
+        false,
+      )) as unknown as {
+        data?: Record<string, unknown>;
+      };
+      const value = Object.values(payload.data ?? {})[0];
+      return typeof value === 'string' || typeof value === 'number'
+        ? String(value)
+        : null;
+    });
   }
 
   protected async getStashBoxEndpoints(
