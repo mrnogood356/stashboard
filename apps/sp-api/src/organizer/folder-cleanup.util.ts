@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { trimTrailingSeparators } from '../path-separators';
 
 /** System files: never count. */
 const JUNK = new Set([
@@ -146,13 +147,15 @@ export async function canSee(folder: string): Promise<boolean> {
 export async function findEmptyFolders(
   root: string,
   protectedPaths: string[] = [],
+  /** Kept with everything inside them: not even looked into. */
+  protectedTrees: string[] = [],
 ): Promise<string[]> {
   const keep = new Set([root, ...protectedPaths].map(normalize));
   const empty: string[] = [];
   let visited = 0;
   const walk = async (folder: string): Promise<boolean> => {
     visited += 1;
-    if (visited > MAX_FOLDERS) {
+    if (visited > MAX_FOLDERS || insideAny(folder, protectedTrees)) {
       return false;
     }
     let entries: import('node:fs').Dirent[];
@@ -236,5 +239,14 @@ export function foldersLeftBehind(
 }
 
 function normalize(value: string): string {
-  return value.replace(/\\/g, '/').replace(/\/+$/, '');
+  return trimTrailingSeparators(value.replace(/\\/g, '/'));
+}
+
+/** True when folder is one of the trees or inside one. */
+export function insideAny(folder: string, trees: string[]): boolean {
+  const clean = normalize(folder);
+  return trees.some((tree) => {
+    const top = normalize(tree);
+    return top !== '' && (clean === top || clean.startsWith(`${top}/`));
+  });
 }

@@ -24,6 +24,7 @@ const settings = {
   renameAfterMatch: false,
   moveUnmatched: true,
   cleanEmptyFolders: true,
+  keepFolders: [],
   folderAccess: true,
   skipWhisparrFiles: true,
   autoMatchNightly: false,
@@ -392,6 +393,75 @@ describe('OrganizePageComponent', () => {
     button(root, 'Tap again to delete this copy').click();
     expect(api.fixTaken).toHaveBeenCalledWith(['5']);
     expect(api.preview).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a folder from the empty-folder list, a typed one, and stops keeping one', async () => {
+    const empty = {
+      available: true,
+      count: 1,
+      folders: ['/data/stash content/fansdb'],
+    };
+    let saved = { ...settings, keepFolders: [] as string[] };
+    const api = {
+      settings: vi.fn().mockReturnValue(of(settings)),
+      unmatched: vi.fn().mockReturnValue(of({ total: 0, page: 1, hasMore: false, items: [] })),
+      preview: vi.fn().mockReturnValue(
+        of({
+          pattern: settings.renamePattern,
+          scanned: 0,
+          counts: {
+            ready: 0,
+            same: 0,
+            missing: 0,
+            whisparr: 0,
+            outside: 0,
+            'no-file': 0,
+            gone: 0,
+            taken: 0,
+          },
+          changes: [],
+          skipped: [],
+        }),
+      ),
+      whisparrRelocation: vi
+        .fn()
+        .mockReturnValue(of({ destination: null, count: 0, examples: [] })),
+      whisparrRepair: vi.fn().mockReturnValue(of({ count: 0, destination: null })),
+      emptyFolders: vi.fn().mockReturnValue(of(empty)),
+      status: vi.fn().mockReturnValue(of({ running: false })),
+      update: vi.fn((update: { keepFolders: string[] }) => {
+        saved = { ...saved, keepFolders: update.keepFolders };
+        return of(saved);
+      }),
+    };
+    const { fixture, root } = await render(api, 'rename');
+
+    button(root, 'Keep').click();
+    fixture.detectChanges();
+    expect(api.update).toHaveBeenLastCalledWith({ keepFolders: ['/data/stash content/fansdb'] });
+    expect(root.querySelector('.keep-folders')?.textContent).toContain(
+      '/data/stash content/fansdb',
+    );
+
+    const input = root.querySelector('#keep-folder-input') as HTMLInputElement;
+    input.value = '/data/stash content/Keep me';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    button(root, 'Add').click();
+    fixture.detectChanges();
+    expect(api.update).toHaveBeenLastCalledWith({
+      keepFolders: ['/data/stash content/fansdb', '/data/stash content/Keep me'],
+    });
+    expect(input.value).toBe('');
+
+    (
+      root.querySelector(
+        '[aria-label="Stop keeping /data/stash content/fansdb"]',
+      ) as HTMLButtonElement
+    ).click();
+    expect(api.update).toHaveBeenLastCalledWith({
+      keepFolders: ['/data/stash content/Keep me'],
+    });
   });
 
   it('previews renames and asks twice before renaming', async () => {

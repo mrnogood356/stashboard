@@ -938,8 +938,17 @@
               @if (found.count > 0) {
                 <ul class="examples">
                   @for (folder of found.folders.slice(0, 5); track folder) {
-                    <li>
+                    <li class="folder-row">
                       <code>{{ folder }}</code>
+                      <button
+                        type="button"
+                        class="keep-btn"
+                        [attr.aria-label]="'Never remove ' + folder"
+                        [disabled]="saving() !== null"
+                        (click)="keepFolder(folder)"
+                      >
+                        Keep
+                      </button>
                     </li>
                   }
                 </ul>
@@ -981,6 +990,53 @@
                 [disabled]="saving() !== null"
                 (click)="toggle('cleanEmptyFolders')"
               ></button>
+            </div>
+            <div class="keep-folders">
+              <span class="row-copy">
+                <strong>Never remove</strong>
+                <small
+                  >These folders, and everything inside them, are always left alone. The Finished
+                  downloads destination is always kept too.</small
+                >
+              </span>
+              @if (settings.keepFolders.length > 0) {
+                <ul class="examples">
+                  @for (folder of settings.keepFolders; track folder) {
+                    <li class="folder-row">
+                      <code>{{ folder }}</code>
+                      <button
+                        type="button"
+                        class="keep-btn"
+                        [attr.aria-label]="'Stop keeping ' + folder"
+                        [disabled]="saving() !== null"
+                        (click)="unkeepFolder(folder)"
+                      >
+                        <i class="pi pi-times" aria-hidden="true"></i>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+              <form class="keep-add" (submit)="$event.preventDefault(); keepFolder()">
+                <label class="sr-only" for="keep-folder-input">Folder to keep</label>
+                <input
+                  id="keep-folder-input"
+                  type="text"
+                  inputmode="url"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  placeholder="/data/stash content/fansdb"
+                  [value]="keepInput()"
+                  (input)="keepInput.set($any($event.target).value)"
+                />
+                <button
+                  type="submit"
+                  class="btn"
+                  [disabled]="!keepInput().trim() || saving() !== null"
+                >
+                  Add
+                </button>
+              </form>
             </div>
           }
         </section>

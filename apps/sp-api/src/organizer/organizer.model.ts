@@ -198,6 +198,8 @@ export interface OrganizerSettingsDto {
   moveUnmatched: boolean;
   /** Remove folders left empty after files are moved. */
   cleanEmptyFolders: boolean;
+  /** Folders the clean-up never removes, with everything inside them. */
+  keepFolders: string[];
   /** Stashboard can see the library folders itself (needed to remove empty folders). */
   folderAccess: boolean;
   skipWhisparrFiles: boolean;
@@ -239,6 +241,7 @@ export interface OrganizerSettingsUpdate {
   renameAfterMatch?: boolean;
   moveUnmatched?: boolean;
   cleanEmptyFolders?: boolean;
+  keepFolders?: string[];
   skipWhisparrFiles?: boolean;
   autoMatchNightly?: boolean;
   useStashScrapers?: boolean;

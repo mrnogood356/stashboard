@@ -164,12 +164,22 @@ describe('finished download files', () => {
       await expect(
         placeVideo({
           source,
-          destination: path.join(root, 'nowhere'),
+          destination: path.join(root, 'nowhere', 'deeper'),
           mode: 'move',
           tag: 'h',
         }),
       ).rejects.toThrow(/can’t see the destination/);
       expect(await exists(source)).toBe(true);
+      expect(await exists(path.join(root, 'nowhere'))).toBe(false);
+    });
+
+    it('makes the destination again when it was removed but its parent is there', async () => {
+      const source = path.join(job, 'Release.Name.mkv');
+      await write(source, 10);
+      const destination = path.join(root, 'fansdb');
+      await expect(
+        placeVideo({ source, destination, mode: 'move', tag: 'h' }),
+      ).resolves.toBe(path.join(destination, 'Release.Name.mkv'));
     });
 
     it('resolves a destination given with “..” and still lands inside it', async () => {

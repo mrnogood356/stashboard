@@ -103,6 +103,8 @@ export interface OrganizerSettings {
   renameAfterMatch: boolean;
   moveUnmatched: boolean;
   cleanEmptyFolders: boolean;
+  /** Folders the clean-up never removes, with everything inside them. */
+  keepFolders: string[];
   folderAccess: boolean;
   skipWhisparrFiles: boolean;
   autoMatchNightly: boolean;
@@ -204,6 +206,7 @@ export type OrganizerSettingsUpdate = Partial<
     | 'renameAfterMatch'
     | 'moveUnmatched'
     | 'cleanEmptyFolders'
+    | 'keepFolders'
     | 'skipWhisparrFiles'
     | 'autoMatchNightly'
     | 'useStashScrapers'
