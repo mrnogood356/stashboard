@@ -1,14 +1,12 @@
 /**
- * Keeps requests to each stash-box server (StashDB, FansDB) polite: a few at
- * a time, spaced out, and none while the server has asked to wait (HTTP 429).
- * Neither publishes a hard limit; this stays well under what the Stash
- * community treats as considerate.
+ * Follows each stash-box server's (StashDB, FansDB) own rules: neither
+ * publishes a hard limit, so requests go straight through, no more at once
+ * than a browser would open, and none while the server has asked to wait
+ * (HTTP 429, Retry-After).
  */
 
-/** Requests in flight to one server at once. */
-const MAX_IN_FLIGHT = 2;
-/** At least this long between the starts of two requests to one server. */
-const MIN_SPACING_MS = 200;
+/** Requests in flight to one server at once, as a browser would allow. */
+const MAX_IN_FLIGHT = 6;
 /** How long to wait after a 429 that doesn't say. */
 const DEFAULT_BACKOFF_MS = 30_000;
 /** The longest a server's "Retry-After" is honoured for. */
@@ -16,7 +14,6 @@ const MAX_BACKOFF_MS = 5 * 60_000;
 
 interface HostState {
   inFlight: number;
-  nextStartAt: number;
   pausedUntil: number;
   waiting: Array<() => void>;
 }
@@ -26,7 +23,7 @@ const hosts = new Map<string, HostState>();
 function stateFor(host: string): HostState {
   let state = hosts.get(host);
   if (!state) {
-    state = { inFlight: 0, nextStartAt: 0, pausedUntil: 0, waiting: [] };
+    state = { inFlight: 0, pausedUntil: 0, waiting: [] };
     hosts.set(host, state);
   }
   return state;
@@ -52,11 +49,9 @@ export async function withCatalogSlot<T>(
   }
   state.inFlight += 1;
   try {
-    const now = Date.now();
-    const startAt = Math.max(now, state.nextStartAt, state.pausedUntil);
-    state.nextStartAt = startAt + MIN_SPACING_MS;
-    if (startAt > now) {
-      await sleep(startAt - now);
+    const wait = state.pausedUntil - Date.now();
+    if (wait > 0) {
+      await sleep(wait);
     }
     return await request();
   } finally {

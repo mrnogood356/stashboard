@@ -7,12 +7,11 @@ import {
 describe('catalog rate limit', () => {
   beforeEach(() => resetCatalogRateLimit());
 
-  it('runs at most two requests to one server at once, spaced out', async () => {
+  it('runs at most six requests to one server at once, without delay', async () => {
     let inFlight = 0;
     let most = 0;
-    const starts: number[] = [];
+    const started = Date.now();
     const request = async () => {
-      starts.push(Date.now());
       inFlight += 1;
       most = Math.max(most, inFlight);
       await new Promise((resolve) => setTimeout(resolve, 30));
@@ -20,13 +19,11 @@ describe('catalog rate limit', () => {
     };
 
     await Promise.all(
-      Array.from({ length: 5 }, () => withCatalogSlot('stashdb.org', request)),
+      Array.from({ length: 8 }, () => withCatalogSlot('stashdb.org', request)),
     );
 
-    expect(most).toBeLessThanOrEqual(2);
-    for (let i = 1; i < starts.length; i += 1) {
-      expect(starts[i] - starts[i - 1]).toBeGreaterThanOrEqual(190);
-    }
+    expect(most).toBe(6);
+    expect(Date.now() - started).toBeLessThan(200);
   });
 
   it('keeps servers apart', async () => {
