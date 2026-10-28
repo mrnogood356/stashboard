@@ -77,6 +77,97 @@ describe('StashdbAdapter', () => {
     warn.mockRestore();
   });
 
+  describe('when the catalog’s own search fails', () => {
+    const broken = () =>
+      new Response(
+        JSON.stringify({
+          errors: [{ message: 'window_agg placeholder (SQLSTATE XX000)' }],
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      );
+    const answer = (data: unknown) =>
+      new Response(JSON.stringify({ data }), {
+        headers: { 'content-type': 'application/json' },
+      });
+    const sentQueries = () =>
+      fetchMock.mock.calls.map(
+        ([, init]) =>
+          (JSON.parse(String((init as RequestInit).body)) as { query: string })
+            .query,
+      );
+    const config = {
+      baseUrl: 'http://stashdb.local',
+      page: 1,
+      perPage: 2,
+      sort: 'DATE' as const,
+      text: 'beach day',
+    };
+
+    beforeEach(() => {
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    });
+
+    it('asks again without the count, and estimates it', async () => {
+      fetchMock.mockResolvedValueOnce(broken()).mockResolvedValueOnce(
+        answer({
+          queryScenes: {
+            scenes: [
+              { id: 's1', title: 'One', images: [] },
+              { id: 's2', title: 'Two', images: [] },
+            ],
+          },
+        }),
+      );
+
+      const result = await adapter.getScenesBySort(config);
+
+      expect(result.scenes.map((scene) => scene.id)).toEqual(['s1', 's2']);
+      // A full page: there may be more.
+      expect(result.total).toBe(3);
+      const [first, second] = sentQueries();
+      expect(first).toMatch(/^\s*count\s*$/m);
+      expect(second).not.toMatch(/^\s*count\s*$/m);
+      expect(runtimeHealthService.recordFailure).not.toHaveBeenCalled();
+    });
+
+    it('falls back to its other search when that fails too', async () => {
+      fetchMock
+        .mockResolvedValueOnce(broken())
+        .mockResolvedValueOnce(broken())
+        .mockResolvedValueOnce(
+          answer({ searchScene: [{ id: 's9', title: 'Nine', images: [] }] }),
+        );
+
+      const result = await adapter.getScenesBySort(config);
+
+      expect(result).toMatchObject({ total: 1 });
+      expect(result.scenes.map((scene) => scene.id)).toEqual(['s9']);
+      expect(sentQueries()[2]).toContain('searchScene(term: $term');
+    });
+
+    it('finds performers by name without the count too', async () => {
+      fetchMock.mockResolvedValueOnce(broken()).mockResolvedValueOnce(
+        answer({
+          queryPerformers: {
+            performers: [{ id: 'p1', name: 'Ana', images: [] }],
+          },
+        }),
+      );
+
+      const result = await adapter.getPerformersFeed({
+        baseUrl: 'http://stashdb.local',
+        page: 1,
+        perPage: 12,
+        name: 'ana',
+      });
+
+      expect(result).toMatchObject({ total: 1 });
+      expect(result.performers.map((performer) => performer.id)).toEqual([
+        'p1',
+      ]);
+    });
+  });
+
   it('waits as long as the catalog asks after a 429, then tries once more', async () => {
     fetchMock
       .mockResolvedValueOnce(

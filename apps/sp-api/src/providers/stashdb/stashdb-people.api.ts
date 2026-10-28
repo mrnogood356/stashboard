@@ -17,7 +17,7 @@ import {
   type StashdbStudiosFeedConfig,
   type StashdbStudiosFeedResult,
 } from './stashdb.types';
-import { StashdbGraphqlClient } from './stashdb-graphql.client';
+import { estimatedTotal, StashdbGraphqlClient } from './stashdb-graphql.client';
 
 /** Performers and studios: feeds, details, search and favorites. */
 export abstract class StashdbPeopleApi extends StashdbGraphqlClient {
@@ -76,12 +76,14 @@ export abstract class StashdbPeopleApi extends StashdbGraphqlClient {
       variables.name = normalizedName;
     }
 
-    const payload = await this.executeQuery(config, query, variables);
+    const payload = normalizedName
+      ? await this.executeCountedSearch(config, query, variables)
+      : await this.executeQuery(config, query, variables);
+    const rawPerformers = payload.data?.queryPerformers?.performers ?? [];
     const total =
       typeof payload.data?.queryPerformers?.count === 'number'
         ? payload.data.queryPerformers.count
-        : 0;
-    const rawPerformers = payload.data?.queryPerformers?.performers ?? [];
+        : estimatedTotal(config.page, config.perPage, rawPerformers.length);
 
     const performers = rawPerformers
       .map((performer): StashdbPerformerFeedItem | null => {
@@ -173,12 +175,14 @@ export abstract class StashdbPeopleApi extends StashdbGraphqlClient {
       variables.name = normalizedName;
     }
 
-    const payload = await this.executeQuery(config, query, variables);
+    const payload = normalizedName
+      ? await this.executeCountedSearch(config, query, variables)
+      : await this.executeQuery(config, query, variables);
+    const rawStudios = payload.data?.queryStudios?.studios ?? [];
     const total =
       typeof payload.data?.queryStudios?.count === 'number'
         ? payload.data.queryStudios.count
-        : 0;
-    const rawStudios = payload.data?.queryStudios?.studios ?? [];
+        : estimatedTotal(config.page, config.perPage, rawStudios.length);
 
     const studios = rawStudios
       .map((studio): StashdbStudioFeedItem | null => {

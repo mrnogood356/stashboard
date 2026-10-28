@@ -21,6 +21,23 @@ const REFUSAL_LOG_INTERVAL_MS = 10 * 60_000;
 /** A database error on the catalog's own server. */
 const SERVER_SIDE_ERROR = /SQLSTATE/i;
 
+/** True when the catalog answered, but its own database failed the query. */
+export function isServerSideError(error: unknown): boolean {
+  return error instanceof Error && SERVER_SIDE_ERROR.test(error.message);
+}
+
+/**
+ * The total when the catalog couldn't count: what's been seen, plus one
+ * more when this page was full (so "more" is still offered).
+ */
+export function estimatedTotal(
+  page: number,
+  perPage: number,
+  onPage: number,
+): number {
+  return (page - 1) * perPage + onPage + (onPage >= perPage ? 1 : 0);
+}
+
 /**
  * Talks to a stash-box GraphQL API (StashDB, FansDB): the request, readable
  * network errors, runtime-health reporting, and shared normalizers.
@@ -65,6 +82,31 @@ export abstract class StashdbGraphqlClient {
     }
 
     return payload;
+  }
+
+  /**
+   * A search with a total count. When the catalog's own database fails it
+   * (StashDB's search has been failing on the count: "SQLSTATE XX000"), the
+   * same search is asked again without the count; the caller estimates it.
+   */
+  protected async executeCountedSearch(
+    config: StashdbAdapterBaseConfig,
+    query: string,
+    variables?: Record<string, unknown>,
+  ): Promise<StashdbGraphqlResponse> {
+    try {
+      return await this.executeQuery(config, query, variables);
+    } catch (error) {
+      const withoutCount = query.replace(/^\s*count\s*$/m, '');
+      if (
+        !(error instanceof BadGatewayException) ||
+        !isServerSideError(error) ||
+        withoutCount === query
+      ) {
+        throw error;
+      }
+      return this.executeQuery(config, withoutCount, variables);
+    }
   }
 
   /** Said once every few minutes per query and message, not on every lookup. */
