@@ -28,23 +28,30 @@
       </div>
 
       <nav class="nav" aria-label="Primary navigation">
-        @for (item of desktopNavItems(); track item.route) {
-          <a
-            [routerLink]="item.route"
-            class="nav-item"
-            [class.active]="isNavItemActive(item)"
-            [class.settings-nav-item]="item.route === '/settings'"
-            [class.has-alert]="item.route === '/settings' && !!degradedState()"
-            [attr.data-testid]="item.route === '/settings' ? 'settings-nav-link' : null"
-          >
-            <span class="icon" aria-hidden="true"><i [class]="item.icon"></i></span>
-            @if (!collapsed()) {
-              <span>{{ item.label }}</span>
-              @if (item.route === '/settings' && degradedState()) {
-                <span class="nav-badge" data-testid="settings-nav-indicator">Repair</span>
+        @for (group of desktopNavGroups(); track $index) {
+          @if (group.label && !collapsed()) {
+            <p class="nav-group-label">{{ group.label }}</p>
+          } @else if ($index > 0) {
+            <span class="nav-group-gap" aria-hidden="true"></span>
+          }
+          @for (item of group.items; track item.route) {
+            <a
+              [routerLink]="item.route"
+              class="nav-item"
+              [class.active]="isNavItemActive(item)"
+              [class.settings-nav-item]="item.route === '/settings'"
+              [class.has-alert]="item.route === '/settings' && !!degradedState()"
+              [attr.data-testid]="item.route === '/settings' ? 'settings-nav-link' : null"
+            >
+              <span class="icon" aria-hidden="true"><i [class]="item.icon"></i></span>
+              @if (!collapsed()) {
+                <span>{{ item.label }}</span>
+                @if (item.route === '/settings' && degradedState()) {
+                  <span class="nav-badge" data-testid="settings-nav-indicator">Repair</span>
+                }
               }
-            }
-          </a>
+            </a>
+          }
         }
       </nav>
 

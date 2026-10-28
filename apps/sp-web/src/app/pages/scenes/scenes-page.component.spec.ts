@@ -229,7 +229,7 @@ describe('ScenesPageComponent', () => {
     );
     expect(navigateSpy).not.toHaveBeenCalled();
     expect(resetButton?.disabled).toBe(true);
-    expect(pageText).not.toContain('Already In Library');
+    expect(pageText).not.toContain('Already In library');
     expect(pageText).not.toContain('Missing From Library');
     expect(pageText).not.toContain('Favorite Tags');
     expect(runtimeHealthService.ensureStarted).toHaveBeenCalledTimes(1);

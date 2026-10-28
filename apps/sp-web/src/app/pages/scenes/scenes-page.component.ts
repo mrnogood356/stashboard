@@ -452,11 +452,7 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   protected scenesTotalLabel(): string {
-    return `Total scenes: ${this.total()}`;
-  }
-
-  protected scenesResultsNote(): string {
-    return 'Discovery filters come from the catalog provider configured for this instance. Lifecycle badges show where each scene sits in the Whisparr to Stash pipeline.';
+    return `${this.total().toLocaleString()} ${this.total() === 1 ? 'scene' : 'scenes'}`;
   }
 
   protected emptyStateMessage(): string {

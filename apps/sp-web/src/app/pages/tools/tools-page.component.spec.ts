@@ -30,6 +30,16 @@ function detail(root: HTMLElement, title: string): string {
 }
 
 describe('ToolsPageComponent', () => {
+  it('keeps the plain descriptions when the answers aren’t counts', async () => {
+    const root = await render({
+      fixCounts: vi.fn().mockReturnValue(of({})),
+      jobs: vi.fn().mockReturnValue(of({})),
+    });
+
+    expect(root.textContent).not.toContain('undefined');
+    expect(detail(root, 'Stash jobs')).toContain('Scan, Generate');
+  });
+
   it('shows what needs fixing and how many jobs are running', async () => {
     const library = {
       fixCounts: vi.fn().mockReturnValue(of({ unmatched: 3, untagged: 2, unorganized: 1 })),

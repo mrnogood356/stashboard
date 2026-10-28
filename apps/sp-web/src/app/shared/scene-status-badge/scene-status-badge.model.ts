@@ -9,14 +9,14 @@ export function sceneStatusBadgeLabel(status: SceneStatusLike): string {
     case 'DOWNLOADING':
       return 'Downloading';
     case 'IMPORT_PENDING':
-      return 'Awaiting Import';
+      return 'Waiting for Stash';
     case 'AVAILABLE':
-      return 'In Library';
+      return 'In library';
     case 'FAILED':
       return 'Failed';
     case 'NOT_REQUESTED':
     default:
-      return 'Not Requested';
+      return 'Not requested';
   }
 }
 

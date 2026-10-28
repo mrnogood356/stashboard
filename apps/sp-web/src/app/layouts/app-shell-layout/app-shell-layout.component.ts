@@ -48,14 +48,14 @@ const SCENES_NAV_ITEM: ShellNavItem = {
 };
 
 const ACQUISITION_NAV_ITEM: ShellNavItem = {
-  label: 'Acquisition',
+  label: 'Requests',
   route: '/acquisition',
   icon: 'pi pi-inbox',
   exact: true,
 };
 
 const PROCESSING_NAV_ITEM: ShellNavItem = {
-  label: 'Processing',
+  label: 'Downloads',
   route: '/processing',
   icon: 'pi pi-sync',
   exact: true,
@@ -100,7 +100,7 @@ const SEARCH_NAV_ITEM: ShellNavItem = {
 };
 
 const FEED_NAV_ITEM: ShellNavItem = {
-  label: 'Feed',
+  label: 'Swipe feed',
   route: '/feed',
   icon: 'pi pi-mobile',
   exact: true,
@@ -108,25 +108,25 @@ const FEED_NAV_ITEM: ShellNavItem = {
 };
 
 const TOOLS_NAV_ITEM: ShellNavItem = {
-  label: 'Library tools',
+  label: 'Tools',
   route: '/tools',
   icon: 'pi pi-wrench',
   exact: false,
   activePrefixes: ['/tools'],
 };
 
-const DESKTOP_NAV_ITEMS: readonly ShellNavItem[] = [
-  HOME_NAV_ITEM,
-  SEARCH_NAV_ITEM,
-  SCENES_NAV_ITEM,
-  LIBRARY_NAV_ITEM,
-  FEED_NAV_ITEM,
-  ACQUISITION_NAV_ITEM,
-  PROCESSING_NAV_ITEM,
-  PERFORMERS_NAV_ITEM,
-  STUDIOS_NAV_ITEM,
-  TOOLS_NAV_ITEM,
-  SETTINGS_NAV_ITEM,
+interface ShellNavGroup {
+  /** Shown above the group in the sidebar; none for the first and last. */
+  label: string | null;
+  items: readonly ShellNavItem[];
+}
+
+const DESKTOP_NAV_GROUPS: readonly ShellNavGroup[] = [
+  { label: null, items: [HOME_NAV_ITEM, SEARCH_NAV_ITEM] },
+  { label: 'Browse', items: [SCENES_NAV_ITEM, PERFORMERS_NAV_ITEM, STUDIOS_NAV_ITEM] },
+  { label: 'Your library', items: [LIBRARY_NAV_ITEM, FEED_NAV_ITEM, TOOLS_NAV_ITEM] },
+  { label: 'Requests & downloads', items: [ACQUISITION_NAV_ITEM, PROCESSING_NAV_ITEM] },
+  { label: null, items: [SETTINGS_NAV_ITEM] },
 ];
 
 const MOBILE_PRIMARY_NAV_ITEMS: readonly ShellNavItem[] = [
@@ -137,12 +137,12 @@ const MOBILE_PRIMARY_NAV_ITEMS: readonly ShellNavItem[] = [
 ];
 
 const MOBILE_SECONDARY_NAV_ITEMS: readonly ShellNavItem[] = [
-  FEED_NAV_ITEM,
-  ACQUISITION_NAV_ITEM,
-  PROCESSING_NAV_ITEM,
   PERFORMERS_NAV_ITEM,
   STUDIOS_NAV_ITEM,
+  FEED_NAV_ITEM,
   TOOLS_NAV_ITEM,
+  ACQUISITION_NAV_ITEM,
+  PROCESSING_NAV_ITEM,
   SETTINGS_NAV_ITEM,
 ];
 
@@ -173,7 +173,12 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
     }
   };
 
-  protected readonly desktopNavItems = computed(() => this.visibleNavItems(DESKTOP_NAV_ITEMS));
+  protected readonly desktopNavGroups = computed(() =>
+    DESKTOP_NAV_GROUPS.map((group) => ({
+      label: group.label,
+      items: this.visibleNavItems(group.items),
+    })).filter((group) => group.items.length > 0),
+  );
   protected readonly mobilePrimaryNavItems = computed(() =>
     this.visibleNavItems(MOBILE_PRIMARY_NAV_ITEMS),
   );

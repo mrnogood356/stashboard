@@ -151,7 +151,8 @@ export class SceneCardComponent implements OnInit {
 
   protected statusIcon(): SceneStatus | null {
     const status = this.item.status;
-    return status && status.state !== 'NOT_REQUESTED' ? status : null;
+    // Said once: not as an icon when the footer already says it in words.
+    return status && status.state !== 'NOT_REQUESTED' && !this.footerStatus() ? status : null;
   }
 
   protected primaryLink(): SceneCardShellLink {

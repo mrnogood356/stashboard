@@ -118,6 +118,21 @@
   color: color-mix(in srgb, var(--text-primary) 82%, var(--text-muted));
 }
 
+.nav-group-label {
+  margin: 0.95rem 0 0.25rem;
+  padding: 0 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.nav-group-gap {
+  display: block;
+  height: 0.6rem;
+}
+
 .nav-item:hover {
   background: var(--chip-bg);
 }

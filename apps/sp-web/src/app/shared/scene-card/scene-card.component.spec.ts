@@ -164,7 +164,7 @@ describe('SceneCardComponent', () => {
     expect(navigateSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('renders status-driven external cards without the request CTA', async () => {
+  it('renders status-driven external cards without the request CTA, the status said once', async () => {
     const { fixture, component } = await renderCard();
     component.item = buildSceneCardItem({
       status: { state: 'AVAILABLE' },
@@ -189,7 +189,8 @@ describe('SceneCardComponent', () => {
     expect(sceneLink?.getAttribute('href')).toBe('http://stash.local/scenes/scene-1');
     expect(requestButton).toBeNull();
     expect(footerStatusBadge).toBeTruthy();
-    expect(statusIcon).toBeTruthy();
+    // The footer says it in words: no second icon on the picture.
+    expect(statusIcon).toBeNull();
   });
 
   it('supports compact library cards with a scene-details primary link and stash footer action', async () => {

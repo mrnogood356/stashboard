@@ -41,8 +41,7 @@ import {
   LibraryTagMatchMode,
   LibraryTagOption,
 } from '../../core/api/library.types';
-import { SceneCardBadge, SceneCardComponent } from '../../shared/scene-card/scene-card.component';
-import { SceneCardShellLink } from '../../shared/scene-card/scene-card-shell.component';
+import { SceneCardComponent } from '../../shared/scene-card/scene-card.component';
 import {
   buildReadinessPageAlert,
   firstUseEmptyStateCopy,
@@ -109,8 +108,6 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
     { value: 'OR', label: 'OR (Any)' },
     { value: 'AND', label: 'AND (All)' },
   ];
-  private static readonly LOCAL_CARD_BADGES: readonly SceneCardBadge[] = [{ label: 'Local' }];
-
   private readonly libraryService = inject(LibraryService);
   private readonly localLibrary = inject(LocalLibraryService);
   private readonly notifications = inject(AppNotificationsService);
@@ -278,7 +275,6 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly studioSearchError = signal<string | null>(null);
   protected readonly sortOptions = LibraryPageComponent.SORT_OPTIONS;
   protected readonly tagMatchOptions = LibraryPageComponent.TAG_MATCH_OPTIONS;
-  protected readonly localCardBadges = LibraryPageComponent.LOCAL_CARD_BADGES;
   protected readonly pageAlert = computed<LibraryPageAlert | null>(() => {
     const alert = buildReadinessPageAlert(
       'library',
@@ -471,13 +467,9 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const total = this.total();
     const countLabel = this.hasNarrowingFilters()
       ? `${total.toLocaleString()} ${total === 1 ? 'match' : 'matches'}`
-      : `${total.toLocaleString()} local scene${total === 1 ? '' : 's'}`;
+      : `${total.toLocaleString()} scene${total === 1 ? '' : 's'}`;
 
-    return `${countLabel} / ${this.sortSummaryShort()}`;
-  }
-
-  protected libraryControlsNote(): string {
-    return 'Filters apply to indexed local scenes. Favorite overlay toggles use Stash favorites only.';
+    return countLabel;
   }
 
   protected emptyStateTitle(): string {
@@ -504,20 +496,6 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   protected indexingGuidance(): string {
     return initialIndexingGuidance();
-  }
-
-  protected sortSummaryShort(): string {
-    switch (this.selectedSort()) {
-      case 'TITLE':
-        return this.selectedDirection() === 'ASC' ? 'Title A-Z' : 'Title Z-A';
-      case 'CREATED_AT':
-        return this.selectedDirection() === 'ASC' ? 'Added oldest' : 'Added newest';
-      case 'UPDATED_AT':
-        return this.selectedDirection() === 'ASC' ? 'Updated oldest' : 'Updated newest';
-      case 'RELEASE_DATE':
-      default:
-        return this.selectedDirection() === 'ASC' ? 'Release oldest' : 'Release newest';
-    }
   }
 
   protected queryFilterLabel(): string {
@@ -689,18 +667,6 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   protected currentRouteUrl(): string {
     return this.router.url;
-  }
-
-  protected libraryFooterLink(item: LibrarySceneItem): SceneCardShellLink | null {
-    if (!item.activeCatalogSceneId) {
-      return null;
-    }
-
-    return {
-      kind: 'external',
-      href: item.viewUrl,
-      ariaLabel: `View ${item.title} in Stash`,
-    };
   }
 
   private formatDateTime(value: string | null): string {

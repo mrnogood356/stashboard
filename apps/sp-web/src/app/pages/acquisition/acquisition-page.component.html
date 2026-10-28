@@ -1,8 +1,8 @@
 <main class="app-page-shell app-page-shell--wide">
   <header class="page-head-compact">
     <div class="page-head-compact__title">
-      <h1>Acquisition</h1>
-      <p>Track requested scenes through Whisparr and into your Stash library.</p>
+      <h1>Requests</h1>
+      <p>Scenes you asked for, on their way into your library.</p>
     </div>
     <button
       type="button"
@@ -115,7 +115,6 @@
         class="state-shell empty-shell app-state-block"
         data-testid="acquisition-empty-state"
       >
-        <p class="eyebrow app-page-eyebrow">Pipeline Quiet</p>
         <h2>{{ emptyStateTitle() }}</h2>
         <p class="state-copy app-state-copy">{{ emptyStateMessage() }}</p>
         @if (selectedLifecycle() === 'ANY' && !hasSearch()) {
@@ -143,22 +142,19 @@
       </section>
     } @else {
       <section class="section-shell app-section-panel">
-        <div class="section-shell-head app-section-head">
-          <div class="app-section-head__copy">
-            <p class="eyebrow app-page-eyebrow">Operational View</p>
-            <h2>{{ sectionIntroTitle() }}</h2>
-            <p class="section-shell-copy app-section-copy">{{ pageSummaryText() }}</p>
-            <p class="section-shell-copy secondary app-section-copy app-section-copy--muted">
-              {{ sectionIntroCopy() }}
-            </p>
-          </div>
+        @if (hasSearch() || selectedLifecycle() !== 'ANY') {
+          <div class="section-shell-head app-section-head">
+            @if (hasSearch()) {
+              <p class="section-shell-copy app-section-copy">{{ pageSummaryText() }}</p>
+            }
 
-          @if (selectedLifecycle() !== 'ANY') {
-            <button type="button" class="secondary-action" (click)="selectLifecycle('ANY')">
-              Show all tracked
-            </button>
-          }
-        </div>
+            @if (selectedLifecycle() !== 'ANY') {
+              <button type="button" class="secondary-action" (click)="selectLifecycle('ANY')">
+                Show all
+              </button>
+            }
+          </div>
+        }
 
         @for (section of visibleSections(); track section.lifecycle) {
           <section

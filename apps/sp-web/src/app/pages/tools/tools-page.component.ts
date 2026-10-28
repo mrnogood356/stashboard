@@ -19,10 +19,22 @@ export class ToolsPageComponent implements OnInit {
   protected readonly jobs = signal<StashJob[] | null>(null);
 
   ngOnInit(): void {
-    this.library
-      .fixCounts()
-      .subscribe({ next: (counts) => this.counts.set(counts), error: () => undefined });
-    this.library.jobs().subscribe({ next: (jobs) => this.jobs.set(jobs), error: () => undefined });
+    this.library.fixCounts().subscribe({
+      // Only real numbers are shown; anything else keeps the plain description.
+      next: (counts) =>
+        this.counts.set(
+          typeof counts?.unmatched === 'number' &&
+            typeof counts.untagged === 'number' &&
+            typeof counts.unorganized === 'number'
+            ? counts
+            : null,
+        ),
+      error: () => undefined,
+    });
+    this.library.jobs().subscribe({
+      next: (jobs) => this.jobs.set(Array.isArray(jobs) ? jobs : null),
+      error: () => undefined,
+    });
   }
 
   protected toFix(counts: FixCounts): number {
