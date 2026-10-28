@@ -289,6 +289,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   private hasHydratedFromUrl = false;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
   private liveTimer: ReturnType<typeof setInterval> | null = null;
+  private liveRefreshing = false;
 
   @ViewChild('loadMoreSentinel')
   set loadMoreSentinel(elementRef: ElementRef<HTMLDivElement> | undefined) {
@@ -978,6 +979,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
    */
   private liveRefresh(): void {
     if (
+      this.liveRefreshing ||
       this.inFlight() ||
       this.loading() ||
       this.selecting() ||
@@ -988,9 +990,11 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       return;
     }
 
-    const loaded = this.page() * AcquisitionPageComponent.PAGE_SIZE;
+    const pageAtStart = this.page();
+    const loaded = pageAtStart * AcquisitionPageComponent.PAGE_SIZE;
     const replace = loaded <= LIVE_REFRESH_MAX;
     const version = this.feedVersion;
+    this.liveRefreshing = true;
     this.acquisitionService
       .getScenesFeed(
         1,
@@ -998,10 +1002,12 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
         this.selectedLifecycle(),
         this.feedOptions(),
       )
+      .pipe(finalize(() => (this.liveRefreshing = false)))
       .subscribe({
         next: (response) => {
-          // A filter, search or reload since then wins.
-          if (version !== this.feedVersion || this.inFlight()) {
+          // A filter, search, reload or another page loaded since then wins:
+          // replacing the list now would drop the newer cards.
+          if (version !== this.feedVersion || this.inFlight() || this.page() !== pageAtStart) {
             return;
           }
           this.countsByLifecycle.set(response.countsByLifecycle);

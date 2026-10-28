@@ -5,7 +5,7 @@ import { NgModel } from '@angular/forms';
 import { By } from '@angular/platform-browser';
 import { Select } from 'primeng/select';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { SceneTimeline, TimelineApiService } from '../../core/api/timeline.service';
 import { AcquisitionService } from '../../core/api/acquisition.service';
 import { OrganizerApiService } from '../../core/api/organizer.service';
@@ -462,6 +462,43 @@ describe('AcquisitionPageComponent', () => {
     live.liveRefresh();
     live.liveRefresh();
     expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops a refresh that answers after more cards loaded, and never runs two at once', async () => {
+    const downloading = (id: string) =>
+      buildItem({ id, status: { state: 'DOWNLOADING' }, queueState: null });
+    const pageOne = Array.from({ length: 24 }, (_, i) => downloading(`p1-${i}`));
+    const { fixture, component, acquisitionService } = await renderPage({
+      responses: { ANY: buildResponse(pageOne, { total: 30, hasMore: true }) },
+    });
+    const page = component as unknown as {
+      liveRefresh(): void;
+      retryLoadMore(): void;
+      items(): unknown[];
+    };
+
+    const slowRefresh = new Subject<ReturnType<typeof buildResponse>>();
+    acquisitionService.getScenesFeed.mockImplementationOnce(() => slowRefresh);
+    page.liveRefresh();
+    page.liveRefresh(); // still waiting: no second request
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(2);
+
+    // Page 2 loads while the refresh is still out.
+    acquisitionService.getScenesFeed.mockImplementationOnce(() =>
+      of(
+        buildResponse(
+          Array.from({ length: 6 }, (_, i) => downloading(`p2-${i}`)),
+          { page: 2, total: 30 },
+        ),
+      ),
+    );
+    page.retryLoadMore();
+    expect(page.items()).toHaveLength(30);
+
+    slowRefresh.next(buildResponse(pageOne, { total: 30, hasMore: true }));
+    slowRefresh.complete();
+    fixture.detectChanges();
+    expect(page.items()).toHaveLength(30);
   });
 
   it('says where each card is now from one batched request, and opens the whole story on tap', async () => {

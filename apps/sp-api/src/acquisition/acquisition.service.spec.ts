@@ -241,6 +241,8 @@ describe('AcquisitionService', () => {
     });
     expect(result.total).toBe(2);
     expect(result.countsByLifecycle.AVAILABLE).toBe(2);
+    // The list and its tab count come from one lookup.
+    expect(librarySceneIndexFindManyMock).toHaveBeenCalledTimes(1);
     expect(
       result.items.map((item) => [item.id, item.addedAt, item.stashViewUrl]),
     ).toEqual([

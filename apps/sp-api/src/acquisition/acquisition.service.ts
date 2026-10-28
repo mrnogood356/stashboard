@@ -161,13 +161,12 @@ export class AcquisitionService {
     perPage: number,
     searchWhere: Prisma.SceneIndexWhereInput | null,
   ): Promise<AcquisitionScenesFeedDto> {
-    const [added, counts, whisparrConfig, catalogProviderType] =
-      await Promise.all([
-        this.findRecentlyAdded(searchWhere),
-        this.loadCounts(searchWhere),
-        this.getWhisparrConfig(),
-        this.catalogProviderService.getConfiguredCatalogProviderType(),
-      ]);
+    const added = await this.findRecentlyAdded(searchWhere);
+    const [counts, whisparrConfig, catalogProviderType] = await Promise.all([
+      this.loadCounts(searchWhere, added),
+      this.getWhisparrConfig(),
+      this.catalogProviderService.getConfiguredCatalogProviderType(),
+    ]);
     const pageItems = added.slice((page - 1) * perPage, page * perPage);
     return {
       total: added.length,
@@ -246,9 +245,13 @@ export class AcquisitionService {
       );
   }
 
-  /** The tab counts, for a search or (from the summary) everything. */
+  /**
+   * The tab counts, for a search or (from the summary) everything. The
+   * Added list is passed in when the caller already has it.
+   */
   private async loadCounts(
     searchWhere: Prisma.SceneIndexWhereInput | null,
+    recentlyAdded?: ReadonlyArray<unknown>,
   ): Promise<{
     byLifecycle: AcquisitionCountsByLifecycleDto;
     tracked: number;
@@ -260,7 +263,7 @@ export class AcquisitionService {
             byLifecycle: this.toCountsByLifecycle(summary),
             tracked: summary.acquisitionTrackedScenes,
           })),
-      this.findRecentlyAdded(searchWhere),
+      recentlyAdded ?? this.findRecentlyAdded(searchWhere),
     ]);
     return {
       byLifecycle: { ...counts.byLifecycle, AVAILABLE: added.length },
