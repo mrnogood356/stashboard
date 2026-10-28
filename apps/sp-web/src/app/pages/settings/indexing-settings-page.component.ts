@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { finalize } from 'rxjs';
@@ -32,55 +33,55 @@ interface HealthSummary {
 
 type IndexingJobView = IndexingJobStatusResponse & JobDefinition;
 
+/** What each job keeps up to date, in plain words. Jobs with no button run on their own. */
 const INDEXING_JOB_DEFINITIONS: Record<string, JobDefinition> = {
-  'scene-index-bootstrap': {
-    label: 'Bootstrap',
-    purpose:
-      'Seeds request rows and downstream projections when the app starts or a full catch-up is needed.',
-    cadence: 'On startup and during Sync All',
-    triggerJob: null,
-  },
-  'scene-index-request-rows': {
-    label: 'Request Rows',
-    purpose: 'Projects request table status into indexed scene state used across the app.',
-    cadence: 'Runs during full syncs and targeted refreshes',
-    triggerJob: null,
-  },
   'scene-index-whisparr-queue': {
-    label: 'Whisparr Queue',
-    purpose: 'Refreshes active queue state so download and import overlays stay current.',
+    label: 'Downloads in Whisparr',
+    purpose: 'What Whisparr is downloading and importing right now.',
     cadence: 'Every 30 seconds',
     triggerJob: 'queue',
   },
   'scene-index-whisparr-movies': {
-    label: 'Whisparr Movies',
-    purpose: 'Refreshes Whisparr movie presence and file state for indexed scenes.',
+    label: 'Scenes in Whisparr',
+    purpose: 'Which scenes Whisparr has, and whether it has their files.',
     cadence: 'Every 15 minutes',
     triggerJob: 'movies',
   },
   'scene-index-library-projection': {
-    label: 'Library Projection',
-    purpose: 'Projects the local library and availability bridge that powers the Library view.',
-    cadence: 'Every 5 minutes',
+    label: 'Your Stash library',
+    purpose: 'What is in Stash, for Library, Home and the “In library” badges.',
+    cadence: 'Every 5 minutes, and within 30 seconds of a change in Stash',
     triggerJob: 'library',
   },
-  'scene-index-stash-availability': {
-    label: 'Stash Availability',
-    purpose: 'Updates availability bridging after local-library changes and targeted refreshes.',
-    cadence: 'Runs with library projection and targeted refreshes',
+  'scene-index-metadata-backfill': {
+    label: 'Scene details',
+    purpose: 'Fills in titles, pictures and studios from the catalog where they are missing.',
+    cadence: 'Every 10 seconds while some are missing, otherwise every 30 minutes',
+    triggerJob: 'metadata',
+  },
+  'scene-index-bootstrap': {
+    label: 'Start-up catch-up',
+    purpose: 'Brings everything up to date when Stashboard starts.',
+    cadence: 'On start-up and with Sync now',
     triggerJob: null,
   },
-  'scene-index-metadata-backfill': {
-    label: 'Metadata Backfill',
-    purpose: 'Hydrates missing titles, images, studios, and related metadata over time.',
-    cadence: 'Every 10 seconds with backlog, otherwise every 30 minutes',
-    triggerJob: 'metadata',
+  'scene-index-request-rows': {
+    label: 'Your requests',
+    purpose: 'Applies what you requested to each scene’s status.',
+    cadence: 'With every sync',
+    triggerJob: null,
+  },
+  'scene-index-stash-availability': {
+    label: 'In-library check',
+    purpose: 'Marks catalog scenes you have in Stash.',
+    cadence: 'With the Stash library sync',
+    triggerJob: null,
   },
 };
 
 @Component({
   selector: 'app-indexing-settings-page',
-  imports: [SkeletonComponent, ButtonDirective, Message],
+  imports: [SkeletonComponent, ButtonDirective, Message, NgTemplateOutlet],
   templateUrl: './indexing-settings-page.component.html',
   styleUrls: ['./indexing-settings-page.component.scss', './settings-shared.scss'],
 })
@@ -103,6 +104,21 @@ export class IndexingSettingsPageComponent implements OnInit {
     })),
   );
 
+  /** The ones you can run yourself, then the internal steps (behind Details). */
+  protected readonly mainJobs = computed(() => this.jobViews().filter((job) => job.triggerJob));
+  protected readonly internalJobs = computed(() =>
+    this.jobViews().filter((job) => !job.triggerJob),
+  );
+  protected readonly staleChecks = computed(() =>
+    this.freshnessChecks().filter((check) => !check.ok),
+  );
+
+  protected staleLabels(): string {
+    return this.staleChecks()
+      .map((check) => check.label.toLowerCase())
+      .join(', ');
+  }
+
   protected readonly freshnessChecks = computed<FreshnessCheck[]>(() => {
     const status = this.status();
     if (!status) {
@@ -111,19 +127,19 @@ export class IndexingSettingsPageComponent implements OnInit {
 
     return [
       {
-        label: 'Request rows',
+        label: 'Your requests',
         ok: status.freshness.requestRowsFresh,
       },
       {
-        label: 'Whisparr movies',
+        label: 'Scenes in Whisparr',
         ok: status.freshness.whisparrMoviesFresh,
       },
       {
-        label: 'Library availability',
+        label: 'Your Stash library',
         ok: status.freshness.stashAvailabilityFresh,
       },
       {
-        label: 'Status for scenes not yet indexed',
+        label: 'Status of new scenes',
         ok: status.freshness.canResolveUnknownScenesAsNotRequested,
       },
     ];
@@ -139,12 +155,20 @@ export class IndexingSettingsPageComponent implements OnInit {
       };
     }
 
+    const failed = this.jobViews().filter((job) => job.status === 'FAILED');
+    if (failed.length > 0) {
+      return {
+        label: 'Something failed',
+        tone: 'warn',
+        description: `${failed.map((job) => job.label).join(', ')} couldn’t refresh. See below.`,
+      };
+    }
+
     if (this.jobViews().some((job) => job.status === 'RUNNING')) {
       return {
-        label: 'Sync In Progress',
+        label: 'Syncing',
         tone: 'info',
-        description:
-          'One or more jobs are running. Refresh after the current pass completes for the latest snapshot.',
+        description: 'Something is refreshing right now.',
       };
     }
 
@@ -154,16 +178,16 @@ export class IndexingSettingsPageComponent implements OnInit {
       status.freshness.stashAvailabilityFresh
     ) {
       return {
-        label: 'Fresh',
+        label: 'Up to date',
         tone: 'good',
-        description: 'Acquisition, Library, and status overlays are backed by recent sync data.',
+        description: 'Requests, Library and each scene’s status are current.',
       };
     }
 
     return {
-      label: 'Needs Attention',
+      label: 'Behind',
       tone: 'warn',
-      description: 'At least one freshness signal is stale or a recent job failed.',
+      description: 'Some of it hasn’t refreshed lately. Sync now catches it up.',
     };
   });
 
@@ -221,7 +245,7 @@ export class IndexingSettingsPageComponent implements OnInit {
       case 'RUNNING':
         return 'Running';
       case 'SUCCEEDED':
-        return 'Succeeded';
+        return 'OK';
       case 'FAILED':
         return 'Failed';
       case 'IDLE':
@@ -306,7 +330,7 @@ export class IndexingSettingsPageComponent implements OnInit {
   }
 
   protected triggerLabel(job: IndexingJobView): string {
-    return this.triggeringAction() === job.triggerJob ? 'Syncing...' : 'Sync now';
+    return this.triggeringAction() === job.triggerJob ? 'Running…' : 'Run';
   }
 
   private loadStatus(): void {
@@ -349,12 +373,12 @@ export class IndexingSettingsPageComponent implements OnInit {
       .subscribe({
         next: (status) => {
           this.status.set(status);
-          this.actionSuccess.set(`${label} finished and indexing status was refreshed.`);
+          this.actionSuccess.set(`${label} is up to date.`);
           this.notifications.success(`${label} finished`);
         },
         error: () => {
-          this.actionError.set(`Failed to trigger ${label}.`);
-          this.notifications.error(`Failed to trigger ${label}`);
+          this.actionError.set(`Couldn’t run ${label}. Try again.`);
+          this.notifications.error(`Couldn’t run ${label}`);
         },
       });
   }

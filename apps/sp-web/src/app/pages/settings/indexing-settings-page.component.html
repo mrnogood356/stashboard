@@ -1,12 +1,10 @@
 <section class="indexing-page">
-  <header class="page-head">
-    <div class="page-copy">
-      <h2>Indexing & Sync</h2>
-      <p class="lede">Indexing keeps Requests, Library and the status on each scene up to date.</p>
-      <p class="lede secondary">
-        Use manual sync when you want to refresh data immediately after external changes.
-      </p>
-    </div>
+  <header class="section-head">
+    <h2>Indexing</h2>
+    <p class="lede">
+      Stashboard keeps its own copy of Whisparr’s queue and your Stash library so pages load fast.
+      It refreshes on its own; Sync now catches everything up straight away.
+    </p>
   </header>
 
   @if (loading()) {
@@ -24,206 +22,145 @@
       <p-message severity="error" styleClass="state-message">{{ actionError() }}</p-message>
     }
 
-    <section class="summary-grid">
-      <article
-        class="summary-card summary-card-hero"
-        [class.tone-good]="healthSummary().tone === 'good'"
-        [class.tone-warn]="healthSummary().tone === 'warn'"
-        [class.tone-info]="healthSummary().tone === 'info'"
-      >
-        <div class="summary-head">
-          <div>
-            <p class="eyebrow">Index Health</p>
-            <h2>{{ healthSummary().label }}</h2>
-          </div>
-
+    <article
+      class="card health-card"
+      [class.tone-good]="healthSummary().tone === 'good'"
+      [class.tone-warn]="healthSummary().tone === 'warn'"
+      [class.tone-info]="healthSummary().tone === 'info'"
+      data-testid="indexing-health"
+    >
+      <div class="health-head">
+        <div class="health-copy">
+          <h3><span class="health-dot" aria-hidden="true"></span>{{ healthSummary().label }}</h3>
+          <p class="muted">
+            {{ healthSummary().description }} Last updated
+            {{ formatDateTime(status.freshness.lastIndexWriteAt) }}.
+          </p>
+        </div>
+        <div class="health-actions">
           <button
-            pButton
             type="button"
+            class="secondary-action"
             data-testid="refresh-status"
             [disabled]="refreshing() || triggeringAction() !== null"
             (click)="refreshStatus()"
           >
-            {{ refreshing() ? 'Refreshing...' : 'Refresh status' }}
+            {{ refreshing() ? 'Refreshing…' : 'Refresh' }}
+          </button>
+          <button
+            pButton
+            type="button"
+            data-testid="sync-all"
+            [disabled]="isSyncAllDisabled()"
+            (click)="syncAll()"
+          >
+            {{ triggeringAction() === 'all' ? 'Syncing…' : 'Sync now' }}
           </button>
         </div>
+      </div>
 
-        <p class="summary-copy">{{ healthSummary().description }}</p>
+      @if (staleChecks().length > 0) {
+        <p class="stale">Behind: {{ staleLabels() }}.</p>
+      }
 
-        <div class="inline-stats">
-          <div class="inline-stat">
-            <span>Last index write</span>
-            <strong>{{ formatDateTime(status.freshness.lastIndexWriteAt) }}</strong>
-          </div>
-          <div class="inline-stat">
-            <span>Freshness window</span>
-            <strong>{{ formatDuration(status.freshness.indexStatusMaxAgeMs) }}</strong>
-          </div>
-          <div class="inline-stat">
-            <span>Tracked jobs</span>
-            <strong>{{ jobViews().length }}</strong>
-          </div>
-        </div>
-      </article>
+      <p class="totals" data-testid="indexing-totals">
+        {{ status.totals.indexedScenes.toLocaleString() }} scenes known ·
+        {{ status.totals.acquisitionTrackedScenes.toLocaleString() }} requests
+        @if (status.totals.metadataBacklogScenes > 0) {
+          · {{ status.totals.metadataBacklogScenes.toLocaleString() }} waiting for details
+        }
+      </p>
+    </article>
 
-      <article class="summary-card snapshot-card">
-        <p class="eyebrow">Snapshot</p>
-        <div class="metric-grid">
-          <div class="metric-card">
-            <span>Indexed scenes</span>
-            <strong>{{ status.totals.indexedScenes.toLocaleString() }}</strong>
-          </div>
-          <div class="metric-card">
-            <span>Acquisition-tracked</span>
-            <strong>{{ status.totals.acquisitionTrackedScenes.toLocaleString() }}</strong>
-          </div>
-          <div class="metric-card">
-            <span>Metadata backlog</span>
-            <strong>{{ status.totals.metadataBacklogScenes.toLocaleString() }}</strong>
-          </div>
-          <div class="metric-card">
-            <span>Pending metadata</span>
-            <strong>{{ status.totals.metadataHydration.pending.toLocaleString() }}</strong>
-          </div>
-          <div class="metric-card">
-            <span>Retryable metadata</span>
-            <strong>{{ status.totals.metadataHydration.retryable.toLocaleString() }}</strong>
-          </div>
-          <div class="metric-card">
-            <span>Counts source</span>
-            <strong>{{ status.freshness.acquisitionCountsSource }}</strong>
-          </div>
-        </div>
-      </article>
+    <section class="card jobs" aria-label="What it keeps up to date">
+      @for (job of mainJobs(); track job.jobName) {
+        <ng-container [ngTemplateOutlet]="jobRow" [ngTemplateOutletContext]="{ $implicit: job }" />
+      }
+    </section>
 
-      <article class="summary-card freshness-card">
-        <p class="eyebrow">Freshness Signals</p>
-        <div class="check-list">
-          @for (check of freshnessChecks(); track check.label) {
-            <div class="check-item" [class.ok]="check.ok" [class.warn]="!check.ok">
-              <span>{{ check.label }}</span>
-              <strong>{{ check.ok ? 'Fresh' : 'Stale' }}</strong>
-            </div>
+    @if (internalJobs().length > 0) {
+      <details class="card internal">
+        <summary>Internal steps</summary>
+        <div class="jobs">
+          @for (job of internalJobs(); track job.jobName) {
+            <ng-container
+              [ngTemplateOutlet]="jobRow"
+              [ngTemplateOutletContext]="{ $implicit: job }"
+            />
           }
         </div>
-      </article>
-
-      <article class="summary-card action-card">
-        <p class="eyebrow">Manual Actions</p>
-        <h2>Refresh indexed state on demand</h2>
-        <p class="summary-copy">
-          Metadata backfill improves local card detail and images over time.
-        </p>
-
-        <button
-          pButton
-          type="button"
-          data-testid="sync-all"
-          [disabled]="isSyncAllDisabled()"
-          (click)="syncAll()"
-        >
-          {{ triggeringAction() === 'all' ? 'Syncing...' : 'Sync All' }}
-        </button>
-
-        <p class="action-hint">
-          Safe manual jobs: Whisparr Queue, Whisparr Movies, Library Projection, and Metadata
-          Backfill.
-        </p>
-      </article>
-    </section>
-
-    <section class="jobs-shell">
-      <div class="section-head">
-        <div>
-          <h2>Background Jobs</h2>
-          <p>See cadence, last outcome, timing, counts, and any stored error.</p>
-        </div>
-      </div>
-
-      <div class="jobs-list">
-        @for (job of jobViews(); track job.jobName) {
-          <article
-            class="job-card"
-            [attr.data-testid]="'job-' + job.jobName"
-            [class.is-running]="job.status === 'RUNNING'"
-            [class.is-failed]="job.status === 'FAILED'"
-          >
-            <div class="job-head">
-              <div class="job-copy">
-                <div class="job-title-row">
-                  <h3>{{ job.label }}</h3>
-                  <span
-                    class="status-pill"
-                    [class.status-idle]="job.status === 'IDLE'"
-                    [class.status-running]="job.status === 'RUNNING'"
-                    [class.status-succeeded]="job.status === 'SUCCEEDED'"
-                    [class.status-failed]="job.status === 'FAILED'"
-                  >
-                    {{ formatStatus(job.status) }}
-                  </span>
-                </div>
-                <p class="job-purpose">{{ job.purpose }}</p>
-              </div>
-
-              @if (job.triggerJob) {
-                <button
-                  pButton
-                  type="button"
-                  [attr.data-testid]="'trigger-' + job.jobName"
-                  [disabled]="isJobTriggerDisabled(job)"
-                  (click)="triggerJob(job)"
-                >
-                  {{ triggerLabel(job) }}
-                </button>
-              } @else {
-                <span class="job-passive">Automatic or internal</span>
-              }
-            </div>
-
-            <div class="job-meta-grid">
-              <div class="meta-item">
-                <span>Cadence</span>
-                <strong>{{ job.cadence }}</strong>
-              </div>
-              <div class="meta-item">
-                <span>Started</span>
-                <strong>{{ formatDateTime(job.startedAt, 'Not recorded') }}</strong>
-              </div>
-              <div class="meta-item">
-                <span>Last success</span>
-                <strong>{{ formatDateTime(job.lastSuccessAt) }}</strong>
-              </div>
-              <div class="meta-item">
-                <span>Last finish</span>
-                <strong>{{ formatDateTime(job.finishedAt) }}</strong>
-              </div>
-              <div class="meta-item">
-                <span>Duration</span>
-                <strong>{{ formatDuration(job.lastDurationMs) }}</strong>
-              </div>
-              <div class="meta-item">
-                <span>Processed</span>
-                <strong>{{ formatCount(job.processedCount) }}</strong>
-              </div>
-              <div class="meta-item">
-                <span>Updated</span>
-                <strong>{{ formatCount(job.updatedCount) }}</strong>
-              </div>
-              <div class="meta-item">
-                <span>Last reason</span>
-                <strong>{{ formatRunReason(job.lastRunReason) }}</strong>
-              </div>
-            </div>
-
-            @if (job.lastError) {
-              <div class="error-block">
-                <h4>Last Error</h4>
-                <p>{{ job.lastError }}</p>
-              </div>
-            }
-          </article>
-        }
-      </div>
-    </section>
+      </details>
+    }
   }
 </section>
+
+<ng-template #jobRow let-job>
+  <article
+    class="job"
+    [attr.data-testid]="'job-' + job.jobName"
+    [class.is-running]="job.status === 'RUNNING'"
+    [class.is-failed]="job.status === 'FAILED'"
+  >
+    <div class="job-head">
+      <div class="job-copy">
+        <div class="job-title-row">
+          <h3>{{ job.label }}</h3>
+          <span
+            class="status-pill"
+            [class.status-idle]="job.status === 'IDLE'"
+            [class.status-running]="job.status === 'RUNNING'"
+            [class.status-succeeded]="job.status === 'SUCCEEDED'"
+            [class.status-failed]="job.status === 'FAILED'"
+          >
+            {{ formatStatus(job.status) }}
+          </span>
+        </div>
+        <p class="muted">{{ job.purpose }}</p>
+        <p class="job-when">
+          {{ job.cadence }} · last ran {{ formatDateTime(job.finishedAt ?? job.lastSuccessAt) }}
+        </p>
+      </div>
+      @if (job.triggerJob) {
+        <button
+          type="button"
+          class="secondary-action"
+          [attr.data-testid]="'trigger-' + job.jobName"
+          [disabled]="isJobTriggerDisabled(job)"
+          (click)="triggerJob(job)"
+        >
+          {{ triggerLabel(job) }}
+        </button>
+      }
+    </div>
+
+    @if (job.lastError) {
+      <p class="job-error">{{ job.lastError }}</p>
+    }
+
+    <details class="job-details">
+      <summary>Details</summary>
+      <dl>
+        <div>
+          <dt>Last OK</dt>
+          <dd>{{ formatDateTime(job.lastSuccessAt) }}</dd>
+        </div>
+        <div>
+          <dt>Took</dt>
+          <dd>{{ formatDuration(job.lastDurationMs) }}</dd>
+        </div>
+        <div>
+          <dt>Looked at</dt>
+          <dd>{{ formatCount(job.processedCount) }}</dd>
+        </div>
+        <div>
+          <dt>Changed</dt>
+          <dd>{{ formatCount(job.updatedCount) }}</dd>
+        </div>
+        <div>
+          <dt>Why it ran</dt>
+          <dd>{{ formatRunReason(job.lastRunReason) }}</dd>
+        </div>
+      </dl>
+    </details>
+  </article>
+</ng-template>

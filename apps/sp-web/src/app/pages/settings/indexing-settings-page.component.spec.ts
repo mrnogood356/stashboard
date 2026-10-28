@@ -115,9 +115,9 @@ describe('IndexingSettingsPageComponent', () => {
     const text = fixture.nativeElement.textContent;
 
     expect(indexingService.getStatus).toHaveBeenCalledTimes(1);
-    expect(text).toContain('Indexing & Sync');
-    expect(text).toContain('Sync All');
-    expect(text).toContain('Whisparr Queue');
+    expect(text).toContain('Indexing');
+    expect(text).toContain('Sync now');
+    expect(text).toContain('Downloads in Whisparr');
     expect(text).toContain('Every 30 seconds');
     expect(text).toContain('Projection failed to write one row.');
     expect(text).toContain('240');
@@ -160,7 +160,7 @@ describe('IndexingSettingsPageComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(notifications.success).toHaveBeenCalledWith('Whisparr Queue finished');
+    expect(notifications.success).toHaveBeenCalledWith('Downloads in Whisparr finished');
   });
 
   it('triggers Sync All from the manual actions panel', async () => {

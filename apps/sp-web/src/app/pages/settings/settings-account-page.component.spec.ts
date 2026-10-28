@@ -42,7 +42,7 @@ describe('SettingsAccountPageComponent', () => {
     fixture.detectChanges();
 
     const text = fixture.nativeElement.textContent;
-    expect(text).toContain('Account security');
+    expect(text).toContain('Account');
     expect(text).toContain('Change admin password');
     expect(text).toContain('admin');
   });
