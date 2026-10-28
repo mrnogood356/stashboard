@@ -473,8 +473,11 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   protected emptyStateTitle(): string {
-    return this.hasNarrowingFilters()
-      ? 'Nothing matches the current library view'
+    if (this.hasNarrowingFilters()) {
+      return 'Nothing matches the current library view';
+    }
+    return this.latestSyncAt()
+      ? 'No scenes in your library yet'
       : firstUseEmptyStateCopy('library').title;
   }
 

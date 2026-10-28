@@ -19,4 +19,6 @@ export function isSceneStatusRequestable(status: {
 
 export class SceneStatusDto {
   state!: SceneStatus;
+  /** Whisparr's queue state for a failed scene, where known: the step it stopped at. */
+  queueState?: string | null;
 }

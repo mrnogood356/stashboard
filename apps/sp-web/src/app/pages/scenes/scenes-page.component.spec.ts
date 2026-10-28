@@ -697,7 +697,7 @@ describe('ScenesPageComponent', () => {
     ) as HTMLElement | null;
     const repairLink = alert?.querySelector('a[href*="/settings/integrations"]');
 
-    expect(alert?.textContent).toContain('The catalog isn’t answering');
+    expect(alert?.textContent).toContain('The catalog needs setting up');
     expect(fixture.nativeElement.textContent).toContain('Repair integrations');
     expect(repairLink).toBeTruthy();
   });

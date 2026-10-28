@@ -373,7 +373,12 @@ export class IndexingSettingsPageComponent implements OnInit {
       .subscribe({
         next: (status) => {
           this.status.set(status);
-          this.actionSuccess.set(`${label} is up to date.`);
+          const backlog = status.totals.metadataBacklogScenes;
+          this.actionSuccess.set(
+            backlog > 0
+              ? `${label} synced. ${backlog.toLocaleString()} scenes are still waiting for details; they fill in on their own.`
+              : `${label} is up to date.`,
+          );
           this.notifications.success(`${label} finished`);
         },
         error: () => {

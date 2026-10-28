@@ -129,71 +129,92 @@ function alertForImpacts(
   impactedServices: ReadinessService[],
   source: 'setup' | 'runtime',
 ): ReadinessPageAlert {
-  const eyebrow = source === 'setup' ? 'Needs setting up' : 'Can’t reach a service';
+  const setup = source === 'setup';
+  const eyebrow = setup ? 'Needs setting up' : 'Can’t reach a service';
   const services = new Set(impactedServices);
+  const alert = (title: string, message: string): ReadinessPageAlert => ({
+    eyebrow,
+    impactedServices,
+    title,
+    message,
+  });
 
   switch (surface) {
     case 'home':
-      return {
-        eyebrow,
-        impactedServices,
-        title: 'Some of Home can’t load',
-        message:
-          'A service Home relies on isn’t answering, so some rails may be empty or out of date.',
-      };
+      return setup
+        ? alert(
+            'Some of Home needs setting up',
+            `A service Home relies on isn’t set up yet, so some rails stay empty.`,
+          )
+        : alert(
+            'Some of Home can’t load',
+            'A service Home relies on isn’t answering, so some rails may be empty or out of date.',
+          );
     case 'scenes':
       if (services.has('CATALOG')) {
-        return {
-          eyebrow,
-          impactedServices,
-          title: 'The catalog isn’t answering',
-          message:
-            'Scenes come from the catalog, so results may be empty or out of date until it answers again.',
-        };
+        return setup
+          ? alert(
+              'The catalog needs setting up',
+              `Scenes come from the catalog, so there’s nothing to show until it’s set up.`,
+            )
+          : alert(
+              'The catalog isn’t answering',
+              'Scenes come from the catalog, so results may be empty or out of date until it answers again.',
+            );
       }
 
-      return {
-        eyebrow,
-        impactedServices,
-        title: 'Scene statuses may be out of date',
-        message:
-          'You can keep browsing, but “In library” and download badges may be behind until Whisparr and Stash answer again.',
-      };
+      return setup
+        ? alert(
+            'Scene statuses need setting up',
+            `You can keep browsing, but “In library” and download badges need Whisparr and Stash set up.`,
+          )
+        : alert(
+            'Scene statuses may be out of date',
+            'You can keep browsing, but “In library” and download badges may be behind until Whisparr and Stash answer again.',
+          );
     case 'library':
-      return {
-        eyebrow,
-        impactedServices,
-        title: source === 'setup' ? 'Stash needs setting up' : 'Stash isn’t answering',
-        message:
-          'Library comes from Stash, so new scenes, pictures and favourites may be missing until it answers again.',
-      };
+      return setup
+        ? alert(
+            'Stash needs setting up',
+            `Library comes from Stash, so it stays empty until Stash is set up.`,
+          )
+        : alert(
+            'Stash isn’t answering',
+            'Library comes from Stash, so new scenes, pictures and favourites may be missing until it answers again.',
+          );
     case 'acquisition':
       if (services.has('WHISPARR') && services.has('STASH')) {
-        return {
-          eyebrow,
-          impactedServices,
-          title: 'Whisparr and Stash aren’t answering',
-          message:
-            'Progress, failures and new arrivals may be out of date until both answer again.',
-        };
+        return setup
+          ? alert(
+              'Whisparr and Stash need setting up',
+              `Requests go through Whisparr and land in Stash, so both need setting up.`,
+            )
+          : alert(
+              'Whisparr and Stash aren’t answering',
+              'Progress, failures and new arrivals may be out of date until both answer again.',
+            );
       }
 
       if (services.has('WHISPARR')) {
-        return {
-          eyebrow,
-          impactedServices,
-          title: 'Whisparr needs attention',
-          message:
-            'Download progress and failures may be out of date until Whisparr answers again.',
-        };
+        return setup
+          ? alert(
+              'Whisparr needs setting up',
+              `Requests go through Whisparr, so nothing moves until it’s set up.`,
+            )
+          : alert(
+              'Whisparr needs attention',
+              'Download progress and failures may be out of date until Whisparr answers again.',
+            );
       }
 
-      return {
-        eyebrow,
-        impactedServices,
-        title: 'Stash isn’t answering',
-        message:
-          'Finished downloads may take longer to show as in your library until Stash answers again.',
-      };
+      return setup
+        ? alert(
+            'Stash needs setting up',
+            `Finished downloads can’t show as in your library until Stash is set up.`,
+          )
+        : alert(
+            'Stash isn’t answering',
+            'Finished downloads may take longer to show as in your library until Stash answers again.',
+          );
   }
 }

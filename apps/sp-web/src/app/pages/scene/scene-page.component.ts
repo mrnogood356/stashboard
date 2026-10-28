@@ -230,7 +230,7 @@ export class ScenePageComponent implements OnInit, OnDestroy {
 
   /** Where it is, on the same four steps as Requests. */
   protected sceneStages(scene: SceneDetails): Stage[] {
-    return stagesForStatus(scene.status.state);
+    return stagesForStatus(scene.status.state, scene.status.queueState);
   }
 
   protected hasLongDescription(description: string | null): boolean {
@@ -526,6 +526,7 @@ export class ScenePageComponent implements OnInit, OnDestroy {
     this.loading.set(true);
     this.error.set(null);
     this.descriptionExpanded.set(false);
+    this.tagsExpanded.set(false);
     this.selectedStashCopyUrl.set(null);
     this.requestModalOpen.set(false);
     this.performerFavoriteInFlightById.set({});

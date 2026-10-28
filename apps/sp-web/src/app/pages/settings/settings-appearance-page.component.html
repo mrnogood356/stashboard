@@ -214,7 +214,11 @@
       </div>
     </section>
 
-    <details class="card css-card" [open]="draft().customCss.length > 0">
+    <details
+      class="card css-card"
+      [open]="cssOpen()"
+      (toggle)="cssOpen.set($any($event.target).open)"
+    >
       <summary class="card-head">
         <h3 id="appearance-css">Advanced: custom CSS</h3>
         <p class="muted">Extra CSS applied after the theme, on every device.</p>

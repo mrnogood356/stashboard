@@ -660,3 +660,20 @@
     align-items: start;
   }
 }
+
+/* The 76px icon sidebar (721–900px) has no room for the number: a dot, as when collapsed.
+   After the rule above that hides its labels. */
+@media (max-width: 900px) {
+  .layout:not(.mobile-shell) .nav-item span.nav-count {
+    display: block;
+    position: absolute;
+    top: 0.45rem;
+    left: 2.1rem;
+    min-width: 0;
+    width: 0.5rem;
+    height: 0.5rem;
+    padding: 0;
+    font-size: 0;
+    line-height: 0;
+  }
+}

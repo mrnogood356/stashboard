@@ -61,7 +61,10 @@ export class SceneStatusService {
     ]);
     const indexedRow = indexedRows.get(normalized);
     if (indexedRow) {
-      return this.indexingService.toSceneStatus(indexedRow);
+      const status = this.indexingService.toSceneStatus(indexedRow);
+      return status.state === 'FAILED'
+        ? { ...status, queueState: indexedRow.whisparrQueueState }
+        : status;
     }
 
     if (await this.indexingService.canResolveUnknownScenesAsNotRequested()) {

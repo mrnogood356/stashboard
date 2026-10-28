@@ -48,6 +48,8 @@ export class SettingsAppearancePageComponent implements OnInit, OnDestroy {
   protected readonly saving = signal(false);
   protected readonly message = signal<Message | null>(null);
   protected readonly draft = signal<AppearanceSettings>(this.theme.saved());
+  /** Open when CSS is saved; then it stays as you leave it, even if you clear the box. */
+  protected readonly cssOpen = signal(this.theme.saved().customCss.length > 0);
   /** What's typed in the hex field, which may be half-typed. */
   protected readonly hexInput = signal('');
 
@@ -74,6 +76,7 @@ export class SettingsAppearancePageComponent implements OnInit, OnDestroy {
     await this.theme.syncFromServer();
     this.draft.set(this.theme.saved());
     this.hexInput.set(this.draft().accentColor ?? '');
+    this.cssOpen.set(this.draft().customCss.length > 0);
     this.loading.set(false);
   }
 

@@ -142,7 +142,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
 
   /** In flight, or failed in the last day; SABnzbd's, so not in Whisparr's list. */
   protected readonly handoffs = signal<ProcessingHandoff[]>([]);
-  private handoffsLoading = false;
+  private handoffsRequest: Subscription | null = null;
 
   /** Only All and Downloading show them, and not while searching. */
   private showsHandoffs(): boolean {
@@ -151,39 +151,35 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   }
 
   private loadHandoffs(): void {
+    // A newer view wins over a request still in flight.
+    this.handoffsRequest?.unsubscribe();
+    this.handoffsRequest = null;
     if (!this.showsHandoffs()) {
       this.handoffs.set([]);
       return;
     }
-    if (this.handoffsLoading) {
-      return;
-    }
-    this.handoffsLoading = true;
     const lifecycle = this.selectedLifecycle();
-    this.downloadsApi
-      .processing()
-      .pipe(finalize(() => (this.handoffsLoading = false)))
-      .subscribe({
-        next: (processing) => {
-          if (this.selectedLifecycle() !== lifecycle || !this.showsHandoffs()) {
-            return;
-          }
-          const since = Date.now() - FAILED_HANDOFF_SHOWN_MS;
-          const active = processing.handoffs.filter((handoff) => handoff.stage !== 'ignored');
-          const failed = processing.recentHandoffs.filter(
-            (handoff) => handoff.stage === 'failed' && Date.parse(handoff.updatedAt) >= since,
-          );
-          this.handoffs.set(
-            lifecycle === 'DOWNLOADING'
-              ? active.filter((handoff) =>
-                  ['queued', 'downloading', 'unpacking'].includes(handoff.stage),
-                )
-              : [...active, ...failed],
-          );
-        },
-        // Without SABnzbd the rest of Requests still works.
-        error: () => this.handoffs.set([]),
-      });
+    this.handoffsRequest = this.downloadsApi.processing().subscribe({
+      next: (processing) => {
+        if (this.selectedLifecycle() !== lifecycle || !this.showsHandoffs()) {
+          return;
+        }
+        const since = Date.now() - FAILED_HANDOFF_SHOWN_MS;
+        const active = processing.handoffs.filter((handoff) => handoff.stage !== 'ignored');
+        const failed = processing.recentHandoffs.filter(
+          (handoff) => handoff.stage === 'failed' && Date.parse(handoff.updatedAt) >= since,
+        );
+        this.handoffs.set(
+          lifecycle === 'DOWNLOADING'
+            ? active.filter((handoff) =>
+                ['queued', 'downloading', 'unpacking'].includes(handoff.stage),
+              )
+            : [...active, ...failed],
+        );
+      },
+      // Keep what is shown; the next refresh tries again.
+      error: () => undefined,
+    });
   }
 
   /** The same four steps as a request, from where SABnzbd and Stashboard are. */
@@ -500,6 +496,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     this.observer?.disconnect();
     this.queryParamSubscription?.unsubscribe();
     this.grabbedSubscription?.unsubscribe();
+    this.handoffsRequest?.unsubscribe();
     this.cancelSearchTimer();
     if (this.liveTimer) {
       clearInterval(this.liveTimer);

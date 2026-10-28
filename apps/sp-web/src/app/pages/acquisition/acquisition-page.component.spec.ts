@@ -863,7 +863,7 @@ describe('AcquisitionPageComponent', () => {
     ) as HTMLElement | null;
 
     expect(degradedState?.textContent).toContain('Needs setting up');
-    expect(degradedState?.textContent).toContain('Whisparr needs attention');
+    expect(degradedState?.textContent).toContain('Whisparr needs setting up');
     expect(degradedState?.textContent).not.toContain('Stash isn’t answering');
   });
 
