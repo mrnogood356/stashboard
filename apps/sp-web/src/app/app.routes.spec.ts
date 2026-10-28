@@ -4,7 +4,14 @@ import { requireFeedGuard, requirePlaybackGuard } from './core/guards/playback-r
 
 describe('app routes', () => {
   it('exposes the public auth routes before the protected shell', () => {
-    expect(routes.slice(0, 3).map((route) => route.path)).toEqual(['bootstrap', 'login', 'setup']);
+    expect(routes.slice(0, 4).map((route) => route.path)).toEqual([
+      'bootstrap',
+      'unreachable',
+      'login',
+      'setup',
+    ]);
+    // Shown when Stashboard can't be reached, so it needs no answer from it.
+    expect(routes.find((route) => route.path === 'unreachable')?.canActivate).toBeUndefined();
     expect(routes.map((route) => route.path)).toContain('watch/:sceneId');
     expect(routes.map((route) => route.path)).toContain('feed');
   });

@@ -8,6 +8,7 @@ import {
   JobHealthStatus,
   UpdateCheckResponse,
 } from '../../core/api/about.service';
+import { AppUpdatesService } from '../../core/pwa/app-updates.service';
 
 type RowStatus = 'ok' | 'warn' | 'fail' | 'skip';
 
@@ -53,6 +54,7 @@ const COPIED_MS = 2_000;
 })
 export class SettingsAboutPageComponent implements OnInit, OnDestroy {
   private readonly api = inject(AboutApiService);
+  protected readonly updates = inject(AppUpdatesService);
   private copiedTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly about = signal<AboutResponse | null>(null);

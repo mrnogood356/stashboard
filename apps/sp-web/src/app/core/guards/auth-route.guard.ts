@@ -3,8 +3,9 @@ import { CanActivateFn, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { AuthService } from '../api/auth.service';
+import { isUnreachableError, unreachableUrl } from '../network/unreachable';
 
-export const requireAuthenticatedGuard: CanActivateFn = () => {
+export const requireAuthenticatedGuard: CanActivateFn = (_route, state) => {
   const authService = inject(AuthService);
   const router = inject(Router);
 
@@ -16,7 +17,13 @@ export const requireAuthenticatedGuard: CanActivateFn = () => {
 
       return status.authenticated ? true : router.createUrlTree(['/login']);
     }),
-    catchError(() => of(router.createUrlTree(['/login']))),
+    catchError((error: unknown) =>
+      of(
+        isUnreachableError(error)
+          ? unreachableUrl(router, state.url)
+          : router.createUrlTree(['/login']),
+      ),
+    ),
   );
 };
 

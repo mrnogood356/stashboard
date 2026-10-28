@@ -1,6 +1,7 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { GuardResult, Router, UrlTree, provideRouter } from '@angular/router';
-import { firstValueFrom, isObservable, of } from 'rxjs';
+import { firstValueFrom, isObservable, of, throwError } from 'rxjs';
 import { AuthService } from '../api/auth.service';
 import {
   bootstrapOnlyWhenRequiredGuard,
@@ -42,6 +43,30 @@ describe('auth route guards', () => {
     const result = await runGuard(requireAuthenticatedGuard);
 
     expect(router.serializeUrl(result as UrlTree)).toBe('/bootstrap');
+  });
+
+  it('says Stashboard can’t be reached, instead of asking to sign in, when offline or restarting', async () => {
+    for (const status of [0, 502, 503]) {
+      authService.refreshStatus.mockReturnValue(
+        throwError(() => new HttpErrorResponse({ status })),
+      );
+
+      const result = await runGuard(requireAuthenticatedGuard, '/library?sort=new');
+
+      expect(router.serializeUrl(result as UrlTree)).toBe(
+        '/unreachable?next=%2Flibrary%3Fsort%3Dnew',
+      );
+    }
+  });
+
+  it('still asks to sign in for other errors', async () => {
+    authService.refreshStatus.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 500 })),
+    );
+
+    const result = await runGuard(requireAuthenticatedGuard);
+
+    expect(router.serializeUrl(result as UrlTree)).toBe('/login');
   });
 
   it('routes existing installs without a session to /login', async () => {
