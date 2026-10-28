@@ -100,7 +100,7 @@
           (click)="selectLifecycle(tab.lifecycle)"
         >
           <span>{{ tab.label }}</span>
-          <span class="lifecycle-tab-count">{{ tab.count }}</span>
+          <span class="lifecycle-tab-count" [class.has-count]="tab.count > 0">{{ tab.count }}</span>
         </button>
       }
     </nav>
@@ -142,8 +142,8 @@
               </div>
               <div class="card-body">
                 <div class="card-status-row">
-                  @if (handoff.scene?.studio; as studio) {
-                    <span class="studio-pill">{{ studio }}</span>
+                  @if (cardMeta(null, handoff.scene?.studio ?? null); as meta) {
+                    <p class="card-meta">{{ meta }}</p>
                   }
                 </div>
                 <div class="card-copy">
@@ -379,14 +379,8 @@
                         <span class="added-at">{{ added }}</span>
                       }
 
-                      @if (item.releaseDate) {
-                        <p class="release-date">
-                          <time [attr.datetime]="item.releaseDate">{{ item.releaseDate }}</time>
-                        </p>
-                      }
-
-                      @if (item.studio) {
-                        <span class="studio-pill">{{ item.studio }}</span>
+                      @if (cardMeta(item.releaseDate, item.studio); as meta) {
+                        <p class="card-meta">{{ meta }}</p>
                       }
                     </div>
 
@@ -504,7 +498,7 @@
 
                     <div class="card-actions app-action-row">
                       <a
-                        class="primary-link small"
+                        class="primary-link small details-link"
                         [routerLink]="['/scene', item.id]"
                         [queryParams]="{ returnTo: currentRouteUrl() }"
                       >

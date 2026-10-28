@@ -84,7 +84,7 @@ a {
   text-align: center;
 }
 
-.lifecycle-tab[data-tone='attention'] .lifecycle-tab-count:not(:empty) {
+.lifecycle-tab[data-tone='attention'] .lifecycle-tab-count.has-count {
   color: var(--danger-text);
 }
 
@@ -663,4 +663,36 @@ a {
 
 .card-timeline {
   margin-top: 0.35rem;
+}
+
+/* ---------- card meta and actions ---------- */
+
+.card-meta {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+/* One look for every action on a card; the scene link is the accent one. */
+.card-actions .primary-link,
+.card-actions .secondary-link,
+.card-actions .secondary-action {
+  border: 0;
+  background: var(--chip-bg);
+  color: var(--text-primary);
+}
+
+.card-actions .primary-link {
+  color: var(--accent-text);
+}
+
+@media (max-width: 640px) {
+  /* The title and picture already open the scene. */
+  .card-actions .details-link {
+    display: none;
+  }
+
+  .card-actions {
+    gap: 0.4rem;
+  }
 }

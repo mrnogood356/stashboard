@@ -714,6 +714,19 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       .join(' · ');
   }
 
+  /** "May 14, 2026 · Velvet Films": the release date and studio on one line. */
+  protected cardMeta(releaseDate: string | null, studio: string | null): string | null {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(releaseDate ?? '');
+    const date = match
+      ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])).toLocaleDateString(
+          undefined,
+          { year: 'numeric', month: 'short', day: 'numeric' },
+        )
+      : releaseDate;
+    const line = [date, studio].filter(Boolean).join(' · ');
+    return line || null;
+  }
+
   /** "Added today", "Added yesterday", "Added 3 days ago". */
   protected addedText(item: AcquisitionSceneItem): string | null {
     const added = item.addedAt ? new Date(item.addedAt) : null;
