@@ -228,6 +228,39 @@ describe('IndexingScheduler', () => {
     );
   });
 
+  it('says a skipped run once, not as an error, when a service or the database was down', async () => {
+    const error = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const indexingService = createIndexingServiceMock();
+    indexingService.syncMetadataBackfill
+      .mockRejectedValueOnce(
+        new Error('Failed to reach Whisparr provider endpoint.'),
+      )
+      .mockRejectedValueOnce(
+        new Error(
+          'Database error. Code: `57P03`. Message: `the database system is shutting down`',
+        ),
+      );
+    const scheduler = new IndexingScheduler(
+      indexingService as unknown as IndexingService,
+    );
+
+    scheduler.handleMetadataBackfill();
+    await flushPromises();
+    scheduler.handleMetadataBackfill();
+    await flushPromises();
+
+    expect(error).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain('database was restarting');
+  });
+
   it('logs GC-assisted memory samples when enabled and gc is exposed', async () => {
     process.env.STASHBOARD_INDEXING_GC_LOG = '1';
     process.env.STASHBOARD_INDEXING_GC_SAMPLE_INTERVAL_MS = '0';

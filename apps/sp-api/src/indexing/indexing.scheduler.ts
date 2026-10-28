@@ -4,6 +4,10 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { writeHeapSnapshot } from 'node:v8';
 import {
+  isDatabaseUnavailable,
+  isProviderUnreachable,
+} from '../providers/provider-response';
+import {
   IndexingDiagnosticsSnapshot,
   IndexingService,
 } from './indexing.service';
@@ -98,6 +102,19 @@ export class IndexingScheduler implements OnApplicationBootstrap {
       })
       .catch((error: unknown) => {
         outcome = 'failed';
+        if (isProviderUnreachable(error)) {
+          // The sync already said it couldn't reach it; it runs again on its next turn.
+          this.logger.debug(
+            `Background indexing job ${jobName} skipped: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return;
+        }
+        if (isDatabaseUnavailable(error)) {
+          this.logger.warn(
+            `Background indexing job ${jobName} skipped: the database was restarting. It runs again on its next turn.`,
+          );
+          return;
+        }
         this.logger.error(
           `Background indexing job ${jobName} failed: ${error instanceof Error ? error.message : String(error)}`,
           error instanceof Error ? error.stack : undefined,

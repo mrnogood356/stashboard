@@ -1,12 +1,34 @@
 import { fetchWithTimeout } from './fetch-with-timeout';
 import {
   describeErrorResponse,
+  isDatabaseUnavailable,
+  isProviderUnreachable,
   ProviderResponseError,
   readJsonResponse,
   summarizeErrorBody,
 } from './provider-response';
 
 describe('provider responses', () => {
+  it('tells a service that is down, and a restarting database, from other errors', () => {
+    expect(
+      isProviderUnreachable(
+        new Error('Failed to reach Stash provider endpoint.'),
+      ),
+    ).toBe(true);
+    expect(isProviderUnreachable(new Error('Stash refused it'))).toBe(false);
+    expect(
+      isDatabaseUnavailable(
+        new Error('Message: `the database system is shutting down`'),
+      ),
+    ).toBe(true);
+    expect(
+      isDatabaseUnavailable(Object.assign(new Error('x'), { code: 'P1001' })),
+    ).toBe(true);
+    expect(isDatabaseUnavailable(new Error('Unique constraint failed'))).toBe(
+      false,
+    );
+  });
+
   it('parses a JSON body, and an empty one as null', async () => {
     await expect(
       readJsonResponse(new Response('{"data":{"a":1}}'), 'Stash'),
