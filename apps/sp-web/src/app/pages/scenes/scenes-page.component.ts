@@ -45,6 +45,8 @@ import {
 import { RuntimeHealthService } from '../../core/api/runtime-health.service';
 import { SetupStatusStore } from '../../core/api/setup-status.store';
 import { SceneCardComponent } from '../../shared/scene-card/scene-card.component';
+import { HideOwnedService, isOwned } from '../../core/preferences/hide-owned.service';
+import { OwnedToggleComponent } from '../../shared/owned-toggle/owned-toggle.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
 import {
   buildReadinessPageAlert,
@@ -86,6 +88,7 @@ import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.com
     MultiSelect,
     RouterLink,
     SceneCardComponent,
+    OwnedToggleComponent,
     SceneRequestModalComponent,
   ],
   templateUrl: './scenes-page.component.html',
@@ -191,6 +194,10 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
   /** True once too many pages in a row came back empty; see MAX_EMPTY_PAGES_IN_A_ROW. */
   protected readonly autoLoadPaused = signal(false);
   protected readonly items = signal<SceneExplorerItem[]>([]);
+  private readonly hideOwned = inject(HideOwnedService);
+  /** What the grid shows: every scene, or only the ones you don't have. */
+  protected readonly shownItems = computed(() => this.hideOwned.filter(this.items()));
+  protected readonly ownedCount = computed(() => this.items().filter(isOwned).length);
   protected readonly requestModalOpen = signal(false);
   protected readonly requestContext = signal<SceneRequestContext | null>(null);
   protected readonly selectedSort = signal<SceneFeedSort>(ScenesPageComponent.DEFAULT_SORT);
