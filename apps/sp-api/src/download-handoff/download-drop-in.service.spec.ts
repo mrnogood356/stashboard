@@ -538,6 +538,32 @@ describe('DownloadDropInService', () => {
     expect(await exists(path.join(sabFolder, 'Untouched'))).toBe(true);
   });
 
+  it('isn’t held back by folders that are already gone', async () => {
+    const row = (sourcePath: string) => ({
+      id: sourcePath,
+      sourcePath,
+      size: BigInt(100),
+      status: 'imported',
+      finalPath: path.join(destination, path.basename(sourcePath)),
+      stashSceneId: '88',
+      error: null,
+      attempts: 0,
+      finishedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    for (let i = 0; i < 25; i += 1) {
+      dropIns.push(row(path.join(sabFolder, `Gone ${i}`, 'Scene.mp4')));
+    }
+    const folder = path.join(sabFolder, 'Pack');
+    await write(path.join(folder, 'Pack.nfo'));
+    dropIns.push(row(path.join(folder, 'Scene.mp4')));
+
+    await service.check(later());
+
+    expect(await exists(folder)).toBe(false);
+  });
+
   describe('status and problems', () => {
     let warn: jest.SpyInstance;
     let log: jest.SpyInstance;
@@ -572,6 +598,22 @@ describe('DownloadDropInService', () => {
         state: 'off',
         reason: 'handoff-off',
       });
+    });
+
+    it('keeps saying drop-ins are off when the folder can’t be read for a finished download’s other videos', async () => {
+      settings.dropIns = false;
+      settings.sabPathTo = path.join(root, 'not-mounted');
+
+      await service.check();
+
+      expect(service.status()).toMatchObject({
+        state: 'off',
+        reason: 'drop-ins-off',
+      });
+      expect(
+        said(warn).filter((line) => line.startsWith("Can't watch")),
+      ).toHaveLength(0);
+      expect(titles()).toEqual([]);
     });
 
     it('says SABnzbd isn’t set up', async () => {
