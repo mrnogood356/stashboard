@@ -546,6 +546,49 @@
   white-space: nowrap;
 }
 
+/* Failed requests and downloads, on Requests. */
+.nav-count {
+  margin-left: auto;
+  min-width: 1.3rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.3rem;
+  text-align: center;
+}
+
+.nav-item {
+  position: relative;
+}
+
+.nav-count-dot {
+  position: absolute;
+  top: 0.45rem;
+  left: 2.1rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+.mobile-nav-count {
+  position: absolute;
+  top: 0.25rem;
+  left: calc(50% + 0.35rem);
+  min-width: 1.05rem;
+  padding: 0 0.28rem;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.05rem;
+  text-align: center;
+}
+
 .mobile-nav-indicator {
   position: absolute;
   top: 0.4rem;

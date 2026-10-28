@@ -44,8 +44,19 @@
               [attr.data-testid]="item.route === '/settings' ? 'settings-nav-link' : null"
             >
               <span class="icon" aria-hidden="true"><i [class]="item.icon"></i></span>
+              @if (item.route === '/acquisition' && requestsAttention() > 0 && collapsed()) {
+                <span class="nav-count-dot" aria-hidden="true"></span>
+              }
               @if (!collapsed()) {
                 <span>{{ item.label }}</span>
+                @if (item.route === '/acquisition' && requestsAttention() > 0) {
+                  <span
+                    class="nav-count"
+                    data-testid="requests-nav-count"
+                    [attr.aria-label]="requestsAttention() + ' failed'"
+                    >{{ requestsAttention() }}</span
+                  >
+                }
                 @if (item.route === '/settings' && degradedState()) {
                   <span class="nav-badge" data-testid="settings-nav-indicator">Repair</span>
                 }
@@ -150,6 +161,9 @@
           >
             <span class="icon" aria-hidden="true"><i [class]="item.icon"></i></span>
             <span class="mobile-more-label">{{ item.label }}</span>
+            @if (item.route === '/acquisition' && requestsAttention() > 0) {
+              <span class="nav-count">{{ requestsAttention() }}</span>
+            }
             <i class="pi pi-chevron-right mobile-more-chevron" aria-hidden="true"></i>
             @if (item.route === '/settings' && degradedState()) {
               <span class="nav-badge" data-testid="mobile-settings-nav-indicator">Repair</span>
@@ -182,6 +196,14 @@
       >
         <span class="icon" aria-hidden="true"><i [class]="item.icon"></i></span>
         <span class="mobile-nav-label">{{ item.label }}</span>
+        @if (item.route === '/acquisition' && requestsAttention() > 0) {
+          <span
+            class="mobile-nav-count"
+            data-testid="mobile-requests-count"
+            [attr.aria-label]="requestsAttention() + ' failed'"
+            >{{ requestsAttention() > 9 ? '9+' : requestsAttention() }}</span
+          >
+        }
       </a>
     }
 

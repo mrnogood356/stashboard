@@ -45,6 +45,12 @@ export class AcquisitionSceneItemDto {
   stashViewUrl!: string | null;
 }
 
+/** For the badge on Requests in the menu. */
+export class AcquisitionAttentionDto {
+  /** Requests that failed, plus your own downloads that failed today. */
+  failed!: number;
+}
+
 export class AcquisitionScenesFeedDto {
   total!: number;
   page!: number;

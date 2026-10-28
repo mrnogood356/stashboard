@@ -1,3 +1,4 @@
+import { AcquisitionService } from '../../core/api/acquisition.service';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
@@ -126,12 +127,15 @@ describe('AppShellLayoutComponent', () => {
     runtimeHealth = buildRuntimeHealth(),
     isPhone = false,
     feedEnabled = true,
+    failed = 0,
   }: {
     setupStatus?: SetupStatusResponse;
     runtimeHealth?: RuntimeHealthResponse;
     isPhone?: boolean;
     feedEnabled?: boolean;
+    failed?: number;
   } = {}) {
+    const acquisitionService = { attention: vi.fn(() => of({ failed })) };
     const viewport = installMatchMedia(isPhone);
     const runtimeHealthState = signal(runtimeHealth);
     const authStatus = signal({
@@ -192,6 +196,7 @@ describe('AppShellLayoutComponent', () => {
           provide: PlaybackSettingsService,
           useValue: playbackSettings,
         },
+        { provide: AcquisitionService, useValue: acquisitionService },
       ],
     }).compileComponents();
 
@@ -290,7 +295,7 @@ describe('AppShellLayoutComponent', () => {
 
     expect(desktopSidebar).toBeNull();
     expect(bottomNav).toBeTruthy();
-    expect(bottomNavItems).toEqual(['Home', 'Search', 'Scenes', 'Library', 'More']);
+    expect(bottomNavItems).toEqual(['Home', 'Scenes', 'Requests', 'Library', 'More']);
 
     moreTrigger?.click();
     fixture.detectChanges();
@@ -302,7 +307,7 @@ describe('AppShellLayoutComponent', () => {
     ) as HTMLElement | null;
 
     expect(moreSheet).toBeTruthy();
-    expect(moreSheet?.textContent).toContain('Requests');
+    expect(moreSheet?.textContent).toContain('Search');
     expect(moreSheet?.textContent).toContain('Downloads');
     expect(moreSheet?.textContent).toContain('Performers');
     expect(moreSheet?.textContent).toContain('Studios');
@@ -518,5 +523,25 @@ describe('AppShellLayoutComponent', () => {
     expect(banner?.textContent).toContain('Repair needed');
     expect(banner?.textContent).toContain('Whisparr needs repair.');
     expect(banner?.textContent).not.toContain('Stash is currently unavailable.');
+  });
+
+  it('counts failed requests on Requests, in the sidebar and the phone tab bar', async () => {
+    const desktop = await renderComponent({ failed: 3 });
+    const sidebarCount = desktop.fixture.nativeElement.querySelector(
+      '[data-testid="requests-nav-count"]',
+    ) as HTMLElement | null;
+    expect(sidebarCount?.textContent?.trim()).toBe('3');
+    TestBed.resetTestingModule();
+
+    const phone = await renderComponent({ failed: 12, isPhone: true });
+    const tabCount = phone.fixture.nativeElement.querySelector(
+      '[data-testid="mobile-requests-count"]',
+    ) as HTMLElement | null;
+    expect(tabCount?.textContent?.trim()).toBe('9+');
+  });
+
+  it('shows no count when nothing failed', async () => {
+    const { fixture } = await renderComponent();
+    expect(fixture.nativeElement.querySelector('[data-testid="requests-nav-count"]')).toBeNull();
   });
 });

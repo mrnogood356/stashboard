@@ -265,6 +265,16 @@ p {
     transform 0.1s ease;
 }
 
+.quick-link--phone {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .quick-link--phone {
+    display: inline-flex;
+  }
+}
+
 .quick-link i {
   font-size: 0.9rem;
 }

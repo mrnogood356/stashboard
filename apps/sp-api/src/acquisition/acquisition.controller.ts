@@ -3,7 +3,10 @@ import {
   AcquisitionBulkDto,
   AcquisitionBulkResultDto,
 } from './dto/acquisition-bulk.dto';
-import { AcquisitionScenesFeedDto } from './dto/acquisition-scene-feed.dto';
+import {
+  AcquisitionAttentionDto,
+  AcquisitionScenesFeedDto,
+} from './dto/acquisition-scene-feed.dto';
 import { AcquisitionScenesQueryDto } from './dto/acquisition-scenes-query.dto';
 import { AcquisitionService } from './acquisition.service';
 
@@ -21,6 +24,12 @@ export class AcquisitionController {
       query.lifecycle,
       { q: query.q, sort: query.sort },
     );
+  }
+
+  /** What needs you, for the badge on Requests in the menu. Cheap to poll. */
+  @Get('attention')
+  getAttention(): Promise<AcquisitionAttentionDto> {
+    return this.acquisitionService.getAttention();
   }
 
   /** Search again for, or remove, many waiting scenes at once. */
