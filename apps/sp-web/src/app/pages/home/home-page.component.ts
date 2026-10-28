@@ -1173,13 +1173,11 @@ export class HomePageComponent implements OnInit, OnDestroy {
   private loadSingleRail(rail: HomeRailConfig) {
     if (rail.source === 'STASH') {
       return this.homeService.getRailItems(rail.id).pipe(
-        map(
-          (response: HomeRailContentResponse): RailLoadResult => ({
-            id: rail.id,
-            items: response.items,
-            error: response.message,
-          }),
-        ),
+        map((response: HomeRailContentResponse): RailLoadResult => ({
+          id: rail.id,
+          items: response.items,
+          error: response.message,
+        })),
       );
     }
 
@@ -1195,17 +1193,15 @@ export class HomePageComponent implements OnInit, OnDestroy {
         rail.config.studioIds,
       )
       .pipe(
-        map(
-          (response): RailLoadResult => ({
-            id: rail.id,
-            items: response.items.map((item) => ({
-              ...item,
-              requestable: item.requestable,
-              viewUrl: null,
-            })),
-            error: null,
-          }),
-        ),
+        map((response): RailLoadResult => ({
+          id: rail.id,
+          items: response.items.map((item) => ({
+            ...item,
+            requestable: item.requestable,
+            viewUrl: null,
+          })),
+          error: null,
+        })),
       );
   }
 

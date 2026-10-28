@@ -284,24 +284,22 @@ export class SearchPageComponent implements OnInit, OnDestroy {
       catalogPerformers: safe(this.discover.getPerformersFeed(1, 12, { name: value }), null),
       catalogStudios: safe(this.discover.getStudiosFeed(1, 12, { name: value }), null),
     }).pipe(
-      map(
-        (result): SearchResults => ({
-          library: result.library?.items ?? [],
-          libraryTotal: result.library?.total ?? 0,
-          local: result.local,
-          catalogScenes: result.catalogScenes?.items ?? [],
-          catalogScenesTotal: result.catalogScenes?.total ?? 0,
-          catalogHidden: result.catalogScenes?.hidden ?? 0,
-          catalogPerformers: result.catalogPerformers?.items ?? [],
-          catalogPerformersTotal: result.catalogPerformers?.total ?? 0,
-          catalogStudios: result.catalogStudios?.items ?? [],
-          catalogStudiosTotal: result.catalogStudios?.total ?? 0,
-          catalogFailed:
-            result.catalogScenes === null ||
-            result.catalogPerformers === null ||
-            result.catalogStudios === null,
-        }),
-      ),
+      map((result): SearchResults => ({
+        library: result.library?.items ?? [],
+        libraryTotal: result.library?.total ?? 0,
+        local: result.local,
+        catalogScenes: result.catalogScenes?.items ?? [],
+        catalogScenesTotal: result.catalogScenes?.total ?? 0,
+        catalogHidden: result.catalogScenes?.hidden ?? 0,
+        catalogPerformers: result.catalogPerformers?.items ?? [],
+        catalogPerformersTotal: result.catalogPerformers?.total ?? 0,
+        catalogStudios: result.catalogStudios?.items ?? [],
+        catalogStudiosTotal: result.catalogStudios?.total ?? 0,
+        catalogFailed:
+          result.catalogScenes === null ||
+          result.catalogPerformers === null ||
+          result.catalogStudios === null,
+      })),
     );
   }
 }
