@@ -6,6 +6,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { Logger } from '@nestjs/common';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { IndexingService } from '../indexing/indexing.service';
@@ -2213,6 +2214,26 @@ describe('OrganizerService', () => {
       '8',
       expect.anything(),
     );
+  });
+
+  it('stops loading scenes once Stash stops answering, and says so once', async () => {
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    stash.getOrganizerScene.mockRejectedValue(
+      new Error('Failed to reach Stash provider endpoint.'),
+    );
+    const ids = Array.from({ length: 20 }, (_, i) => String(i + 1));
+
+    const result = await service.identifyNewScenes(ids);
+
+    expect(stash.getOrganizerScene).toHaveBeenCalledTimes(4);
+    expect(result.left).toEqual(ids);
+    const said = warn.mock.calls
+      .map(([text]) => String(text))
+      .filter((text) => text.includes('Stash'));
+    expect(said).toHaveLength(1);
+    expect(said[0]).toContain('20 left for the next run');
   });
 
   it('still matches new scenes when Whisparr can’t be asked', async () => {

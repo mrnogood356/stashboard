@@ -68,11 +68,27 @@ function describe(error: unknown): string | undefined {
   return String(error);
 }
 
+/** The browser's "Script error.": all it says about another origin's script. */
+function isOpaqueScriptError(error: unknown): boolean {
+  const message =
+    error instanceof Error || error instanceof ErrorEvent
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : null;
+  return message?.trim() === 'Script error.';
+}
+
 /** Every uncaught error in the app also goes to the server log. */
 @Injectable()
 export class ReportingErrorHandler extends ErrorHandler {
   override handleError(error: unknown): void {
     super.handleError(error);
+    if (isOpaqueScriptError(error)) {
+      // A script from another site (a browser extension, mostly): the browser
+      // hides what went wrong, and it isn't Stashboard's code.
+      return;
+    }
     const message =
       error instanceof Error ? `${error.name}: ${error.message}` : 'Unexpected error in the app';
     reportToServer('error', message, error);
