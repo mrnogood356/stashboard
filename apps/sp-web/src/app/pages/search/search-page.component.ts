@@ -49,6 +49,8 @@ interface SearchResults {
   catalogPerformersTotal: number;
   catalogStudios: StudioFeedItem[];
   catalogStudiosTotal: number;
+  /** The catalog couldn't be searched (scenes, performers or studios). */
+  catalogFailed: boolean;
 }
 
 const RECENT_KEY = 'stashboard.recentSearches';
@@ -66,6 +68,7 @@ const EMPTY: SearchResults = {
   catalogPerformersTotal: 0,
   catalogStudios: [],
   catalogStudiosTotal: 0,
+  catalogFailed: false,
 };
 
 /**
@@ -292,6 +295,10 @@ export class SearchPageComponent implements OnInit, OnDestroy {
         catalogPerformersTotal: result.catalogPerformers?.total ?? 0,
         catalogStudios: result.catalogStudios?.items ?? [],
         catalogStudiosTotal: result.catalogStudios?.total ?? 0,
+        catalogFailed:
+          result.catalogScenes === null ||
+          result.catalogPerformers === null ||
+          result.catalogStudios === null,
       })),
     );
   }

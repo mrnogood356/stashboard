@@ -373,3 +373,21 @@ h1 {
     justify-content: flex-start;
   }
 }
+
+.catalog-failed {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  background: var(--surface-1);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.catalog-failed i {
+  margin-top: 0.15rem;
+  color: var(--tone-warning-text);
+}

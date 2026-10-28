@@ -126,6 +126,10 @@ describe('SearchPageComponent', () => {
     expect(root.textContent).toContain('Ana Rivers');
     expect(root.textContent).toContain('Ana Catalog');
     expect(root.textContent).not.toContain('On the catalog');
+    // The catalog's scenes failed: said so, not just left out.
+    expect(root.querySelector('[data-testid="search-catalog-failed"]')?.textContent).toContain(
+      'couldn’t be searched',
+    );
     expect(root.querySelector('a.person')?.getAttribute('href')).toContain('/library/performer/p1');
   });
 
