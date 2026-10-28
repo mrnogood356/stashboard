@@ -696,3 +696,10 @@ a {
     gap: 0.4rem;
   }
 }
+
+/* Section buttons ("Downloads", "Check these") keep their size when the
+   header stacks on phones. */
+.lifecycle-section-head > .secondary-action {
+  align-self: flex-start;
+  width: auto;
+}
