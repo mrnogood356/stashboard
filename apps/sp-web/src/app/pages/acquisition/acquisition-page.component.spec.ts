@@ -217,6 +217,7 @@ describe('AcquisitionPageComponent', () => {
       REQUESTED:
         options?.responses?.REQUESTED ??
         buildResponse(allResponse.items.filter((item) => item.status.state === 'REQUESTED')),
+      AVAILABLE: options?.responses?.AVAILABLE ?? buildResponse([]),
     };
 
     const acquisitionService = {
@@ -344,6 +345,7 @@ describe('AcquisitionPageComponent', () => {
 
     return {
       fixture,
+      component: fixture.componentInstance,
       router,
       acquisitionService,
       organizerService,
@@ -353,6 +355,114 @@ describe('AcquisitionPageComponent', () => {
       timelineApi,
     };
   }
+
+  function stageStates(root: HTMLElement, id: string): string[] {
+    return Array.from(
+      root.querySelectorAll<HTMLElement>(`[data-testid="stage-track-${id}"] .stage`),
+    ).map((stage) => `${stage.textContent?.trim()}:${stage.dataset['state']}`);
+  }
+
+  it('shows where each request is, with the download’s progress', async () => {
+    const items = [
+      buildItem({ id: 'scene-failed', status: { state: 'FAILED' }, queueState: 'warning' }),
+      buildItem({
+        id: 'scene-downloading',
+        status: { state: 'DOWNLOADING' },
+        queueState: null,
+        download: { progress: 45, timeLeft: '00:06:10' },
+      }),
+      buildItem({ id: 'scene-blocked', status: { state: 'FAILED' }, queueState: 'importBlocked' }),
+    ];
+    const { fixture } = await renderPage({ responses: { ANY: buildResponse(items) } });
+    const root = fixture.nativeElement as HTMLElement;
+
+    expect(stageStates(root, 'scene-downloading')).toEqual([
+      'Requested:done',
+      'Downloading:current',
+      'Waiting for Stash:todo',
+      'In library:todo',
+    ]);
+    // A failed download stops at Downloading; a blocked import at Waiting for Stash.
+    expect(stageStates(root, 'scene-failed')[1]).toBe('Downloading:failed');
+    expect(stageStates(root, 'scene-blocked')[2]).toBe('Waiting for Stash:failed');
+
+    const download = root.querySelector('[data-testid="download-scene-downloading"]');
+    expect(download?.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe(
+      '45',
+    );
+    expect(download?.textContent).toContain('45% · 6 min left');
+    expect(root.querySelector('[data-testid="download-scene-failed"]')).toBeNull();
+  });
+
+  it('lists requests that reached the library under Added, with a link to Stash', async () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const added = buildItem({
+      id: 'scene-added',
+      status: { state: 'AVAILABLE' },
+      queueState: null,
+      addedAt: yesterday.toISOString(),
+      stashViewUrl: 'http://stash.local/scenes/9',
+    });
+    const { fixture, acquisitionService } = await renderPage({
+      responses: { AVAILABLE: buildResponse([added]) },
+    });
+    const root = fixture.nativeElement as HTMLElement;
+
+    (root.querySelector('[data-testid="lifecycle-tab-AVAILABLE"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(acquisitionService.getScenesFeed).toHaveBeenLastCalledWith(1, 24, 'AVAILABLE', {
+      q: '',
+      sort: 'status',
+    });
+    expect(stageStates(root, 'scene-added').every((stage) => stage.endsWith(':done'))).toBe(true);
+    expect(root.textContent).toContain('Added yesterday');
+    expect(
+      root.querySelector('[data-testid="open-in-stash-scene-added"]')?.getAttribute('href'),
+    ).toBe('http://stash.local/scenes/9');
+    expect(root.querySelector('[data-testid="pick-release-scene-added"]')).toBeNull();
+  });
+
+  it('refreshes by itself while something is downloading, and not otherwise', async () => {
+    const downloading = buildItem({
+      id: 'scene-downloading',
+      status: { state: 'DOWNLOADING' },
+      queueState: null,
+      download: { progress: 10, timeLeft: null },
+    });
+    const { fixture, component, acquisitionService } = await renderPage({
+      responses: { ANY: buildResponse([downloading]) },
+    });
+    const live = component as unknown as { liveRefresh(): void };
+    acquisitionService.getScenesFeed.mockImplementation(() =>
+      of(buildResponse([{ ...downloading, download: { progress: 80, timeLeft: null } }])),
+    );
+
+    live.liveRefresh();
+    fixture.detectChanges();
+
+    expect(acquisitionService.getScenesFeed).toHaveBeenLastCalledWith(1, 24, 'ANY', {
+      q: '',
+      sort: 'status',
+    });
+    expect(
+      fixture.nativeElement
+        .querySelector('[data-testid="download-scene-downloading"] [role="progressbar"]')
+        ?.getAttribute('aria-valuenow'),
+    ).toBe('80');
+
+    // Once nothing is downloading, it stops asking.
+    acquisitionService.getScenesFeed.mockClear();
+    acquisitionService.getScenesFeed.mockImplementation(() =>
+      of(buildResponse([{ ...downloading, status: { state: 'IMPORT_PENDING' } }])),
+    );
+    live.liveRefresh();
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
+  });
 
   it('says where each card is now from one batched request, and opens the whole story on tap', async () => {
     const { fixture, timelineApi } = await renderPage();
@@ -413,11 +523,11 @@ describe('AcquisitionPageComponent', () => {
     expect(root.querySelector('app-selection-bar')).toBeNull();
   });
 
-  it('renders summary cards, prioritizes failed sections, and exposes scene plus Whisparr actions', async () => {
+  it('renders lifecycle tabs, prioritizes failed sections, and exposes scene plus Whisparr actions', async () => {
     const { fixture, acquisitionService, runtimeHealthService } = await renderPage();
     const text = fixture.nativeElement.textContent;
-    const failedSummaryCard = fixture.nativeElement.querySelector(
-      '[data-testid="summary-card-FAILED"]',
+    const failedTab = fixture.nativeElement.querySelector(
+      '[data-testid="lifecycle-tab-FAILED"]',
     ) as HTMLElement | null;
     const lifecycleHeadings = Array.from(
       fixture.nativeElement.querySelectorAll('.lifecycle-section h3') as NodeListOf<HTMLElement>,
@@ -428,7 +538,7 @@ describe('AcquisitionPageComponent', () => {
       q: '',
       sort: 'status',
     });
-    expect(failedSummaryCard?.textContent).toContain('1');
+    expect(failedTab?.textContent).toContain('1');
     expect(lifecycleHeadings).toEqual(['Failed', 'Downloading', 'Requested']);
     expect(text).toContain('Whisparr reported: The download is stalled with no connections');
     expect(
@@ -495,15 +605,15 @@ describe('AcquisitionPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Nothing is left waiting.');
   });
 
-  it('reloads the feed when a summary card lifecycle focus is selected', async () => {
+  it('reloads the feed when a lifecycle tab is selected', async () => {
     const { fixture, acquisitionService } = await renderPage();
-    const failedSummaryCard = fixture.nativeElement.querySelector(
-      '[data-testid="summary-card-FAILED"]',
+    const failedTab = fixture.nativeElement.querySelector(
+      '[data-testid="lifecycle-tab-FAILED"]',
     ) as HTMLButtonElement | null;
 
-    expect(failedSummaryCard).toBeTruthy();
+    expect(failedTab).toBeTruthy();
 
-    failedSummaryCard?.click();
+    failedTab?.click();
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -648,11 +758,11 @@ describe('AcquisitionPageComponent', () => {
       },
     });
 
-    const failedSummaryCard = fixture.nativeElement.querySelector(
-      '[data-testid="summary-card-FAILED"]',
+    const failedTab = fixture.nativeElement.querySelector(
+      '[data-testid="lifecycle-tab-FAILED"]',
     ) as HTMLButtonElement | null;
 
-    failedSummaryCard?.click();
+    failedTab?.click();
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
