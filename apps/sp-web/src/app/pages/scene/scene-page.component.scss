@@ -629,3 +629,13 @@ button {
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+.tag-more {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.lifecycle-section app-stage-track {
+  max-width: 40rem;
+  margin: 0.4rem 0 0.2rem;
+}

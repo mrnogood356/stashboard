@@ -151,14 +151,10 @@
                   @if (handoff.scene) {
                     <p class="release-name">{{ handoff.releaseTitle }}</p>
                   }
-                  <ng-container
-                    [ngTemplateOutlet]="stageTrack"
-                    [ngTemplateOutletContext]="{
-                      stages: handoffStages(handoff),
-                      now: handoffStageNow(handoff),
-                      title: handoff.scene?.title ?? handoff.releaseTitle,
-                      id: handoff.id,
-                    }"
+                  <app-stage-track
+                    [stages]="handoffStages(handoff)"
+                    [label]="handoff.scene?.title ?? handoff.releaseTitle"
+                    [testId]="'stage-track-' + handoff.id"
                   />
                   @if (handoff.stage === 'downloading' || handoff.stage === 'unpacking') {
                     <div class="download-progress" [attr.data-testid]="'download-' + handoff.id">
@@ -403,14 +399,10 @@
                           {{ item.title }}
                         </a>
                       </h4>
-                      <ng-container
-                        [ngTemplateOutlet]="stageTrack"
-                        [ngTemplateOutletContext]="{
-                          stages: stages(item),
-                          now: stageNow(item),
-                          title: item.title,
-                          id: item.id,
-                        }"
+                      <app-stage-track
+                        [stages]="stages(item)"
+                        [label]="item.title"
+                        [testId]="'stage-track-' + item.id"
                       />
 
                       @if (item.status.state === 'DOWNLOADING' && item.download; as download) {
@@ -617,32 +609,4 @@
       </button>
     </app-selection-bar>
   }
-
-  <ng-template #stageTrack let-stages="stages" let-now="now" let-title="title" let-id="id">
-    <ol
-      class="stage-track"
-      [attr.aria-label]="'Progress: ' + title"
-      [attr.data-testid]="'stage-track-' + id"
-    >
-      @for (stage of stages; track stage.label) {
-        <li
-          class="stage"
-          [attr.data-state]="stage.state"
-          [attr.aria-current]="
-            stage.state === 'current' || stage.state === 'failed' ? 'step' : null
-          "
-        >
-          <span class="stage-dot" aria-hidden="true">
-            @if (stage.state === 'done') {
-              <i class="pi pi-check"></i>
-            } @else if (stage.state === 'failed') {
-              <i class="pi pi-times"></i>
-            }
-          </span>
-          <span class="stage-label">{{ stage.label }}</span>
-        </li>
-      }
-    </ol>
-    <p class="stage-now">{{ now }}</p>
-  </ng-template>
 </main>

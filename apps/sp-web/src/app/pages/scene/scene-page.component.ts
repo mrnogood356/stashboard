@@ -1,3 +1,5 @@
+import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
+import { Stage, stagesForStatus } from '../../shared/stage-track/stage-track';
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
@@ -7,7 +9,6 @@ import { Message } from 'primeng/message';
 import { Select } from 'primeng/select';
 import { DiscoverService } from '../../core/api/discover.service';
 import { ReleasesApiService } from '../../core/api/releases.service';
-import { integrationLabel } from '../../core/api/integrations.types';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import {
   SceneDetails,
@@ -24,16 +25,10 @@ import { SceneTimelineComponent } from '../../shared/scene-timeline/scene-timeli
 import { TimelineAction } from '../../core/api/timeline.service';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
 
-interface SceneLifecycleStep {
-  system: string;
-  title: string;
-  detail: string;
-  tone: 'complete' | 'active' | 'pending';
-}
-
 @Component({
   selector: 'app-scene-page',
   imports: [
+    StageTrackComponent,
     HideToggleComponent,
     RouterLink,
     FormsModule,
@@ -62,8 +57,25 @@ export class ScenePageComponent implements OnInit, OnDestroy {
   private sceneRequest: Subscription | null = null;
   private requestedSceneId: string | null = null;
 
-  @ViewChild('requestTriggerButton')
   private requestTriggerButton?: ElementRef<HTMLButtonElement>;
+  private requestButtonObserver: IntersectionObserver | null = null;
+  /** The phone's pinned Request bar only shows once the main button is off screen. */
+  protected readonly requestButtonOnScreen = signal(true);
+
+  @ViewChild('requestTriggerButton')
+  private set requestTrigger(ref: ElementRef<HTMLButtonElement> | undefined) {
+    this.requestTriggerButton = ref;
+    this.requestButtonObserver?.disconnect();
+    this.requestButtonObserver = null;
+    this.requestButtonOnScreen.set(true);
+    if (!ref || typeof IntersectionObserver === 'undefined') {
+      return;
+    }
+    this.requestButtonObserver = new IntersectionObserver(([entry]) =>
+      this.requestButtonOnScreen.set(entry?.isIntersecting ?? true),
+    );
+    this.requestButtonObserver.observe(ref.nativeElement);
+  }
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -112,6 +124,7 @@ export class ScenePageComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.requestButtonObserver?.disconnect();
     this.routeSubscription?.unsubscribe();
     this.sceneRequest?.unsubscribe();
   }
@@ -184,13 +197,40 @@ export class ScenePageComponent implements OnInit, OnDestroy {
       return null;
     }
 
-    const minutes = Math.floor(durationSeconds / 60)
-      .toString()
-      .padStart(2, '0');
-    const seconds = Math.floor(durationSeconds % 60)
-      .toString()
-      .padStart(2, '0');
-    return `${minutes}:${seconds}`;
+    const minutes = Math.round(durationSeconds / 60);
+    if (minutes < 60) {
+      return `${Math.max(1, minutes)} min`;
+    }
+    const rest = minutes % 60;
+    return rest > 0 ? `${Math.floor(minutes / 60)} h ${rest} min` : `${minutes / 60} h`;
+  }
+
+  /** "Jun 15, 2026" from the catalog's "2026-06-15". */
+  protected formattedDate(value: string | null): string | null {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value ?? '');
+    if (!match) {
+      return value;
+    }
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return Number.isNaN(date.getTime())
+      ? value
+      : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  /** Release date and length on one line: "Jun 15, 2026 · 41 min". */
+  protected metaLine(scene: SceneDetails): string | null {
+    const parts = [this.formattedDate(scene.releaseDate), this.formattedDuration(scene.duration)];
+    const line = parts.filter(Boolean).join(' · ');
+    return line || null;
+  }
+
+  /** The header shows this many tags; the rest are one tap away. */
+  protected readonly tagsShown = 8;
+  protected readonly tagsExpanded = signal(false);
+
+  /** Where it is, on the same four steps as Requests. */
+  protected sceneStages(scene: SceneDetails): Stage[] {
+    return stagesForStatus(scene.status.state);
   }
 
   protected hasLongDescription(description: string | null): boolean {
@@ -224,42 +264,28 @@ export class ScenePageComponent implements OnInit, OnDestroy {
       return null;
     }
 
-    return gender;
+    // The catalog says "FEMALE" or "TRANSGENDER_FEMALE": show "Female", "Transgender female".
+    const words = gender.trim().replace(/_/g, ' ').toLowerCase();
+    return words.charAt(0).toUpperCase() + words.slice(1);
   }
 
+  /** One plain line under the track. */
   protected lifecycleSummary(scene: SceneDetails): string {
-    const providerLabel = integrationLabel(scene.source);
-
     switch (scene.status.state) {
       case 'REQUESTED':
-        return 'Requested in Whisparr and waiting for acquisition to begin.';
+        return 'Whisparr has it and is looking for a release.';
       case 'DOWNLOADING':
-        return 'Whisparr is actively acquiring this scene.';
+        return 'Downloading now.';
       case 'IMPORT_PENDING':
-        return 'Whisparr has the file, but Stash has not imported it yet.';
+        return 'Downloaded. Waiting for Stash to pick it up.';
       case 'AVAILABLE':
-        return 'Imported into Stash and available in your local library.';
+        return 'In your library.';
       case 'FAILED':
-        return 'The last known acquisition attempt failed in Whisparr. Resolve or retry this download in Whisparr.';
+        return 'The download failed. Pick another release, or retry it in Whisparr.';
       case 'NOT_REQUESTED':
       default:
-        return `Discovered in ${providerLabel} and not yet sent into your local acquisition pipeline.`;
+        return 'Not requested yet.';
     }
-  }
-
-  protected lifecycleSteps(scene: SceneDetails): SceneLifecycleStep[] {
-    const providerLabel = integrationLabel(scene.source);
-
-    return [
-      {
-        system: providerLabel,
-        title: 'Discovered',
-        detail: `Metadata, credits, and source links on this page come from ${providerLabel}.`,
-        tone: 'complete',
-      },
-      this.whisparrLifecycleStep(scene),
-      this.stashLifecycleStep(scene),
-    ];
   }
 
   /** In Whisparr but not downloaded yet (or the download failed): choose the exact release. */
@@ -529,84 +555,6 @@ export class ScenePageComponent implements OnInit, OnDestroy {
 
   private normalizeDescription(description: string): string {
     return description.replaceAll(/\s+/g, ' ').trim();
-  }
-
-  private whisparrLifecycleStep(scene: SceneDetails): SceneLifecycleStep {
-    switch (scene.status.state) {
-      case 'REQUESTED':
-        return {
-          system: 'Whisparr',
-          title: 'Requested',
-          detail: 'Whisparr knows about this scene, but acquisition has not started.',
-          tone: 'active',
-        };
-      case 'DOWNLOADING':
-        return {
-          system: 'Whisparr',
-          title: 'Downloading',
-          detail: 'Whisparr is actively pulling the asset into your pipeline.',
-          tone: 'active',
-        };
-      case 'IMPORT_PENDING':
-        return {
-          system: 'Whisparr',
-          title: 'Ready for import',
-          detail: 'Whisparr has finished acquisition and is waiting for Stash to pick it up.',
-          tone: 'complete',
-        };
-      case 'AVAILABLE':
-        return {
-          system: 'Whisparr',
-          title: 'Handled',
-          detail: scene.whisparr?.exists
-            ? 'Whisparr has a linked record for this scene.'
-            : 'The request pipeline has already handed this scene off to your library.',
-          tone: 'complete',
-        };
-      case 'FAILED':
-        return {
-          system: 'Whisparr',
-          title: 'Failed',
-          detail:
-            'The last known acquisition attempt failed. Resolve or retry this download in Whisparr because Stashboard does not remediate failed Whisparr jobs.',
-          tone: 'active',
-        };
-      case 'NOT_REQUESTED':
-      default:
-        return {
-          system: 'Whisparr',
-          title: 'Not requested',
-          detail: 'No Whisparr request or tracked acquisition is linked yet.',
-          tone: 'pending',
-        };
-    }
-  }
-
-  private stashLifecycleStep(scene: SceneDetails): SceneLifecycleStep {
-    if (scene.status.state === 'AVAILABLE') {
-      return {
-        system: 'Stash',
-        title: 'In library',
-        detail: 'A linked local scene is available in Stash.',
-        tone: 'complete',
-      };
-    }
-
-    if (scene.status.state === 'IMPORT_PENDING') {
-      return {
-        system: 'Stash',
-        title: 'Awaiting import',
-        detail: 'Stash has not linked a local copy yet.',
-        tone: 'active',
-      };
-    }
-
-    return {
-      system: 'Stash',
-      title: 'Not in library',
-      detail: 'No linked Stash scene is available yet.',
-      tone: 'pending',
-    };
   }
 
   private parseReturnTo(

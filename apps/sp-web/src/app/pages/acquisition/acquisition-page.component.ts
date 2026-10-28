@@ -1,5 +1,11 @@
+import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
+import {
+  Stage,
+  buildStages,
+  stagesForStatus,
+  timeLeftText,
+} from '../../shared/stage-track/stage-track';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
-import { NgTemplateOutlet } from '@angular/common';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { SelectionBarComponent } from '../../shared/selection-bar/selection-bar.component';
 import {
@@ -57,13 +63,6 @@ interface AcquisitionTab {
   tone: AcquisitionSectionTone;
 }
 
-/** One step of a request's way into the library. */
-export interface AcquisitionStage {
-  label: string;
-  state: 'done' | 'current' | 'failed' | 'todo';
-}
-
-const STAGE_LABELS = ['Requested', 'Downloading', 'Waiting for Stash', 'In library'] as const;
 /** A failed download you started stays on Requests this long. */
 const FAILED_HANDOFF_SHOWN_MS = 24 * 3600_000;
 /** While something is downloading, the list refreshes itself this often. */
@@ -107,8 +106,8 @@ interface AcquisitionPageAlert {
 @Component({
   selector: 'app-acquisition-page',
   imports: [
+    StageTrackComponent,
     SkeletonComponent,
-    NgTemplateOutlet,
     RouterLink,
     FormsModule,
     Message,
@@ -188,39 +187,26 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   }
 
   /** The same four steps as a request, from where SABnzbd and Stashboard are. */
-  protected handoffStages(handoff: ProcessingHandoff): AcquisitionStage[] {
-    const at =
-      handoff.stage === 'queued'
-        ? 0
-        : handoff.stage === 'downloading' || handoff.stage === 'unpacking'
-          ? 1
-          : handoff.stage === 'moving' || handoff.stage === 'linking'
-            ? 2
-            : handoff.stage === 'done'
-              ? 3
-              : handoff.finalPath
-                ? 2
-                : 1;
-    const failed = handoff.stage === 'failed';
-    return STAGE_LABELS.map((label, index) => ({
-      label,
-      state:
-        index < at || (index === at && handoff.stage === 'done')
-          ? 'done'
-          : index === at
-            ? failed
-              ? 'failed'
-              : 'current'
-            : 'todo',
-    }));
-  }
-
-  protected handoffStageNow(handoff: ProcessingHandoff): string {
-    return this.stageNowText(this.handoffStages(handoff));
+  protected handoffStages(handoff: ProcessingHandoff): Stage[] {
+    switch (handoff.stage) {
+      case 'queued':
+        return buildStages(0);
+      case 'downloading':
+      case 'unpacking':
+        return buildStages(1);
+      case 'moving':
+      case 'linking':
+        return buildStages(2);
+      case 'done':
+        return buildStages(3, { finished: true });
+      default:
+        // Failed after it was moved in: it stopped at Waiting for Stash.
+        return buildStages(handoff.finalPath ? 2 : 1, { failed: true });
+    }
   }
 
   protected handoffProgressText(handoff: ProcessingHandoff): string | null {
-    const left = this.timeLeftText(handoff.timeLeft);
+    const left = timeLeftText(handoff.timeLeft);
     const parts = [handoff.progress !== null ? `${handoff.progress}%` : null, left].filter(Boolean);
     return parts.length ? parts.join(' · ') : null;
   }
@@ -712,47 +698,8 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   }
 
   /** Requested → Downloading → Waiting for Stash → In library, with where it is now. */
-  protected stages(item: AcquisitionSceneItem): AcquisitionStage[] {
-    const state = item.status.state;
-    const failed = state === 'FAILED';
-    const at = failed
-      ? /^import\s*(blocked|failed)$/i.test(item.queueState?.trim() ?? '')
-        ? 2
-        : 1
-      : state === 'REQUESTED'
-        ? 0
-        : state === 'DOWNLOADING'
-          ? 1
-          : state === 'IMPORT_PENDING'
-            ? 2
-            : 3;
-    return STAGE_LABELS.map((label, index) => ({
-      label,
-      state:
-        index < at || (index === at && state === 'AVAILABLE')
-          ? 'done'
-          : index === at
-            ? failed
-              ? 'failed'
-              : 'current'
-            : 'todo',
-    }));
-  }
-
-  /** On phones the track's words don't fit: "Step 2 of 4 · Downloading" instead. */
-  protected stageNow(item: AcquisitionSceneItem): string {
-    return this.stageNowText(this.stages(item));
-  }
-
-  private stageNowText(stages: AcquisitionStage[]): string {
-    const index = stages.findIndex(
-      (stage) => stage.state === 'current' || stage.state === 'failed',
-    );
-    if (index === -1) {
-      return 'In library';
-    }
-    const stage = stages[index];
-    return `Step ${index + 1} of ${stages.length} · ${stage.label}${stage.state === 'failed' ? ' failed' : ''}`;
+  protected stages(item: AcquisitionSceneItem): Stage[] {
+    return stagesForStatus(item.status.state, item.queueState);
   }
 
   /** "45% · 6 min left", or null when Whisparr hasn't said. */
@@ -761,28 +708,10 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     if (!download || (download.progress === null && !download.timeLeft)) {
       return null;
     }
-    const left = this.timeLeftText(download.timeLeft);
+    const left = timeLeftText(download.timeLeft);
     return [download.progress !== null ? `${download.progress}%` : null, left]
       .filter(Boolean)
       .join(' · ');
-  }
-
-  /** Whisparr's "hh:mm:ss" or "d.hh:mm:ss" as "6 min left". */
-  private timeLeftText(value: string | null): string | null {
-    const match = /^(?:(\d+)\.)?(\d+):(\d+):(\d+)/.exec(value?.trim() ?? '');
-    if (!match) {
-      return null;
-    }
-    const days = Number(match[1] ?? 0);
-    const hours = Number(match[2]);
-    const minutes = Number(match[3]);
-    if (days > 0) {
-      return `${days} ${days === 1 ? 'day' : 'days'} left`;
-    }
-    if (hours > 0) {
-      return minutes > 0 ? `${hours} h ${minutes} min left` : `${hours} h left`;
-    }
-    return minutes > 0 ? `${minutes} min left` : 'Under a minute left';
   }
 
   /** "Added today", "Added yesterday", "Added 3 days ago". */
