@@ -198,7 +198,7 @@
         </section>
       }
 
-      @if (result.catalogFailed) {
+      @if (catalogFailed(result)) {
         <p class="catalog-failed" role="status" data-testid="search-catalog-failed">
           <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
           The catalog couldn’t be searched just now, so some of what’s on it may be missing here.

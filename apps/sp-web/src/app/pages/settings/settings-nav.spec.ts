@@ -28,9 +28,17 @@ describe('groupSettingsNav', () => {
     });
   });
 
-  it('keeps every group of Settings the same size, so the cards line up', () => {
-    expect(groupSettingsNav(SETTINGS_SECTIONS).map((group) => group.items.length)).toEqual([
-      3, 3, 3, 3,
+  it('groups Settings three by three, in order, so the cards line up', () => {
+    expect(
+      groupSettingsNav(SETTINGS_SECTIONS).map((group) => [
+        group.id,
+        group.items.map((item) => item.label),
+      ]),
+    ).toEqual([
+      ['setup', ['Integrations', 'Indexing', 'Setup check']],
+      ['behaviour', ['Notifications', 'Automation', 'Hidden']],
+      ['look', ['Appearance', 'Playback', 'Privacy']],
+      ['system', ['Account', 'About & health', 'Logs']],
     ]);
   });
 });

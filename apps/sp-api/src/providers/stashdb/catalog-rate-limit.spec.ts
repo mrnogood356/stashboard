@@ -26,6 +26,14 @@ describe('catalog rate limit', () => {
     expect(pauseCatalog('d', '86400', now)).toBe(5 * 60_000);
   });
 
+  it('keeps waiting when the pause grows while it waits', async () => {
+    pauseCatalog('stashdb.org', '0.2');
+    const started = Date.now();
+    setTimeout(() => pauseCatalog('stashdb.org', '0.4'), 100);
+    await withCatalogSlot('stashdb.org', () => Promise.resolve());
+    expect(Date.now() - started).toBeGreaterThanOrEqual(480);
+  });
+
   it('waits out a pause before the next request', async () => {
     pauseCatalog('stashdb.org', '0.3');
     const started = Date.now();

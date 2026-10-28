@@ -145,6 +145,17 @@ describe('StashdbAdapter', () => {
       expect(sentQueries()[2]).toContain('searchScene(term: $term');
     });
 
+    it('doesn’t fall back while studios narrow the list: that search can’t filter', async () => {
+      fetchMock.mockImplementation(() => Promise.resolve(broken()));
+
+      await expect(
+        adapter.getScenesBySort({ ...config, studioIds: ['studio-1'] }),
+      ).rejects.toThrow('SQLSTATE');
+
+      expect(sentQueries()).toHaveLength(2);
+      expect(sentQueries().join('\n')).not.toContain('searchScene(');
+    });
+
     it('finds performers by name without the count too', async () => {
       fetchMock.mockResolvedValueOnce(broken()).mockResolvedValueOnce(
         answer({

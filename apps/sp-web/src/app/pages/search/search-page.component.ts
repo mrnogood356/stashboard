@@ -51,8 +51,10 @@ interface SearchResults {
   catalogPerformersTotal: number;
   catalogStudios: StudioFeedItem[];
   catalogStudiosTotal: number;
-  /** The catalog couldn't be searched (scenes, performers or studios). */
-  catalogFailed: boolean;
+  /** The catalog's scenes couldn't be searched. */
+  catalogScenesFailed: boolean;
+  /** Its performers or studios couldn't be searched. */
+  catalogPeopleFailed: boolean;
 }
 
 const RECENT_KEY = 'stashboard.recentSearches';
@@ -70,7 +72,8 @@ const EMPTY: SearchResults = {
   catalogPerformersTotal: 0,
   catalogStudios: [],
   catalogStudiosTotal: 0,
-  catalogFailed: false,
+  catalogScenesFailed: false,
+  catalogPeopleFailed: false,
 };
 
 /**
@@ -123,6 +126,7 @@ export class SearchPageComponent implements OnInit, OnDestroy {
   }));
   protected readonly nameParams = computed(() => ({ q: this.query().trim() }));
   protected readonly searched = computed(() => this.query().trim().length >= MIN_QUERY);
+  protected readonly catalogFailed = catalogFailed;
   protected readonly nothingFound = computed(() => {
     const result = this.results();
     return (
@@ -134,7 +138,9 @@ export class SearchPageComponent implements OnInit, OnDestroy {
       result.catalogScenes.length === 0 &&
       result.catalogHidden === 0 &&
       result.catalogPerformers.length === 0 &&
-      result.catalogStudios.length === 0
+      result.catalogStudios.length === 0 &&
+      // A search that failed didn't find nothing: the page says it failed.
+      !catalogFailed(result)
     );
   });
 
@@ -183,11 +189,16 @@ export class SearchPageComponent implements OnInit, OnDestroy {
       .searchScenes(value, 1, 12, showHidden)
       .pipe(catchError(() => of(null)))
       .subscribe((response) => {
-        if (!response || this.query().trim() !== value) {
+        if (this.query().trim() !== value) {
+          return;
+        }
+        if (!response) {
+          this.results.update((results) => ({ ...results, catalogScenesFailed: true }));
           return;
         }
         this.results.update((results) => ({
           ...results,
+          catalogScenesFailed: false,
           catalogScenes: response.items,
           catalogScenesTotal: response.total ?? response.items.length,
           catalogHidden: response.hidden ?? 0,
@@ -308,13 +319,16 @@ export class SearchPageComponent implements OnInit, OnDestroy {
         catalogPerformersTotal: result.catalogPerformers?.total ?? 0,
         catalogStudios: result.catalogStudios?.items ?? [],
         catalogStudiosTotal: result.catalogStudios?.total ?? 0,
-        catalogFailed:
-          result.catalogScenes === null ||
-          result.catalogPerformers === null ||
-          result.catalogStudios === null,
+        catalogScenesFailed: result.catalogScenes === null,
+        catalogPeopleFailed: result.catalogPerformers === null || result.catalogStudios === null,
       })),
     );
   }
+}
+
+/** The catalog couldn't be searched (scenes, performers or studios). */
+export function catalogFailed(result: SearchResults): boolean {
+  return result.catalogScenesFailed || result.catalogPeopleFailed;
 }
 
 function readRecent(): string[] {

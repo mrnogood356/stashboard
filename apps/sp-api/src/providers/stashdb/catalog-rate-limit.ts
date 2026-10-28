@@ -24,11 +24,14 @@ export async function withCatalogSlot<T>(
   host: string,
   request: () => Promise<T>,
 ): Promise<T> {
-  const wait = (pausedUntil.get(host) ?? 0) - Date.now();
-  if (wait > 0) {
+  // Re-read after each wait: another answer may have made the pause longer.
+  for (;;) {
+    const wait = (pausedUntil.get(host) ?? 0) - Date.now();
+    if (wait <= 0) {
+      return request();
+    }
     await sleep(wait);
   }
-  return request();
 }
 
 /**

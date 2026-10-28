@@ -451,8 +451,12 @@ export class StashdbAdapter extends StashdbPeopleApi {
         count = payload.data?.queryScenes?.count;
       } catch (error) {
         // The catalog's text search failing on its side even without the
-        // count: its other search, by relevance, one page only.
-        if (!isServerSideError(error) || config.page > 1) {
+        // count: its other search, by relevance, one page only. It can't
+        // filter, so not while studios, tags or favorites narrow the list.
+        const filtered = Boolean(
+          favorites || tagFilter || studioIds.length > 0,
+        );
+        if (!isServerSideError(error) || config.page > 1 || filtered) {
           throw error;
         }
         const payload = await this.executeQuery(

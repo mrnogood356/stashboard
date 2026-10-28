@@ -603,6 +603,23 @@ button {
   text-decoration: none;
 }
 
+.studio-site {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  min-height: 2rem;
+  margin-left: 0.15rem;
+  vertical-align: middle;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.studio-site:hover {
+  color: var(--accent);
+}
+
 .studio-name:hover {
   text-decoration: underline;
 }

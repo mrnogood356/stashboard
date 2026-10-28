@@ -180,6 +180,39 @@ describe('SearchPageComponent', () => {
     expect(root.textContent).toContain('Catalog Scene');
   });
 
+  it('says the catalog failed, not that nothing was found, when nothing came back', async () => {
+    library['getScenesFeed'] = vi.fn().mockReturnValue(of({ total: 0, items: [] }));
+    local['search'] = vi.fn().mockReturnValue(of({ performers: [], studios: [] }));
+    discover['getPerformersFeed'] = vi.fn().mockReturnValue(of({ total: 0, items: [] }));
+    const { root } = await search('zzz');
+
+    expect(root.querySelector('[data-testid="search-catalog-failed"]')).not.toBeNull();
+    expect(root.textContent).not.toContain('Nothing found');
+  });
+
+  it('clears or sets the catalog failure when hidden scenes are reloaded', async () => {
+    const empty = { total: 3, page: 1, perPage: 12, hasMore: false, hidden: 3, items: [] };
+    discover['searchScenes'] = vi
+      .fn()
+      .mockReturnValueOnce(throwError(() => new Error('down')))
+      .mockReturnValueOnce(of(empty))
+      .mockReturnValueOnce(throwError(() => new Error('down again')));
+    const { fixture, root } = await search('ana');
+    const failed = () => root.querySelector('[data-testid="search-catalog-failed"]');
+    const component = fixture.componentInstance as unknown as {
+      onShowHiddenChanged(show: boolean): void;
+    };
+    expect(failed()).not.toBeNull();
+
+    component.onShowHiddenChanged(true);
+    fixture.detectChanges();
+    expect(failed()).toBeNull();
+
+    component.onShowHiddenChanged(false);
+    fixture.detectChanges();
+    expect(failed()).not.toBeNull();
+  });
+
   async function search(text: string) {
     vi.useFakeTimers();
     const rendered = await render();

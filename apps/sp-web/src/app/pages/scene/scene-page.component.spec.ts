@@ -208,9 +208,14 @@ describe('ScenePageComponent', () => {
 
     const name = root.querySelector<HTMLAnchorElement>('[data-testid="scene-studio-link"]');
     expect(name?.textContent?.trim()).toBe('Studio');
-    expect(name?.getAttribute('href')).toBe('/studio/studio-1');
+    // The scene's catalog goes along, so a FansDB scene opens its FansDB studio.
+    expect(name?.getAttribute('href')).toBe('/studio/studio-1?provider=STASHDB');
     expect(root.querySelector('a.studio-logo-overlay')?.getAttribute('href')).toBe(
-      '/studio/studio-1',
+      '/studio/studio-1?provider=STASHDB',
+    );
+    // The scene on the studio's own site is still a tap away.
+    expect(root.querySelector('[data-testid="scene-studio-site"]')?.getAttribute('href')).toBe(
+      'http://studio.local',
     );
   });
 
