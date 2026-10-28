@@ -25,6 +25,18 @@ describe('client log', () => {
     vi.unstubAllGlobals();
   });
 
+  it('leaves out the browser’s detail-free “Script error.” from other sites’ scripts', () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    new ReportingErrorHandler().handleError(new Error('Script error.'));
+    new ReportingErrorHandler().handleError(new ErrorEvent('error', { message: 'Script error.' }));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
   it('sends the same message only once a minute, and never throws', () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error('offline'));
     vi.stubGlobal('fetch', fetchMock);
