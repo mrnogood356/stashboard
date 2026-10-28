@@ -13,12 +13,19 @@ import {
   type StashdbSceneImage,
 } from './stashdb.types';
 
+/** The same refusal is logged as a warning at most this often. */
+const REFUSAL_LOG_INTERVAL_MS = 10 * 60_000;
+/** A database error on the catalog's own server. */
+const SERVER_SIDE_ERROR = /SQLSTATE/i;
+
 /**
  * Talks to a stash-box GraphQL API (StashDB, FansDB): the request, readable
  * network errors, runtime-health reporting, and shared normalizers.
  */
 export abstract class StashdbGraphqlClient {
   protected readonly logger = new Logger('StashdbAdapter');
+  /** When each refusal (query and message) was last logged as a warning. */
+  private readonly refusalsLogged = new Map<string, number>();
 
   constructor(protected readonly runtimeHealthService: RuntimeHealthService) {}
 
@@ -41,10 +48,10 @@ export abstract class StashdbGraphqlClient {
         typeof firstError === 'string' && firstError.length > 0
           ? firstError
           : 'StashDB GraphQL request failed.';
-      this.logger.warn(
-        `The catalog refused ${operationName(query)}: ${message}`,
-      );
-      if (trackRuntimeHealth) {
+      this.logRefusal(operationName(query), message);
+      // A database error on the catalog's side ("SQLSTATE …") came back from
+      // a server that's up: that query failed, the catalog didn't.
+      if (trackRuntimeHealth && !SERVER_SIDE_ERROR.test(message)) {
         await this.reportRuntimeFailure(message);
       }
       throw new BadGatewayException(message);
@@ -55,6 +62,26 @@ export abstract class StashdbGraphqlClient {
     }
 
     return payload;
+  }
+
+  /** Said once every few minutes per query and message, not on every lookup. */
+  private logRefusal(operation: string, message: string): void {
+    const key = `${operation}|${message}`;
+    const now = Date.now();
+    const last = this.refusalsLogged.get(key);
+    if (last !== undefined && now - last < REFUSAL_LOG_INTERVAL_MS) {
+      this.logger.debug(`The catalog refused ${operation} again: ${message}`);
+      return;
+    }
+    if (this.refusalsLogged.size > 100) {
+      this.refusalsLogged.clear();
+    }
+    this.refusalsLogged.set(key, now);
+    this.logger.warn(
+      SERVER_SIDE_ERROR.test(message)
+        ? `The catalog had an error of its own answering ${operation} (on its server, not Stashboard's); other lookups carry on: ${message}`
+        : `The catalog refused ${operation}: ${message}`,
+    );
   }
 
   protected async executeQueryRaw(

@@ -27,6 +27,7 @@ import {
   type DropInSkipReason,
   isInside,
   placeVideo,
+  removeJobFolder,
   scanDropInFolder,
 } from './download-handoff.files';
 import {
@@ -68,6 +69,10 @@ const MAX_PER_CHECK = 10;
 const MAX_LINK_ATTEMPTS = 5;
 /** Finished SABnzbd downloads remembered, so their folders are never taken. */
 const TRACKED_LIMIT = 500;
+/** How far back folders things were moved out of are checked for leftovers. */
+const SWEEP_WINDOW_MS = 3 * 24 * 3600_000;
+/** Folders checked for leftovers per look. */
+const MAX_SWEEP = 20;
 const RECENT_LIMIT = 20;
 
 const MAPPING_HINT =
@@ -299,11 +304,17 @@ export class DownloadDropInService {
     const settings = await this.handoff.getSettings();
     this.category = settings.category || DEFAULT_HANDOFF_CATEGORY;
     const off = offReason(settings);
+    // Drop-ins off, the other videos of a finished download are still
+    // brought in: Finished downloads moves only its main video.
+    const extrasOnly =
+      off?.reason === 'drop-ins-off' && settings.importMode !== 'copy';
     if (off) {
-      this.settling.keepOnly(new Set());
       this.skipped = [];
       this.setOff(off.reason, off.message);
-      return;
+      if (!extrasOnly) {
+        this.settling.keepOnly(new Set());
+        return;
+      }
     }
     // Moved on an earlier check: Stash still has to pick them up.
     const placed = await this.prisma.downloadDropIn.findMany({
@@ -329,11 +340,13 @@ export class DownloadDropInService {
       });
       return;
     }
-    const found = await this.candidates(config, settings);
+    const found = await this.candidates(config, settings, extrasOnly);
     if (!found) {
       return;
     }
-    this.setWatching(found.folder, found.sabFolder);
+    if (!extrasOnly) {
+      this.setWatching(found.folder, found.sabFolder);
+    }
     this.lastError = null;
     for (const file of found.files) {
       if (this.settling.add(file, now)) {
@@ -342,7 +355,13 @@ export class DownloadDropInService {
     }
     this.settling.keepOnly(new Set(found.files));
     const ready = (await this.settling.settled(now)).slice(0, MAX_PER_CHECK);
-    this.lastResult = summary(found.files.length, ready.length, found.skipped);
+    if (!extrasOnly) {
+      this.lastResult = summary(
+        found.files.length,
+        ready.length,
+        found.skipped,
+      );
+    }
     if (found.files.length > 0) {
       this.logger.debug(
         `Drop-ins in ${found.folder}: ${found.files.length} new video(s), ${ready.length} ready to bring in.`,
@@ -359,6 +378,66 @@ export class DownloadDropInService {
         },
       );
     }
+    if (settings.importMode !== 'copy') {
+      await this.sweepEmptied(found, now).catch((error: unknown) =>
+        this.logger.warn(
+          `Tidying emptied folders in ${found.folder} failed: ${messageOf(error)}`,
+        ),
+      );
+    }
+  }
+
+  /**
+   * Folders videos were moved out of lately, and finished downloads whose
+   * videos are all in: removed once only leftovers (release notes,
+   * samples, artwork) are left. A folder something is still being copied
+   * into, or that has any other file, stays.
+   */
+  private async sweepEmptied(
+    found: {
+      folder: string;
+      completed: string | null;
+      files: string[];
+      released: string[];
+    },
+    now: number,
+  ): Promise<void> {
+    const moved = await this.prisma.downloadDropIn.findMany({
+      where: {
+        status: { in: ['placed', 'imported'] },
+        updatedAt: { gte: new Date(now - SWEEP_WINDOW_MS) },
+        sourcePath: { startsWith: `${found.folder}${path.sep}` },
+      },
+      select: { sourcePath: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 200,
+    });
+    const tops = new Set<string>();
+    for (const source of [
+      ...moved.map((row) => row.sourcePath),
+      ...found.released.map((job) => path.join(job, '_')),
+    ]) {
+      const inner = path.relative(found.folder, source).split(/[\\/]/);
+      if (inner.length > 1 && inner[0] && inner[0] !== '..') {
+        tops.add(path.join(found.folder, inner[0]));
+      }
+    }
+    const busy = (top: string) =>
+      found.files.some((file) => isInside(file, top));
+    for (const top of [...tops]
+      .filter((top) => !busy(top))
+      .slice(0, MAX_SWEEP)) {
+      const result = await removeJobFolder({
+        folder: top,
+        categoryFolder: found.folder,
+        completedFolder: found.completed,
+      });
+      if (result.result === 'removed') {
+        this.logger.log(
+          `Removed ${top}: everything in it has been brought in.`,
+        );
+      }
+    }
   }
 
   /**
@@ -370,11 +449,15 @@ export class DownloadDropInService {
   private async candidates(
     config: SabnzbdAdapterBaseConfig,
     settings: DownloadHandoffSettings,
+    extrasOnly = false,
   ): Promise<{
     folder: string;
     sabFolder: string;
+    completed: string | null;
     files: string[];
     skipped: DropInSkippedDto[];
+    /** Finished downloads whose other videos are fair game. */
+    released: string[];
   } | null> {
     let folders: SabFolders;
     try {
@@ -477,11 +560,22 @@ export class DownloadDropInService {
       where: { sabPath: { not: null } },
       orderBy: { createdAt: 'desc' },
       take: TRACKED_LIMIT,
-      select: { sabPath: true },
+      select: { sabPath: true, status: true },
     });
     const mapped = (value: string) =>
       mapPath(value, settings.sabPathFrom, settings.sabPathTo);
     const clean = (entry: string) => trimTrailingSeparators(entry);
+    // Finished downloads moved their main video in: whatever other videos
+    // the job holds are brought in like drop-ins, not left behind.
+    const released = new Set(
+      settings.importMode === 'copy'
+        ? []
+        : tracked.flatMap((row) =>
+            row.status === 'imported' && row.sabPath
+              ? [clean(mapped(row.sabPath))]
+              : [],
+          ),
+    );
     // What each of SABnzbd's own jobs is, to say why it's left alone.
     const kinds = await this.sabJobKinds(settings, history, queue);
     const jobs: Array<{ path: string; detail: string }> = [
@@ -514,6 +608,7 @@ export class DownloadDropInService {
     ];
     const skip = jobs
       .map((job) => job.path)
+      .filter((job) => !released.has(job))
       .concat(settings.destination ? [clean(settings.destination)] : [])
       // Never the whole folder, or anything holding it.
       .filter((entry) => entry && !isInside(folder, entry));
@@ -574,8 +669,20 @@ export class DownloadDropInService {
         `The drop-in folder ${folder} holds too many files to look through in one check; some were left for later.`,
       );
     }
-    this.skipped = skipped;
-    return { folder, sabFolder, files: fresh, skipped };
+    const files = extrasOnly
+      ? fresh.filter((file) => [...released].some((job) => isInside(file, job)))
+      : fresh;
+    if (!extrasOnly) {
+      this.skipped = skipped;
+    }
+    return {
+      folder,
+      sabFolder,
+      completed: folders.completed,
+      files,
+      skipped,
+      released: [...released],
+    };
   }
 
   /**

@@ -491,7 +491,7 @@ describe('DownloadHandoffService', () => {
       expect(await exists(sabFolder)).toBe(true);
     });
 
-    it('leaves SABnzbd’s folder when another video is still in it, and says so', async () => {
+    it('leaves SABnzbd’s folder when another video is still in it, for drop-ins to bring in', async () => {
       rows.push(handoff({ id: 'h1' }));
       await write(video(), 5_000);
       const job = path.dirname(video());
@@ -503,10 +503,10 @@ describe('DownloadHandoffService', () => {
 
       expect(row().status).toBe('imported');
       expect(await exists(other)).toBe(true);
-      expect(activity.record).toHaveBeenCalledWith(
+      // Not a problem to report: the other video is brought in next.
+      expect(activity.record).not.toHaveBeenCalledWith(
         expect.objectContaining({
           title: 'Left SABnzbd’s folder for “Jane.Doe.Beach.Day.1080p”',
-          detail: expect.stringContaining('Bonus.Scene.mkv'),
         }),
       );
     });
