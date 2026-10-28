@@ -27,6 +27,18 @@ Stashboard is a self-hosted console that discovers scenes from a supported catal
 - App Lock (Settings → Privacy): require a PIN to reopen Stashboard after it's been in the background, enforced by the server. Face ID works too when Stashboard is opened over HTTPS with a domain name. Stashboard also tries to cover the screen when you leave, but iOS can still show a preview in the app switcher.
 - Install it on your phone: in Safari use Share → Add to Home Screen; in Chrome use Install app.
 
+## Screenshots
+
+![Stashboard Home on desktop](docs/screenshots/home.jpg)
+
+![Requests: where each request is, with download progress](docs/screenshots/requests.jpg)
+
+<p align="center">
+  <img src="docs/screenshots/iphone.jpg" alt="Stashboard Home and Requests on iPhone" width="640">
+</p>
+
+Screenshots use sample data.
+
 ## What You Need
 
 - Docker and Docker Compose on the machine that will run Stashboard
