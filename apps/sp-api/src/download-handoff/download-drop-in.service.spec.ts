@@ -21,7 +21,7 @@ describe('DownloadDropInService', () => {
   let library: string;
   let destination: string;
   let dropIns: DownloadDropIn[];
-  let handoffs: Array<Pick<DownloadHandoff, 'sabPath'>>;
+  let handoffs: Array<Pick<DownloadHandoff, 'sabPath'> & { status?: string }>;
   let settings: Record<string, unknown>;
   let prisma: Record<string, Record<string, jest.Mock>>;
   let sabnzbd: Record<string, jest.Mock>;
@@ -104,14 +104,22 @@ describe('DownloadDropInService', () => {
           ({
             where,
           }: {
-            where: { status?: string; sourcePath?: { in: string[] } };
+            where: {
+              status?: string | { in: string[] };
+              sourcePath?: { in?: string[]; startsWith?: string };
+            };
           }) =>
             Promise.resolve(
               dropIns.filter(
                 (row) =>
-                  (!where?.status || row.status === where.status) &&
-                  (!where?.sourcePath ||
-                    where.sourcePath.in.includes(row.sourcePath)),
+                  (!where?.status ||
+                    (typeof where.status === 'string'
+                      ? row.status === where.status
+                      : where.status.in.includes(row.status))) &&
+                  (!where?.sourcePath?.in ||
+                    where.sourcePath.in.includes(row.sourcePath)) &&
+                  (!where?.sourcePath?.startsWith ||
+                    row.sourcePath.startsWith(where.sourcePath.startsWith)),
               ),
             ),
         ),
@@ -437,14 +445,123 @@ describe('DownloadDropInService', () => {
     });
   });
 
-  it('does nothing while drop-ins are off', async () => {
+  it('leaves files you put in alone while drop-ins are off', async () => {
     settings.dropIns = false;
     await write(path.join(sabFolder, 'Loose.mp4'));
+    await write(path.join(sabFolder, 'Folder', 'Clip.mp4'));
 
     await twoChecks();
 
-    expect(sabnzbd.history).not.toHaveBeenCalled();
     expect(await exists(path.join(sabFolder, 'Loose.mp4'))).toBe(true);
+    expect(await exists(path.join(sabFolder, 'Folder', 'Clip.mp4'))).toBe(true);
+    expect(dropIns).toHaveLength(0);
+  });
+
+  describe('the other videos of a finished download', () => {
+    const job = () => path.join(sabFolder, 'Release');
+    const finished = (status = 'imported') => {
+      handoffs.push({
+        sabPath: '/downloads/complete/stashboard-downloads/Release',
+        status,
+      });
+      sabnzbd.history.mockResolvedValue([historyEntry()]);
+    };
+
+    it('brings them in once its main video is in, drop-ins off too, then removes its folder', async () => {
+      settings.dropIns = false;
+      finished();
+      await write(path.join(job(), 'Second.Scene.mp4'));
+      await write(path.join(job(), 'Third.Scene.mp4'));
+      await write(path.join(job(), 'Release.nfo'));
+
+      await twoChecks();
+
+      expect(await exists(path.join(destination, 'Second.Scene.mp4'))).toBe(
+        true,
+      );
+      expect(await exists(path.join(destination, 'Third.Scene.mp4'))).toBe(
+        true,
+      );
+      expect(dropIns.map((row) => row.status)).toEqual([
+        'imported',
+        'imported',
+      ]);
+      // Nothing but the release notes left: gone.
+      expect(await exists(job())).toBe(false);
+    });
+
+    it('leaves them while the main video is still being brought in', async () => {
+      finished('completed');
+      await write(path.join(job(), 'Second.Scene.mp4'));
+
+      await twoChecks();
+
+      expect(await exists(path.join(job(), 'Second.Scene.mp4'))).toBe(true);
+      expect(dropIns).toHaveLength(0);
+    });
+
+    it('leaves them when downloads are copied, not moved', async () => {
+      settings.importMode = 'copy';
+      finished();
+      await write(path.join(job(), 'Second.Scene.mp4'));
+
+      await twoChecks();
+
+      expect(await exists(path.join(job(), 'Second.Scene.mp4'))).toBe(true);
+      expect(dropIns).toHaveLength(0);
+    });
+  });
+
+  it('removes a folder videos were brought in from once only leftovers are left', async () => {
+    const folder = path.join(sabFolder, 'Pack');
+    await write(path.join(folder, 'Pack.nfo'));
+    await write(path.join(folder, 'Sample', 'sample.mp4'));
+    dropIns.push({
+      id: 'old',
+      sourcePath: path.join(folder, 'Scene.mp4'),
+      size: BigInt(100),
+      status: 'imported',
+      finalPath: path.join(destination, 'Scene.mp4'),
+      stashSceneId: '88',
+      error: null,
+      attempts: 0,
+      finishedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    await write(path.join(sabFolder, 'Untouched', 'notes.nfo'));
+
+    await service.check(later());
+
+    expect(await exists(folder)).toBe(false);
+    // Nothing was ever brought in from this one: not Stashboard's to remove.
+    expect(await exists(path.join(sabFolder, 'Untouched'))).toBe(true);
+  });
+
+  it('isn’t held back by folders that are already gone', async () => {
+    const row = (sourcePath: string) => ({
+      id: sourcePath,
+      sourcePath,
+      size: BigInt(100),
+      status: 'imported',
+      finalPath: path.join(destination, path.basename(sourcePath)),
+      stashSceneId: '88',
+      error: null,
+      attempts: 0,
+      finishedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    for (let i = 0; i < 25; i += 1) {
+      dropIns.push(row(path.join(sabFolder, `Gone ${i}`, 'Scene.mp4')));
+    }
+    const folder = path.join(sabFolder, 'Pack');
+    await write(path.join(folder, 'Pack.nfo'));
+    dropIns.push(row(path.join(folder, 'Scene.mp4')));
+
+    await service.check(later());
+
+    expect(await exists(folder)).toBe(false);
   });
 
   describe('status and problems', () => {
@@ -481,6 +598,22 @@ describe('DownloadDropInService', () => {
         state: 'off',
         reason: 'handoff-off',
       });
+    });
+
+    it('keeps saying drop-ins are off when the folder can’t be read for a finished download’s other videos', async () => {
+      settings.dropIns = false;
+      settings.sabPathTo = path.join(root, 'not-mounted');
+
+      await service.check();
+
+      expect(service.status()).toMatchObject({
+        state: 'off',
+        reason: 'drop-ins-off',
+      });
+      expect(
+        said(warn).filter((line) => line.startsWith("Can't watch")),
+      ).toHaveLength(0);
+      expect(titles()).toEqual([]);
     });
 
     it('says SABnzbd isn’t set up', async () => {

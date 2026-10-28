@@ -756,9 +756,18 @@ export class DownloadHandoffService {
       this.logger.log(
         `${importModeOf(settings.importMode) === 'copy' ? 'Copied' : 'Moved'} “${row.releaseTitle}” to ${finalPath}.`,
       );
-      // Moved, not copied: SABnzbd's folder for it is only leftovers now.
+      // Moved, not copied: SABnzbd's folder for it is only leftovers now,
+      // or other videos, which are brought in next like drop-ins.
       if (importModeOf(settings.importMode) === 'move' && video !== folder) {
-        await this.cleanUpJobFolder(config, settings, folder, row.releaseTitle);
+        await this.cleanUpJobFolder(
+          config,
+          settings,
+          folder,
+          row.releaseTitle,
+          {
+            quietAboutVideos: true,
+          },
+        );
       }
       return updated;
     } catch (error) {

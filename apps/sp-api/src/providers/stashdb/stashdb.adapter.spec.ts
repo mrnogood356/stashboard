@@ -1,4 +1,4 @@
-import { BadGatewayException } from '@nestjs/common';
+import { BadGatewayException, Logger } from '@nestjs/common';
 import { RuntimeHealthService } from '../../runtime-health/runtime-health.service';
 import { StashdbAdapter } from './stashdb.adapter';
 
@@ -44,6 +44,70 @@ describe('StashdbAdapter', () => {
 
     expect(runtimeHealthService.recordFailure).not.toHaveBeenCalled();
     expect(runtimeHealthService.recordSuccess).not.toHaveBeenCalled();
+  });
+
+  it('treats a database error on the catalog’s server as that query failing, said once', async () => {
+    const message =
+      'ERROR: window_agg placeholder should not be executed (SQLSTATE XX000)';
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ errors: [{ message }] }), {
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    const config = { baseUrl: 'http://stashdb.local/graphql' };
+
+    await expect(adapter.searchScenesByText(config, 'a b c')).rejects.toThrow(
+      'SQLSTATE',
+    );
+    await expect(adapter.searchScenesByText(config, 'd e f')).rejects.toThrow(
+      'SQLSTATE',
+    );
+
+    expect(runtimeHealthService.recordFailure).not.toHaveBeenCalled();
+    expect(
+      warn.mock.calls.filter(([text]) => String(text).includes('MatchSearch')),
+    ).toHaveLength(1);
+    warn.mockRestore();
+  });
+
+  it('says the same refusal once per catalog, and counts a lost database connection as the catalog down', async () => {
+    const answer = (message: string) =>
+      fetchMock.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ errors: [{ message }] }), {
+            headers: { 'content-type': 'application/json' },
+          }),
+        ),
+      );
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    answer('ERROR: window_agg placeholder (SQLSTATE XX000)');
+
+    for (const baseUrl of ['https://stashdb.org', 'https://fansdb.cc']) {
+      await expect(
+        adapter.searchScenesByText({ baseUrl }, 'a b c'),
+      ).rejects.toThrow('SQLSTATE');
+    }
+    const said = warn.mock.calls
+      .map(([text]) => String(text))
+      .filter((text) => text.includes('MatchSearch'));
+    expect(said).toHaveLength(2);
+    expect(said[0]).toContain('stashdb.org');
+    expect(said[1]).toContain('fansdb.cc');
+    expect(runtimeHealthService.recordFailure).not.toHaveBeenCalled();
+
+    answer('ERROR: terminating connection (SQLSTATE 08006)');
+    await expect(
+      adapter.searchScenesByText({ baseUrl: 'https://stashdb.org' }, 'd e f'),
+    ).rejects.toThrow('08006');
+    expect(runtimeHealthService.recordFailure).toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('preserves nested Node fetch timeout causes in connectivity errors', async () => {
