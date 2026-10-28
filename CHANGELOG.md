@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1](https://github.com/mrnogood356/stashboard/compare/v1.1.0...v1.1.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **deps:** patched undici and multer ([aca2d44](https://github.com/mrnogood356/stashboard/commit/aca2d445b7c21449af8d835ef18d6e5f48df25d9))
+* **deps:** patched undici and multer ([99997d9](https://github.com/mrnogood356/stashboard/commit/99997d95bfbd7bd066cf9158e844efb44438eb9e))
+
 ## [1.1.0](https://github.com/mrnogood356/stashboard/compare/v1.0.2...v1.1.0) (2026-10-28)
 
 
