@@ -1,11 +1,10 @@
 import { Component, Input } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { InputText } from 'primeng/inputtext';
-import { Message } from 'primeng/message';
 
 @Component({
   selector: 'app-integration-form-fields',
-  imports: [ReactiveFormsModule, InputText, Message],
+  imports: [ReactiveFormsModule, InputText],
   templateUrl: './integration-form-fields.component.html',
   styleUrls: [
     './integration-form-fields.component.scss',

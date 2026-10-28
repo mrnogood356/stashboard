@@ -76,6 +76,8 @@ export class SettingsIntegrationsPageComponent implements OnInit {
   protected readonly checkingMapping = signal(false);
   protected readonly detectingMapping = signal(false);
 
+  /** The one service whose details are open; the rest show as rows. */
+  protected readonly openType = signal<IntegrationType | null>(null);
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
   protected readonly health = signal<HealthStatusResponse | null>(null);
@@ -227,8 +229,13 @@ export class SettingsIntegrationsPageComponent implements OnInit {
   /** Opened from a "Change in Settings" link: bring the folder mapping into view. */
   private scrollToMappingIfLinked(): void {
     if (this.router.parseUrl(this.router.url).fragment !== WHISPARR_MAPPING_ANCHOR) {
+      // Opened normally: the first service that needs fixing is open.
+      this.openType.set(
+        this.serviceTypes().find((type) => this.readinessState(type) === 'TEST_FAILED') ?? null,
+      );
       return;
     }
+    this.openType.set('WHISPARR');
     setTimeout(() => {
       document.getElementById(WHISPARR_MAPPING_ANCHOR)?.scrollIntoView?.({ block: 'start' });
     });
@@ -278,33 +285,13 @@ export class SettingsIntegrationsPageComponent implements OnInit {
     return this.nextRepairSummary() ?? 'Every required service has passed readiness checks.';
   }
 
-  protected integrationHealthSummary(): string {
-    const catalogProvider = this.catalogProvider();
-    if (!catalogProvider) {
-      return 'Return to setup to lock StashDB or FansDB for this instance.';
-    }
-
-    const label = this.labelFor(catalogProvider);
-    if (!this.catalogProviderReady()) {
-      return `${label} stays locked to this instance even while unhealthy. Repair it here with Save & Test, or reset catalog setup only if you need to switch providers.`;
-    }
-
-    if (!this.allRequiredReady()) {
-      return 'Use Save & Test below to repair any required service that is no longer ready.';
-    }
-
-    return 'Use Save & Test after future changes to keep integrations healthy.';
-  }
-
   protected repairWarning(): string | null {
     if (this.allRequiredReady()) {
       return null;
     }
 
     const nextStep = this.nextRepairSummary();
-    return nextStep
-      ? `Repair needed: ${nextStep} Use Save & Test on the affected integration below.`
-      : null;
+    return nextStep ? `Needs attention: ${nextStep}` : null;
   }
 
   protected configuredCatalogProviderLabel(): string | null {
@@ -423,19 +410,6 @@ export class SettingsIntegrationsPageComponent implements OnInit {
         return `Repair ${label} connection details if needed, then Save & Test again to restore readiness.`;
       case 'READY':
         return `${label} is connected and ready. Use Save & Test after any changes to keep it healthy.`;
-    }
-  }
-
-  protected actionHint(type: IntegrationType): string {
-    switch (this.readinessState(type)) {
-      case 'NOT_SAVED':
-        return 'Default repair path: save these details and immediately run a connection test.';
-      case 'SAVED':
-        return 'Current settings are saved, but this service is not ready until it passes a test.';
-      case 'TEST_FAILED':
-        return 'Keep the error visible, repair the details if needed, and run Save & Test again.';
-      case 'READY':
-        return 'This service is ready right now. Use Save & Test after any changes.';
     }
   }
 

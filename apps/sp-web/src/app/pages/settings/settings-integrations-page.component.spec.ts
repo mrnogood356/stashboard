@@ -255,7 +255,7 @@ describe('SettingsIntegrationsPageComponent', () => {
     return button as HTMLButtonElement;
   }
 
-  it('shows the top-level readiness summary and checklist when all required services are ready', async () => {
+  it('shows a one-line readiness summary when all required services are ready', async () => {
     const { fixture, component } = await renderPage(
       [
         buildIntegration({ type: 'STASH' }),
@@ -290,14 +290,8 @@ describe('SettingsIntegrationsPageComponent', () => {
       'SABNZBD',
     ]);
     expect(textContent(overview(fixture))).toContain('3 of 3 required services ready');
-    expect(textContent(overview(fixture))).toContain(
-      'Every required service has passed readiness checks.',
-    );
-    expect(textContent(overview(fixture))).toContain('Catalog provider: StashDB');
-    expect(textContent(checklistItemByTitle(fixture, 'Catalog provider'))).toContain('Ready');
-    expect(textContent(checklistItemByTitle(fixture, 'Catalog provider'))).toContain(
-      'StashDB chosen and ready.',
-    );
+    // With everything ready the per-service checks are left to the rows below.
+    expect(fixture.nativeElement.querySelector('.checklist-item')).toBeNull();
     expect(component.catalogProviderHelp('STASHDB')).toBe(
       'StashDB is the catalog provider configured for this Stashboard instance. Reset catalog setup before changing provider type.',
     );
@@ -339,9 +333,7 @@ describe('SettingsIntegrationsPageComponent', () => {
 
     expect(textContent(overview(fixture))).toContain('2 of 3 required services ready');
     expect(textContent(overview(fixture))).toContain('Whisparr needs repair.');
-    expect(textContent(overview(fixture))).toContain(
-      'Repair needed: Whisparr needs repair. Use Save & Test on the affected integration below.',
-    );
+    expect(textContent(overview(fixture))).toContain('Needs attention: Whisparr needs repair.');
 
     const whisparrChecklist = checklistItemByTitle(fixture, 'Whisparr');
     expect(textContent(whisparrChecklist)).toContain('Test Failed');
@@ -393,10 +385,7 @@ describe('SettingsIntegrationsPageComponent', () => {
       'SABNZBD',
     ]);
     expect(textContent(overview(fixture))).toContain('FansDB needs repair.');
-    expect(textContent(overview(fixture))).toContain('Catalog provider: FansDB');
-    expect(textContent(overview(fixture))).toContain(
-      'FansDB stays locked to this instance even while unhealthy.',
-    );
+    expect(textContent(overview(fixture))).toContain('FansDB chosen');
 
     const panel = panelByTitle(fixture, 'FansDB');
     expect(textContent(panel)).toContain('Test Failed');
@@ -437,11 +426,7 @@ describe('SettingsIntegrationsPageComponent', () => {
 
     expect(component.serviceTabs()).toEqual(['STASH', 'WHISPARR', 'PROWLARR', 'SABNZBD']);
     expect(component.configuredCatalogProviderLabel()).toBeNull();
-    expect(textContent(overview(fixture))).toContain('Catalog provider: Not chosen');
-    expect(textContent(overview(fixture))).toContain('Primary repair path: Save & Test');
-    expect(textContent(overview(fixture))).toContain(
-      'Return to setup to lock StashDB or FansDB for this instance.',
-    );
+    expect(textContent(overview(fixture))).toContain('No catalog provider is locked');
     expect(textContent(checklistItemByTitle(fixture, 'Catalog provider'))).toContain('Not Saved');
   });
 
@@ -518,7 +503,9 @@ describe('SettingsIntegrationsPageComponent', () => {
     });
 
     const panel = panelByTitle(fixture, 'Whisparr');
-    const buttons = Array.from(panel.querySelectorAll('button') as NodeListOf<HTMLButtonElement>);
+    const buttons = Array.from(
+      panel.querySelectorAll('.card-body button') as NodeListOf<HTMLButtonElement>,
+    );
     expect(buttons.map((button) => textContent(button)).slice(0, 2)).toEqual([
       'Save & Test',
       'Save only',
