@@ -2,6 +2,7 @@ import { BadGatewayException, Logger } from '@nestjs/common';
 import { RuntimeHealthServiceKey } from '@prisma/client';
 import { RuntimeHealthService } from '../../runtime-health/runtime-health.service';
 import { fetchWithTimeout } from '../fetch-with-timeout';
+import { pauseCatalog, withCatalogSlot } from './catalog-rate-limit';
 import {
   describeErrorResponse,
   ProviderResponseError,
@@ -13,6 +14,8 @@ import {
   type StashdbSceneImage,
 } from './stashdb.types';
 
+/** After a 429, one more try only when the server asks to wait this long or less. */
+const RETRY_AFTER_429_MAX_MS = 30_000;
 /** The same refusal is logged as a warning at most this often. */
 const REFUSAL_LOG_INTERVAL_MS = 10 * 60_000;
 /** A database error on the catalog's own server. */
@@ -102,17 +105,39 @@ export abstract class StashdbGraphqlClient {
     const operation = operationName(query);
     this.logger.verbose(`Catalog GraphQL ${operation} at ${hostOf(endpoint)}`);
 
+    const host = hostOf(endpoint);
+    const send = () =>
+      withCatalogSlot(host, () =>
+        fetchWithTimeout(endpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            query,
+            variables,
+          }),
+        }),
+      );
     let response: Response;
     try {
-      response = await fetchWithTimeout(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          query,
-          variables,
-        }),
-      });
+      response = await send();
+      if (response.status === 429) {
+        // Asked to slow down: nothing more goes there until it says; a short
+        // wait is worth one more try.
+        const wait = pauseCatalog(host, response.headers.get('retry-after'));
+        this.logger.warn(
+          `The catalog at ${host} asked Stashboard to slow down (${operation}); pausing requests to it for ${Math.ceil(wait / 1000)}s.`,
+        );
+        if (wait > RETRY_AFTER_429_MAX_MS) {
+          throw new BadGatewayException(
+            `The catalog asked Stashboard to slow down; try again in ${Math.ceil(wait / 1000)} seconds.`,
+          );
+        }
+        response = await send();
+      }
     } catch (error) {
+      if (error instanceof BadGatewayException) {
+        throw error;
+      }
       const message = this.providerRequestFailureMessage(error);
       this.logger.warn(
         `Couldn't reach the catalog at ${hostOf(endpoint)} (${operation}): ${this.errorMessage(error)}`,
@@ -128,7 +153,10 @@ export abstract class StashdbGraphqlClient {
       this.logger.warn(
         `The catalog at ${hostOf(endpoint)} answered ${response.status} to ${operation}: ${message}`,
       );
-      if (trackRuntimeHealth) {
+      if (response.status === 429) {
+        // Still too many: wait it out, without calling the catalog down.
+        pauseCatalog(host, response.headers.get('retry-after'));
+      } else if (trackRuntimeHealth) {
         await this.reportRuntimeFailure(message);
       }
       throw new BadGatewayException(message);

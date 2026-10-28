@@ -1,6 +1,7 @@
 import { BadGatewayException, Logger } from '@nestjs/common';
 import { RuntimeHealthService } from '../../runtime-health/runtime-health.service';
 import { StashdbAdapter } from './stashdb.adapter';
+import { resetCatalogRateLimit } from './catalog-rate-limit';
 
 describe('StashdbAdapter', () => {
   let adapter: StashdbAdapter;
@@ -22,6 +23,7 @@ describe('StashdbAdapter', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    resetCatalogRateLimit();
     runtimeHealthService = {
       recordSuccess: jest.fn().mockResolvedValue(undefined),
       recordFailure: jest.fn().mockResolvedValue(undefined),
@@ -73,6 +75,46 @@ describe('StashdbAdapter', () => {
       warn.mock.calls.filter(([text]) => String(text).includes('MatchSearch')),
     ).toHaveLength(1);
     warn.mockRestore();
+  });
+
+  it('waits as long as the catalog asks after a 429, then tries once more', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response('slow down', {
+          status: 429,
+          headers: { 'retry-after': '0' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: { searchScene: [] } }), {
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    await expect(
+      adapter.searchScenesByText({ baseUrl: 'http://stashdb.local' }, 'x'),
+    ).resolves.toEqual([]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(runtimeHealthService.recordFailure).not.toHaveBeenCalled();
+  });
+
+  it('gives up straight away when the catalog asks for a long wait, without calling it down', async () => {
+    fetchMock.mockResolvedValue(
+      new Response('slow down', {
+        status: 429,
+        headers: { 'retry-after': '120' },
+      }),
+    );
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    await expect(
+      adapter.searchScenesByText({ baseUrl: 'http://stashdb.local' }, 'x'),
+    ).rejects.toThrow('slow down; try again in 120 seconds');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(runtimeHealthService.recordFailure).not.toHaveBeenCalled();
   });
 
   it('preserves nested Node fetch timeout causes in connectivity errors', async () => {
