@@ -1,5 +1,42 @@
 # Changelog
 
+## [1.1.1](https://github.com/mrnogood356/stashboard/compare/v1.1.0...v1.1.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **deps:** patched undici and multer ([aca2d44](https://github.com/mrnogood356/stashboard/commit/aca2d445b7c21449af8d835ef18d6e5f48df25d9))
+* **deps:** patched undici and multer ([99997d9](https://github.com/mrnogood356/stashboard/commit/99997d95bfbd7bd066cf9158e844efb44438eb9e))
+
+## [1.1.0](https://github.com/mrnogood356/stashboard/compare/v1.0.2...v1.1.0) (2026-10-28)
+
+
+### Features
+
+* catalog search fallback, catalog studio links, lighter app, hide scenes you have ([b0b47ac](https://github.com/mrnogood356/stashboard/commit/b0b47ac220a54f159e121f7cb8196c9bcddd3617))
+* **catalog:** hide scenes you already have ([7e143a9](https://github.com/mrnogood356/stashboard/commit/7e143a9d485bfdcdf07ce8376920bd9af96750cd))
+* **releases:** search Prowlarr when Whisparr finds nothing ([e52b90b](https://github.com/mrnogood356/stashboard/commit/e52b90ba5a6a4db876f820ced4813e55a8a3f03b))
+* **web:** say on Search when the catalog couldn't be searched ([aa4798f](https://github.com/mrnogood356/stashboard/commit/aa4798f2ac08e85bf830e1f274368156b8aebca1))
+* **web:** studios on catalog scenes open the studio on the catalog ([260dae1](https://github.com/mrnogood356/stashboard/commit/260dae15a3f036f81abd56211b63ce37331bc958))
+
+
+### Bug Fixes
+
+* address review on catalog search, studio links and pauses ([25a7896](https://github.com/mrnogood356/stashboard/commit/25a7896a0af9536169b952bf46692e8bf36086bd))
+* **api:** catalog limiter only waits when a server asks ([e031fc7](https://github.com/mrnogood356/stashboard/commit/e031fc7d898abc5110cdbaee60c93ff27f08d6f4))
+* **api:** lighter catalog limiter, only what the servers ask ([ce970b5](https://github.com/mrnogood356/stashboard/commit/ce970b55de9831f729268f7f76a7eaa1bd5fec1f))
+* **catalog:** keep searching when the catalog's search fails on its side ([a59c5f9](https://github.com/mrnogood356/stashboard/commit/a59c5f92afd97e1086d7faee97dc75d0cb6a7af2))
+* **catalog:** keep StashDB and FansDB requests polite ([4f14709](https://github.com/mrnogood356/stashboard/commit/4f14709c4ca2987beb3263372e41149205b1d1c5))
+* **downloads:** bring in every video of a finished download, and tidy emptied folders ([587637b](https://github.com/mrnogood356/stashboard/commit/587637b6a405f2f49b2ad6455d05a0c64f363999))
+* **downloads:** bring in every video of a finished download, and tidy emptied folders ([6063446](https://github.com/mrnogood356/stashboard/commit/60634464042dd32595a2ec3b5d144ab878b394c4))
+* **drop-ins:** quieter extras, fair sweep, per-catalog refusals ([b02d582](https://github.com/mrnogood356/stashboard/commit/b02d582f524b8ee5aeb2eb16fb17e198fd7dda6e))
+* **web:** even Settings groups, three sections each ([145d4ee](https://github.com/mrnogood356/stashboard/commit/145d4eea177d022421779795732c52ea55f99a9f))
+
+
+### Performance Improvements
+
+* gzip responses and card-size studio logos ([eb41e7b](https://github.com/mrnogood356/stashboard/commit/eb41e7b820d3dcd3dae619329d5de7c496619964))
+
 ## [1.0.2](https://github.com/mrnogood356/stashboard/compare/v1.0.1...v1.0.2) (2026-10-23)
 
 
