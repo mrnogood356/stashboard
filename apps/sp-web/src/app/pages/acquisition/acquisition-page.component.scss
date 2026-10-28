@@ -35,69 +35,186 @@ a {
   max-width: 66ch;
 }
 
-.summary-shell {
-  margin-top: 1.1rem;
-  display: grid;
-  gap: 0.75rem;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-}
-
-.summary-card {
-  grid-column: span 1;
+.lifecycle-tabs {
+  margin-top: 1rem;
   display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: stretch;
-  width: 100%;
+  gap: 0.4rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 0.1rem;
+}
+
+.lifecycle-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.lifecycle-tab {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 2.25rem;
+  padding: 0 0.85rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
   font: inherit;
-  min-height: 8.7rem;
-  border-radius: 18px;
-  border: 1px solid var(--acquisition-overview-border);
-  padding: 0.95rem 1rem;
-  text-align: left;
-  color: var(--text-primary);
-  cursor: pointer;
-  background: var(--acquisition-overview-bg);
-  transition:
-    transform 140ms ease,
-    border-color 140ms ease,
-    box-shadow 140ms ease;
-}
-
-.summary-card[data-tone='overview'] {
-  grid-column: span 2;
-}
-
-.summary-card:hover {
-  transform: translateY(-1px);
-}
-
-.summary-card.is-active {
-  border-color: color-mix(in srgb, var(--focus-ring) 62%, transparent);
-  box-shadow:
-    0 18px 36px rgb(12 20 30 / 12%),
-    0 0 0 1px color-mix(in srgb, var(--focus-ring) 18%, transparent);
-}
-
-.summary-card-label {
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--text-muted);
-}
-
-.summary-card-count {
-  display: block;
-  margin-top: 0.35rem;
-  font-size: clamp(1.7rem, 3vw, 2.35rem);
-  line-height: 1;
-}
-
-.summary-card-copy {
-  margin-top: 0.55rem;
   font-size: 0.88rem;
-  line-height: 1.45;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lifecycle-tab:hover {
+  color: var(--text-primary);
+}
+
+.lifecycle-tab.is-active {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.lifecycle-tab-count {
+  min-width: 1.4rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  font-size: 0.78rem;
+  line-height: 1.4rem;
+  text-align: center;
+}
+
+.lifecycle-tab[data-tone='attention'] .lifecycle-tab-count:not(:empty) {
+  color: var(--danger-text);
+}
+
+.lifecycle-tab:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ---------- where each request is ---------- */
+
+.stage-track {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  text-align: center;
+}
+
+/* The line to the next step. */
+.stage:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 0.55rem;
+  left: calc(50% + 0.75rem);
+  right: calc(-50% + 0.75rem);
+  height: 2px;
+  border-radius: 1px;
+  background: var(--border-strong);
+}
+
+.stage[data-state='done']:not(:last-child)::after {
+  background: var(--success);
+}
+
+.stage-dot {
+  display: grid;
+  place-items: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  background: var(--surface-1);
+  font-size: 0.55rem;
+}
+
+.stage[data-state='done'] .stage-dot {
+  border-color: var(--success);
+  background: var(--success);
+  color: var(--surface-1);
+}
+
+.stage[data-state='current'] .stage-dot {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.stage[data-state='failed'] .stage-dot {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: var(--surface-1);
+}
+
+.stage-label {
+  max-width: 100%;
+  font-size: 0.72rem;
+  line-height: 1.25;
   color: var(--text-muted);
+}
+
+.stage[data-state='current'] .stage-label {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.stage[data-state='failed'] .stage-label {
+  color: var(--danger-text);
+  font-weight: 600;
+}
+
+.stage-now {
+  display: none;
+  margin: -0.35rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.download-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.download-bar {
+  flex: 1 1 auto;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.download-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 400ms ease;
+}
+
+.download-text {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.added-at {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--success-text);
 }
 
 .state-shell {
@@ -127,25 +244,21 @@ a {
   --app-section-bg: color-mix(in srgb, var(--surface-elevated) 92%, var(--surface-1));
 }
 
-.summary-card[data-tone='attention'],
 .lifecycle-section[data-tone='attention'] {
   background: var(--acquisition-attention-bg);
   border-color: var(--acquisition-attention-border);
 }
 
-.summary-card[data-tone='pending'],
 .lifecycle-section[data-tone='pending'] {
   background: var(--acquisition-pending-bg);
   border-color: var(--acquisition-pending-border);
 }
 
-.summary-card[data-tone='active'],
 .lifecycle-section[data-tone='active'] {
   background: var(--acquisition-active-bg);
   border-color: var(--acquisition-active-border);
 }
 
-.summary-card[data-tone='passive'],
 .lifecycle-section[data-tone='passive'] {
   background: var(--acquisition-passive-bg);
   border-color: var(--acquisition-passive-border);
@@ -238,7 +351,6 @@ a {
 .card-title a:focus-visible,
 .primary-link:focus-visible,
 .secondary-link:focus-visible,
-.summary-card:focus-visible,
 .secondary-action:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
@@ -284,13 +396,6 @@ a {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-:host ::ng-deep .row-status-badge .badge {
-  padding: 0.18rem 0.62rem;
-  font-size: 0.74rem;
-  line-height: 1.2;
-  box-shadow: none;
 }
 
 .card-copy {
@@ -398,16 +503,6 @@ a {
   gap: 0.65rem;
 }
 
-@media (max-width: 1100px) {
-  .summary-shell {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .summary-card[data-tone='overview'] {
-    grid-column: span 2;
-  }
-}
-
 @media (max-width: 860px) {
   .page-alert,
   .section-shell-head,
@@ -429,38 +524,41 @@ a {
     padding-inline: 0.85rem;
   }
 
-  .summary-shell {
-    gap: 0.55rem;
+  /* A thumbnail beside the details, so a phone screen shows a few at once. */
+  .acquisition-card {
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    gap: 0.7rem;
+    padding: 0.6rem;
   }
 
-  .summary-card {
-    min-height: 0;
-    padding: 0.7rem 0.8rem;
-    border-radius: 14px;
+  .card-art-link {
+    align-self: start;
   }
 
-  .summary-card-count {
-    font-size: 1.6rem;
+  .card-art {
+    aspect-ratio: 3 / 4;
   }
 
-  /* Five full-width cards would push the queue a screen down; keep them terse. */
-  .summary-card-copy {
+  .card-title {
+    font-size: 1rem;
+  }
+
+  .stage-label {
     display: none;
+  }
+
+  .stage-now {
+    display: block;
   }
 }
 
 /* ---------- 2026 look ---------- */
 
-.summary-card,
 .acquisition-card {
   border: 0;
   border-radius: 18px;
   background: var(--surface-1);
   box-shadow: none;
-}
-
-.summary-card-count {
-  letter-spacing: -0.02em;
 }
 
 .card-art {

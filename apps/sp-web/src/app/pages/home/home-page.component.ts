@@ -462,7 +462,7 @@ export class HomePageComponent implements OnInit, OnDestroy {
             // Offline or slow: keep showing the last visit rather than an error.
             return;
           }
-          this.configError.set('Unable to load Home rail configuration right now.');
+          this.configError.set('Home couldn’t load just now. Try again in a moment.');
           this.railConfigs.set([]);
           this.draftRails.set([]);
         },

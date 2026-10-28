@@ -70,11 +70,16 @@ export class ThemeService implements OnDestroy {
 
   constructor() {
     this.watchSystemScheme();
-    const initial = this.readCache()?.settings ?? this.legacySettings() ?? DEFAULT_APPEARANCE;
+    const cached = this.readCache();
+    const initial = cached?.settings ?? this.legacySettings() ?? DEFAULT_APPEARANCE;
     const normalized = normalizeAppearance(initial);
     this.settingsState.set(normalized);
     this.savedState.set(normalized);
     this.apply();
+    if (cached) {
+      // The cached colours may be from an older palette; the next reload paints today's.
+      this.writeCache(normalized);
+    }
   }
 
   ngOnDestroy(): void {

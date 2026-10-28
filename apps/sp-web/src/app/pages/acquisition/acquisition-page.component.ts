@@ -30,7 +30,6 @@ import {
 } from '../../core/api/acquisition.types';
 import { RuntimeHealthService } from '../../core/api/runtime-health.service';
 import { SetupStatusStore } from '../../core/api/setup-status.store';
-import { SceneStatusBadgeComponent } from '../../shared/scene-status-badge/scene-status-badge.component';
 import { SceneTimelineComponent } from '../../shared/scene-timeline/scene-timeline.component';
 import {
   SceneTimeline,
@@ -44,15 +43,26 @@ import {
   initialIndexingGuidance,
 } from '../../shared/readiness/first-run-readiness.utils';
 
-type AcquisitionSectionTone = 'attention' | 'pending' | 'active' | 'passive' | 'overview';
+type AcquisitionSectionTone = 'attention' | 'pending' | 'active' | 'passive' | 'done' | 'overview';
 
-interface AcquisitionSummaryCard {
+interface AcquisitionTab {
   lifecycle: AcquisitionLifecycleFilter;
   label: string;
   count: number;
-  description: string;
   tone: AcquisitionSectionTone;
 }
+
+/** One step of a request's way into the library. */
+export interface AcquisitionStage {
+  label: string;
+  state: 'done' | 'current' | 'failed' | 'todo';
+}
+
+const STAGE_LABELS = ['Requested', 'Downloading', 'Waiting for Stash', 'In library'] as const;
+/** While something is downloading, the list refreshes itself this often. */
+const LIVE_REFRESH_MS = 15_000;
+/** The API sends at most 50 at once: up to two pages refresh as one. */
+const LIVE_REFRESH_MAX = 48;
 
 interface AcquisitionSectionView {
   /** 'ANY' is the single flat list shown when sorting by date or title. */
@@ -95,7 +105,6 @@ interface AcquisitionPageAlert {
     Message,
     Select,
     ProgressSpinner,
-    SceneStatusBadgeComponent,
     SelectionBarComponent,
     SceneTimelineComponent,
   ],
@@ -109,6 +118,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     DOWNLOADING: 0,
     IMPORT_PENDING: 0,
     FAILED: 0,
+    AVAILABLE: 0,
   };
   /** The order the API lists them in (and the Home "Still Waiting" rail shows). */
   private static readonly LIFECYCLE_ORDER: AcquisitionLifecycleState[] = [
@@ -278,6 +288,8 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   private pendingReload = false;
   private hasHydratedFromUrl = false;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
+  private liveTimer: ReturnType<typeof setInterval> | null = null;
+  private liveRefreshing = false;
 
   @ViewChild('loadMoreSentinel')
   set loadMoreSentinel(elementRef: ElementRef<HTMLDivElement> | undefined) {
@@ -310,7 +322,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     const shown = new Set(this.items().map((item) => item.id));
     return (this.waitingCheck()?.left ?? []).filter((scene) => !shown.has(scene.stashId));
   });
-  /** The page checks "Awaiting Import" by itself once, so every card says why. */
+  /** The page checks "Waiting for Stash" by itself once, so every card says why. */
   private waitingAutoChecked = false;
   protected readonly loadingMore = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -330,53 +342,16 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   protected readonly countsByLifecycle = signal<AcquisitionCountsByLifecycle>(
     AcquisitionPageComponent.EMPTY_COUNTS,
   );
-  protected readonly summaryCards = computed<AcquisitionSummaryCard[]>(() => {
-    const totalTracked = this.countForLifecycle('ANY');
-    const failedCount = this.countForLifecycle('FAILED');
-
-    return [
-      {
-        lifecycle: 'ANY',
-        label: 'All Tracked',
-        count: totalTracked,
-        description:
-          totalTracked === 0
-            ? 'Nothing is moving through acquisition right now.'
-            : failedCount > 0
-              ? `${this.countLabel(failedCount, 'scene')} need attention before the rest.`
-              : 'Imported scenes leave this page and continue in Library.',
-        tone: 'overview',
-      },
-      {
-        lifecycle: 'FAILED',
-        label: 'Failed',
-        count: this.countForLifecycle('FAILED'),
-        description: 'Problems that need recovery or a retry in Whisparr.',
-        tone: 'attention',
-      },
-      {
-        lifecycle: 'IMPORT_PENDING',
-        label: 'Awaiting Import',
-        count: this.countForLifecycle('IMPORT_PENDING'),
-        description: 'Downloaded in Whisparr and waiting to show up in Stash.',
-        tone: 'pending',
-      },
-      {
-        lifecycle: 'DOWNLOADING',
-        label: 'Downloading',
-        count: this.countForLifecycle('DOWNLOADING'),
-        description: 'Active queue work currently in progress.',
-        tone: 'active',
-      },
-      {
-        lifecycle: 'REQUESTED',
-        label: 'Requested',
-        count: this.countForLifecycle('REQUESTED'),
-        description: 'Tracked in Whisparr and still waiting to start.',
-        tone: 'passive',
-      },
-    ];
-  });
+  protected readonly tabs = computed<AcquisitionTab[]>(() =>
+    (['ANY', 'REQUESTED', 'DOWNLOADING', 'IMPORT_PENDING', 'FAILED', 'AVAILABLE'] as const).map(
+      (lifecycle) => ({
+        lifecycle,
+        label: this.filterLabel(lifecycle),
+        count: this.countForLifecycle(lifecycle),
+        tone: lifecycle === 'ANY' ? 'overview' : this.lifecycleTone(lifecycle),
+      }),
+    ),
+  );
   protected readonly visibleSections = computed<AcquisitionSectionView[]>(() => {
     const items = this.items();
     const selectedLifecycle = this.selectedLifecycle();
@@ -420,6 +395,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   ngOnInit(): void {
     this.runtimeHealthService.ensureStarted();
     this.setupUrlStateSync();
+    this.liveTimer = setInterval(() => this.liveRefresh(), LIVE_REFRESH_MS);
     // A release picked from a card is downloading now: show it moving.
     this.grabbedSubscription = this.releaseSearch.grabbed.subscribe(() =>
       this.resetFeedAndReload(),
@@ -438,6 +414,9 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     this.queryParamSubscription?.unsubscribe();
     this.grabbedSubscription?.unsubscribe();
     this.cancelSearchTimer();
+    if (this.liveTimer) {
+      clearInterval(this.liveTimer);
+    }
   }
 
   protected hasSearch(): boolean {
@@ -599,6 +578,8 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
         return counts.IMPORT_PENDING;
       case 'FAILED':
         return counts.FAILED;
+      case 'AVAILABLE':
+        return counts.AVAILABLE ?? 0;
       case 'ANY':
       default:
         return counts.REQUESTED + counts.DOWNLOADING + counts.IMPORT_PENDING + counts.FAILED;
@@ -629,41 +610,97 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     return `${this.total()} ${this.filterLabel(selectedLifecycle).toLowerCase()} scenes match the current focus.`;
   }
 
-  protected sectionIntroTitle(): string {
-    const selectedLifecycle = this.selectedLifecycle();
-
-    if (selectedLifecycle === 'ANY') {
-      return 'Look here first, then work down the pipeline';
-    }
-
-    return `${this.filterLabel(selectedLifecycle)} focus`;
+  /** Requested → Downloading → Waiting for Stash → In library, with where it is now. */
+  protected stages(item: AcquisitionSceneItem): AcquisitionStage[] {
+    const state = item.status.state;
+    const failed = state === 'FAILED';
+    const at = failed
+      ? /^import\s*(blocked|failed)$/i.test(item.queueState?.trim() ?? '')
+        ? 2
+        : 1
+      : state === 'REQUESTED'
+        ? 0
+        : state === 'DOWNLOADING'
+          ? 1
+          : state === 'IMPORT_PENDING'
+            ? 2
+            : 3;
+    return STAGE_LABELS.map((label, index) => ({
+      label,
+      state:
+        index < at || (index === at && state === 'AVAILABLE')
+          ? 'done'
+          : index === at
+            ? failed
+              ? 'failed'
+              : 'current'
+            : 'todo',
+    }));
   }
 
-  protected sectionIntroCopy(): string {
-    const selectedLifecycle = this.selectedLifecycle();
-
-    if (selectedLifecycle === 'ANY') {
-      return this.selectedSort() === 'status'
-        ? 'Failed scenes surface first, then active downloads, import handoff work, and passive queued requests.'
-        : 'Change the order back to Pipeline order to group scenes by stage.';
+  /** On phones the track's words don't fit: "Step 2 of 4 · Downloading" instead. */
+  protected stageNow(item: AcquisitionSceneItem): string {
+    const stages = this.stages(item);
+    const index = stages.findIndex(
+      (stage) => stage.state === 'current' || stage.state === 'failed',
+    );
+    if (index === -1) {
+      return 'In library';
     }
-
-    return this.lifecycleDescription(selectedLifecycle);
+    const stage = stages[index];
+    return `Step ${index + 1} of ${stages.length} · ${stage.label}${stage.state === 'failed' ? ' failed' : ''}`;
   }
 
+  /** "45% · 6 min left", or null when Whisparr hasn't said. */
+  protected downloadText(item: AcquisitionSceneItem): string | null {
+    const download = item.download;
+    if (!download || (download.progress === null && !download.timeLeft)) {
+      return null;
+    }
+    const left = this.timeLeftText(download.timeLeft);
+    return [download.progress !== null ? `${download.progress}%` : null, left]
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  /** Whisparr's "hh:mm:ss" or "d.hh:mm:ss" as "6 min left". */
+  private timeLeftText(value: string | null): string | null {
+    const match = /^(?:(\d+)\.)?(\d+):(\d+):(\d+)/.exec(value?.trim() ?? '');
+    if (!match) {
+      return null;
+    }
+    const days = Number(match[1] ?? 0);
+    const hours = Number(match[2]);
+    const minutes = Number(match[3]);
+    if (days > 0) {
+      return `${days} ${days === 1 ? 'day' : 'days'} left`;
+    }
+    if (hours > 0) {
+      return minutes > 0 ? `${hours} h ${minutes} min left` : `${hours} h left`;
+    }
+    return minutes > 0 ? `${minutes} min left` : 'Under a minute left';
+  }
+
+  /** "Added today", "Added yesterday", "Added 3 days ago". */
+  protected addedText(item: AcquisitionSceneItem): string | null {
+    const added = item.addedAt ? new Date(item.addedAt) : null;
+    if (!added || Number.isNaN(added.getTime())) {
+      return null;
+    }
+    const startOfDay = (date: Date) =>
+      new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    const days = Math.round((startOfDay(new Date()) - startOfDay(added)) / 86_400_000);
+    if (days <= 0) {
+      return 'Added today';
+    }
+    return days === 1 ? 'Added yesterday' : `Added ${days} days ago`;
+  }
+
+  /** The track says where it is; only a failure with no reason needs words. */
   protected lifecycleHelperText(item: AcquisitionSceneItem): string {
-    switch (item.status.state) {
-      case 'REQUESTED':
-        return 'Waiting for Whisparr to pick up this request.';
-      case 'DOWNLOADING':
-        return 'Whisparr is actively pulling this scene right now.';
-      case 'IMPORT_PENDING':
-        return 'Whisparr has the file. It isn’t in your Stash library yet.';
-      case 'FAILED':
-        return 'This item stopped progressing and needs manual attention.';
-      default:
-        return '';
-    }
+    return item.status.state === 'FAILED' && !this.operationalDetail(item)
+      ? 'This stopped and needs a look.'
+      : '';
   }
 
   protected operationalDetail(item: AcquisitionSceneItem): string | null {
@@ -689,7 +726,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
         return `Whisparr is in ${this.humanizeStatus(item.queueState)} while Stash catches up.`;
       }
 
-      return 'If this lingers, check Stash and the indexing sync for the import handoff.';
+      return null;
     }
 
     if (item.status.state === 'DOWNLOADING') {
@@ -697,7 +734,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
         return `Whisparr currently reports ${this.humanizeStatus(item.queueStatus)}.`;
       }
 
-      return 'Use Whisparr when you need queue-level progress or worker details.';
+      return null;
     }
 
     if (item.status.state === 'REQUESTED' && item.queueStatus?.trim()) {
@@ -721,6 +758,8 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
         return 'Nothing is downloading right now';
       case 'REQUESTED':
         return 'No queued requests are waiting to start';
+      case 'AVAILABLE':
+        return 'Nothing new in the last two weeks';
       case 'ANY':
       default:
         return firstUseEmptyStateCopy('acquisition').title;
@@ -745,6 +784,8 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
         return 'Whisparr does not have any active acquisition work in progress right now.';
       case 'REQUESTED':
         return 'Whisparr is not holding any queued requests that have not started yet.';
+      case 'AVAILABLE':
+        return 'Requests show up here for two weeks once they’re in your library.';
       case 'ANY':
       default:
         return firstUseEmptyStateCopy('acquisition').message;
@@ -772,7 +813,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   }
 
   private buildSection(
-    lifecycle: AcquisitionLifecycleState,
+    lifecycle: Exclude<AcquisitionLifecycleFilter, 'ANY'>,
     items: AcquisitionSceneItem[],
     totalCount: number,
   ): AcquisitionSectionView {
@@ -793,33 +834,39 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       case 'DOWNLOADING':
         return 'Downloading';
       case 'IMPORT_PENDING':
-        return 'Awaiting Import';
+        return 'Waiting for Stash';
       case 'FAILED':
         return 'Failed';
+      case 'AVAILABLE':
+        return 'Added';
       case 'ANY':
       default:
         return 'All';
     }
   }
 
-  private lifecycleDescription(lifecycle: AcquisitionLifecycleState): string {
+  private lifecycleDescription(lifecycle: Exclude<AcquisitionLifecycleFilter, 'ANY'>): string {
     switch (lifecycle) {
+      case 'AVAILABLE':
+        return 'In your library now. From the last two weeks.';
       case 'FAILED':
-        return 'These scenes are blocked. Open Whisparr, inspect the failure, and retry or repair the job there.';
+        return 'These stopped. Check them in Whisparr and retry.';
       case 'IMPORT_PENDING':
-        return 'Whisparr finished downloading these scenes, but they have not shown up in Stash yet.';
+        return 'Downloaded, and waiting to show up in Stash.';
       case 'DOWNLOADING':
-        return 'These scenes are actively working through the acquisition queue right now.';
+        return 'Downloading now.';
       case 'REQUESTED':
       default:
-        return 'These scenes are tracked in Whisparr but have not started downloading yet.';
+        return 'Waiting for Whisparr to start them.';
     }
   }
 
   private lifecycleTone(
-    lifecycle: AcquisitionLifecycleState,
+    lifecycle: Exclude<AcquisitionLifecycleFilter, 'ANY'>,
   ): Exclude<AcquisitionSectionTone, 'overview'> {
     switch (lifecycle) {
+      case 'AVAILABLE':
+        return 'done';
       case 'FAILED':
         return 'attention';
       case 'IMPORT_PENDING':
@@ -833,7 +880,12 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   }
 
   private humanizeStatus(value: string): string {
-    return value.trim().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').toLowerCase();
+    return value
+      .trim()
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .toLowerCase();
   }
 
   private loadNextPage(): void {
@@ -920,6 +972,62 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       });
   }
 
+  /**
+   * While something on screen is downloading, quietly fetch the list again so
+   * the bars move and finished ones move on. Up to two pages are replaced
+   * outright; past that the loaded cards are updated where they are.
+   */
+  private liveRefresh(): void {
+    if (
+      this.liveRefreshing ||
+      this.inFlight() ||
+      this.loading() ||
+      this.selecting() ||
+      this.selectedLifecycle() === 'AVAILABLE' ||
+      (typeof document !== 'undefined' && document.visibilityState === 'hidden') ||
+      !this.items().some((item) => item.status.state === 'DOWNLOADING')
+    ) {
+      return;
+    }
+
+    const pageAtStart = this.page();
+    const loaded = pageAtStart * AcquisitionPageComponent.PAGE_SIZE;
+    const replace = loaded <= LIVE_REFRESH_MAX;
+    const version = this.feedVersion;
+    this.liveRefreshing = true;
+    this.acquisitionService
+      .getScenesFeed(
+        1,
+        replace ? loaded : LIVE_REFRESH_MAX,
+        this.selectedLifecycle(),
+        this.feedOptions(),
+      )
+      .pipe(finalize(() => (this.liveRefreshing = false)))
+      .subscribe({
+        next: (response) => {
+          // A filter, search, reload or another page loaded since then wins:
+          // replacing the list now would drop the newer cards.
+          if (version !== this.feedVersion || this.inFlight() || this.page() !== pageAtStart) {
+            return;
+          }
+          this.countsByLifecycle.set(response.countsByLifecycle);
+          if (replace) {
+            this.total.set(response.total);
+            this.hasMore.set(response.hasMore);
+            this.items.set(response.items);
+          } else {
+            const fresh = new Map(response.items.map((item) => [item.id, item]));
+            this.items.update((current) => current.map((item) => fresh.get(item.id) ?? item));
+          }
+          this.loadTimelines(
+            response.items.map((item) => item.id),
+            version,
+          );
+        },
+        error: () => undefined,
+      });
+  }
+
   private setupUrlStateSync(): void {
     this.queryParamSubscription = this.route.queryParamMap.subscribe((queryParamMap) => {
       const lifecycle = this.readUrlState(queryParamMap);
@@ -943,7 +1051,8 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
         lifecycle === 'REQUESTED' ||
         lifecycle === 'DOWNLOADING' ||
         lifecycle === 'IMPORT_PENDING' ||
-        lifecycle === 'FAILED'
+        lifecycle === 'FAILED' ||
+        lifecycle === 'AVAILABLE'
           ? lifecycle
           : 'ANY',
       q: (queryParamMap.get('q') ?? '').trim(),

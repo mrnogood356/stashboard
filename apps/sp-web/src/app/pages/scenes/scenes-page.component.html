@@ -67,7 +67,7 @@
     aria-label="Scenes controls"
   >
     <div class="controls-header">
-      <span class="controls-title">Catalog Discovery</span>
+      <span class="controls-title">Filters</span>
       <div class="controls-actions">
         <button
           type="button"
@@ -76,14 +76,14 @@
           title="Clear filters and return to the default trending discovery view"
           (click)="resetFilters()"
         >
-          Clear Filters
+          Clear all
         </button>
       </div>
     </div>
 
     <div class="controls-row">
       <div class="control-field">
-        <span id="scenes-studios-label">Studio Filter</span>
+        <span id="scenes-studios-label">Studios</span>
         <div class="studio-picker-shell">
           <p-multiselect
             inputId="scenes-studios"
@@ -117,7 +117,7 @@
       </div>
 
       <div class="control-field">
-        <span id="scenes-tags-label">Tag Filter</span>
+        <span id="scenes-tags-label">Tags</span>
         <div class="tag-picker-shell">
           <div class="tag-input-row">
             <p-multiselect
@@ -161,7 +161,7 @@
       </div>
 
       <div class="control-field">
-        <span id="scenes-sort-label">Sort By</span>
+        <span id="scenes-sort-label">Sort</span>
         <div class="sort-with-direction">
           <p-select
             inputId="scenes-sort"
@@ -187,7 +187,7 @@
       </div>
 
       <div class="control-field">
-        <span id="scenes-favorites-label">Catalog Favorites</span>
+        <span id="scenes-favorites-label">Favorites</span>
         <p-select
           inputId="scenes-favorites"
           ariaLabelledBy="scenes-favorites-label"
@@ -202,7 +202,7 @@
       </div>
 
       <div class="control-field exclude-field">
-        <span id="scenes-exclude-label">Exclude Words</span>
+        <span id="scenes-exclude-label">Exclude words</span>
         <input
           pInputText
           id="scenes-exclude"
@@ -221,10 +221,6 @@
         </small>
       </div>
     </div>
-
-    <p class="controls-note">
-      {{ scenesResultsNote() }}
-    </p>
   </section>
 
   @if (unknownTags().length && !loading()) {

@@ -310,7 +310,10 @@ header p {
 
 .text-query-chip span {
   min-width: 0;
-  overflow-wrap: anywhere;
+  /* One line; a long search is cut short rather than wrapping word by word. */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .text-query-chip button {

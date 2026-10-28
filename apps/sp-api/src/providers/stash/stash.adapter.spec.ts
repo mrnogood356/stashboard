@@ -740,6 +740,38 @@ describe('StashAdapter', () => {
     expect(String(body.query)).toContain('updated_at');
   });
 
+  it('fingerprints the library from its size and most recently changed scene', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: {
+            findScenes: {
+              count: 1532,
+              scenes: [{ id: '88', updated_at: '2026-10-28T19:00:00Z' }],
+            },
+          },
+        }),
+    } as Response);
+
+    await expect(
+      adapter.getLibraryChangeMarker({
+        baseUrl: 'http://stash.local',
+        apiKey: 'secret',
+      }),
+    ).resolves.toBe('1532|88|2026-10-28T19:00:00Z');
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+      variables: { filter: Record<string, unknown> };
+    };
+    expect(body.variables.filter).toEqual({
+      page: 1,
+      per_page: 1,
+      sort: 'updated_at',
+      direction: 'DESC',
+    });
+  });
+
   it('selects the active-provider catalog id without discarding other provider refs', async () => {
     fetchMock.mockResolvedValue({
       ok: true,

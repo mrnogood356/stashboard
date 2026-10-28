@@ -46,6 +46,7 @@ import { HideOwnedService } from '../../core/preferences/hide-owned.service';
       color: var(--accent-text);
       font: inherit;
       font-weight: 600;
+      white-space: nowrap;
       cursor: pointer;
     }
   `,

@@ -56,7 +56,7 @@
     aria-label="Library controls"
   >
     <div class="controls-header app-control-shell__header">
-      <span class="controls-title app-control-title">Local Library</span>
+      <span class="controls-title app-control-title">Filters</span>
       <div class="controls-actions app-action-row">
         <button
           type="button"
@@ -65,14 +65,14 @@
           title="Clear filters and return to the default local library view"
           (click)="resetFilters()"
         >
-          Clear Filters
+          Clear all
         </button>
       </div>
     </div>
 
     <div class="controls-row app-control-grid">
       <label class="control-field control-field--query app-control-field">
-        <span class="app-control-label">Text Query</span>
+        <span class="app-control-label">Search</span>
         <input
           class="app-control-input"
           type="search"
@@ -84,7 +84,7 @@
       </label>
 
       <div class="control-field control-field--studio app-control-field">
-        <span id="library-studios-label" class="app-control-label">Studio Filter</span>
+        <span id="library-studios-label" class="app-control-label">Studios</span>
         <p-multiselect
           inputId="library-studios"
           ariaLabelledBy="library-studios-label"
@@ -112,7 +112,7 @@
       </div>
 
       <div class="control-field control-field--tag app-control-field">
-        <span id="library-tags-label" class="app-control-label">Tag Filter</span>
+        <span id="library-tags-label" class="app-control-label">Tags</span>
         <div class="tag-input-row app-control-inline">
           <p-multiselect
             inputId="library-tags"
@@ -154,7 +154,7 @@
       </div>
 
       <div class="control-field control-field--sort app-control-field">
-        <span id="library-sort-label" class="app-control-label">Sort By</span>
+        <span id="library-sort-label" class="app-control-label">Sort</span>
         <div class="sort-with-direction app-control-inline">
           <p-select
             inputId="library-sort"
@@ -180,7 +180,7 @@
       </div>
 
       <div class="control-field control-field--favorites app-control-field">
-        <span class="app-control-label">Local Favorite Overlays</span>
+        <span class="app-control-label">Only favorites</span>
         <div class="local-favorites-toggles">
           <button
             type="button"
@@ -212,8 +212,6 @@
         </div>
       </div>
     </div>
-
-    <p class="controls-note app-control-note">{{ libraryControlsNote() }}</p>
 
     @if (hasNarrowingFilters()) {
       <div class="active-filters" data-testid="library-active-filters">
@@ -309,10 +307,6 @@
             primaryLinkMode="local"
             [sceneQueryParams]="{ returnTo: currentRouteUrl() }"
             studioBadgeRoute="library"
-            [topBadges]="localCardBadges"
-            [footerLink]="libraryFooterLink(item)"
-            [footerLinkLabel]="item.activeCatalogSceneId ? 'View in Stash' : null"
-            [footerBadgeLabel]="item.activeCatalogSceneId ? null : 'Local only'"
             [playSceneId]="item.id"
             [playQueryParams]="{ returnTo: currentRouteUrl() }"
           />

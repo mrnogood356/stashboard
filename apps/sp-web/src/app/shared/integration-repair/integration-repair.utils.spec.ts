@@ -38,7 +38,7 @@ describe('integration form', () => {
     fixture.changeDetectorRef.markForCheck();
     fixture.detectChanges();
     const checkbox = fixture.nativeElement.querySelector(
-      'input[type="checkbox"]',
+      'input[formcontrolname="clearApiKey"]',
     ) as HTMLInputElement;
     checkbox.click();
 

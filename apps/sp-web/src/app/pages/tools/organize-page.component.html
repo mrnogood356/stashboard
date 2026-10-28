@@ -95,9 +95,7 @@
         <div class="card-copy">
           <h2>Find matches</h2>
           <p class="muted">
-            Looks every unmatched scene up by video fingerprint and name, then lists what it found
-            for you to check. Nothing is saved until you say so; only Whisparr’s own imports are
-            linked straight away.
+            Looks up unmatched scenes by fingerprint and name. Nothing is saved until you confirm.
           </p>
         </div>
       </div>
@@ -128,9 +126,7 @@
             Unmatched folder.
           </p>
         }
-        <button type="button" class="link" (click)="select('settings')">
-          Nightly matching, sources and Whisparr: Settings
-        </button>
+        <button type="button" class="link" (click)="select('settings')">Matching settings</button>
         @if (settings.lastRun.kind === 'match' && settings.lastRun.message && !run()?.running) {
           <p class="muted small last-run">
             Last run {{ when(settings.lastRun.at) }}: {{ settings.lastRun.message }}
@@ -190,7 +186,11 @@
       </label>
       <label class="list-select">
         <span>Show</span>
-        <select [value]="listScope()" (change)="setScope($any($event.target).value)">
+        <select
+          aria-label="Show"
+          [value]="listScope()"
+          (change)="setScope($any($event.target).value)"
+        >
           <option value="unmatched">Not matched</option>
           <option value="unlinked">Not linked to StashDB</option>
           <option value="all">All scenes</option>
@@ -198,7 +198,11 @@
       </label>
       <label class="list-select">
         <span>Sort</span>
-        <select [value]="listSort()" (change)="setSort($any($event.target).value)">
+        <select
+          aria-label="Sort"
+          [value]="listSort()"
+          (change)="setSort($any($event.target).value)"
+        >
           <option value="added-desc">Newest added</option>
           <option value="added-asc">Oldest added</option>
           <option value="title">Title</option>
@@ -728,9 +732,7 @@
               }
             </select>
             <small class="muted"
-              >These are Stash’s library folders. To use another folder, add it in Stash under
-              Settings → Library first. You can also start the pattern with a subfolder, like
-              <code>scenes/&#123;studio&#125;/…</code>.</small
+              >Stash’s library folders. Add others in Stash under Settings → Library.</small
             >
           </label>
         }

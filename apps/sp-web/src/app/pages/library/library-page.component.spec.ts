@@ -407,12 +407,8 @@ describe('LibraryPageComponent', () => {
 
     expect(fixture.nativeElement.querySelector('.summary-shell')).toBeNull();
     expect(fixture.nativeElement.querySelector('.results-shell')).toBeNull();
-    expect(fixture.nativeElement.querySelector('header .state')?.textContent).toContain(
-      '1 local scene / Release newest',
-    );
-    expect(fixture.nativeElement.querySelector('.controls-note')?.textContent).toContain(
-      'Filters apply to indexed local scenes',
-    );
+    expect(fixture.nativeElement.querySelector('header .state')?.textContent).toContain('1 scene');
+    expect(fixture.nativeElement.querySelector('.controls-note')).toBeNull();
     expect(fixture.nativeElement.querySelector('.controls-row input[type="search"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelectorAll('p-multiselect')).toHaveLength(2);
     expect(fixture.nativeElement.querySelectorAll('p-select')).toHaveLength(2);
@@ -446,10 +442,9 @@ describe('LibraryPageComponent', () => {
     expect(articles[0]?.querySelector('.studio-badge-link')?.getAttribute('href')).toContain(
       '/library',
     );
-    expect(articles[0]?.querySelector('.top-badge')?.textContent).toContain('Local');
-    expect(articles[0]?.querySelector('.footer-link')?.getAttribute('href')).toBe(
-      'http://stash.local/scenes/411',
-    );
+    // Every scene here is yours: no "Local" labels repeated on each card.
+    expect(articles[0]?.querySelector('.top-badge')).toBeNull();
+    expect(articles[0]?.querySelector('.footer-link')).toBeNull();
     expect(articles[0]?.querySelector('.card-actions')).toBeNull();
     expect(articles[0]?.querySelector('.card-links')).toBeNull();
     expect(articles[0]?.querySelector('.card-stat-pills')).toBeNull();
@@ -457,6 +452,6 @@ describe('LibraryPageComponent', () => {
     expect(articles[1]?.querySelector('.media-link-stretch')?.getAttribute('href')).toContain(
       '/library/scene/412',
     );
-    expect(articles[1]?.querySelector('.footer-pill')?.textContent).toContain('Local only');
+    expect(articles[1]?.querySelector('.footer-pill')).toBeNull();
   });
 });

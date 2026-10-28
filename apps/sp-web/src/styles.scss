@@ -390,25 +390,25 @@
 }
 
 :root[data-theme='dark'] {
-  --app-bg: #0b0b0d;
-  --surface-1: #151517;
-  --surface-2: #1b1b1e;
-  --surface-elevated: #212125;
-  --surface-raised: #2a2a2f;
+  --app-bg: #111215;
+  --surface-1: #1a1b1f;
+  --surface-2: #202126;
+  --surface-elevated: #26272c;
+  --surface-raised: #2e2f35;
   --text-primary: #f5f5f7;
   --text-secondary: #d1d1d6;
   --text-muted: #9a9aa2;
   --text-on-media: #ffffff;
-  --border-subtle: #242428;
-  --border-strong: #3a3a40;
+  --border-subtle: #2a2b30;
+  --border-strong: #3d3e45;
   --focus-ring: #0a84ff;
   --accent: #0a84ff;
   --accent-contrast: #ffffff;
   --accent-hover: #409cff;
   --accent-active: #66b0ff;
   --accent-text: #64b0ff;
-  --button-bg: #232327;
-  --button-border: #3a3a40;
+  --button-bg: #26272c;
+  --button-border: #3d3e45;
   --button-text: #f5f5f7;
   --danger: #ff6961;
   --success: #30d158;
@@ -1168,6 +1168,9 @@ select:disabled {
 /* Compact page header shared by the main list pages (Scenes, Library, Performers, Studios). */
 .page-head-compact {
   display: flex;
+  /* When the buttons don't fit beside the title (a phone with a search
+     showing), they move to their own row instead of squeezing it. */
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
@@ -1176,6 +1179,7 @@ select:disabled {
 
 .page-head-compact__title {
   display: flex;
+  flex: 1 1 14rem;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 0.25rem 0.85rem;
@@ -1184,9 +1188,9 @@ select:disabled {
 
 .page-head-compact h1 {
   margin: 0;
-  font-size: clamp(1.9rem, 3vw, 2.4rem);
-  font-weight: 800;
-  letter-spacing: -0.025em;
+  font-size: clamp(1.75rem, 2.6vw, 2.15rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1.08;
 }
 
@@ -1198,7 +1202,7 @@ select:disabled {
 }
 
 .filters-toggle {
-  display: none;
+  display: inline-flex;
   position: relative;
   align-items: center;
   gap: 0.45rem;
@@ -1230,14 +1234,9 @@ select:disabled {
   background: var(--focus-ring);
 }
 
-@media (max-width: 720px) {
-  .filters-toggle {
-    display: inline-flex;
-  }
-
-  .filters-collapsed {
-    display: none !important;
-  }
+/* Filters fold away until asked for, on every screen: the scenes come first. */
+.filters-collapsed {
+  display: none !important;
 }
 
 /* Scene detail page: primary Request action, phone request bar, loading placeholder. */

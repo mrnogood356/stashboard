@@ -56,7 +56,7 @@
   setMeta('apple-mobile-web-app-status-bar-style', scheme === 'dark' ? 'black-translucent' : 'default');
 
   if (!cache) {
-    setMeta('theme-color', scheme === 'dark' ? '#0b0b0d' : '#f2f2f7');
+    setMeta('theme-color', scheme === 'dark' ? '#111215' : '#f2f2f7');
     return;
   }
 

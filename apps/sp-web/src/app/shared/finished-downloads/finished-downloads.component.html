@@ -1,10 +1,9 @@
 <section class="finished-downloads" aria-labelledby="finished-downloads-title">
   <h3 id="finished-downloads-title">Finished downloads</h3>
   <p class="lead">
-    Off unless you turn it on. Then Find downloads sends usenet releases to SABnzbd in its own
-    category, and Stashboard moves each finished video into your library, links it to the scene and
-    puts it in its own folder named by your rename pattern. Nothing outside that category in SABnzbd
-    is touched.
+    Find downloads sends usenet releases to SABnzbd under its own category, and each finished video
+    is moved into your library, linked to its scene and filed by your rename pattern. Nothing else
+    in SABnzbd is touched.
   </p>
 
   @if (!sabnzbdReady) {
@@ -24,6 +23,8 @@
       <label class="switch-row">
         <input
           type="checkbox"
+          class="app-switch"
+          role="switch"
           name="enabled"
           [disabled]="!loaded()"
           [checked]="enabled()"
@@ -45,10 +46,7 @@
           [value]="category()"
           (input)="category.set(inputValue($event))"
         />
-        <span class="hint">
-          Downloads Stashboard sends here are moved in; ones you add here in SABnzbd yourself too,
-          if that’s on below. Nothing in other categories is touched.
-        </span>
+        <span class="hint">Only this category is touched.</span>
       </label>
 
       <label>
@@ -125,6 +123,8 @@
         <label class="switch-row">
           <input
             type="checkbox"
+            class="app-switch"
+            role="switch"
             name="dropIns"
             [disabled]="!loaded()"
             [checked]="dropIns()"
@@ -143,6 +143,8 @@
         <label class="switch-row">
           <input
             type="checkbox"
+            class="app-switch"
+            role="switch"
             name="sabManualJobs"
             [disabled]="!loaded()"
             [checked]="sabManualJobs()"
@@ -171,11 +173,8 @@
   <a class="processing-link" routerLink="/processing" data-testid="finished-downloads-processing">
     <i class="pi pi-sync" aria-hidden="true"></i>
     <span>
-      <strong>See what’s processing</strong>
-      <span class="hint">
-        Downloads in SABnzbd, files being brought in from the folder, and whether it’s being
-        watched.
-      </span>
+      <strong>Downloads</strong>
+      <span class="hint">What’s downloading and being brought in right now</span>
     </span>
     <i class="pi pi-chevron-right" aria-hidden="true"></i>
   </a>

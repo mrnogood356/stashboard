@@ -14,12 +14,20 @@ describe('AcquisitionScenesQueryDto', () => {
 
   it('rejects lifecycle states outside the acquisition page scope', async () => {
     const instance = plainToInstance(AcquisitionScenesQueryDto, {
-      lifecycle: 'AVAILABLE',
+      lifecycle: 'NOT_REQUESTED',
     });
 
     const errors = await validate(instance);
     expect(errors).toHaveLength(1);
     expect(errors[0]?.constraints).toHaveProperty('isIn');
+  });
+
+  it('accepts recently added', async () => {
+    const instance = plainToInstance(AcquisitionScenesQueryDto, {
+      lifecycle: 'AVAILABLE',
+    });
+
+    await expect(validate(instance)).resolves.toHaveLength(0);
   });
 
   it('accepts a search and a known sort', async () => {

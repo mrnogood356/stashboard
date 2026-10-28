@@ -112,14 +112,19 @@ p {
 
 .media-meta-row {
   display: flex;
+  /* On a narrow card (two to a row on a phone) the action drops under the
+     date instead of cutting it short. Plain wrapping, so cards stay cheap
+     to lay out. */
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.4rem 0.5rem;
   min-height: 1.6rem;
 }
 
 .media-date {
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: min(6.5rem, 100%);
   font-size: 0.78rem;
   color: var(--text-muted);
   white-space: nowrap;
