@@ -285,13 +285,13 @@
     flex-basis: 100%;
   }
 
-  /* A row each, so "Not linked to StashDB" fits without being cut off. */
+  /* Side by side; the options name themselves, so the labels go. */
   .list-select {
-    flex: 1 1 100%;
+    flex: 1 1 calc(50% - 0.3rem);
   }
 
   .list-select span {
-    min-width: 2.6rem;
+    display: none;
   }
 
   .list-select select {

@@ -310,7 +310,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     const shown = new Set(this.items().map((item) => item.id));
     return (this.waitingCheck()?.left ?? []).filter((scene) => !shown.has(scene.stashId));
   });
-  /** The page checks "Awaiting Import" by itself once, so every card says why. */
+  /** The page checks "Waiting for Stash" by itself once, so every card says why. */
   private waitingAutoChecked = false;
   protected readonly loadingMore = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -337,42 +337,42 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     return [
       {
         lifecycle: 'ANY',
-        label: 'All Tracked',
+        label: 'All',
         count: totalTracked,
         description:
           totalTracked === 0
-            ? 'Nothing is moving through acquisition right now.'
+            ? 'Nothing on its way right now.'
             : failedCount > 0
-              ? `${this.countLabel(failedCount, 'scene')} need attention before the rest.`
-              : 'Imported scenes leave this page and continue in Library.',
+              ? `${this.countLabel(failedCount, 'scene')} need a look.`
+              : 'Once in Stash, they move to Library.',
         tone: 'overview',
       },
       {
         lifecycle: 'FAILED',
         label: 'Failed',
         count: this.countForLifecycle('FAILED'),
-        description: 'Problems that need recovery or a retry in Whisparr.',
+        description: 'Stopped; need a retry.',
         tone: 'attention',
       },
       {
         lifecycle: 'IMPORT_PENDING',
-        label: 'Awaiting Import',
+        label: 'Waiting for Stash',
         count: this.countForLifecycle('IMPORT_PENDING'),
-        description: 'Downloaded in Whisparr and waiting to show up in Stash.',
+        description: 'Downloaded, not in Stash yet.',
         tone: 'pending',
       },
       {
         lifecycle: 'DOWNLOADING',
         label: 'Downloading',
         count: this.countForLifecycle('DOWNLOADING'),
-        description: 'Active queue work currently in progress.',
+        description: 'In progress now.',
         tone: 'active',
       },
       {
         lifecycle: 'REQUESTED',
         label: 'Requested',
         count: this.countForLifecycle('REQUESTED'),
-        description: 'Tracked in Whisparr and still waiting to start.',
+        description: 'Waiting to start.',
         tone: 'passive',
       },
     ];
@@ -629,28 +629,6 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     return `${this.total()} ${this.filterLabel(selectedLifecycle).toLowerCase()} scenes match the current focus.`;
   }
 
-  protected sectionIntroTitle(): string {
-    const selectedLifecycle = this.selectedLifecycle();
-
-    if (selectedLifecycle === 'ANY') {
-      return 'Look here first, then work down the pipeline';
-    }
-
-    return `${this.filterLabel(selectedLifecycle)} focus`;
-  }
-
-  protected sectionIntroCopy(): string {
-    const selectedLifecycle = this.selectedLifecycle();
-
-    if (selectedLifecycle === 'ANY') {
-      return this.selectedSort() === 'status'
-        ? 'Failed scenes surface first, then active downloads, import handoff work, and passive queued requests.'
-        : 'Change the order back to Pipeline order to group scenes by stage.';
-    }
-
-    return this.lifecycleDescription(selectedLifecycle);
-  }
-
   protected lifecycleHelperText(item: AcquisitionSceneItem): string {
     switch (item.status.state) {
       case 'REQUESTED':
@@ -689,7 +667,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
         return `Whisparr is in ${this.humanizeStatus(item.queueState)} while Stash catches up.`;
       }
 
-      return 'If this lingers, check Stash and the indexing sync for the import handoff.';
+      return null;
     }
 
     if (item.status.state === 'DOWNLOADING') {
@@ -697,7 +675,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
         return `Whisparr currently reports ${this.humanizeStatus(item.queueStatus)}.`;
       }
 
-      return 'Use Whisparr when you need queue-level progress or worker details.';
+      return null;
     }
 
     if (item.status.state === 'REQUESTED' && item.queueStatus?.trim()) {
@@ -793,7 +771,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       case 'DOWNLOADING':
         return 'Downloading';
       case 'IMPORT_PENDING':
-        return 'Awaiting Import';
+        return 'Waiting for Stash';
       case 'FAILED':
         return 'Failed';
       case 'ANY':
@@ -805,14 +783,14 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   private lifecycleDescription(lifecycle: AcquisitionLifecycleState): string {
     switch (lifecycle) {
       case 'FAILED':
-        return 'These scenes are blocked. Open Whisparr, inspect the failure, and retry or repair the job there.';
+        return 'These stopped. Check them in Whisparr and retry.';
       case 'IMPORT_PENDING':
-        return 'Whisparr finished downloading these scenes, but they have not shown up in Stash yet.';
+        return 'Downloaded, and waiting to show up in Stash.';
       case 'DOWNLOADING':
-        return 'These scenes are actively working through the acquisition queue right now.';
+        return 'Downloading now.';
       case 'REQUESTED':
       default:
-        return 'These scenes are tracked in Whisparr but have not started downloading yet.';
+        return 'Waiting for Whisparr to start them.';
     }
   }
 

@@ -1,48 +1,61 @@
 <div class="integration-form-fields" [formGroup]="form">
-  <label>
-    <span class="field-label">Name</span>
-    <input pInputText type="text" formControlName="name" />
-  </label>
+  <div class="field-grid">
+    <label>
+      <span class="field-label">Name</span>
+      <input pInputText type="text" formControlName="name" />
+    </label>
 
-  <label>
-    <span class="field-label">Base URL</span>
-    <input pInputText type="text" formControlName="baseUrl" placeholder="http://localhost:9999" />
-  </label>
-
-  <label>
-    <span class="field-label">API Key</span>
-    <input pInputText type="password" formControlName="apiKey" placeholder="Enter to update key" />
-  </label>
-
-  @if (hasStoredApiKey) {
-    <p-message
-      severity="info"
-      text="API key already stored. Leave blank to keep current key."
-      styleClass="integration-inline-message"
-    />
-    <div class="switch-row">
-      <span>Remove the saved key (for a server that doesn't use one)</span>
+    <label>
+      <span class="field-label">Address</span>
       <input
-        type="checkbox"
-        class="app-switch"
-        role="switch"
-        formControlName="clearApiKey"
-        aria-label="Remove the saved key"
+        pInputText
+        type="text"
+        formControlName="baseUrl"
+        placeholder="http://192.168.1.10:9999"
+        spellcheck="false"
+        autocapitalize="off"
       />
-    </div>
-  }
+    </label>
 
-  @if (showEnabledToggle) {
-    <div class="switch-row">
-      <span>Enabled</span>
+    <label>
+      <span class="field-label">API key</span>
       <input
-        type="checkbox"
-        class="app-switch"
-        role="switch"
-        formControlName="enabled"
-        aria-label="Enabled"
-        [id]="enabledInputId"
+        pInputText
+        type="password"
+        formControlName="apiKey"
+        autocomplete="off"
+        [placeholder]="hasStoredApiKey ? 'Saved · leave blank to keep it' : 'Paste the API key'"
       />
+    </label>
+  </div>
+
+  @if (hasStoredApiKey || showEnabledToggle) {
+    <div class="switches">
+      @if (showEnabledToggle) {
+        <label class="switch-row">
+          <input
+            type="checkbox"
+            class="app-switch"
+            role="switch"
+            formControlName="enabled"
+            aria-label="Enabled"
+            [id]="enabledInputId"
+          />
+          <span>Enabled</span>
+        </label>
+      }
+      @if (hasStoredApiKey) {
+        <label class="switch-row">
+          <input
+            type="checkbox"
+            class="app-switch"
+            role="switch"
+            formControlName="clearApiKey"
+            aria-label="Remove the saved key"
+          />
+          <span>Remove the saved key <small>(for a server without one)</small></span>
+        </label>
+      }
     </div>
   }
 </div>

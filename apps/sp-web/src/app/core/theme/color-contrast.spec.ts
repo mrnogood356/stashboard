@@ -124,7 +124,7 @@ describe('theme tokens', () => {
     expect(buildThemeTokens(nord)['--badge-available-text']).toBeDefined();
     expect(buildThemeTokens(nord)['--chip-bg']).toBe(nord.palette.raised);
     expect(buildThemeTokens(dark)['--chip-bg']).toBeUndefined();
-    expect(buildThemeTokens(dark)['--app-bg']).toBe('#0b0b0d');
+    expect(buildThemeTokens(dark)['--app-bg']).toBe('#111215');
   });
 
   it('has an OLED theme with a pure black background', () => {

@@ -680,7 +680,7 @@ describe('AcquisitionPageComponent', () => {
     const headings = Array.from(
       fixture.nativeElement.querySelectorAll('.lifecycle-section h3') as NodeListOf<HTMLElement>,
     ).map((element) => element.textContent?.trim());
-    expect(headings).toEqual(['Failed', 'Downloading', 'Awaiting Import', 'Requested']);
+    expect(headings).toEqual(['Failed', 'Downloading', 'Waiting for Stash', 'Requested']);
   });
 
   it('searches after a pause and keeps the search in the address', async () => {

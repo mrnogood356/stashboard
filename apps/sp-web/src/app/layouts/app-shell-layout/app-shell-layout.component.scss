@@ -94,6 +94,9 @@
   display: grid;
   gap: 0.15rem;
   align-content: start;
+  /* Scrolls on short windows so the footer (Log out) stays reachable. */
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .nav-item,
@@ -116,6 +119,21 @@
   font-size: 0.95rem;
   line-height: 1.25;
   color: color-mix(in srgb, var(--text-primary) 82%, var(--text-muted));
+}
+
+.nav-group-label {
+  margin: 0.95rem 0 0.25rem;
+  padding: 0 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.nav-group-gap {
+  display: block;
+  height: 0.6rem;
 }
 
 .nav-item:hover {
@@ -561,6 +579,15 @@
 @media (max-width: 900px) {
   .layout:not(.mobile-shell) {
     grid-template-columns: 76px minmax(0, 1fr);
+  }
+
+  /* Too narrow for group names: keep the space between groups, drop the words. */
+  .layout:not(.mobile-shell) .nav-group-label {
+    height: 0.75rem;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    visibility: hidden;
   }
 
   .layout:not(.mobile-shell) .brand-name,

@@ -236,13 +236,13 @@ describe('AppShellLayoutComponent', () => {
       'Home',
       'Search',
       'Scenes',
-      'Library',
-      'Feed',
-      'Acquisition',
-      'Processing',
       'Performers',
       'Studios',
-      'Library tools',
+      'Library',
+      'Swipe feed',
+      'Tools',
+      'Requests',
+      'Downloads',
       'Settings',
     ]);
     expect(
@@ -264,12 +264,12 @@ describe('AppShellLayoutComponent', () => {
       ).map((link) => link.textContent?.replace(/\s+/g, ' ').trim());
 
     expect(playbackSettings.ensureLoaded).toHaveBeenCalled();
-    expect(labels()).not.toContain('Feed');
+    expect(labels()).not.toContain('Swipe feed');
     expect(labels()).toContain('Library');
 
     setFeedEnabled(true);
     fixture.detectChanges();
-    expect(labels()).toContain('Feed');
+    expect(labels()).toContain('Swipe feed');
   });
 
   it('renders a bottom navigation on phones and exposes secondary destinations from More', async () => {
@@ -302,8 +302,8 @@ describe('AppShellLayoutComponent', () => {
     ) as HTMLElement | null;
 
     expect(moreSheet).toBeTruthy();
-    expect(moreSheet?.textContent).toContain('Acquisition');
-    expect(moreSheet?.textContent).toContain('Processing');
+    expect(moreSheet?.textContent).toContain('Requests');
+    expect(moreSheet?.textContent).toContain('Downloads');
     expect(moreSheet?.textContent).toContain('Performers');
     expect(moreSheet?.textContent).toContain('Studios');
     expect(moreSheet?.textContent).toContain('Settings');

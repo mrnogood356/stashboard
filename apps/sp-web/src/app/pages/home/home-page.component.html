@@ -64,7 +64,7 @@
     </div>
   } @else if (configError()) {
     <section class="home-state error-state app-state-block">
-      <h2>Home could not be loaded</h2>
+      <h2>Home didn’t load</h2>
       <p>{{ configError() }}</p>
       <button type="button" class="state-button" (click)="loadHome()">Retry</button>
     </section>

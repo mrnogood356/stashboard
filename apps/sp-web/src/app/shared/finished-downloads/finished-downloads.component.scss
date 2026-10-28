@@ -23,6 +23,10 @@ h4 {
   color: var(--text-muted);
 }
 
+.lead {
+  font-size: 0.9rem;
+}
+
 .hint {
   font-size: 0.78rem;
   overflow-wrap: anywhere;
@@ -46,7 +50,9 @@ h4 {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  font-weight: 600;
+  font-size: 0.92rem;
+  font-weight: 500;
+  cursor: pointer;
 }
 
 .drop-ins {
@@ -57,14 +63,35 @@ h4 {
 }
 
 .field-label {
-  font-size: 0.8rem;
-  font-weight: 700;
+  font-size: 0.78rem;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
-.handoff-form input[type='text'] {
+.handoff-form input[type='text'],
+.handoff-form select {
   min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.92rem;
+}
+
+.handoff-form input[type='text'] {
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.85rem;
+}
+
+.handoff-form input[type='text']:focus,
+.handoff-form select:focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
 }
 
 .actions {

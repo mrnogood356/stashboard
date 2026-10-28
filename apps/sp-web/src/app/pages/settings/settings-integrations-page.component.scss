@@ -115,13 +115,28 @@ p {
 
 /* Per-service reset, separated from the form by a divider, not a nested card. */
 .danger-card {
-  margin-top: 0.4rem;
-  padding: 1rem 0 0;
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.85rem 0 0;
   border-top: 1px solid var(--separator, var(--border-subtle));
 }
 
 .danger-card h3 {
-  font-size: 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.danger-card p {
+  flex: 1 1 18rem;
+  font-size: 0.82rem;
+}
+
+.danger-card h3 + p {
+  order: 3;
+  flex-basis: 100%;
 }
 
 .overview-head,
@@ -134,8 +149,9 @@ p {
 }
 
 .overview-lead {
-  margin-top: 0.45rem;
-  font-size: 1.02rem;
+  margin-top: 0.3rem;
+  font-size: 0.92rem;
+  color: var(--text-muted);
 }
 
 .progress-pill {
@@ -190,12 +206,28 @@ p {
 .checklist-item {
   border-radius: 12px;
   border: 1px solid var(--surface-panel-border);
-  padding: 0.85rem;
+  padding: 0.6rem 0.75rem;
   background: var(--surface-elevated);
+}
+
+.checklist-item h3 {
+  font-size: 0.92rem;
+}
+
+.checklist-item p {
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
 }
 
 .cards {
   align-items: start;
+  gap: 0.5rem;
+}
+
+/* Health and Reset all: at the end, not in the way. */
+.operations-grid {
+  margin-top: 1rem;
 }
 
 .operations-grid {
@@ -252,13 +284,19 @@ p {
 
 @media (max-width: 640px) {
   .overview-head,
-  .checklist-item-head,
   .panel-head {
     flex-direction: column;
   }
 
-  .progress-pill,
-  .state-badge {
+  .checklist-item-head {
+    align-items: center;
+  }
+
+  .checklist-grid {
+    gap: 0.4rem;
+  }
+
+  .progress-pill {
     align-self: flex-start;
   }
 }

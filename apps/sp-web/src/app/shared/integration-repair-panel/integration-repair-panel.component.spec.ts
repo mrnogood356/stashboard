@@ -39,6 +39,35 @@ async function render(inputs: Record<string, unknown> = {}) {
 }
 
 describe('IntegrationRepairPanelComponent', () => {
+  it('folds to a row with the address, and opens from it, when collapsible', async () => {
+    const { fixture, root } = await render({
+      collapsible: true,
+      expanded: false,
+      detail: 'http://stash:9999',
+    });
+    const toggled: boolean[] = [];
+    fixture.componentInstance.toggled.subscribe((open) => toggled.push(open));
+    const head = root.querySelector<HTMLButtonElement>('button.card-head')!;
+
+    expect(root.querySelector('.head-detail')?.textContent).toContain('http://stash:9999');
+    expect(head.getAttribute('aria-expanded')).toBe('false');
+    expect(root.querySelector<HTMLElement>('.card-body')?.hidden).toBe(true);
+
+    head.click();
+    expect(toggled).toEqual([true]);
+
+    fixture.componentRef.setInput('expanded', true);
+    fixture.detectChanges();
+    expect(root.querySelector<HTMLElement>('.card-body')?.hidden).toBe(false);
+  });
+
+  it('is always open, with no toggle, when not collapsible (Setup)', async () => {
+    const { root } = await render();
+
+    expect(root.querySelector('button.card-head')).toBeNull();
+    expect(root.querySelector<HTMLElement>('.card-body')?.hidden).toBe(false);
+  });
+
   it('shows the state, test history and error', async () => {
     const { root } = await render({
       state: 'TEST_FAILED',
@@ -48,8 +77,7 @@ describe('IntegrationRepairPanelComponent', () => {
 
     expect(root.querySelector('.state-badge')?.textContent?.trim()).toBe('Test Failed');
     expect(root.querySelector('.state-badge')?.classList).toContain('is-error');
-    expect(root.textContent).toContain('Last healthy test: Never');
-    expect(root.textContent).toContain('Last failed test: 2026-10-01 10:00');
+    expect(root.textContent).toContain('Last test failed 2026-10-01 10:00');
     expect(root.textContent).toContain('Connection refused');
   });
 

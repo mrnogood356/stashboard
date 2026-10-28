@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { ButtonDirective } from 'primeng/button';
@@ -12,7 +13,13 @@ export interface IntegrationRepairPanelMessage {
 
 @Component({
   selector: 'app-integration-repair-panel',
-  imports: [ReactiveFormsModule, ButtonDirective, Message, IntegrationFormFieldsComponent],
+  imports: [
+    NgTemplateOutlet,
+    ReactiveFormsModule,
+    ButtonDirective,
+    Message,
+    IntegrationFormFieldsComponent,
+  ],
   templateUrl: './integration-repair-panel.component.html',
   styleUrls: [
     './integration-repair-panel.component.scss',
@@ -21,6 +28,12 @@ export interface IntegrationRepairPanelMessage {
 })
 export class IntegrationRepairPanelComponent {
   @Input({ required: true }) label!: string;
+  /** Under the name in the row, e.g. the service's address. */
+  @Input() detail: string | null = null;
+  /** A row that opens to the form (Settings); otherwise always open (Setup). */
+  @Input() collapsible = false;
+  /** Open to show the form; closed, only the row shows. */
+  @Input() expanded = false;
   @Input() sectionLabel = '';
   @Input({ required: true }) state!: ReadinessState;
   @Input({ required: true }) summary!: string;
@@ -36,12 +49,25 @@ export class IntegrationRepairPanelComponent {
   @Input() primaryDisabled = false;
   @Input() secondaryActionLabel = 'Save only';
   @Input() secondaryDisabled = false;
+  /** A next-step line under the buttons (Setup's guided steps). */
   @Input() actionHint = '';
   @Input() messages: readonly IntegrationRepairPanelMessage[] = [];
   @Input() submitAction: 'primary' | 'secondary' = 'secondary';
 
   @Output() primaryAction = new EventEmitter<void>();
+  /** The row was tapped: the new open state. */
+  @Output() toggled = new EventEmitter<boolean>();
+  private static nextId = 0;
+  protected readonly bodyId = `integration-panel-${IntegrationRepairPanelComponent.nextId++}`;
   @Output() secondaryAction = new EventEmitter<void>();
+
+  /** "Last tested OK …", or the last failure, in one line. */
+  protected testedLine(): string {
+    if (this.state === 'TEST_FAILED' && this.lastErrorAt) {
+      return `Last test failed ${this.lastErrorAt}`;
+    }
+    return this.lastHealthyAt ? `Last tested OK ${this.lastHealthyAt}` : 'Not tested yet';
+  }
 
   protected readinessLabel(): string {
     return integrationReadinessLabel(this.state);
