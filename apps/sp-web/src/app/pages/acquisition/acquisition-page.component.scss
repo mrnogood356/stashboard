@@ -84,7 +84,7 @@ a {
   text-align: center;
 }
 
-.lifecycle-tab[data-tone='attention'] .lifecycle-tab-count:not(:empty) {
+.lifecycle-tab[data-tone='attention'] .lifecycle-tab-count.has-count {
   color: var(--danger-text);
 }
 
@@ -94,92 +94,6 @@ a {
 }
 
 /* ---------- where each request is ---------- */
-
-.stage-track {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.stage {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 0.3rem;
-  min-width: 0;
-  text-align: center;
-}
-
-/* The line to the next step. */
-.stage:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  top: 0.55rem;
-  left: calc(50% + 0.75rem);
-  right: calc(-50% + 0.75rem);
-  height: 2px;
-  border-radius: 1px;
-  background: var(--border-strong);
-}
-
-.stage[data-state='done']:not(:last-child)::after {
-  background: var(--success);
-}
-
-.stage-dot {
-  display: grid;
-  place-items: center;
-  width: 1.1rem;
-  height: 1.1rem;
-  border-radius: 50%;
-  border: 2px solid var(--border-strong);
-  background: var(--surface-1);
-  font-size: 0.55rem;
-}
-
-.stage[data-state='done'] .stage-dot {
-  border-color: var(--success);
-  background: var(--success);
-  color: var(--surface-1);
-}
-
-.stage[data-state='current'] .stage-dot {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
-}
-
-.stage[data-state='failed'] .stage-dot {
-  border-color: var(--danger);
-  background: var(--danger);
-  color: var(--surface-1);
-}
-
-.stage-label {
-  max-width: 100%;
-  font-size: 0.72rem;
-  line-height: 1.25;
-  color: var(--text-muted);
-}
-
-.stage[data-state='current'] .stage-label {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.stage[data-state='failed'] .stage-label {
-  color: var(--danger-text);
-  font-weight: 600;
-}
-
-.stage-now {
-  display: none;
-  margin: -0.35rem 0 0;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-muted);
-}
 
 .download-progress {
   display: flex;
@@ -209,6 +123,17 @@ a {
   font-size: 0.8rem;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+}
+
+.release-name {
+  margin: -0.2rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.handoff-section {
+  margin-top: 1rem;
 }
 
 .added-at {
@@ -542,14 +467,6 @@ a {
   .card-title {
     font-size: 1rem;
   }
-
-  .stage-label {
-    display: none;
-  }
-
-  .stage-now {
-    display: block;
-  }
 }
 
 /* ---------- 2026 look ---------- */
@@ -746,4 +663,43 @@ a {
 
 .card-timeline {
   margin-top: 0.35rem;
+}
+
+/* ---------- card meta and actions ---------- */
+
+.card-meta {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+/* One look for every action on a card; the scene link is the accent one. */
+.card-actions .primary-link,
+.card-actions .secondary-link,
+.card-actions .secondary-action {
+  border: 0;
+  background: var(--chip-bg);
+  color: var(--text-primary);
+}
+
+.card-actions .primary-link {
+  color: var(--accent-text);
+}
+
+@media (max-width: 640px) {
+  /* The title and picture already open the scene. */
+  .card-actions .details-link {
+    display: none;
+  }
+
+  .card-actions {
+    gap: 0.4rem;
+  }
+}
+
+/* Section buttons ("Downloads", "Check these") keep their size when the
+   header stacks on phones. */
+.lifecycle-section-head > .secondary-action {
+  align-self: flex-start;
+  width: auto;
 }

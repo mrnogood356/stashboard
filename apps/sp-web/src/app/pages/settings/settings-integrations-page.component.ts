@@ -1,10 +1,10 @@
+import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Observable, finalize, forkJoin, map, switchMap, tap } from 'rxjs';
 import { ConfirmationService } from 'primeng/api';
 import { ButtonDirective } from 'primeng/button';
 import { Message } from 'primeng/message';
-import { ProgressSpinner } from 'primeng/progressspinner';
 import { HealthService } from '../../core/api/health.service';
 import { HealthStatusResponse } from '../../core/api/health.types';
 import { IntegrationsService } from '../../core/api/integrations.service';
@@ -46,9 +46,9 @@ import {
 @Component({
   selector: 'app-settings-integrations-page',
   imports: [
+    SkeletonComponent,
     ButtonDirective,
     Message,
-    ProgressSpinner,
     IntegrationRepairPanelComponent,
     FinishedDownloadsComponent,
   ],

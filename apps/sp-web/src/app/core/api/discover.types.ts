@@ -5,6 +5,8 @@ export type SceneStatusState =
 
 export interface SceneStatus {
   state: SceneStatusState;
+  /** Whisparr's queue state for a failed scene, where known: the step it stopped at. */
+  queueState?: string | null;
 }
 
 export function isSceneStatusRequestable(status: Pick<SceneStatus, 'state'>): boolean {

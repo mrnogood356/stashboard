@@ -149,6 +149,61 @@ describe('ScenePageComponent', () => {
     ).toContain('View in Whisparr');
   });
 
+  it('puts the date and length on one line, and names gender plainly', async () => {
+    const { fixture } = await renderScene(
+      buildScene({
+        releaseDate: '2026-06-15',
+        duration: 2460,
+        performers: [
+          {
+            id: 'p1',
+            name: 'Ana Lee',
+            gender: 'TRANSGENDER_FEMALE',
+            isFavorite: false,
+            imageUrl: null,
+            cardImageUrl: null,
+          },
+        ],
+      }),
+    );
+    const root = fixture.nativeElement as HTMLElement;
+    const meta = root.querySelector('[data-testid="scene-meta"]')?.textContent ?? '';
+    expect(meta).toContain('2026');
+    expect(meta).toContain('· 41 min');
+    expect(root.textContent).toContain('Transgender female');
+    expect(root.textContent).not.toContain('TRANSGENDER_FEMALE');
+  });
+
+  it('shows tags once, with the rest a tap away', async () => {
+    const tags = Array.from({ length: 11 }, (_, i) => ({
+      id: `t${i}`,
+      name: `Tag ${i}`,
+      description: null,
+    }));
+    const { fixture } = await renderScene(buildScene({ tags }));
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelectorAll('.hero-tags .tag-link')).toHaveLength(8);
+    expect(root.textContent).not.toContain('All tags');
+
+    (root.querySelector('[data-testid="scene-tags-more"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.querySelectorAll('.hero-tags .tag-link')).toHaveLength(11);
+  });
+
+  it('shows where a requested scene is on the four steps, and nothing for an unrequested one', async () => {
+    const requested = await renderScene(buildScene({ status: { state: 'DOWNLOADING' } }));
+    const stages = Array.from(
+      (requested.fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>(
+        '[data-testid="scene-stage-track"] .stage',
+      ),
+    ).map((stage) => stage.dataset['state']);
+    expect(stages).toEqual(['done', 'current', 'todo', 'todo']);
+    TestBed.resetTestingModule();
+
+    const fresh = await renderScene(buildScene());
+    expect(fresh.fixture.nativeElement.querySelector('[data-testid="scene-progress"]')).toBeNull();
+  });
+
   it('has a collapsed “Why is it like this?” panel for the catalog scene', async () => {
     const { fixture, diagnosticsApi } = await renderScene(buildScene());
     const root = fixture.nativeElement as HTMLElement;

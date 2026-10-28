@@ -367,3 +367,21 @@ p {
   white-space: nowrap;
   border: 0;
 }
+
+.css-card > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.css-card > summary::-webkit-details-marker {
+  display: none;
+}
+
+.css-card > summary h3::after {
+  content: ' ›';
+  color: var(--text-muted);
+}
+
+.css-card[open] > summary h3::after {
+  content: ' ⌄';
+}

@@ -1,3 +1,8 @@
+import {
+  DownloadHandoffApiService,
+  Processing,
+  ProcessingHandoff,
+} from '../../core/api/download-handoff.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -173,7 +178,26 @@ describe('AcquisitionPageComponent', () => {
     runtimeHealth?: RuntimeHealthResponse;
     setupStatus?: SetupStatusResponse;
     queryParams?: Record<string, string>;
+    handoffs?: ProcessingHandoff[];
+    recentHandoffs?: ProcessingHandoff[];
   }) {
+    const downloadsApi = {
+      processing: vi.fn(() =>
+        of({
+          handoff: {
+            enabled: true,
+            sabnzbdReady: true,
+            category: 'stashboard',
+            sabnzbdUnreachable: false,
+          },
+          handoffs: options?.handoffs ?? [],
+          recentHandoffs: options?.recentHandoffs ?? [],
+          dropIns: { watch: {}, active: [], recent: [] },
+          activeCount: 0,
+          problemCount: 0,
+        } as unknown as Processing),
+      ),
+    };
     const allResponse =
       options?.responses?.ANY ??
       buildResponse([
@@ -312,6 +336,7 @@ describe('AcquisitionPageComponent', () => {
         provideRouter([]),
         { provide: AppNotificationsService, useValue: notifications },
         { provide: TimelineApiService, useValue: timelineApi },
+        { provide: DownloadHandoffApiService, useValue: downloadsApi },
         {
           provide: AcquisitionService,
           useValue: acquisitionService,
@@ -346,6 +371,7 @@ describe('AcquisitionPageComponent', () => {
     return {
       fixture,
       component: fixture.componentInstance,
+      downloadsApi,
       router,
       acquisitionService,
       organizerService,
@@ -499,6 +525,70 @@ describe('AcquisitionPageComponent', () => {
     slowRefresh.complete();
     fixture.detectChanges();
     expect(page.items()).toHaveLength(30);
+  });
+
+  function handoff(overrides: Partial<ProcessingHandoff> = {}): ProcessingHandoff {
+    return {
+      id: 'h1',
+      source: 'stashboard',
+      sceneId: 'scene-h1',
+      provider: 'STASHDB',
+      releaseTitle: 'Golden.Hour.1080p',
+      status: 'downloading',
+      error: null,
+      finalPath: null,
+      stashSceneId: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      stage: 'downloading',
+      scene: { title: 'Golden Hour', imageUrl: null, studio: 'Northside' },
+      progress: 40,
+      timeLeft: '0:12:30',
+      detail: null,
+      canRetry: false,
+      canIgnore: true,
+      ...overrides,
+    } as ProcessingHandoff;
+  }
+
+  it('shows downloads you started, with where they are and SABnzbd’s progress', async () => {
+    const { fixture } = await renderPage({
+      handoffs: [handoff()],
+      recentHandoffs: [
+        handoff({
+          id: 'h2',
+          stage: 'failed',
+          status: 'failed',
+          detail: 'Unpacking failed',
+          progress: null,
+        }),
+        // Failed long ago: no longer shown.
+        handoff({ id: 'h3', stage: 'failed', status: 'failed', updatedAt: '2020-01-01T00:00:00Z' }),
+      ],
+    });
+    const root = fixture.nativeElement as HTMLElement;
+
+    const section = root.querySelector('[data-testid="handoff-section"]');
+    expect(section?.textContent).toContain('Downloads you started');
+    const card = root.querySelector('[data-testid="handoff-h1"]');
+    expect(card?.textContent).toContain('Golden Hour');
+    expect(card?.textContent).toContain('Golden.Hour.1080p');
+    expect(stageStates(root, 'h1')[1]).toBe('Downloading:current');
+    expect(card?.textContent).toContain('40% · 12 min left');
+    expect(stageStates(root, 'h2')[1]).toBe('Downloading:failed');
+    expect(root.querySelector('[data-testid="handoff-h2"]')?.textContent).toContain(
+      'Retry in Downloads',
+    );
+    expect(root.querySelector('[data-testid="handoff-h3"]')).toBeNull();
+  });
+
+  it('leaves downloads you started off the other tabs and searches', async () => {
+    const { fixture, downloadsApi } = await renderPage({
+      handoffs: [handoff()],
+      queryParams: { lifecycle: 'REQUESTED' },
+    });
+    expect(downloadsApi.processing).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelector('[data-testid="handoff-section"]')).toBeNull();
   });
 
   it('says where each card is now from one batched request, and opens the whole story on tap', async () => {
@@ -684,11 +774,11 @@ describe('AcquisitionPageComponent', () => {
 
     expect(degradedState?.textContent).toContain('Whisparr needs attention');
     expect(degradedState?.textContent).toContain(
-      'Queue state, failures, and request progression may be stale',
+      'Download progress and failures may be out of date',
     );
     expect(degradedState?.querySelector('a[href*="/settings/integrations"]')).toBeTruthy();
-    expect(emptyState?.textContent).toContain('No acquisition activity is indexed yet');
-    expect(emptyState?.textContent).toContain('run Sync All');
+    expect(emptyState?.textContent).toContain('No requests yet');
+    expect(emptyState?.textContent).toContain('run Sync now');
     expect(emptyState?.textContent).toContain('Open Scenes');
     expect(emptyState?.textContent).toContain('Open Indexing');
     expect(emptyState?.textContent).toContain('Open Library');
@@ -712,7 +802,7 @@ describe('AcquisitionPageComponent', () => {
 
     expect(degradedState?.textContent).toContain('Whisparr needs attention');
     expect(degradedState?.textContent).toContain(
-      'Queue state, failures, and request progression may be stale',
+      'Download progress and failures may be out of date',
     );
   });
 
@@ -772,9 +862,9 @@ describe('AcquisitionPageComponent', () => {
       '[data-testid="acquisition-degraded-state"]',
     ) as HTMLElement | null;
 
-    expect(degradedState?.textContent).toContain('Repair Required');
-    expect(degradedState?.textContent).toContain('Whisparr needs attention');
-    expect(degradedState?.textContent).not.toContain('Stash import visibility is degraded');
+    expect(degradedState?.textContent).toContain('Needs setting up');
+    expect(degradedState?.textContent).toContain('Whisparr needs setting up');
+    expect(degradedState?.textContent).not.toContain('Stash isn’t answering');
   });
 
   it('renders a filter-specific empty state when a focused lifecycle has no items', async () => {

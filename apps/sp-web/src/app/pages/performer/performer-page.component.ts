@@ -1,3 +1,4 @@
+import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import {
   AfterViewInit,
   Component,
@@ -25,7 +26,6 @@ import {
 } from 'rxjs';
 import { Message } from 'primeng/message';
 import { MultiSelect } from 'primeng/multiselect';
-import { ProgressSpinner } from 'primeng/progressspinner';
 import { Select } from 'primeng/select';
 import { ToggleSwitch } from 'primeng/toggleswitch';
 import { DiscoverService } from '../../core/api/discover.service';
@@ -66,13 +66,13 @@ interface MultiSelectGroup {
 @Component({
   selector: 'app-performer-page',
   imports: [
+    SkeletonComponent,
     HideToggleComponent,
     RouterLink,
     FormsModule,
     Select,
     ToggleSwitch,
     Message,
-    ProgressSpinner,
     MultiSelect,
     SceneCardComponent,
     OwnedToggleComponent,

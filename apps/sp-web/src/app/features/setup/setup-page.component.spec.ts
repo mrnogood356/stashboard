@@ -235,8 +235,8 @@ describe('SetupPageComponent', () => {
 
     expect(textContent(panel)).toContain('Setup complete');
     expect(textContent(panel)).toContain('Stashboard is ready to open');
-    expect(textContent(panel)).toContain('Library, Acquisition, and status badges');
-    expect(textContent(panel)).toContain('Sync All');
+    expect(textContent(panel)).toContain('Library, Requests and the status on each scene');
+    expect(textContent(panel)).toContain('Sync now');
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
       '/home',
       '/settings/indexing',

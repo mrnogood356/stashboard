@@ -1,3 +1,4 @@
+import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import {
   AfterViewInit,
   Component,
@@ -14,7 +15,6 @@ import { Subject, Subscription, debounceTime, distinctUntilChanged, finalize } f
 import { ButtonDirective } from 'primeng/button';
 import { InputText } from 'primeng/inputtext';
 import { Message } from 'primeng/message';
-import { ProgressSpinner } from 'primeng/progressspinner';
 import { Select } from 'primeng/select';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DiscoverService } from '../../core/api/discover.service';
@@ -33,12 +33,12 @@ import { CatalogProviderSwitchComponent } from '../../shared/catalog-provider-sw
 @Component({
   selector: 'app-performers-page',
   imports: [
+    SkeletonComponent,
     CatalogProviderSwitchComponent,
     RouterLink,
     FormsModule,
     InputText,
     Message,
-    ProgressSpinner,
     Select,
     ButtonDirective,
   ],

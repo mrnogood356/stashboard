@@ -128,8 +128,17 @@ export interface DropInWatchStatus {
 export type HandoffStage =
   'queued' | 'downloading' | 'unpacking' | 'moving' | 'linking' | 'done' | 'failed' | 'ignored';
 
+/** The catalog scene a download was sent for, when Stashboard knows it. */
+export interface HandoffScene {
+  title: string;
+  imageUrl: string | null;
+  studio: string | null;
+}
+
 export interface ProcessingHandoff extends DownloadHandoff {
   stage: HandoffStage;
+  /** Older APIs: missing. */
+  scene?: HandoffScene | null;
   progress: number | null;
   timeLeft: string | null;
   detail: string | null;

@@ -81,14 +81,7 @@
   </form>
 
   @if (loading()) {
-    <div class="app-blocking-loader" role="status" aria-live="polite">
-      <p-progressspinner
-        styleClass="app-blocking-spinner"
-        strokeWidth="4"
-        [style]="{ width: '2.25rem', height: '2.25rem' }"
-      />
-      <p>Loading acquisition feed...</p>
-    </div>
+    <app-skeleton kind="list" [count]="4" label="Loading requests" />
   } @else if (error()) {
     <section class="state-shell app-state-block">
       <p-message severity="error" styleClass="app-page-message">{{ error() }}</p-message>
@@ -107,12 +100,109 @@
           (click)="selectLifecycle(tab.lifecycle)"
         >
           <span>{{ tab.label }}</span>
-          <span class="lifecycle-tab-count">{{ tab.count }}</span>
+          <span class="lifecycle-tab-count" [class.has-count]="tab.count > 0">{{ tab.count }}</span>
         </button>
       }
     </nav>
 
-    @if (!hasItems()) {
+    @if (handoffs().length > 0) {
+      <section
+        class="lifecycle-section app-section-panel handoff-section"
+        data-tone="active"
+        data-testid="handoff-section"
+      >
+        <div class="lifecycle-section-head app-section-head">
+          <div class="app-section-head__copy">
+            <div class="section-title-row">
+              <h3>Downloads you started</h3>
+              <span class="section-count">{{ countLabel(handoffs().length, 'download') }}</span>
+            </div>
+            <p>Sent to SABnzbd from Find downloads or Prowlarr.</p>
+          </div>
+          <a class="secondary-action compact" routerLink="/processing">Downloads</a>
+        </div>
+        <div class="acquisition-list">
+          @for (handoff of handoffs(); track handoff.id) {
+            <article
+              class="acquisition-card"
+              [attr.data-state]="handoff.stage === 'failed' ? 'FAILED' : 'DOWNLOADING'"
+              [attr.data-testid]="'handoff-' + handoff.id"
+            >
+              <div class="card-art-link">
+                @if (handoff.scene?.imageUrl; as image) {
+                  <img
+                    class="card-art"
+                    [src]="image"
+                    [alt]="handoff.scene?.title ?? ''"
+                    loading="lazy"
+                  />
+                } @else {
+                  <div class="card-art placeholder" aria-hidden="true"></div>
+                }
+              </div>
+              <div class="card-body">
+                <div class="card-status-row">
+                  @if (cardMeta(null, handoff.scene?.studio ?? null); as meta) {
+                    <p class="card-meta">{{ meta }}</p>
+                  }
+                </div>
+                <div class="card-copy">
+                  <h4 class="card-title">{{ handoff.scene?.title ?? handoff.releaseTitle }}</h4>
+                  @if (handoff.scene) {
+                    <p class="release-name">{{ handoff.releaseTitle }}</p>
+                  }
+                  <app-stage-track
+                    [stages]="handoffStages(handoff)"
+                    [label]="handoff.scene?.title ?? handoff.releaseTitle"
+                    [testId]="'stage-track-' + handoff.id"
+                  />
+                  @if (handoff.stage === 'downloading' || handoff.stage === 'unpacking') {
+                    <div class="download-progress" [attr.data-testid]="'download-' + handoff.id">
+                      @if (handoff.progress !== null) {
+                        <div
+                          class="download-bar"
+                          role="progressbar"
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                          [attr.aria-valuenow]="handoff.progress"
+                          [attr.aria-label]="'Download of ' + handoff.releaseTitle"
+                        >
+                          <span [style.width.%]="handoff.progress"></span>
+                        </div>
+                      }
+                      @if (handoffProgressText(handoff); as text) {
+                        <span class="download-text">{{ text }}</span>
+                      }
+                    </div>
+                  }
+                  @if (handoff.detail) {
+                    <p class="detail" [class.detail-failed]="handoff.stage === 'failed'">
+                      {{ handoff.detail }}
+                    </p>
+                  }
+                </div>
+                <div class="card-actions app-action-row">
+                  @if (handoff.sceneId) {
+                    <a
+                      class="primary-link small"
+                      [routerLink]="['/scene', handoff.sceneId]"
+                      [queryParams]="{ returnTo: currentRouteUrl() }"
+                    >
+                      Scene details
+                    </a>
+                  }
+                  @if (handoff.stage === 'failed') {
+                    <a class="secondary-link small" routerLink="/processing">Retry in Downloads</a>
+                  }
+                </div>
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+    }
+
+    @if (!hasItems() && handoffs().length === 0) {
       <section
         class="state-shell empty-shell app-state-block"
         data-testid="acquisition-empty-state"
@@ -142,7 +232,7 @@
           }
         </div>
       </section>
-    } @else {
+    } @else if (hasItems()) {
       <section class="section-shell app-section-panel">
         @if (hasSearch()) {
           <div class="section-shell-head app-section-head">
@@ -289,14 +379,8 @@
                         <span class="added-at">{{ added }}</span>
                       }
 
-                      @if (item.releaseDate) {
-                        <p class="release-date">
-                          <time [attr.datetime]="item.releaseDate">{{ item.releaseDate }}</time>
-                        </p>
-                      }
-
-                      @if (item.studio) {
-                        <span class="studio-pill">{{ item.studio }}</span>
+                      @if (cardMeta(item.releaseDate, item.studio); as meta) {
+                        <p class="card-meta">{{ meta }}</p>
                       }
                     </div>
 
@@ -309,31 +393,11 @@
                           {{ item.title }}
                         </a>
                       </h4>
-                      <ol
-                        class="stage-track"
-                        [attr.aria-label]="'Progress: ' + item.title"
-                        [attr.data-testid]="'stage-track-' + item.id"
-                      >
-                        @for (stage of stages(item); track stage.label) {
-                          <li
-                            class="stage"
-                            [attr.data-state]="stage.state"
-                            [attr.aria-current]="
-                              stage.state === 'current' || stage.state === 'failed' ? 'step' : null
-                            "
-                          >
-                            <span class="stage-dot" aria-hidden="true">
-                              @if (stage.state === 'done') {
-                                <i class="pi pi-check"></i>
-                              } @else if (stage.state === 'failed') {
-                                <i class="pi pi-times"></i>
-                              }
-                            </span>
-                            <span class="stage-label">{{ stage.label }}</span>
-                          </li>
-                        }
-                      </ol>
-                      <p class="stage-now">{{ stageNow(item) }}</p>
+                      <app-stage-track
+                        [stages]="stages(item)"
+                        [label]="item.title"
+                        [testId]="'stage-track-' + item.id"
+                      />
 
                       @if (item.status.state === 'DOWNLOADING' && item.download; as download) {
                         <div class="download-progress" [attr.data-testid]="'download-' + item.id">
@@ -434,7 +498,7 @@
 
                     <div class="card-actions app-action-row">
                       <a
-                        class="primary-link small"
+                        class="primary-link small details-link"
                         [routerLink]="['/scene', item.id]"
                         [queryParams]="{ returnTo: currentRouteUrl() }"
                       >
@@ -496,7 +560,7 @@
       <div #loadMoreSentinel class="load-sentinel"></div>
 
       @if (loadingMore()) {
-        <p class="loading-more-copy">Loading more acquisition scenes...</p>
+        <p class="loading-more-copy">Loading more…</p>
       }
 
       @if (loadMoreError()) {

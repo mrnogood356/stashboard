@@ -56,6 +56,7 @@ describe('AcquisitionService', () => {
   const sceneIndexGroupByMock = jest.fn();
   const librarySceneIndexFindManyMock = jest.fn();
   const getQueueDetailsMock = jest.fn();
+  const downloadHandoffCountMock = jest.fn();
   const requestImmediateRefreshMock = jest.fn();
   const forgetRequestsMock = jest.fn();
   const findMovieByStashIdMock = jest.fn();
@@ -93,6 +94,9 @@ describe('AcquisitionService', () => {
     },
     librarySceneIndex: {
       findMany: librarySceneIndexFindManyMock,
+    },
+    downloadHandoff: {
+      count: downloadHandoffCountMock,
     },
   } as unknown as PrismaService;
 
@@ -249,6 +253,15 @@ describe('AcquisitionService', () => {
       ['scene-new', '2026-10-27T10:00:00.000Z', 'http://stash.local/scenes/9'],
       ['scene-old', '2026-10-20T10:00:00.000Z', 'http://stash.local/scenes/3'],
     ]);
+  });
+
+  it('counts failed requests and today’s failed downloads for the menu badge', async () => {
+    downloadHandoffCountMock.mockResolvedValue(2);
+
+    await expect(service.getAttention()).resolves.toEqual({ failed: 3 });
+    expect(downloadHandoffCountMock).toHaveBeenCalledWith({
+      where: { status: 'failed', updatedAt: { gte: expect.any(Date) } },
+    });
   });
 
   it('builds the acquisition feed from the local scene index', async () => {

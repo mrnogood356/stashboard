@@ -1,3 +1,4 @@
+import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   AfterViewInit,
@@ -27,7 +28,6 @@ import {
 } from 'rxjs';
 import { Message } from 'primeng/message';
 import { MultiSelect } from 'primeng/multiselect';
-import { ProgressSpinner } from 'primeng/progressspinner';
 import { InputText } from 'primeng/inputtext';
 import { Select } from 'primeng/select';
 import { DiscoverService } from '../../core/api/discover.service';
@@ -78,12 +78,12 @@ import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.com
 @Component({
   selector: 'app-scenes-page',
   imports: [
+    SkeletonComponent,
     CatalogProviderSwitchComponent,
     HiddenCountComponent,
     FormsModule,
     InputText,
     Message,
-    ProgressSpinner,
     Select,
     MultiSelect,
     RouterLink,

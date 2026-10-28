@@ -26,6 +26,7 @@ import {
   AcquisitionBulkResultDto,
 } from './dto/acquisition-bulk.dto';
 import {
+  AcquisitionAttentionDto,
   AcquisitionCountsByLifecycleDto,
   AcquisitionDownloadDto,
   AcquisitionSceneItemDto,
@@ -153,6 +154,22 @@ export class AcquisitionService {
         ),
       ),
     };
+  }
+
+  /**
+   * What needs you: failed requests (from the saved counts) and your own
+   * downloads that failed in the last day. Two small reads, so the menu
+   * badge can poll it.
+   */
+  async getAttention(): Promise<AcquisitionAttentionDto> {
+    const since = new Date(Date.now() - 24 * 60 * 60_000);
+    const [summary, failedDownloads] = await Promise.all([
+      this.indexingService.getSceneIndexSummary(),
+      this.prisma.downloadHandoff.count({
+        where: { status: 'failed', updatedAt: { gte: since } },
+      }),
+    ]);
+    return { failed: summary.failedCount + failedDownloads };
   }
 
   /** Requested scenes Stash got in the last few days, newest first. */

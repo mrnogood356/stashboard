@@ -38,6 +38,11 @@ export class AcquisitionService {
     });
   }
 
+  /** What needs you, for the badge on Requests in the menu. */
+  attention(): Observable<{ failed: number }> {
+    return this.http.get<{ failed: number }>('/api/acquisition/attention');
+  }
+
   /** search: Whisparr looks for them again; remove: out of Whisparr (files stay). */
   bulk(
     action: 'search' | 'remove',

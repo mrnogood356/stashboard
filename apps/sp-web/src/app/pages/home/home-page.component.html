@@ -3,6 +3,17 @@
     <h1>Home</h1>
 
     <nav class="home-quick-links" aria-label="Home shortcuts">
+      <!-- Phones only: Search left the tab bar for Requests. -->
+      <a
+        class="quick-link quick-link--phone"
+        [routerLink]="['/search']"
+        aria-label="Search"
+        title="Search"
+        data-testid="home-search-link"
+      >
+        <i class="pi pi-search" aria-hidden="true"></i>
+        <span>Search</span>
+      </a>
       <a
         class="quick-link"
         [routerLink]="['/performers']"

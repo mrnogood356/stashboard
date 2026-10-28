@@ -1,3 +1,4 @@
+import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import {
   AfterViewInit,
   Component,
@@ -26,7 +27,6 @@ import {
 import { ButtonDirective } from 'primeng/button';
 import { Message } from 'primeng/message';
 import { MultiSelect } from 'primeng/multiselect';
-import { ProgressSpinner } from 'primeng/progressspinner';
 import { Select } from 'primeng/select';
 import { DiscoverService } from '../../core/api/discover.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
@@ -58,11 +58,11 @@ interface MultiSelectOption {
 @Component({
   selector: 'app-studio-page',
   imports: [
+    SkeletonComponent,
     HideToggleComponent,
     RouterLink,
     FormsModule,
     Message,
-    ProgressSpinner,
     Select,
     MultiSelect,
     ButtonDirective,

@@ -161,6 +161,26 @@ describe('SceneStatusService', () => {
       expect(getQueueSnapshotMock).not.toHaveBeenCalled();
     });
 
+    it('says which step an indexed failed scene stopped at', async () => {
+      getFreshSceneIndexRowsMock.mockResolvedValue(
+        new Map([
+          [
+            'scene-1',
+            {
+              stashId: 'scene-1',
+              computedLifecycle: 'FAILED',
+              whisparrQueueState: 'importBlocked',
+            },
+          ],
+        ]),
+      );
+
+      await expect(service.resolveForScene('scene-1')).resolves.toEqual({
+        state: 'FAILED',
+        queueState: 'importBlocked',
+      });
+    });
+
     it('returns NOT_REQUESTED without remote fallback when the evidence index is fresh and comprehensive', async () => {
       canResolveUnknownScenesAsNotRequestedMock.mockResolvedValue(true);
 

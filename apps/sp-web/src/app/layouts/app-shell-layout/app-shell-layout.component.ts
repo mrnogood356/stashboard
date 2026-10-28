@@ -1,3 +1,4 @@
+import { AcquisitionService } from '../../core/api/acquisition.service';
 import { AppLockService } from '../../core/app-lock/app-lock.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Component, DestroyRef, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
@@ -129,19 +130,21 @@ const DESKTOP_NAV_GROUPS: readonly ShellNavGroup[] = [
   { label: null, items: [SETTINGS_NAV_ITEM] },
 ];
 
+// Requests is checked often, so it gets a tab; Search is one tap from
+// Home's header (and first under More).
 const MOBILE_PRIMARY_NAV_ITEMS: readonly ShellNavItem[] = [
   HOME_NAV_ITEM,
-  SEARCH_NAV_ITEM,
   SCENES_NAV_ITEM,
+  ACQUISITION_NAV_ITEM,
   LIBRARY_NAV_ITEM,
 ];
 
 const MOBILE_SECONDARY_NAV_ITEMS: readonly ShellNavItem[] = [
+  SEARCH_NAV_ITEM,
   PERFORMERS_NAV_ITEM,
   STUDIOS_NAV_ITEM,
   FEED_NAV_ITEM,
   TOOLS_NAV_ITEM,
-  ACQUISITION_NAV_ITEM,
   PROCESSING_NAV_ITEM,
   SETTINGS_NAV_ITEM,
 ];
@@ -154,11 +157,13 @@ const MOBILE_SECONDARY_NAV_ITEMS: readonly ShellNavItem[] = [
 })
 export class AppShellLayoutComponent implements OnInit, OnDestroy {
   private static readonly SETUP_STATUS_POLL_INTERVAL_MS = 30_000;
+  private static readonly ATTENTION_POLL_INTERVAL_MS = 60_000;
   private static readonly PHONE_SHELL_MEDIA_QUERY = '(max-width: 720px)';
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   private readonly authService = inject(AuthService);
   private readonly setupService = inject(SetupService);
+  private readonly acquisitionService = inject(AcquisitionService);
   private readonly runtimeHealthService = inject(RuntimeHealthService);
   private readonly setupStatusStore = inject(SetupStatusStore);
   private readonly notifications = inject(AppNotificationsService);
@@ -185,6 +190,8 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
   protected readonly mobileSecondaryNavItems = computed(() =>
     this.visibleNavItems(MOBILE_SECONDARY_NAV_ITEMS),
   );
+  /** Failed requests and downloads, shown as a count on Requests. */
+  protected readonly requestsAttention = signal(0);
   protected readonly collapsed = signal(false);
   protected readonly mobileShell = signal(this.phoneShellMediaQuery?.matches ?? false);
   protected readonly moreMenuOpen = signal(false);
@@ -265,6 +272,27 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
         }
 
         this.setupStatusStore.sync(setupStatus);
+      });
+
+    merge(
+      of(null),
+      this.router.events.pipe(
+        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      ),
+      timer(
+        AppShellLayoutComponent.ATTENTION_POLL_INTERVAL_MS,
+        AppShellLayoutComponent.ATTENTION_POLL_INTERVAL_MS,
+      ),
+    )
+      .pipe(
+        filter(() => typeof document === 'undefined' || document.visibilityState !== 'hidden'),
+        switchMap(() => this.acquisitionService.attention().pipe(catchError(() => of(null)))),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((attention) => {
+        if (attention) {
+          this.requestsAttention.set(Math.max(0, attention.failed));
+        }
       });
   }
 

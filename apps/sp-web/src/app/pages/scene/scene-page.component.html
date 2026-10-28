@@ -116,20 +116,14 @@
             <app-scene-status-badge [status]="scene.status" />
           </div>
 
-          @if (scene.releaseDate) {
-            <p class="release-subheading">{{ scene.releaseDate }}</p>
+          @if (metaLine(scene); as meta) {
+            <p class="release-subheading" data-testid="scene-meta">{{ meta }}</p>
           }
-
-          <div class="meta-row">
-            @if (formattedDuration(scene.duration); as duration) {
-              <span class="meta-chip">{{ duration }}</span>
-            }
-          </div>
 
           @if (scene.tags.length > 0) {
             <div class="hero-tags">
               @for (tag of scene.tags; track tag.id; let idx = $index) {
-                @if (idx < 4) {
+                @if (idx < tagsShown || tagsExpanded()) {
                   <a
                     class="meta-chip tag-link"
                     [routerLink]="['/scenes']"
@@ -139,6 +133,16 @@
                     {{ tag.name }}
                   </a>
                 }
+              }
+              @if (scene.tags.length > tagsShown && !tagsExpanded()) {
+                <button
+                  type="button"
+                  class="meta-chip tag-more"
+                  data-testid="scene-tags-more"
+                  (click)="tagsExpanded.set(true)"
+                >
+                  +{{ scene.tags.length - tagsShown }} more
+                </button>
               }
             </div>
           }
@@ -363,24 +367,17 @@
         </section>
       }
 
-      <section class="section lifecycle-section app-section-panel">
-        <h2>Lifecycle</h2>
-        <p class="overview-text">{{ lifecycleSummary(scene) }}</p>
-
-        <div class="lifecycle-grid">
-          @for (step of lifecycleSteps(scene); track step.system) {
-            <article class="lifecycle-card">
-              <p class="overview-text">
-                <strong>{{ step.system }}</strong>
-              </p>
-              <p>
-                <strong>{{ step.title }}</strong>
-              </p>
-              <p class="overview-text">{{ step.detail }}</p>
-            </article>
-          }
-        </div>
-      </section>
+      @if (scene.status.state !== 'NOT_REQUESTED') {
+        <section class="section lifecycle-section app-section-panel" data-testid="scene-progress">
+          <h2>Where it is</h2>
+          <app-stage-track
+            [stages]="sceneStages(scene)"
+            [label]="scene.title"
+            testId="scene-stage-track"
+          />
+          <p class="overview-text">{{ lifecycleSummary(scene) }}</p>
+        </section>
+      }
 
       @if (showTimeline(scene)) {
         <app-scene-timeline
@@ -392,28 +389,10 @@
       }
 
       <app-scene-evidence #evidence kind="catalog" [sceneId]="scene.id" />
-
-      @if (scene.tags.length > 4) {
-        <section class="section app-section-panel">
-          <h2>All tags</h2>
-          <div class="chips app-chip-list">
-            @for (tag of scene.tags; track tag.id) {
-              <a
-                class="chip app-chip tag-link"
-                [routerLink]="['/scenes']"
-                [queryParams]="{ tags: tag.id, tagNames: tag.name }"
-                [attr.aria-label]="'Open scenes tagged ' + tag.name"
-              >
-                {{ tag.name }}
-              </a>
-            }
-          </div>
-        </section>
-      }
     </div>
 
     <!-- Placed after the content so it stays pinned to the bottom while scrolling on phones. -->
-    @if (canRequestScene(scene)) {
+    @if (canRequestScene(scene) && !requestButtonOnScreen()) {
       <div class="scene-mobile-request-bar">
         <button type="button" class="scene-mobile-request" (click)="openRequestPanel(scene)">
           <i class="pi pi-download" aria-hidden="true"></i>

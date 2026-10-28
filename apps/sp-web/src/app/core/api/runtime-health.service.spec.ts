@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { Subject, of } from 'rxjs';
 import { AcquisitionService } from './acquisition.service';
+import { DownloadHandoffApiService } from './download-handoff.service';
 import { RuntimeHealthResponse } from './runtime-health.types';
 import { RuntimeHealthService } from './runtime-health.service';
 import { SetupService } from './setup.service';
@@ -182,6 +183,7 @@ describe('RuntimeHealthService', () => {
       getStatus: vi.fn().mockReturnValue(of(buildSetupStatus())),
     };
     const acquisitionService = {
+      attention: vi.fn(() => of({ failed: 0 })),
       getScenesFeed: vi.fn(() =>
         of({
           total: 0,
@@ -236,6 +238,10 @@ describe('RuntimeHealthService', () => {
           useValue: acquisitionService,
         },
         {
+          provide: DownloadHandoffApiService,
+          useValue: { processing: vi.fn(() => of({ handoffs: [], recentHandoffs: [] })) },
+        },
+        {
           provide: AuthService,
           useValue: authService,
         },
@@ -287,7 +293,7 @@ describe('RuntimeHealthService', () => {
     expect(shellBanner?.textContent).toContain('Whisparr is currently unavailable.');
     expect(acquisitionAlert?.textContent).toContain('Whisparr needs attention');
     expect(acquisitionAlert?.textContent).toContain(
-      'Queue state, failures, and request progression may be stale',
+      'Download progress and failures may be out of date',
     );
   });
 });

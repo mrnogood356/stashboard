@@ -214,13 +214,15 @@
       </div>
     </section>
 
-    <section class="card" aria-labelledby="appearance-css">
-      <div class="card-head">
-        <h3 id="appearance-css">Custom CSS</h3>
-        <p class="muted">
-          Advanced: extra CSS applied after the theme, on every device. Stored as plain text.
-        </p>
-      </div>
+    <details
+      class="card css-card"
+      [open]="cssOpen()"
+      (toggle)="cssOpen.set($any($event.target).open)"
+    >
+      <summary class="card-head">
+        <h3 id="appearance-css">Advanced: custom CSS</h3>
+        <p class="muted">Extra CSS applied after the theme, on every device.</p>
+      </summary>
       <label class="field">
         <span class="sr-only">Custom CSS</span>
         <textarea
@@ -237,7 +239,7 @@
         ></textarea>
       </label>
       <p class="muted count">{{ draft().customCss.length }} / {{ customCssMax }}</p>
-    </section>
+    </details>
 
     <div class="actions-bar" [class.dirty]="dirty()">
       @if (message(); as m) {

@@ -6,43 +6,27 @@
 .indexing-page {
   display: grid;
   gap: 1rem;
+  max-width: 56rem;
 }
 
 h2,
 h3,
-h4,
 p {
   margin: 0;
 }
 
-.page-head {
-  display: grid;
-  gap: 0.35rem;
-  padding: 1.1rem 1.15rem;
-  border-radius: 20px;
-  border: 1px solid var(--surface-panel-hero-border);
-  background: var(--surface-panel-hero-background);
-}
-
-.page-copy {
+.section-head {
   display: grid;
   gap: 0.35rem;
 }
 
-.eyebrow {
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+.lede,
+.muted {
   color: var(--text-muted);
 }
 
-.lede {
-  max-width: 58rem;
-  color: var(--text-primary);
-}
-
-.lede.secondary {
-  color: var(--text-muted);
+.muted {
+  font-size: 0.86rem;
 }
 
 .state-shell {
@@ -50,302 +34,206 @@ p {
   gap: 0.75rem;
 }
 
-/* Health beside Manual Actions, then Snapshot beside Freshness: cards of
-   about the same height share a row, so none is left mostly empty. */
-.summary-grid {
+.card {
   display: grid;
-  gap: 0.95rem;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-}
-
-.summary-card-hero {
-  order: 1;
-}
-
-.action-card {
-  order: 2;
-}
-
-.snapshot-card {
-  order: 3;
-}
-
-.freshness-card {
-  order: 4;
-}
-
-.snapshot-card .metric-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.summary-card,
-.job-card {
+  gap: 0.75rem;
+  padding: 1rem;
   border: 1px solid var(--surface-panel-border);
-  border-radius: 16px;
+  border-radius: 18px;
   background: var(--surface-panel-background);
   box-shadow: var(--surface-panel-shadow);
 }
 
-.summary-card {
-  padding: 1rem;
+/* ---------- health ---------- */
+
+.health-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.health-copy {
   display: grid;
-  gap: 0.8rem;
-  /* A short card in a tall row keeps its content together at the top. */
-  align-content: start;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 1 1 18rem;
 }
 
-.summary-card-hero.tone-good {
-  border-color: var(--tone-success-border);
+.health-copy h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.15rem;
 }
 
-.summary-card-hero.tone-warn {
-  border-color: var(--tone-warning-border);
+.health-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--text-muted);
 }
 
-.summary-card-hero.tone-info {
-  border-color: var(--tone-info-border);
+.tone-good .health-dot {
+  background: var(--success);
 }
 
-.summary-head,
-.section-head,
-.job-head,
-.job-title-row {
+.tone-warn .health-dot {
+  background: var(--warning-color, #ff9f0a);
+}
+
+.tone-info .health-dot {
+  background: var(--accent);
+}
+
+.health-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.health-actions .p-button,
+.health-actions button {
+  height: 2.2rem;
+  font-size: 0.86rem;
+}
+
+.stale {
+  font-size: 0.86rem;
+  color: var(--warning-text, var(--text-primary));
+}
+
+.totals {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- jobs ---------- */
+
+.jobs {
+  display: grid;
+  gap: 0;
+}
+
+.job {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--separator, var(--border-subtle));
+}
+
+.card > .job:first-child,
+.jobs > .job:first-child {
+  border-top: 0;
+  padding-top: 0.2rem;
+}
+
+.job-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
 }
 
-/* The status sits right after the job's name, not out in the middle. */
-.job-title-row {
-  justify-content: flex-start;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.summary-copy,
-.section-head p,
-.job-purpose,
-.action-hint {
-  color: var(--text-muted);
-}
-
-.inline-stats,
-.metric-grid,
-.job-meta-grid {
-  display: grid;
-  gap: 0.7rem;
-}
-
-.inline-stats {
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-}
-
-.inline-stat,
-.metric-card,
-.meta-item,
-.check-item {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.inline-stat span,
-.metric-card span,
-.meta-item span,
-.check-item span {
-  color: var(--text-muted);
-  font-size: 0.82rem;
-}
-
-.inline-stat strong,
-.metric-card strong,
-.meta-item strong,
-.check-item strong {
-  font-size: 0.96rem;
-}
-
-.metric-grid {
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-}
-
-.job-meta-grid {
-  grid-template-columns: minmax(11rem, 1.6fr) repeat(7, minmax(0, 1fr));
-  gap: 0.7rem 1rem;
-}
-
-.meta-item {
-  align-content: start;
-}
-
-@media (max-width: 1100px) {
-  .job-meta-grid {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  }
-}
-
-.metric-card,
-.check-item {
-  padding: 0.75rem;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--border-subtle) 86%, transparent);
-  background: color-mix(in srgb, var(--surface-elevated) 84%, var(--surface-1));
-}
-
-.check-list {
-  display: grid;
-  gap: 0.6rem;
-}
-
-.check-item {
-  grid-template-columns: 1fr auto;
-  align-items: center;
-}
-
-.check-item.ok strong {
-  color: var(--tone-success-text);
-}
-
-.check-item.warn strong {
-  color: var(--tone-warning-text);
-}
-
-.action-card h2 {
-  font-size: 1.1rem;
-}
-
-.jobs-shell {
-  display: grid;
-  gap: 0.8rem;
-}
-
-.jobs-list {
-  display: grid;
-  gap: 0.9rem;
-}
-
-.job-card {
-  padding: 1rem;
-  display: grid;
-  gap: 0.9rem;
-}
-
-.job-card.is-running {
-  border-color: var(--tone-info-border);
-}
-
-.job-card.is-failed {
-  border-color: color-mix(in srgb, var(--danger) 52%, var(--border-subtle));
-}
-
 .job-copy {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.2rem;
+  min-width: 0;
 }
 
-.status-pill,
-.job-passive {
-  display: inline-flex;
+.job-title-row {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  min-height: 1.6rem;
-  padding: 0.2rem 0.65rem;
-  border-radius: 999px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  white-space: nowrap;
+  gap: 0.5rem;
 }
 
-.status-pill.status-idle {
-  background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
+.job-title-row h3 {
+  font-size: 0.98rem;
+}
+
+.job-when {
+  font-size: 0.78rem;
   color: var(--text-muted);
 }
 
-.status-pill.status-running {
-  background: var(--tone-info-background);
-  color: var(--tone-info-text);
-}
-
-.status-pill.status-succeeded {
-  background: var(--tone-success-background);
-  color: var(--tone-success-text);
-}
-
-.status-pill.status-failed {
-  background: var(--tone-danger-background);
-  color: var(--tone-danger-text);
-}
-
-.job-passive {
-  border: 1px solid var(--border-subtle);
-  color: var(--text-muted);
-}
-
-.error-block {
-  display: grid;
-  gap: 0.35rem;
-  padding: 0.8rem;
-  border-radius: 12px;
-  border: 1px solid var(--tone-danger-border);
-  background: var(--tone-danger-background);
-}
-
-.error-block h4 {
-  font-size: 0.92rem;
-}
-
-.error-block p {
-  color: var(--text-primary);
-  white-space: pre-wrap;
+.job-error {
+  padding: 0.5rem 0.7rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger-text);
+  font-size: 0.84rem;
   overflow-wrap: anywhere;
-  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
-  font-size: 0.82rem;
 }
 
-:host ::ng-deep .p-button {
-  padding: 0.45rem 0.78rem;
-  border-radius: 9px;
-  border: 1px solid var(--border-subtle);
-  background: var(--button-bg);
-  color: var(--button-text);
+.status-pill.status-running::before {
+  background: var(--accent);
+}
+
+.status-pill.status-succeeded::before {
+  background: var(--success);
+}
+
+.status-pill.status-failed::before {
+  background: var(--danger);
+}
+
+.secondary-action {
+  flex: 0 0 auto;
+  height: 2.2rem;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
   cursor: pointer;
 }
 
-:host ::ng-deep .p-button:disabled {
-  opacity: 0.7;
+.secondary-action:disabled {
+  opacity: 0.55;
   cursor: default;
 }
 
-:host ::ng-deep .state-message {
+details summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.internal > summary {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.job-details dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 0.4rem 1rem;
+  margin: 0.5rem 0 0;
+}
+
+.job-details dt {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.job-details dd {
   margin: 0;
+  font-size: 0.86rem;
 }
 
-:host ::ng-deep .state-message .p-message-content {
-  gap: 0.45rem;
-}
-
-@media (max-width: 920px) {
-  .summary-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-@media (max-width: 520px) {
-  .snapshot-card .metric-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 720px) {
-  .page-head,
-  .summary-head,
-  .section-head,
-  .job-head,
-  .job-title-row {
-    flex-direction: column;
-    align-items: flex-start;
+@media (max-width: 640px) {
+  .health-actions {
+    width: 100%;
   }
 
-  .back-link {
-    white-space: normal;
+  .health-actions > * {
+    flex: 1 1 0;
   }
 }

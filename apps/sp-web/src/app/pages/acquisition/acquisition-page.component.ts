@@ -1,3 +1,11 @@
+import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
+import {
+  Stage,
+  buildStages,
+  stagesForStatus,
+  timeLeftText,
+} from '../../shared/stage-track/stage-track';
+import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { SelectionBarComponent } from '../../shared/selection-bar/selection-bar.component';
 import {
@@ -16,8 +24,11 @@ import { finalize, Subscription } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { Message } from 'primeng/message';
 import { Select } from 'primeng/select';
-import { ProgressSpinner } from 'primeng/progressspinner';
 import { AcquisitionService } from '../../core/api/acquisition.service';
+import {
+  DownloadHandoffApiService,
+  ProcessingHandoff,
+} from '../../core/api/download-handoff.service';
 import { ReleaseSearchService } from '../../core/releases/release-search.service';
 import { OrganizerApiService, WaitingCheck } from '../../core/api/organizer.service';
 import {
@@ -52,13 +63,8 @@ interface AcquisitionTab {
   tone: AcquisitionSectionTone;
 }
 
-/** One step of a request's way into the library. */
-export interface AcquisitionStage {
-  label: string;
-  state: 'done' | 'current' | 'failed' | 'todo';
-}
-
-const STAGE_LABELS = ['Requested', 'Downloading', 'Waiting for Stash', 'In library'] as const;
+/** A failed download you started stays on Requests this long. */
+const FAILED_HANDOFF_SHOWN_MS = 24 * 3600_000;
 /** While something is downloading, the list refreshes itself this often. */
 const LIVE_REFRESH_MS = 15_000;
 /** The API sends at most 50 at once: up to two pages refresh as one. */
@@ -81,7 +87,7 @@ interface AcquisitionUrlState {
 }
 
 export const ACQUISITION_SORT_OPTIONS: ReadonlyArray<{ value: AcquisitionSort; label: string }> = [
-  { value: 'status', label: 'Pipeline order' },
+  { value: 'status', label: 'By status' },
   { value: 'requested-desc', label: 'Newest requested' },
   { value: 'requested-asc', label: 'Oldest requested' },
   { value: 'released-desc', label: 'Newest release' },
@@ -100,11 +106,12 @@ interface AcquisitionPageAlert {
 @Component({
   selector: 'app-acquisition-page',
   imports: [
+    StageTrackComponent,
+    SkeletonComponent,
     RouterLink,
     FormsModule,
     Message,
     Select,
-    ProgressSpinner,
     SelectionBarComponent,
     SceneTimelineComponent,
   ],
@@ -129,6 +136,82 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   ];
 
   private readonly acquisitionService = inject(AcquisitionService);
+  private readonly downloadsApi = inject(DownloadHandoffApiService);
+
+  // ---------- downloads you started (Find downloads, Prowlarr) ----------
+
+  /** In flight, or failed in the last day; SABnzbd's, so not in Whisparr's list. */
+  protected readonly handoffs = signal<ProcessingHandoff[]>([]);
+  private handoffsRequest: Subscription | null = null;
+
+  /** Only All and Downloading show them, and not while searching. */
+  private showsHandoffs(): boolean {
+    const lifecycle = this.selectedLifecycle();
+    return !this.hasSearch() && (lifecycle === 'ANY' || lifecycle === 'DOWNLOADING');
+  }
+
+  private loadHandoffs(): void {
+    // A newer view wins over a request still in flight.
+    this.handoffsRequest?.unsubscribe();
+    this.handoffsRequest = null;
+    if (!this.showsHandoffs()) {
+      this.handoffs.set([]);
+      return;
+    }
+    const lifecycle = this.selectedLifecycle();
+    this.handoffsRequest = this.downloadsApi.processing().subscribe({
+      next: (processing) => {
+        if (this.selectedLifecycle() !== lifecycle || !this.showsHandoffs()) {
+          return;
+        }
+        const since = Date.now() - FAILED_HANDOFF_SHOWN_MS;
+        const active = processing.handoffs.filter((handoff) => handoff.stage !== 'ignored');
+        const failed = processing.recentHandoffs.filter(
+          (handoff) => handoff.stage === 'failed' && Date.parse(handoff.updatedAt) >= since,
+        );
+        this.handoffs.set(
+          lifecycle === 'DOWNLOADING'
+            ? active.filter((handoff) =>
+                ['queued', 'downloading', 'unpacking'].includes(handoff.stage),
+              )
+            : [...active, ...failed],
+        );
+      },
+      // Keep what is shown; the next refresh tries again.
+      error: () => undefined,
+    });
+  }
+
+  /** The same four steps as a request, from where SABnzbd and Stashboard are. */
+  protected handoffStages(handoff: ProcessingHandoff): Stage[] {
+    switch (handoff.stage) {
+      case 'queued':
+        return buildStages(0);
+      case 'downloading':
+      case 'unpacking':
+        return buildStages(1);
+      case 'moving':
+      case 'linking':
+        return buildStages(2);
+      case 'done':
+        return buildStages(3, { finished: true });
+      default:
+        // Failed after it was moved in: it stopped at Waiting for Stash.
+        return buildStages(handoff.finalPath ? 2 : 1, { failed: true });
+    }
+  }
+
+  protected handoffProgressText(handoff: ProcessingHandoff): string | null {
+    const left = timeLeftText(handoff.timeLeft);
+    const parts = [handoff.progress !== null ? `${handoff.progress}%` : null, left].filter(Boolean);
+    return parts.length ? parts.join(' · ') : null;
+  }
+
+  private handoffsActive(): boolean {
+    return this.handoffs().some((handoff) =>
+      ['queued', 'downloading', 'unpacking', 'moving', 'linking'].includes(handoff.stage),
+    );
+  }
   private readonly notifications = inject(AppNotificationsService);
   private readonly timelineApi = inject(TimelineApiService);
 
@@ -413,6 +496,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     this.observer?.disconnect();
     this.queryParamSubscription?.unsubscribe();
     this.grabbedSubscription?.unsubscribe();
+    this.handoffsRequest?.unsubscribe();
     this.cancelSearchTimer();
     if (this.liveTimer) {
       clearInterval(this.liveTimer);
@@ -474,7 +558,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   }
 
   private sortLabel(sort: AcquisitionSort): string {
-    return this.sortOptions.find((option) => option.value === sort)?.label ?? 'Pipeline order';
+    return this.sortOptions.find((option) => option.value === sort)?.label ?? 'By status';
   }
 
   private feedOptions(): AcquisitionFeedOptions {
@@ -611,44 +695,8 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   }
 
   /** Requested → Downloading → Waiting for Stash → In library, with where it is now. */
-  protected stages(item: AcquisitionSceneItem): AcquisitionStage[] {
-    const state = item.status.state;
-    const failed = state === 'FAILED';
-    const at = failed
-      ? /^import\s*(blocked|failed)$/i.test(item.queueState?.trim() ?? '')
-        ? 2
-        : 1
-      : state === 'REQUESTED'
-        ? 0
-        : state === 'DOWNLOADING'
-          ? 1
-          : state === 'IMPORT_PENDING'
-            ? 2
-            : 3;
-    return STAGE_LABELS.map((label, index) => ({
-      label,
-      state:
-        index < at || (index === at && state === 'AVAILABLE')
-          ? 'done'
-          : index === at
-            ? failed
-              ? 'failed'
-              : 'current'
-            : 'todo',
-    }));
-  }
-
-  /** On phones the track's words don't fit: "Step 2 of 4 · Downloading" instead. */
-  protected stageNow(item: AcquisitionSceneItem): string {
-    const stages = this.stages(item);
-    const index = stages.findIndex(
-      (stage) => stage.state === 'current' || stage.state === 'failed',
-    );
-    if (index === -1) {
-      return 'In library';
-    }
-    const stage = stages[index];
-    return `Step ${index + 1} of ${stages.length} · ${stage.label}${stage.state === 'failed' ? ' failed' : ''}`;
+  protected stages(item: AcquisitionSceneItem): Stage[] {
+    return stagesForStatus(item.status.state, item.queueState);
   }
 
   /** "45% · 6 min left", or null when Whisparr hasn't said. */
@@ -657,28 +705,23 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     if (!download || (download.progress === null && !download.timeLeft)) {
       return null;
     }
-    const left = this.timeLeftText(download.timeLeft);
+    const left = timeLeftText(download.timeLeft);
     return [download.progress !== null ? `${download.progress}%` : null, left]
       .filter(Boolean)
       .join(' · ');
   }
 
-  /** Whisparr's "hh:mm:ss" or "d.hh:mm:ss" as "6 min left". */
-  private timeLeftText(value: string | null): string | null {
-    const match = /^(?:(\d+)\.)?(\d+):(\d+):(\d+)/.exec(value?.trim() ?? '');
-    if (!match) {
-      return null;
-    }
-    const days = Number(match[1] ?? 0);
-    const hours = Number(match[2]);
-    const minutes = Number(match[3]);
-    if (days > 0) {
-      return `${days} ${days === 1 ? 'day' : 'days'} left`;
-    }
-    if (hours > 0) {
-      return minutes > 0 ? `${hours} h ${minutes} min left` : `${hours} h left`;
-    }
-    return minutes > 0 ? `${minutes} min left` : 'Under a minute left';
+  /** "May 14, 2026 · Velvet Films": the release date and studio on one line. */
+  protected cardMeta(releaseDate: string | null, studio: string | null): string | null {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(releaseDate ?? '');
+    const date = match
+      ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])).toLocaleDateString(
+          undefined,
+          { year: 'numeric', month: 'short', day: 'numeric' },
+        )
+      : releaseDate;
+    const line = [date, studio].filter(Boolean).join(' · ');
+    return line || null;
   }
 
   /** "Added today", "Added yesterday", "Added 3 days ago". */
@@ -772,16 +815,16 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     }
 
     if (this.selectedLifecycle() === 'ANY' && this.pageAlert()) {
-      return 'Acquisition may look empty because Whisparr or Stash is degraded. Repair integrations, then run Sync All from Indexing & Sync if tracked requests still do not appear.';
+      return 'This may look empty because Whisparr or Stash isn’t answering. Fix them in Settings → Integrations, then run Sync now in Settings → Indexing.';
     }
 
     switch (this.selectedLifecycle()) {
       case 'FAILED':
-        return 'There is nothing to recover in Whisparr at the moment. Switch back to the full pipeline or request something new from Scenes.';
+        return 'Nothing has failed. Requests that fail show up here.';
       case 'IMPORT_PENDING':
         return 'Downloads are not waiting on the final Stash handoff right now.';
       case 'DOWNLOADING':
-        return 'Whisparr does not have any active acquisition work in progress right now.';
+        return 'Nothing is downloading right now.';
       case 'REQUESTED':
         return 'Whisparr is not holding any queued requests that have not started yet.';
       case 'AVAILABLE':
@@ -964,9 +1007,9 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
           }
 
           if (isInitialPage) {
-            this.error.set('Failed to load acquisition feed from the API.');
+            this.error.set('Requests couldn’t load. Try again.');
           } else {
-            this.loadMoreError.set('Failed to load more acquisition scenes.');
+            this.loadMoreError.set('More requests couldn’t load. Try again.');
           }
         },
       });
@@ -978,6 +1021,10 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
    * outright; past that the loaded cards are updated where they are.
    */
   private liveRefresh(): void {
+    const visible = typeof document === 'undefined' || document.visibilityState !== 'hidden';
+    if (visible && this.handoffsActive()) {
+      this.loadHandoffs();
+    }
     if (
       this.liveRefreshing ||
       this.inFlight() ||
@@ -1121,6 +1168,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     this.loadingMore.set(false);
     this.error.set(null);
     this.loadMoreError.set(null);
+    this.loadHandoffs();
 
     if (this.inFlight()) {
       this.pendingReload = true;
