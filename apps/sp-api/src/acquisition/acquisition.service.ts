@@ -27,6 +27,7 @@ import {
 } from './dto/acquisition-bulk.dto';
 import {
   AcquisitionCountsByLifecycleDto,
+  AcquisitionDownloadDto,
   AcquisitionSceneItemDto,
   AcquisitionScenesFeedDto,
 } from './dto/acquisition-scene-feed.dto';
@@ -59,6 +60,11 @@ export class AcquisitionService {
       { whisparrMovieId: 'asc' },
       { stashId: 'asc' },
     ];
+  /** "Recently added": requests Stash got in this many days. */
+  private static readonly RECENTLY_ADDED_DAYS = 14;
+  private static readonly RECENTLY_ADDED_LIMIT = 200;
+  /** A slow Whisparr leaves the bars off rather than holding up the list. */
+  private static readonly PROGRESS_TIMEOUT_MS = 4_000;
   private readonly logger = new Logger(AcquisitionService.name);
 
   constructor(
@@ -79,6 +85,9 @@ export class AcquisitionService {
     const query = options.q?.trim() ?? '';
     const sort = options.sort ?? 'status';
     const searchWhere = this.buildSearchClause(query);
+    if (lifecycle === 'AVAILABLE') {
+      return this.getRecentlyAddedFeed(page, perPage, searchWhere);
+    }
     const where: Prisma.SceneIndexWhereInput = searchWhere
       ? { AND: [this.buildWhereClause(lifecycle), searchWhere] }
       : this.buildWhereClause(lifecycle);
@@ -90,16 +99,12 @@ export class AcquisitionService {
           skip: (page - 1) * perPage,
           take: perPage,
         }),
-        searchWhere
-          ? this.countMatchesByLifecycle(searchWhere)
-          : this.indexingService.getSceneIndexSummary().then((summary) => ({
-              byLifecycle: this.toCountsByLifecycle(summary),
-              tracked: summary.acquisitionTrackedScenes,
-            })),
+        this.loadCounts(searchWhere),
         this.getWhisparrConfig(),
         this.catalogProviderService.getConfiguredCatalogProviderType(),
       ]);
     const countsByLifecycle = counts.byLifecycle;
+    const downloads = await this.getDownloadProgress(rows, whisparrConfig);
     const total =
       lifecycle === 'ANY'
         ? counts.tracked
@@ -139,9 +144,199 @@ export class AcquisitionService {
           row,
           whisparrConfig?.baseUrl ?? null,
           catalogProviderType ?? 'STASHDB',
+          {
+            download:
+              row.whisparrMovieId !== null
+                ? (downloads.get(row.whisparrMovieId) ?? null)
+                : null,
+          },
         ),
       ),
     };
+  }
+
+  /** Requested scenes Stash got in the last few days, newest first. */
+  private async getRecentlyAddedFeed(
+    page: number,
+    perPage: number,
+    searchWhere: Prisma.SceneIndexWhereInput | null,
+  ): Promise<AcquisitionScenesFeedDto> {
+    const added = await this.findRecentlyAdded(searchWhere);
+    const [counts, whisparrConfig, catalogProviderType] = await Promise.all([
+      this.loadCounts(searchWhere, added),
+      this.getWhisparrConfig(),
+      this.catalogProviderService.getConfiguredCatalogProviderType(),
+    ]);
+    const pageItems = added.slice((page - 1) * perPage, page * perPage);
+    return {
+      total: added.length,
+      page,
+      perPage,
+      hasMore: page * perPage < added.length,
+      countsByLifecycle: counts.byLifecycle,
+      items: pageItems.map((entry) =>
+        this.toAcquisitionItem(
+          entry.row,
+          whisparrConfig?.baseUrl ?? null,
+          catalogProviderType ?? 'STASHDB',
+          {
+            addedAt: entry.addedAt.toISOString(),
+            stashViewUrl: entry.stashViewUrl,
+          },
+        ),
+      ),
+    };
+  }
+
+  /**
+   * Library scenes Stash added in the last few days that went through a
+   * request (in Whisparr or asked for here), each with Stash's added date.
+   */
+  private async findRecentlyAdded(
+    searchWhere: Prisma.SceneIndexWhereInput | null,
+  ): Promise<Array<{ row: SceneIndex; addedAt: Date; stashViewUrl: string }>> {
+    const since = new Date(
+      Date.now() - AcquisitionService.RECENTLY_ADDED_DAYS * 24 * 60 * 60_000,
+    );
+    const library = await this.prisma.librarySceneIndex.findMany({
+      where: { linkedStashId: { not: null }, localCreatedAt: { gte: since } },
+      orderBy: { localCreatedAt: 'desc' },
+      take: AcquisitionService.RECENTLY_ADDED_LIMIT,
+      select: { linkedStashId: true, localCreatedAt: true, viewUrl: true },
+    });
+    // Newest copy first, so a scene Stash has twice shows its latest arrival.
+    const newest = new Map<string, { addedAt: Date; stashViewUrl: string }>();
+    for (const entry of library) {
+      if (
+        entry.linkedStashId &&
+        entry.localCreatedAt &&
+        !newest.has(entry.linkedStashId)
+      ) {
+        newest.set(entry.linkedStashId, {
+          addedAt: entry.localCreatedAt,
+          stashViewUrl: entry.viewUrl,
+        });
+      }
+    }
+    if (newest.size === 0) {
+      return [];
+    }
+
+    const requested: Prisma.SceneIndexWhereInput = {
+      stashId: { in: [...newest.keys()] },
+      computedLifecycle: SceneLifecycle.AVAILABLE,
+      OR: [
+        { requestStatus: { not: null } },
+        { whisparrMovieId: { not: null } },
+      ],
+    };
+    const rows = await this.prisma.sceneIndex.findMany({
+      where: searchWhere ? { AND: [requested, searchWhere] } : requested,
+    });
+    return rows
+      .flatMap((row) => {
+        const found = newest.get(row.stashId);
+        return found ? [{ row, ...found }] : [];
+      })
+      .sort(
+        (a, b) =>
+          b.addedAt.getTime() - a.addedAt.getTime() ||
+          a.row.stashId.localeCompare(b.row.stashId),
+      );
+  }
+
+  /**
+   * The tab counts, for a search or (from the summary) everything. The
+   * Added list is passed in when the caller already has it.
+   */
+  private async loadCounts(
+    searchWhere: Prisma.SceneIndexWhereInput | null,
+    recentlyAdded?: ReadonlyArray<unknown>,
+  ): Promise<{
+    byLifecycle: AcquisitionCountsByLifecycleDto;
+    tracked: number;
+  }> {
+    const [counts, added] = await Promise.all([
+      searchWhere
+        ? this.countMatchesByLifecycle(searchWhere)
+        : this.indexingService.getSceneIndexSummary().then((summary) => ({
+            byLifecycle: this.toCountsByLifecycle(summary),
+            tracked: summary.acquisitionTrackedScenes,
+          })),
+      recentlyAdded ?? this.findRecentlyAdded(searchWhere),
+    ]);
+    return {
+      byLifecycle: { ...counts.byLifecycle, AVAILABLE: added.length },
+      tracked: counts.tracked,
+    };
+  }
+
+  /**
+   * How far along each downloading scene on the page is, from one call to
+   * Whisparr's queue. Without Whisparr (or if it's slow) the cards just
+   * leave the bar off.
+   */
+  private async getDownloadProgress(
+    rows: SceneIndex[],
+    config: { baseUrl: string; apiKey: string | null } | null,
+  ): Promise<Map<number, AcquisitionDownloadDto>> {
+    const movieIds = new Set(
+      rows.flatMap((row) =>
+        row.computedLifecycle === SceneLifecycle.DOWNLOADING &&
+        row.whisparrMovieId !== null
+          ? [row.whisparrMovieId]
+          : [],
+      ),
+    );
+    const progress = new Map<number, AcquisitionDownloadDto>();
+    if (!config || movieIds.size === 0) {
+      return progress;
+    }
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const queue = await Promise.race([
+        this.whisparrAdapter.getQueueDetails(config),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('Whisparr took too long')),
+            AcquisitionService.PROGRESS_TIMEOUT_MS,
+          );
+        }),
+      ]);
+      for (const entry of queue) {
+        if (!movieIds.has(entry.movieId)) {
+          continue;
+        }
+        const percent =
+          entry.size !== null && entry.size > 0 && entry.sizeLeft !== null
+            ? Math.round(
+                Math.min(
+                  100,
+                  Math.max(
+                    0,
+                    ((entry.size - entry.sizeLeft) / entry.size) * 100,
+                  ),
+                ),
+              )
+            : null;
+        const current = progress.get(entry.movieId);
+        // Two grabs for one scene: show the one further along.
+        if (!current || (percent ?? -1) > (current.progress ?? -1)) {
+          progress.set(entry.movieId, {
+            progress: percent,
+            timeLeft: entry.timeLeft,
+          });
+        }
+      }
+    } catch (error) {
+      this.logger.debug(
+        `Download progress left off: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+    return progress;
   }
 
   /**
@@ -283,7 +478,7 @@ export class AcquisitionService {
   private async countMatchesByLifecycle(
     searchWhere: Prisma.SceneIndexWhereInput,
   ): Promise<{
-    byLifecycle: AcquisitionCountsByLifecycleDto;
+    byLifecycle: Omit<AcquisitionCountsByLifecycleDto, 'AVAILABLE'>;
     tracked: number;
   }> {
     const groups = await this.prisma.sceneIndex.groupBy({
@@ -293,7 +488,7 @@ export class AcquisitionService {
       },
       _count: { _all: true },
     });
-    const counts: AcquisitionCountsByLifecycleDto = {
+    const counts: Omit<AcquisitionCountsByLifecycleDto, 'AVAILABLE'> = {
       REQUESTED: 0,
       DOWNLOADING: 0,
       IMPORT_PENDING: 0,
@@ -379,7 +574,7 @@ export class AcquisitionService {
     downloadingCount: number;
     importPendingCount: number;
     failedCount: number;
-  }): AcquisitionCountsByLifecycleDto {
+  }): Omit<AcquisitionCountsByLifecycleDto, 'AVAILABLE'> {
     return {
       REQUESTED: summary.requestedCount,
       DOWNLOADING: summary.downloadingCount,
@@ -396,7 +591,7 @@ export class AcquisitionService {
   }
 
   private buildWhereClause(
-    lifecycle: AcquisitionLifecycleFilter,
+    lifecycle: Exclude<AcquisitionLifecycleFilter, 'AVAILABLE'>,
   ): Prisma.SceneIndexWhereInput {
     if (lifecycle === 'ANY') {
       return {
@@ -433,6 +628,9 @@ export class AcquisitionService {
     row: SceneIndex,
     whisparrBaseUrl: string | null,
     source: 'STASHDB' | 'FANSDB',
+    extras: Partial<
+      Pick<AcquisitionSceneItemDto, 'download' | 'addedAt' | 'stashViewUrl'>
+    > = {},
   ): AcquisitionSceneItemDto {
     const title = row.title?.trim() || row.stashId;
     const description =
@@ -466,6 +664,9 @@ export class AcquisitionService {
               row.whisparrMovieId,
             )
           : null,
+      download: extras.download ?? null,
+      addedAt: extras.addedAt ?? null,
+      stashViewUrl: extras.stashViewUrl ?? null,
     };
   }
 

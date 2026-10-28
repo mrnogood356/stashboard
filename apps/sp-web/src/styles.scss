@@ -1168,6 +1168,9 @@ select:disabled {
 /* Compact page header shared by the main list pages (Scenes, Library, Performers, Studios). */
 .page-head-compact {
   display: flex;
+  /* When the buttons don't fit beside the title (a phone with a search
+     showing), they move to their own row instead of squeezing it. */
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
@@ -1176,6 +1179,7 @@ select:disabled {
 
 .page-head-compact__title {
   display: flex;
+  flex: 1 1 14rem;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 0.25rem 0.85rem;

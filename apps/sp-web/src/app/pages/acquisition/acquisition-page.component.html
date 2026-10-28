@@ -60,22 +60,24 @@
       />
     </label>
 
-    <div class="toolbar-field app-control-field">
-      <span id="acquisition-sort-label" class="app-control-label">Sort</span>
-      <p-select
-        inputId="acquisition-sort"
-        ariaLabelledBy="acquisition-sort-label"
-        data-testid="acquisition-sort"
-        [ngModel]="selectedSort()"
-        (ngModelChange)="selectSort($event)"
-        [ngModelOptions]="{ standalone: true }"
-        [options]="sortOptions"
-        optionLabel="label"
-        optionValue="value"
-        [appendTo]="'body'"
-        panelStyleClass="app-overlay-panel"
-      />
-    </div>
+    @if (selectedLifecycle() !== 'AVAILABLE') {
+      <div class="toolbar-field app-control-field">
+        <span id="acquisition-sort-label" class="app-control-label">Sort</span>
+        <p-select
+          inputId="acquisition-sort"
+          ariaLabelledBy="acquisition-sort-label"
+          data-testid="acquisition-sort"
+          [ngModel]="selectedSort()"
+          (ngModelChange)="selectSort($event)"
+          [ngModelOptions]="{ standalone: true }"
+          [options]="sortOptions"
+          optionLabel="label"
+          optionValue="value"
+          [appendTo]="'body'"
+          panelStyleClass="app-overlay-panel"
+        />
+      </div>
+    }
   </form>
 
   @if (loading()) {
@@ -93,22 +95,22 @@
       <button type="button" class="secondary-action" (click)="retryInitialLoad()">Retry</button>
     </section>
   } @else {
-    <section class="summary-shell" aria-label="Acquisition summary">
-      @for (card of summaryCards(); track card.lifecycle) {
+    <nav class="lifecycle-tabs" aria-label="Show requests">
+      @for (tab of tabs(); track tab.lifecycle) {
         <button
           type="button"
-          class="summary-card"
-          [class.is-active]="selectedLifecycle() === card.lifecycle"
-          [attr.data-tone]="card.tone"
-          [attr.data-testid]="'summary-card-' + card.lifecycle"
-          (click)="selectLifecycle(card.lifecycle)"
+          class="lifecycle-tab"
+          [class.is-active]="selectedLifecycle() === tab.lifecycle"
+          [attr.aria-pressed]="selectedLifecycle() === tab.lifecycle"
+          [attr.data-tone]="tab.tone"
+          [attr.data-testid]="'lifecycle-tab-' + tab.lifecycle"
+          (click)="selectLifecycle(tab.lifecycle)"
         >
-          <span class="summary-card-label">{{ card.label }}</span>
-          <strong class="summary-card-count">{{ card.count }}</strong>
-          <p class="summary-card-copy">{{ card.description }}</p>
+          <span>{{ tab.label }}</span>
+          <span class="lifecycle-tab-count">{{ tab.count }}</span>
         </button>
       }
-    </section>
+    </nav>
 
     @if (!hasItems()) {
       <section
@@ -142,17 +144,9 @@
       </section>
     } @else {
       <section class="section-shell app-section-panel">
-        @if (hasSearch() || selectedLifecycle() !== 'ANY') {
+        @if (hasSearch()) {
           <div class="section-shell-head app-section-head">
-            @if (hasSearch()) {
-              <p class="section-shell-copy app-section-copy">{{ pageSummaryText() }}</p>
-            }
-
-            @if (selectedLifecycle() !== 'ANY') {
-              <button type="button" class="secondary-action" (click)="selectLifecycle('ANY')">
-                Show all
-              </button>
-            }
+            <p class="section-shell-copy app-section-copy">{{ pageSummaryText() }}</p>
           </div>
         }
 
@@ -291,7 +285,9 @@
 
                   <div class="card-body">
                     <div class="card-status-row">
-                      <app-scene-status-badge class="row-status-badge" [status]="item.status" />
+                      @if (addedText(item); as added) {
+                        <span class="added-at">{{ added }}</span>
+                      }
 
                       @if (item.releaseDate) {
                         <p class="release-date">
@@ -313,6 +309,51 @@
                           {{ item.title }}
                         </a>
                       </h4>
+                      <ol
+                        class="stage-track"
+                        [attr.aria-label]="'Progress: ' + item.title"
+                        [attr.data-testid]="'stage-track-' + item.id"
+                      >
+                        @for (stage of stages(item); track stage.label) {
+                          <li
+                            class="stage"
+                            [attr.data-state]="stage.state"
+                            [attr.aria-current]="
+                              stage.state === 'current' || stage.state === 'failed' ? 'step' : null
+                            "
+                          >
+                            <span class="stage-dot" aria-hidden="true">
+                              @if (stage.state === 'done') {
+                                <i class="pi pi-check"></i>
+                              } @else if (stage.state === 'failed') {
+                                <i class="pi pi-times"></i>
+                              }
+                            </span>
+                            <span class="stage-label">{{ stage.label }}</span>
+                          </li>
+                        }
+                      </ol>
+                      <p class="stage-now">{{ stageNow(item) }}</p>
+
+                      @if (item.status.state === 'DOWNLOADING' && item.download; as download) {
+                        <div class="download-progress" [attr.data-testid]="'download-' + item.id">
+                          @if (download.progress !== null) {
+                            <div
+                              class="download-bar"
+                              role="progressbar"
+                              aria-valuemin="0"
+                              aria-valuemax="100"
+                              [attr.aria-valuenow]="download.progress"
+                              [attr.aria-label]="'Download of ' + item.title"
+                            >
+                              <span [style.width.%]="download.progress"></span>
+                            </div>
+                          }
+                          @if (downloadText(item); as text) {
+                            <span class="download-text">{{ text }}</span>
+                          }
+                        </div>
+                      }
 
                       @if (
                         item.status.state === 'IMPORT_PENDING' && waitingReasons().get(item.id);
@@ -347,14 +388,10 @@
                             >
                           }
                         </div>
-                      } @else {
-                        <p class="helper" [class.helper-failed]="item.status.state === 'FAILED'">
-                          {{
-                            item.status.state === 'IMPORT_PENDING' && checkingWaiting()
-                              ? 'Checking why it’s still waiting…'
-                              : lifecycleHelperText(item)
-                          }}
-                        </p>
+                      } @else if (item.status.state === 'IMPORT_PENDING' && checkingWaiting()) {
+                        <p class="helper">Checking why it’s still waiting…</p>
+                      } @else if (lifecycleHelperText(item); as helperText) {
+                        <p class="helper helper-failed">{{ helperText }}</p>
                       }
 
                       @if (operationalDetail(item); as detail) {
@@ -403,6 +440,18 @@
                       >
                         Scene details
                       </a>
+
+                      @if (item.stashViewUrl) {
+                        <a
+                          class="secondary-link small"
+                          [href]="item.stashViewUrl"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          [attr.data-testid]="'open-in-stash-' + item.id"
+                        >
+                          Open in Stash
+                        </a>
+                      }
 
                       @if (
                         item.status.state === 'REQUESTED' ||

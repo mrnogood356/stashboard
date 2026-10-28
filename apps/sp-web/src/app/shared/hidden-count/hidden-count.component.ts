@@ -27,8 +27,10 @@ import { RouterLink } from '@angular/router';
     }
   `,
   styles: `
+    /* No box of its own, so when there's nothing to say it takes no space
+       (and no gap) in the row it sits in. */
     :host {
-      display: block;
+      display: contents;
     }
 
     .hidden-count {

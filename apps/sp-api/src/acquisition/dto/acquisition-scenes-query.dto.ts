@@ -10,11 +10,14 @@ export const ACQUISITION_LIFECYCLE_VALUES = [
 
 export type AcquisitionLifecycle =
   (typeof ACQUISITION_LIFECYCLE_VALUES)[number];
+/** AVAILABLE: requests that reached the library in the last few days. */
 export const ACQUISITION_LIFECYCLE_FILTER_VALUES = [
   'ANY',
   ...ACQUISITION_LIFECYCLE_VALUES,
+  'AVAILABLE',
 ] as const;
-export type AcquisitionLifecycleFilter = 'ANY' | AcquisitionLifecycle;
+export type AcquisitionLifecycleFilter =
+  (typeof ACQUISITION_LIFECYCLE_FILTER_VALUES)[number];
 
 /**
  * `status` (the default) is the pipeline order: failed first, then downloads,

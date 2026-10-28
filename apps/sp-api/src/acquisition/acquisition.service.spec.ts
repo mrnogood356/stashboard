@@ -54,6 +54,8 @@ describe('AcquisitionService', () => {
   const getSceneIndexSummaryMock = jest.fn();
   const sceneIndexFindManyMock = jest.fn();
   const sceneIndexGroupByMock = jest.fn();
+  const librarySceneIndexFindManyMock = jest.fn();
+  const getQueueDetailsMock = jest.fn();
   const requestImmediateRefreshMock = jest.fn();
   const forgetRequestsMock = jest.fn();
   const findMovieByStashIdMock = jest.fn();
@@ -81,12 +83,16 @@ describe('AcquisitionService', () => {
     findMovieByStashId: findMovieByStashIdMock,
     searchMovies: searchMoviesMock,
     deleteMovie: deleteMovieMock,
+    getQueueDetails: getQueueDetailsMock,
   } as unknown as WhisparrAdapter;
 
   const prismaService = {
     sceneIndex: {
       findMany: sceneIndexFindManyMock,
       groupBy: sceneIndexGroupByMock,
+    },
+    librarySceneIndex: {
+      findMany: librarySceneIndexFindManyMock,
     },
   } as unknown as PrismaService;
 
@@ -126,6 +132,8 @@ describe('AcquisitionService', () => {
       throw new Error(`Unexpected integration type: ${type}`);
     });
     getConfiguredCatalogProviderTypeMock.mockResolvedValue('STASHDB');
+    librarySceneIndexFindManyMock.mockResolvedValue([]);
+    getQueueDetailsMock.mockResolvedValue([]);
     getSceneIndexSummaryMock.mockResolvedValue({
       indexedScenes: 10,
       acquisitionTrackedScenes: 4,
@@ -158,6 +166,91 @@ describe('AcquisitionService', () => {
     ]);
   });
 
+  it('adds how far along each downloading scene is, from one Whisparr call', async () => {
+    getQueueDetailsMock.mockResolvedValue([
+      { movieId: 20, size: 1000, sizeLeft: 250, timeLeft: '00:06:10' },
+      // A second, slower grab for the same scene loses to the first.
+      { movieId: 20, size: 1000, sizeLeft: 900, timeLeft: '01:00:00' },
+      // Failed scenes don't get a bar.
+      { movieId: 40, size: 1000, sizeLeft: 0, timeLeft: null },
+    ]);
+
+    const result = await service.getScenesFeed(1, 2);
+
+    expect(getQueueDetailsMock).toHaveBeenCalledTimes(1);
+    const byId = new Map(result.items.map((item) => [item.id, item]));
+    expect(byId.get('scene-downloading')?.download).toEqual({
+      progress: 75,
+      timeLeft: '00:06:10',
+    });
+    expect(byId.get('scene-failed')?.download).toBeNull();
+  });
+
+  it('still lists the scenes when Whisparr’s queue can’t be read', async () => {
+    getQueueDetailsMock.mockRejectedValue(
+      new Error('Failed to reach Whisparr'),
+    );
+
+    const result = await service.getScenesFeed(1, 2);
+
+    expect(result.items).toHaveLength(2);
+    expect(result.items.every((item) => item.download === null)).toBe(true);
+  });
+
+  it('lists requests Stash got in the last two weeks, newest first', async () => {
+    librarySceneIndexFindManyMock.mockResolvedValue([
+      {
+        linkedStashId: 'scene-new',
+        localCreatedAt: new Date('2026-10-27T10:00:00.000Z'),
+        viewUrl: 'http://stash.local/scenes/9',
+      },
+      {
+        linkedStashId: 'scene-old',
+        localCreatedAt: new Date('2026-10-20T10:00:00.000Z'),
+        viewUrl: 'http://stash.local/scenes/3',
+      },
+      // An older copy of the same scene: its newest arrival counts.
+      {
+        linkedStashId: 'scene-new',
+        localCreatedAt: new Date('2026-10-18T10:00:00.000Z'),
+        viewUrl: 'http://stash.local/scenes/1',
+      },
+    ]);
+    sceneIndexFindManyMock.mockResolvedValue([
+      buildIndexedRow({ stashId: 'scene-old', computedLifecycle: 'AVAILABLE' }),
+      buildIndexedRow({ stashId: 'scene-new', computedLifecycle: 'AVAILABLE' }),
+    ]);
+
+    const result = await service.getScenesFeed(1, 24, 'AVAILABLE');
+
+    expect(librarySceneIndexFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ linkedStashId: { not: null } }),
+        orderBy: { localCreatedAt: 'desc' },
+      }),
+    );
+    expect(sceneIndexFindManyMock).toHaveBeenCalledWith({
+      where: {
+        stashId: { in: ['scene-new', 'scene-old'] },
+        computedLifecycle: 'AVAILABLE',
+        OR: [
+          { requestStatus: { not: null } },
+          { whisparrMovieId: { not: null } },
+        ],
+      },
+    });
+    expect(result.total).toBe(2);
+    expect(result.countsByLifecycle.AVAILABLE).toBe(2);
+    // The list and its tab count come from one lookup.
+    expect(librarySceneIndexFindManyMock).toHaveBeenCalledTimes(1);
+    expect(
+      result.items.map((item) => [item.id, item.addedAt, item.stashViewUrl]),
+    ).toEqual([
+      ['scene-new', '2026-10-27T10:00:00.000Z', 'http://stash.local/scenes/9'],
+      ['scene-old', '2026-10-20T10:00:00.000Z', 'http://stash.local/scenes/3'],
+    ]);
+  });
+
   it('builds the acquisition feed from the local scene index', async () => {
     const result = await service.getScenesFeed(1, 2);
 
@@ -168,6 +261,7 @@ describe('AcquisitionService', () => {
       DOWNLOADING: 1,
       IMPORT_PENDING: 1,
       FAILED: 1,
+      AVAILABLE: 0,
     });
     expect(result.items.map((item) => item.id)).toEqual([
       'scene-failed',
@@ -348,6 +442,7 @@ describe('AcquisitionService', () => {
       DOWNLOADING: 0,
       IMPORT_PENDING: 0,
       FAILED: 2,
+      AVAILABLE: 0,
     });
     expect(result.total).toBe(5);
     expect(result.hasMore).toBe(true);
