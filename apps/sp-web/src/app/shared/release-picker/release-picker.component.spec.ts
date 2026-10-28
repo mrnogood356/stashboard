@@ -27,8 +27,80 @@ const release = (guid: string, overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+const noProwlarr = () => of({ prowlarr: { configured: false } });
+
 describe('ReleasePickerComponent', () => {
   afterEach(() => TestBed.resetTestingModule());
+
+  it('offers Prowlarr when Whisparr finds nothing, and downloads through it', async () => {
+    const api = {
+      search: vi.fn().mockReturnValue(of({ movieId: 1, releases: [] })),
+      grab: vi.fn(),
+      prowlarrStatus: vi.fn().mockReturnValue(of({ prowlarr: { configured: true } })),
+      searchProwlarr: vi
+        .fn()
+        .mockReturnValue(of({ releases: [release('p', { indexer: 'NZBgeek' })], queries: [] })),
+      grabProwlarr: vi.fn().mockReturnValue(of({ accepted: true, sentTo: 'sabnzbd' })),
+      ownedCopies: vi.fn().mockReturnValue(of({ copies: [] })),
+    };
+    await TestBed.configureTestingModule({
+      imports: [ReleasePickerComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ReleasesApiService, useValue: api },
+        { provide: AppNotificationsService, useValue: { success: vi.fn(), error: vi.fn() } },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ReleasePickerComponent);
+    fixture.componentRef.setInput('stashId', 'abc');
+    fixture.componentRef.setInput('open', true);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+
+    expect(root.textContent).toContain('Nothing found');
+    const fallback = root.querySelector(
+      '[data-testid="release-search-prowlarr"]',
+    ) as HTMLButtonElement;
+    fallback.click();
+    fixture.detectChanges();
+
+    expect(api.searchProwlarr).toHaveBeenCalledWith('abc', 'STASHDB', '');
+    expect(root.textContent).toContain('Find downloads');
+    expect(root.textContent).toContain('Release p');
+    (root.querySelector('.btn.download') as HTMLButtonElement).click();
+    expect(api.grabProwlarr).toHaveBeenCalledWith(
+      'abc',
+      'STASHDB',
+      expect.objectContaining({ guid: 'p' }),
+    );
+  });
+
+  it('doesn’t offer Prowlarr when it isn’t set up', async () => {
+    const api = {
+      search: vi.fn().mockReturnValue(of({ movieId: 1, releases: [] })),
+      grab: vi.fn(),
+      prowlarrStatus: noProwlarr,
+      ownedCopies: vi.fn().mockReturnValue(of({ copies: [] })),
+    };
+    await TestBed.configureTestingModule({
+      imports: [ReleasePickerComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ReleasesApiService, useValue: api },
+        { provide: AppNotificationsService, useValue: { success: vi.fn(), error: vi.fn() } },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ReleasePickerComponent);
+    fixture.componentRef.setInput('stashId', 'abc');
+    fixture.componentRef.setInput('open', true);
+    fixture.detectChanges();
+
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="release-search-prowlarr"]',
+      ),
+    ).toBeNull();
+  });
 
   it('lists releases, hides skipped ones, and downloads the chosen one', async () => {
     const api = {
@@ -46,7 +118,11 @@ describe('ReleasePickerComponent', () => {
       providers: [
         {
           provide: ReleasesApiService,
-          useValue: { ownedCopies: vi.fn().mockReturnValue(of({ copies: [] })), ...api },
+          useValue: {
+            ownedCopies: vi.fn().mockReturnValue(of({ copies: [] })),
+            prowlarrStatus: noProwlarr,
+            ...api,
+          },
         },
         { provide: AppNotificationsService, useValue: notifications },
       ],
@@ -92,7 +168,11 @@ describe('ReleasePickerComponent', () => {
       providers: [
         {
           provide: ReleasesApiService,
-          useValue: { ownedCopies: vi.fn().mockReturnValue(of({ copies: [] })), ...api },
+          useValue: {
+            ownedCopies: vi.fn().mockReturnValue(of({ copies: [] })),
+            prowlarrStatus: noProwlarr,
+            ...api,
+          },
         },
         { provide: AppNotificationsService, useValue: { success: vi.fn(), error: vi.fn() } },
       ],
@@ -135,7 +215,11 @@ describe('ReleasePickerComponent', () => {
       providers: [
         {
           provide: ReleasesApiService,
-          useValue: { ownedCopies: vi.fn().mockReturnValue(of({ copies: [] })), ...api },
+          useValue: {
+            ownedCopies: vi.fn().mockReturnValue(of({ copies: [] })),
+            prowlarrStatus: noProwlarr,
+            ...api,
+          },
         },
         { provide: AppNotificationsService, useValue: { success: vi.fn(), error: vi.fn() } },
       ],
@@ -194,7 +278,11 @@ describe('ReleasePickerComponent', () => {
       providers: [
         {
           provide: ReleasesApiService,
-          useValue: { ownedCopies: vi.fn().mockReturnValue(of({ copies: [] })), ...api },
+          useValue: {
+            ownedCopies: vi.fn().mockReturnValue(of({ copies: [] })),
+            prowlarrStatus: noProwlarr,
+            ...api,
+          },
         },
         { provide: AppNotificationsService, useValue: { success: vi.fn(), error: vi.fn() } },
       ],
@@ -225,7 +313,11 @@ describe('ReleasePickerComponent', () => {
           provideRouter([]),
           {
             provide: ReleasesApiService,
-            useValue: { ownedCopies: vi.fn().mockReturnValue(of({ copies: [] })), ...api },
+            useValue: {
+              ownedCopies: vi.fn().mockReturnValue(of({ copies: [] })),
+              prowlarrStatus: noProwlarr,
+              ...api,
+            },
           },
           { provide: AppNotificationsService, useValue: notifications },
         ],
@@ -436,6 +528,7 @@ describe('ReleasePickerComponent', () => {
     const api = {
       search: vi.fn().mockReturnValue(of({ movieId: 1, releases: [release('a')] })),
       grab: vi.fn(),
+      prowlarrStatus: noProwlarr,
       ownedCopies: vi.fn().mockReturnValue(
         of({
           copies: [

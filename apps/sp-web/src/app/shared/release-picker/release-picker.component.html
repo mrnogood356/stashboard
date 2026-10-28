@@ -151,6 +151,16 @@
             <i class="pi pi-search" aria-hidden="true"></i>
             <strong>Nothing found</strong>
             <small>{{ notice() ?? 'None of your indexers have this scene right now.' }}</small>
+            @if (offerProwlarr()) {
+              <button
+                type="button"
+                class="btn primary"
+                data-testid="release-search-prowlarr"
+                (click)="searchProwlarr()"
+              >
+                Search Prowlarr instead
+              </button>
+            }
             <button type="button" class="btn" (click)="search()">Search again</button>
           </div>
         } @else if (visible().length === 0) {
@@ -168,6 +178,11 @@
               <button type="button" class="btn" (click)="showWeak.set(true)">
                 Show them anyway
               </button>
+              @if (offerProwlarr()) {
+                <button type="button" class="btn" (click)="searchProwlarr()">
+                  Search Prowlarr instead
+                </button>
+              }
             }
           </div>
         } @else {
