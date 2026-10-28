@@ -229,7 +229,7 @@ export class IndexingSettingsPageComponent implements OnInit {
   }
 
   protected syncAll(): void {
-    this.runSync('all', 'Sync All');
+    this.runSync('all', 'Everything');
   }
 
   protected triggerJob(job: IndexingJobView): void {

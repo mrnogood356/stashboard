@@ -405,8 +405,8 @@ describe('HomePageComponent', () => {
 
     const text = fixture.nativeElement.textContent ?? '';
 
-    expect(text).toContain('Home is waiting for useful scene data');
-    expect(text).toContain('Run the initial indexing sync');
+    expect(text).toContain('Home is still filling in');
+    expect(text).toContain('run Sync now in Settings → Indexing');
     expect(text).toContain('Open Indexing');
     expect(text).toContain('Browse Scenes');
   });

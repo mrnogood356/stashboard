@@ -774,11 +774,11 @@ describe('AcquisitionPageComponent', () => {
 
     expect(degradedState?.textContent).toContain('Whisparr needs attention');
     expect(degradedState?.textContent).toContain(
-      'Queue state, failures, and request progression may be stale',
+      'Download progress and failures may be out of date',
     );
     expect(degradedState?.querySelector('a[href*="/settings/integrations"]')).toBeTruthy();
-    expect(emptyState?.textContent).toContain('No acquisition activity is indexed yet');
-    expect(emptyState?.textContent).toContain('run Sync All');
+    expect(emptyState?.textContent).toContain('No requests yet');
+    expect(emptyState?.textContent).toContain('run Sync now');
     expect(emptyState?.textContent).toContain('Open Scenes');
     expect(emptyState?.textContent).toContain('Open Indexing');
     expect(emptyState?.textContent).toContain('Open Library');
@@ -802,7 +802,7 @@ describe('AcquisitionPageComponent', () => {
 
     expect(degradedState?.textContent).toContain('Whisparr needs attention');
     expect(degradedState?.textContent).toContain(
-      'Queue state, failures, and request progression may be stale',
+      'Download progress and failures may be out of date',
     );
   });
 
@@ -862,9 +862,9 @@ describe('AcquisitionPageComponent', () => {
       '[data-testid="acquisition-degraded-state"]',
     ) as HTMLElement | null;
 
-    expect(degradedState?.textContent).toContain('Repair Required');
+    expect(degradedState?.textContent).toContain('Needs setting up');
     expect(degradedState?.textContent).toContain('Whisparr needs attention');
-    expect(degradedState?.textContent).not.toContain('Stash import visibility is degraded');
+    expect(degradedState?.textContent).not.toContain('Stash isn’t answering');
   });
 
   it('renders a filter-specific empty state when a focused lifecycle has no items', async () => {

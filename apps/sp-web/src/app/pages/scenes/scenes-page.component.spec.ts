@@ -673,8 +673,8 @@ describe('ScenesPageComponent', () => {
       '[data-testid="scenes-empty-state"]',
     ) as HTMLElement | null;
 
-    expect(emptyState?.textContent).toContain('No catalog scenes are available yet');
-    expect(emptyState?.textContent).toContain('Catalog browsing does not depend on local indexing');
+    expect(emptyState?.textContent).toContain('No scenes from the catalog yet');
+    expect(emptyState?.textContent).toContain('check the catalog in Settings → Integrations');
     expect(emptyState?.textContent).toContain('Open indexing');
   });
 
@@ -697,7 +697,7 @@ describe('ScenesPageComponent', () => {
     ) as HTMLElement | null;
     const repairLink = alert?.querySelector('a[href*="/settings/integrations"]');
 
-    expect(alert?.textContent).toContain('Catalog discovery needs attention');
+    expect(alert?.textContent).toContain('The catalog isn’t answering');
     expect(fixture.nativeElement.textContent).toContain('Repair integrations');
     expect(repairLink).toBeTruthy();
   });

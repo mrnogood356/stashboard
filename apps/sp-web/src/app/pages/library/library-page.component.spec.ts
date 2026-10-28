@@ -359,11 +359,9 @@ describe('LibraryPageComponent', () => {
       '[data-testid="library-degraded-state"]',
     ) as HTMLElement | null;
 
-    expect(degradedAlert?.textContent).toContain('Local library freshness is degraded');
-    expect(degradedAlert?.textContent).toContain(
-      'Currently showing projected library data synced through',
-    );
-    expect(degradedAlert?.textContent).toContain('Newly imported scenes');
+    expect(degradedAlert?.textContent).toContain('Stash isn’t answering');
+    expect(degradedAlert?.textContent).toContain('Showing your library as of');
+    expect(degradedAlert?.textContent).toContain('new scenes, pictures');
     expect(
       degradedAlert?.querySelector('a[href*="/settings/integrations"]')?.textContent,
     ).toContain('Repair integrations');
@@ -377,7 +375,7 @@ describe('LibraryPageComponent', () => {
       feedResponse: buildFeedResponse([], { latestSyncAt: null }),
     });
 
-    expect(fixture.nativeElement.textContent).toContain('No local scenes are indexed yet');
+    expect(fixture.nativeElement.textContent).toContain('Your library hasn’t synced yet');
     expect(
       fixture.nativeElement.querySelector('[data-testid="library-empty-state"]')?.textContent,
     ).toContain('Track Imports');

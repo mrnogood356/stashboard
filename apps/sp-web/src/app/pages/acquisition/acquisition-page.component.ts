@@ -87,7 +87,7 @@ interface AcquisitionUrlState {
 }
 
 export const ACQUISITION_SORT_OPTIONS: ReadonlyArray<{ value: AcquisitionSort; label: string }> = [
-  { value: 'status', label: 'Pipeline order' },
+  { value: 'status', label: 'By status' },
   { value: 'requested-desc', label: 'Newest requested' },
   { value: 'requested-asc', label: 'Oldest requested' },
   { value: 'released-desc', label: 'Newest release' },
@@ -561,7 +561,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   }
 
   private sortLabel(sort: AcquisitionSort): string {
-    return this.sortOptions.find((option) => option.value === sort)?.label ?? 'Pipeline order';
+    return this.sortOptions.find((option) => option.value === sort)?.label ?? 'By status';
   }
 
   private feedOptions(): AcquisitionFeedOptions {
@@ -818,16 +818,16 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     }
 
     if (this.selectedLifecycle() === 'ANY' && this.pageAlert()) {
-      return 'Acquisition may look empty because Whisparr or Stash is degraded. Repair integrations, then run Sync All from Indexing & Sync if tracked requests still do not appear.';
+      return 'This may look empty because Whisparr or Stash isn’t answering. Fix them in Settings → Integrations, then run Sync now in Settings → Indexing.';
     }
 
     switch (this.selectedLifecycle()) {
       case 'FAILED':
-        return 'There is nothing to recover in Whisparr at the moment. Switch back to the full pipeline or request something new from Scenes.';
+        return 'Nothing has failed. Requests that fail show up here.';
       case 'IMPORT_PENDING':
         return 'Downloads are not waiting on the final Stash handoff right now.';
       case 'DOWNLOADING':
-        return 'Whisparr does not have any active acquisition work in progress right now.';
+        return 'Nothing is downloading right now.';
       case 'REQUESTED':
         return 'Whisparr is not holding any queued requests that have not started yet.';
       case 'AVAILABLE':
@@ -1010,9 +1010,9 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
           }
 
           if (isInitialPage) {
-            this.error.set('Failed to load acquisition feed from the API.');
+            this.error.set('Requests couldn’t load. Try again.');
           } else {
-            this.loadMoreError.set('Failed to load more acquisition scenes.');
+            this.loadMoreError.set('More requests couldn’t load. Try again.');
           }
         },
       });

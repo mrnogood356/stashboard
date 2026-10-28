@@ -17,38 +17,37 @@ export interface ReadinessPageAlert {
 }
 
 export function setupCompleteSummary(catalogProviderLabel: string): string {
-  return `${catalogProviderLabel} is ready with Stash and Whisparr. Home and Scenes are available now; Library, Acquisition, and status badges get better after the initial indexing sync has run.`;
+  return `${catalogProviderLabel}, Stash and Whisparr are set up. Home and Scenes work now; Library, Requests and the status on each scene fill in after the first sync.`;
 }
 
 export function initialIndexingGuidance(): string {
-  return 'Use Indexing & Sync after setup to run Sync All when Library is empty, Acquisition looks stale, or status badges do not reflect Whisparr and Stash yet.';
+  return 'If Library is empty or Requests looks out of date, open Settings → Indexing and tap Sync now.';
 }
 
 export function firstUseEmptyStateCopy(surface: ReadinessSurface): FirstUseEmptyStateCopy {
   switch (surface) {
     case 'home':
       return {
-        title: 'Home is waiting for useful scene data',
+        title: 'Home is still filling in',
         message:
-          'Scenes can be browsed from the catalog now. Run the initial indexing sync if Library rails, acquisition status, or local availability still look empty.',
+          'You can browse Scenes now. If your library rails stay empty, run Sync now in Settings → Indexing.',
       };
     case 'scenes':
       return {
-        title: 'No catalog scenes are available yet',
-        message:
-          'Catalog browsing does not depend on local indexing. If this stays empty, check the catalog integration; otherwise use indexing to refresh local Library and status overlays.',
+        title: 'No scenes from the catalog yet',
+        message: 'If this stays empty, check the catalog in Settings → Integrations.',
       };
     case 'library':
       return {
-        title: 'No local scenes are indexed yet',
+        title: 'Your library hasn’t synced yet',
         message:
-          'Run Sync All from Indexing & Sync to project your Stash library into Stashboard. You can keep browsing Scenes while the local library catches up.',
+          'Run Sync now in Settings → Indexing to bring in your Stash library. You can keep browsing Scenes meanwhile.',
       };
     case 'acquisition':
       return {
-        title: 'No acquisition activity is indexed yet',
+        title: 'No requests yet',
         message:
-          'Requests begin in Scenes. Run the initial indexing sync if you already have Whisparr activity and this page still looks empty.',
+          'Request a scene from Scenes and it shows up here. Already using Whisparr? Run Sync now in Settings → Indexing.',
       };
   }
 }
@@ -130,7 +129,7 @@ function alertForImpacts(
   impactedServices: ReadinessService[],
   source: 'setup' | 'runtime',
 ): ReadinessPageAlert {
-  const eyebrow = source === 'setup' ? 'Repair Required' : 'Runtime Outage';
+  const eyebrow = source === 'setup' ? 'Needs setting up' : 'Can’t reach a service';
   const services = new Set(impactedServices);
 
   switch (surface) {
@@ -138,47 +137,44 @@ function alertForImpacts(
       return {
         eyebrow,
         impactedServices,
-        title: 'Home data is degraded',
+        title: 'Some of Home can’t load',
         message:
-          'One or more required integrations cannot provide rail data right now. Some Home rails may be empty or stale until integrations are repaired.',
+          'A service Home relies on isn’t answering, so some rails may be empty or out of date.',
       };
     case 'scenes':
       if (services.has('CATALOG')) {
         return {
           eyebrow,
           impactedServices,
-          title: 'Catalog discovery needs attention',
+          title: 'The catalog isn’t answering',
           message:
-            'Scenes depends on the configured catalog provider. Results may be empty or stale until the catalog integration is healthy again.',
+            'Scenes come from the catalog, so results may be empty or out of date until it answers again.',
         };
       }
 
       return {
         eyebrow,
         impactedServices,
-        title: 'Scene status overlays are degraded',
+        title: 'Scene statuses may be out of date',
         message:
-          'Catalog browsing can continue, but Whisparr and Stash status badges may be stale until the affected integration is healthy again.',
+          'You can keep browsing, but “In library” and download badges may be behind until Whisparr and Stash answer again.',
       };
     case 'library':
       return {
         eyebrow,
         impactedServices,
-        title:
-          source === 'setup'
-            ? 'Local library browsing needs attention'
-            : 'Local library freshness is degraded',
+        title: source === 'setup' ? 'Stash needs setting up' : 'Stash isn’t answering',
         message:
-          'Library depends on Stash. Newly imported scenes, artwork, local favorites, and availability overlays may be missing or stale until Stash is healthy again.',
+          'Library comes from Stash, so new scenes, pictures and favourites may be missing until it answers again.',
       };
     case 'acquisition':
       if (services.has('WHISPARR') && services.has('STASH')) {
         return {
           eyebrow,
           impactedServices,
-          title: 'Acquisition tracking is degraded',
+          title: 'Whisparr and Stash aren’t answering',
           message:
-            'Whisparr and Stash both affect this page. Request progress, failure states, and import visibility may be incomplete or stale until both recover.',
+            'Progress, failures and new arrivals may be out of date until both answer again.',
         };
       }
 
@@ -188,16 +184,16 @@ function alertForImpacts(
           impactedServices,
           title: 'Whisparr needs attention',
           message:
-            'Acquisition progress depends on Whisparr. Queue state, failures, and request progression may be stale until it is healthy again.',
+            'Download progress and failures may be out of date until Whisparr answers again.',
         };
       }
 
       return {
         eyebrow,
         impactedServices,
-        title: 'Stash import visibility is degraded',
+        title: 'Stash isn’t answering',
         message:
-          'Downloaded scenes may take longer to appear as imported while Stash is unhealthy. Repair integrations if import handoffs look stuck.',
+          'Finished downloads may take longer to show as in your library until Stash answers again.',
       };
   }
 }

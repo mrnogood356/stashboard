@@ -286,10 +286,10 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     const freshnessHint =
-      alert.eyebrow === 'Runtime Outage'
+      alert.eyebrow === 'Can’t reach a service'
         ? this.latestSyncAt()
-          ? ` Currently showing projected library data synced through ${this.formatDateTime(this.latestSyncAt())}.`
-          : ' Current library sync freshness is unknown.'
+          ? ` Showing your library as of ${this.formatDateTime(this.latestSyncAt())}.`
+          : ''
         : '';
 
     return {
@@ -484,11 +484,11 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     if (this.pageAlert()) {
-      return 'Library may be empty because Stash is degraded. Repair the integration, then run Sync All from Indexing & Sync if the local library still has not appeared.';
+      return 'This may be empty because Stash isn’t answering. Fix it in Settings → Integrations, then run Sync now in Settings → Indexing.';
     }
 
     if (this.latestSyncAt()) {
-      return 'Indexing has run, but Stashboard did not find local scenes for this view. Check Stash for imported scenes, then run Sync All after new imports.';
+      return 'Stashboard didn’t find any scenes in Stash for this view. Once Stash has some, run Sync now in Settings → Indexing.';
     }
 
     return firstUseEmptyStateCopy('library').message;

@@ -163,7 +163,7 @@ describe('IndexingSettingsPageComponent', () => {
     expect(notifications.success).toHaveBeenCalledWith('Downloads in Whisparr finished');
   });
 
-  it('triggers Sync All from the manual actions panel', async () => {
+  it('syncs everything from Sync now', async () => {
     const { fixture, indexingService } = await renderPage(
       buildStatus({
         jobs: [

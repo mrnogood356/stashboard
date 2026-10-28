@@ -287,7 +287,7 @@ describe('RuntimeHealthService', () => {
     expect(shellBanner?.textContent).toContain('Whisparr is currently unavailable.');
     expect(acquisitionAlert?.textContent).toContain('Whisparr needs attention');
     expect(acquisitionAlert?.textContent).toContain(
-      'Queue state, failures, and request progression may be stale',
+      'Download progress and failures may be out of date',
     );
   });
 });
