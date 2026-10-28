@@ -528,7 +528,7 @@ describe('DownloadDropInService', () => {
       finishedAt: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
-    } as DownloadDropIn);
+    });
     await write(path.join(sabFolder, 'Untouched', 'notes.nfo'));
 
     await service.check(later());
