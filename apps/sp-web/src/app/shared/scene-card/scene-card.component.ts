@@ -152,7 +152,12 @@ export class SceneCardComponent implements OnInit {
   protected statusIcon(): SceneStatus | null {
     const status = this.item.status;
     // Said once: not as an icon when the footer already says it in words.
-    return status && status.state !== 'NOT_REQUESTED' && !this.footerStatus() ? status : null;
+    return status && status.state !== 'NOT_REQUESTED' && !this.showsFooterStatus() ? status : null;
+  }
+
+  /** The footer shows the status badge only when no Find or Search button takes its place. */
+  protected showsFooterStatus(): boolean {
+    return !!this.footerStatus() && !this.canFindDownloads() && !this.canSearchReleases();
   }
 
   protected primaryLink(): SceneCardShellLink {

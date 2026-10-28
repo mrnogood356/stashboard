@@ -80,6 +80,9 @@ describe('SceneCardComponent', () => {
 
     const search = fixture.nativeElement.querySelector('.search-cta') as HTMLButtonElement;
     expect(search?.textContent).toContain('Search');
+    // Search takes the footer, so the status stays on the picture.
+    expect(fixture.nativeElement.querySelector('.footer-status-badge')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.status-icon')).not.toBeNull();
     search.click();
 
     expect(TestBed.inject(ReleaseSearchService).target()).toEqual({

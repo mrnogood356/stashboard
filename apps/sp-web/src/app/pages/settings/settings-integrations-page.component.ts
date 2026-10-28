@@ -772,7 +772,6 @@ export class SettingsIntegrationsPageComponent implements OnInit {
         next: ({ integrations, health, setupStatus }) => {
           this.syncSettingsState(setupStatus, integrations);
           this.health.set(health);
-          this.scrollToMappingIfLinked();
         },
         error: () => {
           this.healthError.set('Failed to refresh health data.');
@@ -806,6 +805,7 @@ export class SettingsIntegrationsPageComponent implements OnInit {
         next: ({ integrations, health, setupStatus }) => {
           this.syncSettingsState(setupStatus, integrations);
           this.health.set(health);
+          this.scrollToMappingIfLinked();
         },
         error: () => {
           this.loadError.set('Failed to load settings data from the API.');

@@ -94,6 +94,9 @@
   display: grid;
   gap: 0.15rem;
   align-content: start;
+  /* Scrolls on short windows so the footer (Log out) stays reachable. */
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .nav-item,
@@ -576,6 +579,15 @@
 @media (max-width: 900px) {
   .layout:not(.mobile-shell) {
     grid-template-columns: 76px minmax(0, 1fr);
+  }
+
+  /* Too narrow for group names: keep the space between groups, drop the words. */
+  .layout:not(.mobile-shell) .nav-group-label {
+    height: 0.75rem;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    visibility: hidden;
   }
 
   .layout:not(.mobile-shell) .brand-name,

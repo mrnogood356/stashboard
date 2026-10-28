@@ -345,6 +345,22 @@ describe('SettingsIntegrationsPageComponent', () => {
       'Repair Whisparr connection details if needed, then Save & Test again to restore readiness.',
     );
     expect(textContent(panel)).toContain('bad credentials');
+
+    // The failed service opens on load; refreshing health leaves the open row alone.
+    const head = (title: string) =>
+      panelByTitle(fixture, title).querySelector('button.card-head') as HTMLButtonElement;
+    expect(head('Whisparr').getAttribute('aria-expanded')).toBe('true');
+    head('Stash').click();
+    fixture.detectChanges();
+    expect(head('Stash').getAttribute('aria-expanded')).toBe('true');
+
+    const refresh = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+    ).find((button) => textContent(button) === 'Refresh health') as HTMLButtonElement;
+    refresh.click();
+    fixture.detectChanges();
+    expect(head('Stash').getAttribute('aria-expanded')).toBe('true');
+    expect(head('Whisparr').getAttribute('aria-expanded')).toBe('false');
   });
 
   it('keeps the chosen catalog provider locked and separates repair from reset guidance', async () => {
