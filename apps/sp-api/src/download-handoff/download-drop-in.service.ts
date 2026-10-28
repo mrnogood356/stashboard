@@ -151,6 +151,8 @@ export class DownloadDropInService {
   };
   /** The state last logged, so each change is said once, not every check. */
   private announcedKey: string | null = null;
+  /** Drop-ins are off; only finished downloads' other videos are looked for. */
+  private extrasOnly = false;
   private category = DEFAULT_HANDOFF_CATEGORY;
   private lastCheckAt: number | null = null;
   private lastResult: string | null = null;
@@ -308,6 +310,7 @@ export class DownloadDropInService {
     // brought in: Finished downloads moves only its main video.
     const extrasOnly =
       off?.reason === 'drop-ins-off' && settings.importMode !== 'copy';
+    this.extrasOnly = extrasOnly;
     if (off) {
       this.skipped = [];
       this.setOff(off.reason, off.message);
@@ -424,14 +427,20 @@ export class DownloadDropInService {
     }
     const busy = (top: string) =>
       found.files.some((file) => isInside(file, top));
-    for (const top of [...tops]
-      .filter((top) => !busy(top))
-      .slice(0, MAX_SWEEP)) {
+    // Folders already gone don't count: only the ones looked into.
+    let looked = 0;
+    for (const top of [...tops].filter((top) => !busy(top))) {
+      if (looked >= MAX_SWEEP) {
+        break;
+      }
       const result = await removeJobFolder({
         folder: top,
         categoryFolder: found.folder,
         completedFolder: found.completed,
       });
+      if (result.result !== 'gone') {
+        looked += 1;
+      }
       if (result.result === 'removed') {
         this.logger.log(
           `Removed ${top}: everything in it has been brought in.`,
@@ -815,6 +824,14 @@ export class DownloadDropInService {
     folder?: string | null;
     sabFolder?: string | null;
   }): Promise<void> {
+    if (this.extrasOnly) {
+      // Drop-ins are off: the status says so, and a finished download's
+      // other videos wait for the next check.
+      this.logger.debug(
+        `Couldn't bring in the other videos of finished downloads: ${problem.message}`,
+      );
+      return;
+    }
     this.settling.keepOnly(new Set());
     this.skipped = [];
     this.watchStatus = {
