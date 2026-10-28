@@ -188,8 +188,17 @@ export type HandoffStage =
   | 'failed'
   | 'ignored';
 
+/** The catalog scene a download was sent for, when Stashboard knows it. */
+export interface HandoffSceneDto {
+  title: string;
+  imageUrl: string | null;
+  studio: string | null;
+}
+
 export interface ProcessingHandoffDto extends DownloadHandoffDto {
   stage: HandoffStage;
+  /** Title, picture and studio of the scene it's for; null when unknown. */
+  scene: HandoffSceneDto | null;
   /** How much SABnzbd has downloaded, 0–100; null when it doesn't say. */
   progress: number | null;
   /** Time left as SABnzbd shows it, e.g. "0:12:30". */

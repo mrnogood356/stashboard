@@ -112,7 +112,108 @@
       }
     </nav>
 
-    @if (!hasItems()) {
+    @if (handoffs().length > 0) {
+      <section
+        class="lifecycle-section app-section-panel handoff-section"
+        data-tone="active"
+        data-testid="handoff-section"
+      >
+        <div class="lifecycle-section-head app-section-head">
+          <div class="app-section-head__copy">
+            <div class="section-title-row">
+              <h3>Downloads you started</h3>
+              <span class="section-count">{{ countLabel(handoffs().length, 'download') }}</span>
+            </div>
+            <p>Sent to SABnzbd from Find downloads or Prowlarr.</p>
+          </div>
+          <a class="secondary-action compact" routerLink="/processing">Downloads</a>
+        </div>
+        <div class="acquisition-list">
+          @for (handoff of handoffs(); track handoff.id) {
+            <article
+              class="acquisition-card"
+              [attr.data-state]="handoff.stage === 'failed' ? 'FAILED' : 'DOWNLOADING'"
+              [attr.data-testid]="'handoff-' + handoff.id"
+            >
+              <div class="card-art-link">
+                @if (handoff.scene?.imageUrl; as image) {
+                  <img
+                    class="card-art"
+                    [src]="image"
+                    [alt]="handoff.scene?.title ?? ''"
+                    loading="lazy"
+                  />
+                } @else {
+                  <div class="card-art placeholder" aria-hidden="true"></div>
+                }
+              </div>
+              <div class="card-body">
+                <div class="card-status-row">
+                  @if (handoff.scene?.studio; as studio) {
+                    <span class="studio-pill">{{ studio }}</span>
+                  }
+                </div>
+                <div class="card-copy">
+                  <h4 class="card-title">{{ handoff.scene?.title ?? handoff.releaseTitle }}</h4>
+                  @if (handoff.scene) {
+                    <p class="release-name">{{ handoff.releaseTitle }}</p>
+                  }
+                  <ng-container
+                    [ngTemplateOutlet]="stageTrack"
+                    [ngTemplateOutletContext]="{
+                      stages: handoffStages(handoff),
+                      now: handoffStageNow(handoff),
+                      title: handoff.scene?.title ?? handoff.releaseTitle,
+                      id: handoff.id,
+                    }"
+                  />
+                  @if (handoff.stage === 'downloading' || handoff.stage === 'unpacking') {
+                    <div class="download-progress" [attr.data-testid]="'download-' + handoff.id">
+                      @if (handoff.progress !== null) {
+                        <div
+                          class="download-bar"
+                          role="progressbar"
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                          [attr.aria-valuenow]="handoff.progress"
+                          [attr.aria-label]="'Download of ' + handoff.releaseTitle"
+                        >
+                          <span [style.width.%]="handoff.progress"></span>
+                        </div>
+                      }
+                      @if (handoffProgressText(handoff); as text) {
+                        <span class="download-text">{{ text }}</span>
+                      }
+                    </div>
+                  }
+                  @if (handoff.detail) {
+                    <p class="detail" [class.detail-failed]="handoff.stage === 'failed'">
+                      {{ handoff.detail }}
+                    </p>
+                  }
+                </div>
+                <div class="card-actions app-action-row">
+                  @if (handoff.sceneId) {
+                    <a
+                      class="primary-link small"
+                      [routerLink]="['/scene', handoff.sceneId]"
+                      [queryParams]="{ returnTo: currentRouteUrl() }"
+                    >
+                      Scene details
+                    </a>
+                  }
+                  @if (handoff.stage === 'failed') {
+                    <a class="secondary-link small" routerLink="/processing">Retry in Downloads</a>
+                  }
+                </div>
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+    }
+
+    @if (!hasItems() && handoffs().length === 0) {
       <section
         class="state-shell empty-shell app-state-block"
         data-testid="acquisition-empty-state"
@@ -142,7 +243,7 @@
           }
         </div>
       </section>
-    } @else {
+    } @else if (hasItems()) {
       <section class="section-shell app-section-panel">
         @if (hasSearch()) {
           <div class="section-shell-head app-section-head">
@@ -309,31 +410,15 @@
                           {{ item.title }}
                         </a>
                       </h4>
-                      <ol
-                        class="stage-track"
-                        [attr.aria-label]="'Progress: ' + item.title"
-                        [attr.data-testid]="'stage-track-' + item.id"
-                      >
-                        @for (stage of stages(item); track stage.label) {
-                          <li
-                            class="stage"
-                            [attr.data-state]="stage.state"
-                            [attr.aria-current]="
-                              stage.state === 'current' || stage.state === 'failed' ? 'step' : null
-                            "
-                          >
-                            <span class="stage-dot" aria-hidden="true">
-                              @if (stage.state === 'done') {
-                                <i class="pi pi-check"></i>
-                              } @else if (stage.state === 'failed') {
-                                <i class="pi pi-times"></i>
-                              }
-                            </span>
-                            <span class="stage-label">{{ stage.label }}</span>
-                          </li>
-                        }
-                      </ol>
-                      <p class="stage-now">{{ stageNow(item) }}</p>
+                      <ng-container
+                        [ngTemplateOutlet]="stageTrack"
+                        [ngTemplateOutletContext]="{
+                          stages: stages(item),
+                          now: stageNow(item),
+                          title: item.title,
+                          id: item.id,
+                        }"
+                      />
 
                       @if (item.status.state === 'DOWNLOADING' && item.download; as download) {
                         <div class="download-progress" [attr.data-testid]="'download-' + item.id">
@@ -539,4 +624,32 @@
       </button>
     </app-selection-bar>
   }
+
+  <ng-template #stageTrack let-stages="stages" let-now="now" let-title="title" let-id="id">
+    <ol
+      class="stage-track"
+      [attr.aria-label]="'Progress: ' + title"
+      [attr.data-testid]="'stage-track-' + id"
+    >
+      @for (stage of stages; track stage.label) {
+        <li
+          class="stage"
+          [attr.data-state]="stage.state"
+          [attr.aria-current]="
+            stage.state === 'current' || stage.state === 'failed' ? 'step' : null
+          "
+        >
+          <span class="stage-dot" aria-hidden="true">
+            @if (stage.state === 'done') {
+              <i class="pi pi-check"></i>
+            } @else if (stage.state === 'failed') {
+              <i class="pi pi-times"></i>
+            }
+          </span>
+          <span class="stage-label">{{ stage.label }}</span>
+        </li>
+      }
+    </ol>
+    <p class="stage-now">{{ now }}</p>
+  </ng-template>
 </main>

@@ -211,6 +211,17 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
+.release-name {
+  margin: -0.2rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.handoff-section {
+  margin-top: 1rem;
+}
+
 .added-at {
   font-size: 0.8rem;
   font-weight: 600;

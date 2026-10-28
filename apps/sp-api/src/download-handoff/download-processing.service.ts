@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DownloadDropIn, DownloadHandoff } from '@prisma/client';
 import * as path from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
+import { withStashImageSize } from '../providers/stashdb/stashdb-image-url.util';
 import {
   SabnzbdAdapter,
   SabnzbdHistoryEntry,
@@ -13,6 +14,7 @@ import {
   DEFAULT_HANDOFF_CATEGORY,
   MANUAL_HANDOFF_SOURCE,
   OPEN_HANDOFF_STATUSES,
+  type HandoffSceneDto,
   type HandoffStatus,
   type ProcessingDropInDto,
   type ProcessingDto,
@@ -82,8 +84,15 @@ export class DownloadProcessingService {
       sab && waiting ? await this.liveSab(sab, category, now) : undefined;
     const watch = this.dropIns.status();
 
-    const handoffs = open.map((row) => handoffItem(row, live ?? null));
-    const recentHandoffs = done.map((row) => handoffItem(row, null));
+    const scenes = await this.scenesFor([...open, ...done]);
+    const withScene = (item: ProcessingHandoffDto): ProcessingHandoffDto => ({
+      ...item,
+      scene: (item.sceneId && scenes.get(item.sceneId)) || null,
+    });
+    const handoffs = open.map((row) =>
+      withScene(handoffItem(row, live ?? null)),
+    );
+    const recentHandoffs = done.map((row) => withScene(handoffItem(row, null)));
     const recent = recentDropIns.map(dropInItem);
     const since = now - PROBLEM_WINDOW_MS;
     const recentFailures =
@@ -110,6 +119,47 @@ export class DownloadProcessingService {
       activeCount: handoffs.length + watch.settling.length + placed.length,
       problemCount: recentFailures + (watch.state === 'problem' ? 1 : 0),
     };
+  }
+
+  /** What Stashboard knows of the scenes these downloads are for, by id. */
+  private async scenesFor(
+    rows: DownloadHandoff[],
+  ): Promise<Map<string, HandoffSceneDto>> {
+    const ids = [
+      ...new Set(rows.flatMap((row) => (row.sceneId ? [row.sceneId] : []))),
+    ];
+    if (ids.length === 0) {
+      return new Map();
+    }
+    try {
+      const found = await this.prisma.sceneIndex.findMany({
+        where: { stashId: { in: ids }, title: { not: null } },
+        select: {
+          stashId: true,
+          title: true,
+          imageUrl: true,
+          studioName: true,
+        },
+      });
+      return new Map(
+        found.map((scene) => [
+          scene.stashId,
+          {
+            title: scene.title ?? scene.stashId,
+            imageUrl: scene.imageUrl
+              ? withStashImageSize(scene.imageUrl, 600)
+              : null,
+            studio: scene.studioName,
+          },
+        ]),
+      );
+    } catch (error) {
+      // The list still works with release names alone.
+      this.logger.debug(
+        `Scene details for downloads left off: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return new Map();
+    }
   }
 
   /** SABnzbd's queue and history for the category, briefly cached; null when unreachable. */
@@ -160,6 +210,7 @@ export function handoffItem(
   ): ProcessingHandoffDto => ({
     ...base,
     stage,
+    scene: null,
     detail,
     progress,
     timeLeft,

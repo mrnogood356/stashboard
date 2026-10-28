@@ -214,8 +214,17 @@ describe('DownloadProcessingService', () => {
     placed?: DownloadDropIn[];
     recent?: DownloadDropIn[];
     watch?: DropInWatchStatusDto;
+    scenes?: Array<{
+      stashId: string;
+      title: string;
+      imageUrl: string | null;
+      studioName: string | null;
+    }>;
   }) {
     const prisma = {
+      sceneIndex: {
+        findMany: jest.fn().mockResolvedValue(rows.scenes ?? []),
+      },
       downloadHandoff: {
         findMany: jest.fn(({ where }: { where: { status: object } }) =>
           Promise.resolve('in' in where.status ? rows.open : rows.done),
@@ -303,6 +312,35 @@ describe('DownloadProcessingService', () => {
     // One download, one file settling, one waiting for Stash.
     expect(snapshot.activeCount).toBe(3);
     expect(snapshot.problemCount).toBe(1);
+  });
+
+  it('names the scene each download is for, when Stashboard knows it', async () => {
+    const { service } = setup({
+      open: [
+        handoff({ sceneId: 'scene-1' }),
+        handoff({ id: 'h2', sceneId: null }),
+      ],
+      done: [],
+      placed: [],
+      recent: [],
+      scenes: [
+        {
+          stashId: 'scene-1',
+          title: 'Golden Hour',
+          imageUrl: 'https://cdn.stashdb.org/images/ab/cd/abcd',
+          studioName: 'Northside',
+        },
+      ],
+    });
+
+    const snapshot = await service.snapshot(at.getTime());
+
+    expect(snapshot.handoffs[0].scene).toEqual({
+      title: 'Golden Hour',
+      imageUrl: expect.stringContaining('abcd'),
+      studio: 'Northside',
+    });
+    expect(snapshot.handoffs[1].scene).toBeNull();
   });
 
   it('asks SABnzbd at most every few seconds, and only with downloads in flight', async () => {

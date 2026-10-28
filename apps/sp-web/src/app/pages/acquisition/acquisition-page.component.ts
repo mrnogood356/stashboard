@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { SelectionBarComponent } from '../../shared/selection-bar/selection-bar.component';
 import {
@@ -18,6 +19,10 @@ import { Message } from 'primeng/message';
 import { Select } from 'primeng/select';
 import { ProgressSpinner } from 'primeng/progressspinner';
 import { AcquisitionService } from '../../core/api/acquisition.service';
+import {
+  DownloadHandoffApiService,
+  ProcessingHandoff,
+} from '../../core/api/download-handoff.service';
 import { ReleaseSearchService } from '../../core/releases/release-search.service';
 import { OrganizerApiService, WaitingCheck } from '../../core/api/organizer.service';
 import {
@@ -59,6 +64,8 @@ export interface AcquisitionStage {
 }
 
 const STAGE_LABELS = ['Requested', 'Downloading', 'Waiting for Stash', 'In library'] as const;
+/** A failed download you started stays on Requests this long. */
+const FAILED_HANDOFF_SHOWN_MS = 24 * 3600_000;
 /** While something is downloading, the list refreshes itself this often. */
 const LIVE_REFRESH_MS = 15_000;
 /** The API sends at most 50 at once: up to two pages refresh as one. */
@@ -100,6 +107,7 @@ interface AcquisitionPageAlert {
 @Component({
   selector: 'app-acquisition-page',
   imports: [
+    NgTemplateOutlet,
     RouterLink,
     FormsModule,
     Message,
@@ -129,6 +137,99 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   ];
 
   private readonly acquisitionService = inject(AcquisitionService);
+  private readonly downloadsApi = inject(DownloadHandoffApiService);
+
+  // ---------- downloads you started (Find downloads, Prowlarr) ----------
+
+  /** In flight, or failed in the last day; SABnzbd's, so not in Whisparr's list. */
+  protected readonly handoffs = signal<ProcessingHandoff[]>([]);
+  private handoffsLoading = false;
+
+  /** Only All and Downloading show them, and not while searching. */
+  private showsHandoffs(): boolean {
+    const lifecycle = this.selectedLifecycle();
+    return !this.hasSearch() && (lifecycle === 'ANY' || lifecycle === 'DOWNLOADING');
+  }
+
+  private loadHandoffs(): void {
+    if (!this.showsHandoffs()) {
+      this.handoffs.set([]);
+      return;
+    }
+    if (this.handoffsLoading) {
+      return;
+    }
+    this.handoffsLoading = true;
+    const lifecycle = this.selectedLifecycle();
+    this.downloadsApi
+      .processing()
+      .pipe(finalize(() => (this.handoffsLoading = false)))
+      .subscribe({
+        next: (processing) => {
+          if (this.selectedLifecycle() !== lifecycle || !this.showsHandoffs()) {
+            return;
+          }
+          const since = Date.now() - FAILED_HANDOFF_SHOWN_MS;
+          const active = processing.handoffs.filter((handoff) => handoff.stage !== 'ignored');
+          const failed = processing.recentHandoffs.filter(
+            (handoff) => handoff.stage === 'failed' && Date.parse(handoff.updatedAt) >= since,
+          );
+          this.handoffs.set(
+            lifecycle === 'DOWNLOADING'
+              ? active.filter((handoff) =>
+                  ['queued', 'downloading', 'unpacking'].includes(handoff.stage),
+                )
+              : [...active, ...failed],
+          );
+        },
+        // Without SABnzbd the rest of Requests still works.
+        error: () => this.handoffs.set([]),
+      });
+  }
+
+  /** The same four steps as a request, from where SABnzbd and Stashboard are. */
+  protected handoffStages(handoff: ProcessingHandoff): AcquisitionStage[] {
+    const at =
+      handoff.stage === 'queued'
+        ? 0
+        : handoff.stage === 'downloading' || handoff.stage === 'unpacking'
+          ? 1
+          : handoff.stage === 'moving' || handoff.stage === 'linking'
+            ? 2
+            : handoff.stage === 'done'
+              ? 3
+              : handoff.finalPath
+                ? 2
+                : 1;
+    const failed = handoff.stage === 'failed';
+    return STAGE_LABELS.map((label, index) => ({
+      label,
+      state:
+        index < at || (index === at && handoff.stage === 'done')
+          ? 'done'
+          : index === at
+            ? failed
+              ? 'failed'
+              : 'current'
+            : 'todo',
+    }));
+  }
+
+  protected handoffStageNow(handoff: ProcessingHandoff): string {
+    return this.stageNowText(this.handoffStages(handoff));
+  }
+
+  protected handoffProgressText(handoff: ProcessingHandoff): string | null {
+    const left = this.timeLeftText(handoff.timeLeft);
+    const parts = [handoff.progress !== null ? `${handoff.progress}%` : null, left].filter(Boolean);
+    return parts.length ? parts.join(' · ') : null;
+  }
+
+  private handoffsActive(): boolean {
+    return this.handoffs().some((handoff) =>
+      ['queued', 'downloading', 'unpacking', 'moving', 'linking'].includes(handoff.stage),
+    );
+  }
   private readonly notifications = inject(AppNotificationsService);
   private readonly timelineApi = inject(TimelineApiService);
 
@@ -640,7 +741,10 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
 
   /** On phones the track's words don't fit: "Step 2 of 4 · Downloading" instead. */
   protected stageNow(item: AcquisitionSceneItem): string {
-    const stages = this.stages(item);
+    return this.stageNowText(this.stages(item));
+  }
+
+  private stageNowText(stages: AcquisitionStage[]): string {
     const index = stages.findIndex(
       (stage) => stage.state === 'current' || stage.state === 'failed',
     );
@@ -978,6 +1082,10 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
    * outright; past that the loaded cards are updated where they are.
    */
   private liveRefresh(): void {
+    const visible = typeof document === 'undefined' || document.visibilityState !== 'hidden';
+    if (visible && this.handoffsActive()) {
+      this.loadHandoffs();
+    }
     if (
       this.liveRefreshing ||
       this.inFlight() ||
@@ -1121,6 +1229,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     this.loadingMore.set(false);
     this.error.set(null);
     this.loadMoreError.set(null);
+    this.loadHandoffs();
 
     if (this.inFlight()) {
       this.pendingReload = true;
