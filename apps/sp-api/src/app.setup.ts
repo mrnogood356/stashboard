@@ -1,6 +1,7 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import type { Request, Response } from 'express';
+import compression from 'compression';
+import type { RequestHandler, Request, Response } from 'express';
 import helmet from 'helmet';
 import { httpRequestLogger } from './logging/http-request-logger';
 import {
@@ -26,6 +27,7 @@ export function configureApp(app: NestExpressApplication): void {
 
   // One debug line per API request; a warning when it fails or is slow.
   app.use(httpRequestLogger());
+  app.use(responseCompression());
   app.use(securityHeaders());
 
   // Lets browse pages pick a secondary catalog provider per request.
@@ -43,6 +45,17 @@ export function configureApp(app: NestExpressApplication): void {
       transform: true,
     }),
   );
+}
+
+/**
+ * Pages, scripts and API answers go out gzipped: a quarter of the size or
+ * less. Video and images are already compressed, and a byte range is sent as
+ * is so seeking keeps working.
+ */
+export function responseCompression(): RequestHandler {
+  return compression({
+    filter: (req, res) => !req.headers.range && compression.filter(req, res),
+  });
 }
 
 /**

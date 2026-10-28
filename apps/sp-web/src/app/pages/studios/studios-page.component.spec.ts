@@ -12,6 +12,7 @@ function studio(overrides: Partial<StudioFeedItem> = {}): StudioFeedItem {
     name: 'Studio One',
     isFavorite: false,
     imageUrl: null,
+    cardImageUrl: null,
     parentStudio: null,
     childStudios: [],
     ...overrides,

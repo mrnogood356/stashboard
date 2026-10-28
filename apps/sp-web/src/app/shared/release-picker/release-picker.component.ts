@@ -23,6 +23,7 @@ import {
   WhisparrRelease,
 } from '../../core/api/releases.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
+import { ReleaseSearchService } from '../../core/releases/release-search.service';
 import { OwnedCopiesWarningComponent } from '../owned-copies-warning/owned-copies-warning.component';
 
 export type ReleaseSort = 'best' | 'size-desc' | 'size-asc' | 'seeders';
@@ -46,7 +47,8 @@ const SORTS: Array<{ id: ReleaseSort; label: string }> = [
  *
  * With source "prowlarr" it's "Find downloads" instead: the same list from
  * Prowlarr's indexers, for scenes Whisparr can't request, and each release
- * has its own Download button.
+ * has its own Download button. When Whisparr finds nothing, the sheet offers
+ * the same Prowlarr search for the scene.
  */
 @Component({
   selector: 'app-release-picker',
@@ -57,6 +59,7 @@ const SORTS: Array<{ id: ReleaseSort; label: string }> = [
 export class ReleasePickerComponent implements OnChanges, OnDestroy {
   private readonly api = inject(ReleasesApiService);
   private readonly notifications = inject(AppNotificationsService);
+  private readonly releaseSearch = inject(ReleaseSearchService);
 
   @Input() open = false;
   @Input() stashId: string | null = null;
@@ -69,6 +72,10 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
   @ViewChild('sheet') private sheet?: ElementRef<HTMLElement>;
 
   protected readonly sorts = SORTS;
+  /** Where this search goes: what was asked for, or Prowlarr after Whisparr found nothing. */
+  private readonly activeSource = signal<ReleaseSource>('whisparr');
+  /** Whether Prowlarr can be offered when Whisparr finds nothing. */
+  protected readonly prowlarrReady = this.releaseSearch.prowlarrReady;
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   /** Why the search may have come back empty, on Whisparr's side. */
@@ -148,6 +155,10 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
     if ((changes['open'] || changes['stashId']) && this.open && this.stashId) {
       this.previousFocus = document.activeElement as HTMLElement | null;
       this.typedQuery.set('');
+      this.activeSource.set(this.source);
+      if (this.source === 'whisparr') {
+        this.releaseSearch.checkProwlarr();
+      }
       this.checkOwnedCopies(this.stashId);
       this.search();
       setTimeout(() => this.sheet?.nativeElement.focus(), 0);
@@ -237,7 +248,19 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
   }
 
   protected viaProwlarr(): boolean {
-    return this.source === 'prowlarr';
+    return this.activeSource() === 'prowlarr';
+  }
+
+  /** Whisparr found nothing usable: the same scene, searched through Prowlarr. */
+  protected searchProwlarr(): void {
+    this.activeSource.set('prowlarr');
+    this.typedQuery.set('');
+    this.search();
+  }
+
+  /** Offered once Whisparr's search is in and has nothing to pick. */
+  protected offerProwlarr(): boolean {
+    return this.source === 'whisparr' && !this.viaProwlarr() && this.prowlarrReady() === true;
   }
 
   protected isGrabbing(release: WhisparrRelease): boolean {

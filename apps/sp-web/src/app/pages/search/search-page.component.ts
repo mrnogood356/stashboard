@@ -31,6 +31,8 @@ import { LibraryService } from '../../core/api/library.service';
 import { LibrarySceneItem } from '../../core/api/library.types';
 import { LocalLibraryService, LocalSearchResults } from '../../core/api/local-library.service';
 import { SceneCardComponent } from '../../shared/scene-card/scene-card.component';
+import { HideOwnedService, isOwned } from '../../core/preferences/hide-owned.service';
+import { OwnedToggleComponent } from '../../shared/owned-toggle/owned-toggle.component';
 import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
@@ -81,6 +83,7 @@ const EMPTY: SearchResults = {
   imports: [
     RouterLink,
     SceneCardComponent,
+    OwnedToggleComponent,
     SceneRequestModalComponent,
     HiddenCountComponent,
     OverflowXDirective,
@@ -92,6 +95,7 @@ export class SearchPageComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly discover = inject(DiscoverService);
+  private readonly hideOwned = inject(HideOwnedService);
   private readonly library = inject(LibraryService);
   private readonly local = inject(LocalLibraryService);
   /** Settings → Playback: off hides the swipe feed shortcut. */
@@ -207,6 +211,15 @@ export class SearchPageComponent implements OnInit, OnDestroy {
   }
 
   /** Remembers the search when you act on a result or press Search/Enter. */
+  /** Catalog scenes to show: all, or only the ones you don't have. */
+  protected shownCatalog(items: SceneExplorerItem[]): SceneExplorerItem[] {
+    return this.hideOwned.filter(items);
+  }
+
+  protected ownedIn(items: SceneExplorerItem[]): number {
+    return items.filter(isOwned).length;
+  }
+
   protected remember(): void {
     const value = this.query().trim();
     if (value.length < MIN_QUERY) {

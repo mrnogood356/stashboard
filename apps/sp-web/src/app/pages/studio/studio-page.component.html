@@ -310,6 +310,8 @@
       </div>
     </section>
 
+    <app-owned-toggle class="owned-line" [count]="ownedCount()" />
+
     @if (loadingScenes()) {
       <div class="app-blocking-loader" role="status" aria-live="polite">
         <p-progressspinner
@@ -326,7 +328,7 @@
       <p class="state">No scenes found for this studio and filters.</p>
     } @else {
       <section class="grid">
-        @for (item of scenes(); track item.id) {
+        @for (item of shownScenes(); track item.id) {
           <app-scene-card
             [item]="item"
             [requestable]="isRequestable(item)"

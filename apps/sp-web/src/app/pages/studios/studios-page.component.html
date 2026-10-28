@@ -120,13 +120,8 @@
             <i [class]="item.isFavorite ? 'pi pi-star-fill' : 'pi pi-star'" aria-hidden="true"></i>
           </button>
 
-          @if (item.imageUrl) {
-            <img
-              class="studio-image"
-              [src]="item.imageUrl"
-              [alt]="item.name + ' logo'"
-              loading="lazy"
-            />
+          @if (item.cardImageUrl ?? item.imageUrl; as image) {
+            <img class="studio-image" [src]="image" [alt]="item.name + ' logo'" loading="lazy" />
           } @else {
             <div class="studio-image placeholder" aria-hidden="true">
               {{ studioInitial(item.name) }}

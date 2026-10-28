@@ -8,6 +8,8 @@ export interface StudioFeedItemDto {
   name: string;
   isFavorite: boolean;
   imageUrl: string | null;
+  /** The logo at card size (StashDB resizes it). */
+  cardImageUrl: string | null;
   parentStudio: StudioFeedChildDto | null;
   childStudios: StudioFeedChildDto[];
 }

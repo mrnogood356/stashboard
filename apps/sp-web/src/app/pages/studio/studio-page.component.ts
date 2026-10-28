@@ -5,6 +5,7 @@ import {
   OnDestroy,
   OnInit,
   ViewChild,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -41,6 +42,8 @@ import {
   isSceneStatusRequestable,
 } from '../../core/api/discover.types';
 import { SceneCardComponent } from '../../shared/scene-card/scene-card.component';
+import { HideOwnedService, isOwned } from '../../core/preferences/hide-owned.service';
+import { OwnedToggleComponent } from '../../shared/owned-toggle/owned-toggle.component';
 import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.component';
 import { HideToggleComponent } from '../../shared/hide-toggle/hide-toggle.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
@@ -64,6 +67,7 @@ interface MultiSelectOption {
     MultiSelect,
     ButtonDirective,
     SceneCardComponent,
+    OwnedToggleComponent,
     SceneRequestModalComponent,
     HiddenCountComponent,
   ],
@@ -177,6 +181,10 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly hiddenCount = signal(0);
   protected readonly scenesInFlight = signal(false);
   protected readonly scenes = signal<DiscoverItem[]>([]);
+  private readonly hideOwned = inject(HideOwnedService);
+  /** What the grid shows: every scene, or only the ones you don't have. */
+  protected readonly shownScenes = computed(() => this.hideOwned.filter(this.scenes()));
+  protected readonly ownedCount = computed(() => this.scenes().filter(isOwned).length);
 
   protected readonly requestModalOpen = signal(false);
   protected readonly requestContext = signal<SceneRequestContext | null>(null);

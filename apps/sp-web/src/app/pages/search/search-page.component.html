@@ -231,8 +231,9 @@
             [showing]="showHidden()"
             (toggled)="onShowHiddenChanged($event)"
           />
+          <app-owned-toggle [count]="ownedIn(result.catalogScenes)" />
           <div class="rail" appOverflowX #catalogRail="overflowX">
-            @for (item of result.catalogScenes; track item.id) {
+            @for (item of shownCatalog(result.catalogScenes); track item.id) {
               <app-scene-card
                 class="rail-card"
                 [item]="item"
@@ -320,8 +321,8 @@
                 (click)="remember()"
               >
                 <span class="avatar" [class.has-image]="!!studio.imageUrl">
-                  @if (studio.imageUrl) {
-                    <img [src]="studio.imageUrl" alt="" loading="lazy" />
+                  @if (studio.cardImageUrl ?? studio.imageUrl; as image) {
+                    <img [src]="image" alt="" loading="lazy" />
                   } @else {
                     <span>{{ initial(studio.name) }}</span>
                   }
