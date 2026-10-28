@@ -712,6 +712,7 @@
                         <app-scene-card
                           class="rail-card"
                           [item]="item"
+                          [studioBadgeRoute]="item.source === 'STASH' ? 'library' : 'studio'"
                           [requestable]="isRequestable(item)"
                           variant="rail"
                           [primaryLinkMode]="

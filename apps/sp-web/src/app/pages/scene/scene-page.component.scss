@@ -593,3 +593,22 @@ button {
   min-width: 0;
   margin-top: 0.6rem;
 }
+
+/* The studio above the title, opening its page on the catalog. */
+.studio-name {
+  display: inline-block;
+  margin-bottom: 0.25rem;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.studio-name:hover {
+  text-decoration: underline;
+}
+
+.studio-name:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

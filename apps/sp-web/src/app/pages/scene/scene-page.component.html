@@ -33,13 +33,21 @@
       @if (scene.studioImageUrl || scene.studioId) {
         <div class="studio-affordance-cluster">
           @if (scene.studioImageUrl) {
-            @if (scene.studioUrl) {
+            @if (scene.studioId) {
+              <a
+                class="studio-logo-overlay"
+                [routerLink]="['/studio', scene.studioId]"
+                [attr.aria-label]="studioLogoAriaLabel(scene)"
+              >
+                <img [src]="scene.studioImageUrl" alt="" />
+              </a>
+            } @else if (scene.studioUrl) {
               <a
                 class="studio-logo-overlay"
                 [href]="scene.studioUrl"
                 target="_blank"
                 rel="noopener noreferrer"
-                [attr.aria-label]="studioLogoAriaLabel(scene)"
+                [attr.aria-label]="studioSiteAriaLabel(scene)"
               >
                 <img [src]="scene.studioImageUrl" alt="" />
               </a>
@@ -80,6 +88,14 @@
         </div>
 
         <div class="hero-info">
+          @if (scene.studioId && scene.studio) {
+            <a
+              class="studio-name"
+              data-testid="scene-studio-link"
+              [routerLink]="['/studio', scene.studioId]"
+              >{{ scene.studio }}</a
+            >
+          }
           <div class="title-row">
             <h1>{{ scene.title }}</h1>
             <app-scene-status-badge [status]="scene.status" />

@@ -202,6 +202,18 @@ describe('ScenePageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Request in Whisparr');
   });
 
+  it('opens the studio on the catalog from its name and its logo', async () => {
+    const { fixture } = await renderScene(buildScene());
+    const root = fixture.nativeElement as HTMLElement;
+
+    const name = root.querySelector<HTMLAnchorElement>('[data-testid="scene-studio-link"]');
+    expect(name?.textContent?.trim()).toBe('Studio');
+    expect(name?.getAttribute('href')).toBe('/studio/studio-1');
+    expect(root.querySelector('a.studio-logo-overlay')?.getAttribute('href')).toBe(
+      '/studio/studio-1',
+    );
+  });
+
   it('offers Play in the built-in player when the scene is in Stash', async () => {
     const scene = buildScene({
       status: { state: 'AVAILABLE' },

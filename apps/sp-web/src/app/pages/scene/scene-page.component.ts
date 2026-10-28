@@ -167,6 +167,11 @@ export class ScenePageComponent implements OnInit, OnDestroy {
 
   protected studioLogoAriaLabel(scene: SceneDetails): string {
     const studioName = scene.studio?.trim();
+    return studioName ? `View studio ${studioName}` : 'View studio';
+  }
+
+  protected studioSiteAriaLabel(scene: SceneDetails): string {
+    const studioName = scene.studio?.trim();
     if (studioName) {
       return `Open ${studioName} in a new tab`;
     }
