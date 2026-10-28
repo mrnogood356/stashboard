@@ -11,6 +11,7 @@ import { Prisma, SceneLifecycle } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { IndexingService } from '../indexing/indexing.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { isProviderUnreachable } from '../providers/provider-response';
 import { CatalogProviderService } from '../providers/catalog/catalog-provider.service';
 import {
   type CatalogProviderKey,
@@ -72,6 +73,8 @@ export * from './organizer.model';
 
 /** How long "Sync with Whisparr" waits for Stash to rescan. */
 const SYNC_SCAN_TIMEOUT_MS = 30 * 60_000;
+/** Stash scenes loaded at once to identify them. */
+const LOAD_AT_ONCE = 4;
 
 /** Each list order, as Stash's sort field and direction. */
 const UNMATCHED_SORT_ORDER: Record<UnmatchedSort, [string, 'ASC' | 'DESC']> = {
@@ -986,6 +989,48 @@ export class OrganizerService
   }
 
   /**
+   * The scenes to identify, a few at a time. If Stash stops answering, the
+   * rest wait for the next run: said once, not once per scene.
+   */
+  private async loadToIdentify(
+    config: Parameters<StashAdapter['getOrganizerScene']>[0],
+    sceneIds: string[],
+  ): Promise<StashOrganizerScene[]> {
+    const loaded: StashOrganizerScene[] = [];
+    for (let start = 0; start < sceneIds.length; start += LOAD_AT_ONCE) {
+      const batch = sceneIds.slice(start, start + LOAD_AT_ONCE);
+      const results = await Promise.all(
+        batch.map((id) =>
+          this.stash.getOrganizerScene(config, id).then(
+            (scene) => ({ id, scene, error: null as unknown }),
+            (error: unknown) => ({ id, scene: null, error }),
+          ),
+        ),
+      );
+      let unreachable: unknown = null;
+      for (const result of results) {
+        if (result.scene) {
+          loaded.push(result.scene);
+        } else if (isProviderUnreachable(result.error)) {
+          unreachable = result.error;
+        } else if (result.error) {
+          this.logger.warn(
+            `Couldn't load Stash scene ${result.id} to identify it: ${messageOf(result.error)}`,
+          );
+        }
+      }
+      if (unreachable) {
+        const left = sceneIds.length - loaded.length;
+        this.logger.warn(
+          `Stash stopped answering while scenes were being identified; ${left} left for the next run: ${messageOf(unreachable)}`,
+        );
+        break;
+      }
+    }
+    return loaded;
+  }
+
+  /**
    * Identifies scenes Stash just picked up. A file Whisparr imported is
    * linked straight to the StashDB scene it was downloaded for: no guessing,
    * no fingerprints needed. The same video fingerprint is saved too; a
@@ -1009,20 +1054,7 @@ export class OrganizerService
     }
     const context = await this.context();
     const primary = context.sources.find((source) => source.primary);
-    const loaded = (
-      await Promise.all(
-        sceneIds.map((id) =>
-          this.stash
-            .getOrganizerScene(context.config, id)
-            .catch((error: unknown) => {
-              this.logger.warn(
-                `Couldn't load Stash scene ${id} to identify it: ${messageOf(error)}`,
-              );
-              return null;
-            }),
-        ),
-      )
-    ).filter((scene): scene is StashOrganizerScene => scene !== null);
+    const loaded = await this.loadToIdentify(context.config, sceneIds);
     const alreadyLinked = new Set(
       loaded
         .filter(

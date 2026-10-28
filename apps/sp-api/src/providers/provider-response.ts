@@ -86,3 +86,25 @@ function isAbortError(error: unknown): boolean {
   const name = (error as { name?: unknown } | null)?.name;
   return name === 'AbortError' || name === 'TimeoutError';
 }
+
+/**
+ * Stash, Whisparr or the catalog couldn't be reached at all (down,
+ * restarting, wrong address), as opposed to answering with an error.
+ */
+export function isProviderUnreachable(error: unknown): boolean {
+  return error instanceof Error && error.message.startsWith('Failed to reach ');
+}
+
+/** Stashboard's own database was restarting or briefly out of reach. */
+export function isDatabaseUnavailable(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === 'P1001' || code === 'P1017' || code === 'P2028') {
+    return true;
+  }
+  return (
+    error instanceof Error &&
+    /\b57P0[123]\b|the database system is (shutting down|starting up)|Transaction not found/i.test(
+      error.message,
+    )
+  );
+}
