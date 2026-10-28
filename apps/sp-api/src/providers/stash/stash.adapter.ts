@@ -1279,6 +1279,43 @@ export class StashAdapter extends StashLibraryToolsApi {
     };
   }
 
+  /**
+   * A cheap fingerprint of the library: the scene count plus the most recently
+   * changed scene. It moves whenever a scene is added, removed or updated, so a
+   * caller can skip a full library sync while it stays the same.
+   */
+  async getLibraryChangeMarker(
+    config: StashAdapterBaseConfig,
+  ): Promise<string> {
+    const query = `
+      query LibraryChangeMarker($filter: FindFilterType) {
+        findScenes(filter: $filter) {
+          count
+          scenes {
+            id
+            updated_at
+          }
+        }
+      }
+    `;
+    const payload = await this.executeQuery(config, query, {
+      filter: { page: 1, per_page: 1, sort: 'updated_at', direction: 'DESC' },
+    });
+    const found = payload.data?.findScenes;
+    const latest: unknown = found?.scenes?.[0];
+    const field = (key: string): string => {
+      const value =
+        latest && typeof latest === 'object'
+          ? (latest as Record<string, unknown>)[key]
+          : null;
+      return typeof value === 'string' || typeof value === 'number'
+        ? String(value)
+        : '';
+    };
+    const count = typeof found?.count === 'number' ? found.count : 0;
+    return `${count}|${field('id')}|${field('updated_at')}`;
+  }
+
   async searchTags(
     query: string,
     config: StashAdapterBaseConfig,

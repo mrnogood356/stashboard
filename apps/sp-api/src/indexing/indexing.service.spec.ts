@@ -1922,3 +1922,69 @@ describe('IndexingService', () => {
     );
   });
 });
+
+describe('IndexingService library change check', () => {
+  function build(markers: Array<string | Error>) {
+    const getLibraryChangeMarker = jest.fn();
+    for (const marker of markers) {
+      if (marker instanceof Error) {
+        getLibraryChangeMarker.mockRejectedValueOnce(marker);
+      } else {
+        getLibraryChangeMarker.mockResolvedValueOnce(marker);
+      }
+    }
+    const service = new IndexingService(
+      {} as PrismaService,
+      {} as IntegrationsService,
+      {} as CatalogProviderService,
+      {} as WhisparrAdapter,
+      { getLibraryChangeMarker } as unknown as StashAdapter,
+      {} as StashdbAdapter,
+      {} as SyncStateService,
+    );
+    jest
+      .spyOn(
+        service as unknown as { getStashConfig: () => Promise<unknown> },
+        'getStashConfig',
+      )
+      .mockResolvedValue({ baseUrl: 'http://stash.local', apiKey: null });
+    const sync = jest
+      .spyOn(service, 'syncLibraryProjection')
+      .mockResolvedValue({ processedCount: 1, updatedCount: 1 });
+    return { service, sync };
+  }
+
+  it('syncs only when Stash’s library has changed since the last check', async () => {
+    const { service, sync } = build(['10|a|t1', '10|a|t1', '11|b|t2']);
+
+    // The first check just records where Stash is.
+    await service.syncLibraryProjectionIfChanged();
+    await service.syncLibraryProjectionIfChanged();
+    expect(sync).not.toHaveBeenCalled();
+
+    await service.syncLibraryProjectionIfChanged();
+    expect(sync).toHaveBeenCalledTimes(1);
+    expect(sync).toHaveBeenCalledWith('library-changed');
+  });
+
+  it('tries again on the next check when the sync was skipped or failed', async () => {
+    const { service, sync } = build(['1|a|t1', '2|b|t2', '2|b|t2', '2|b|t2']);
+    sync.mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('boom'));
+
+    await service.syncLibraryProjectionIfChanged();
+    await service.syncLibraryProjectionIfChanged(); // lease held elsewhere
+    await expect(service.syncLibraryProjectionIfChanged()).rejects.toThrow(
+      'boom',
+    );
+    await service.syncLibraryProjectionIfChanged();
+
+    expect(sync).toHaveBeenCalledTimes(3);
+  });
+
+  it('stays quiet when Stash can’t be reached', async () => {
+    const { service, sync } = build([new Error('Failed to reach Stash')]);
+
+    await expect(service.syncLibraryProjectionIfChanged()).resolves.toBeNull();
+    expect(sync).not.toHaveBeenCalled();
+  });
+});

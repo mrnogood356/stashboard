@@ -64,6 +64,15 @@ export class IndexingScheduler implements OnApplicationBootstrap {
     );
   }
 
+  // A one-scene query: new scenes reach Home within half a minute, and the
+  // full sync only runs when something changed.
+  @Interval(30_000)
+  handleLibraryChangeCheck(): void {
+    this.runInBackground('library-change-check', () =>
+      this.indexingService.syncLibraryProjectionIfChanged(),
+    );
+  }
+
   @Interval(10_000)
   handleMetadataBackfill(): void {
     this.runInBackground('metadata-backfill', () =>

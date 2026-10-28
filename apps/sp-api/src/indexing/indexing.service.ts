@@ -30,6 +30,9 @@ export * from './indexing.model';
 
 @Injectable()
 export class IndexingService extends IndexingSync {
+  /** Where Stash's library was at the last change check; null until the first. */
+  private libraryChangeMarker: string | null = null;
+
   constructor(
     prisma: PrismaService,
     integrationsService: IntegrationsService,
@@ -202,6 +205,45 @@ export class IndexingService extends IndexingSync {
       },
       async () => this.performLibraryProjectionSync(reason),
     );
+  }
+
+  /**
+   * Runs the library sync early when Stash's library has changed since the
+   * last check, so new scenes reach Home within a check rather than waiting
+   * for the next full sync. The first check only records where Stash is.
+   */
+  async syncLibraryProjectionIfChanged(): Promise<SyncRunSummary | null> {
+    const config = await this.getStashConfig();
+    if (!config) {
+      return null;
+    }
+    let marker: string;
+    try {
+      marker = await this.stashAdapter.getLibraryChangeMarker(config);
+    } catch (error) {
+      // The full sync reports Stash being down; this check stays quiet.
+      this.logger.debug(
+        `Library change check skipped: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
+    }
+    const previous = this.libraryChangeMarker;
+    this.libraryChangeMarker = marker;
+    if (previous === null || previous === marker) {
+      return null;
+    }
+    try {
+      const result = await this.syncLibraryProjection('library-changed');
+      if (result === null) {
+        // Another sync held the lease; check again next time.
+        this.libraryChangeMarker = previous;
+      }
+      return result;
+    } catch (error) {
+      // Try again on the next check rather than waiting for the full sync.
+      this.libraryChangeMarker = previous;
+      throw error;
+    }
   }
 
   async syncMetadataBackfill(
