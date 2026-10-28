@@ -1,33 +1,17 @@
 /**
  * Follows each stash-box server's (StashDB, FansDB) own rules: neither
- * publishes a hard limit, so requests go straight through, no more at once
- * than a browser would open, and none while the server has asked to wait
- * (HTTP 429, Retry-After).
+ * publishes a limit, and Stashboard's lookups are few and mostly one at a
+ * time, so requests go straight through, except while a server has asked
+ * to wait (HTTP 429, Retry-After).
  */
 
-/** Requests in flight to one server at once, as a browser would allow. */
-const MAX_IN_FLIGHT = 6;
 /** How long to wait after a 429 that doesn't say. */
 const DEFAULT_BACKOFF_MS = 30_000;
 /** The longest a server's "Retry-After" is honoured for. */
 const MAX_BACKOFF_MS = 5 * 60_000;
 
-interface HostState {
-  inFlight: number;
-  pausedUntil: number;
-  waiting: Array<() => void>;
-}
-
-const hosts = new Map<string, HostState>();
-
-function stateFor(host: string): HostState {
-  let state = hosts.get(host);
-  if (!state) {
-    state = { inFlight: 0, pausedUntil: 0, waiting: [] };
-    hosts.set(host, state);
-  }
-  return state;
-}
+/** When each server said it would take requests again. */
+const pausedUntil = new Map<string, number>();
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => {
@@ -35,29 +19,16 @@ const sleep = (ms: number) =>
     timer.unref?.();
   });
 
-/**
- * Runs one request to the host when its turn comes, and lets the next one
- * go when it's done.
- */
+/** Runs one request to the host, once any pause it asked for is over. */
 export async function withCatalogSlot<T>(
   host: string,
   request: () => Promise<T>,
 ): Promise<T> {
-  const state = stateFor(host);
-  while (state.inFlight >= MAX_IN_FLIGHT) {
-    await new Promise<void>((resolve) => state.waiting.push(resolve));
+  const wait = (pausedUntil.get(host) ?? 0) - Date.now();
+  if (wait > 0) {
+    await sleep(wait);
   }
-  state.inFlight += 1;
-  try {
-    const wait = state.pausedUntil - Date.now();
-    if (wait > 0) {
-      await sleep(wait);
-    }
-    return await request();
-  } finally {
-    state.inFlight -= 1;
-    state.waiting.shift()?.();
-  }
+  return request();
 }
 
 /**
@@ -81,12 +52,11 @@ export function pauseCatalog(
     }
   }
   wait = Math.min(wait, MAX_BACKOFF_MS);
-  const state = stateFor(host);
-  state.pausedUntil = Math.max(state.pausedUntil, now + wait);
+  pausedUntil.set(host, Math.max(pausedUntil.get(host) ?? 0, now + wait));
   return wait;
 }
 
 /** For tests: forget every host's state. */
 export function resetCatalogRateLimit(): void {
-  hosts.clear();
+  pausedUntil.clear();
 }
