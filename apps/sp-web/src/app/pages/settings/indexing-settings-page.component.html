@@ -10,14 +10,7 @@
   </header>
 
   @if (loading()) {
-    <div class="app-blocking-loader" role="status" aria-live="polite">
-      <p-progressspinner
-        styleClass="app-blocking-spinner"
-        strokeWidth="4"
-        [style]="{ width: '2.25rem', height: '2.25rem' }"
-      />
-      <p>Loading indexing status...</p>
-    </div>
+    <app-skeleton kind="rows" [count]="5" label="Loading indexing status" />
   } @else if (loadError()) {
     <section class="state-shell">
       <p-message severity="error" styleClass="state-message">{{ loadError() }}</p-message>

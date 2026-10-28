@@ -1,3 +1,4 @@
+import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import { NgTemplateOutlet } from '@angular/common';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { SelectionBarComponent } from '../../shared/selection-bar/selection-bar.component';
@@ -17,7 +18,6 @@ import { finalize, Subscription } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { Message } from 'primeng/message';
 import { Select } from 'primeng/select';
-import { ProgressSpinner } from 'primeng/progressspinner';
 import { AcquisitionService } from '../../core/api/acquisition.service';
 import {
   DownloadHandoffApiService,
@@ -107,12 +107,12 @@ interface AcquisitionPageAlert {
 @Component({
   selector: 'app-acquisition-page',
   imports: [
+    SkeletonComponent,
     NgTemplateOutlet,
     RouterLink,
     FormsModule,
     Message,
     Select,
-    ProgressSpinner,
     SelectionBarComponent,
     SceneTimelineComponent,
   ],

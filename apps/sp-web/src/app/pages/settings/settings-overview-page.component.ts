@@ -1,8 +1,8 @@
+import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { Message } from 'primeng/message';
-import { ProgressSpinner } from 'primeng/progressspinner';
 import { RouterLink } from '@angular/router';
 import { SetupCheckApiService } from '../../core/api/setup-check.service';
 import { HealthService } from '../../core/api/health.service';
@@ -15,7 +15,7 @@ import { SETTINGS_SECTIONS, groupSettingsNav } from './settings-nav';
 
 @Component({
   selector: 'app-settings-overview-page',
-  imports: [Message, ProgressSpinner, RouterLink],
+  imports: [SkeletonComponent, Message, RouterLink],
   templateUrl: './settings-overview-page.component.html',
   styleUrls: ['./settings-overview-page.component.scss', './settings-shared.scss'],
 })

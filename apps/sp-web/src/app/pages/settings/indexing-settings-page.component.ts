@@ -1,8 +1,8 @@
+import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { finalize } from 'rxjs';
 import { ButtonDirective } from 'primeng/button';
 import { Message } from 'primeng/message';
-import { ProgressSpinner } from 'primeng/progressspinner';
 import { IndexingService } from '../../core/api/indexing.service';
 import {
   IndexingJobStatus,
@@ -80,7 +80,7 @@ const INDEXING_JOB_DEFINITIONS: Record<string, JobDefinition> = {
 
 @Component({
   selector: 'app-indexing-settings-page',
-  imports: [ButtonDirective, Message, ProgressSpinner],
+  imports: [SkeletonComponent, ButtonDirective, Message],
   templateUrl: './indexing-settings-page.component.html',
   styleUrls: ['./indexing-settings-page.component.scss', './settings-shared.scss'],
 })

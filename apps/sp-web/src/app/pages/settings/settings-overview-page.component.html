@@ -13,14 +13,7 @@
     </a>
   }
   @if (loading()) {
-    <div class="app-blocking-loader" role="status" aria-live="polite">
-      <p-progressspinner
-        styleClass="app-blocking-spinner"
-        strokeWidth="4"
-        [style]="{ width: '2.25rem', height: '2.25rem' }"
-      />
-      <p>Loading settings overview...</p>
-    </div>
+    <app-skeleton kind="rows" [count]="6" label="Loading settings" />
   } @else {
     <section
       class="hero-card"

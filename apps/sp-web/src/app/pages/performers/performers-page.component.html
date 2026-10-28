@@ -98,14 +98,7 @@
   </section>
 
   @if (loading()) {
-    <div class="app-blocking-loader" role="status" aria-live="polite">
-      <p-progressspinner
-        styleClass="app-blocking-spinner"
-        strokeWidth="4"
-        [style]="{ width: '2.25rem', height: '2.25rem' }"
-      />
-      <p>Loading performers feed...</p>
-    </div>
+    <app-skeleton kind="portrait" [count]="12" label="Loading performers" />
   } @else if (error()) {
     <p-message severity="error" styleClass="app-page-message">{{ error() }}</p-message>
     <button pButton type="button" class="retry-button" (click)="retryInitialLoad()">Retry</button>

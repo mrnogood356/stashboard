@@ -1,3 +1,4 @@
+import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   AfterViewInit,
@@ -25,7 +26,6 @@ import {
 } from 'rxjs';
 import { Message } from 'primeng/message';
 import { MultiSelect } from 'primeng/multiselect';
-import { ProgressSpinner } from 'primeng/progressspinner';
 import { Select } from 'primeng/select';
 import { LibraryService } from '../../core/api/library.service';
 import { LocalLibraryService } from '../../core/api/local-library.service';
@@ -67,10 +67,10 @@ interface LibraryPageAlert {
 @Component({
   selector: 'app-library-page',
   imports: [
+    SkeletonComponent,
     RouterLink,
     FormsModule,
     Message,
-    ProgressSpinner,
     Select,
     MultiSelect,
     SceneCardComponent,

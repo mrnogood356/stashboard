@@ -8,14 +8,7 @@
   </a>
 
   @if (loadingPerformer()) {
-    <div class="app-blocking-loader" role="status" aria-live="polite">
-      <p-progressspinner
-        styleClass="app-blocking-spinner"
-        strokeWidth="4"
-        [style]="{ width: '2.25rem', height: '2.25rem' }"
-      />
-      <p>Loading performer details...</p>
-    </div>
+    <app-skeleton kind="detail" [count]="1" label="Loading performer" />
   } @else if (performerError()) {
     <p-message severity="error" styleClass="app-page-message">{{ performerError() }}</p-message>
     <button type="button" (click)="retryPerformerLoad()">Retry</button>
@@ -251,14 +244,7 @@
     <app-owned-toggle class="owned-line" [count]="ownedCount()" />
 
     @if (loadingScenes()) {
-      <div class="app-blocking-loader" role="status" aria-live="polite">
-        <p-progressspinner
-          styleClass="app-blocking-spinner"
-          strokeWidth="4"
-          [style]="{ width: '2rem', height: '2rem' }"
-        />
-        <p>Loading performer scenes...</p>
-      </div>
+      <app-skeleton kind="grid" [count]="8" label="Loading scenes" />
     } @else if (scenesError()) {
       <p-message severity="error" styleClass="app-page-message">{{ scenesError() }}</p-message>
       <button type="button" (click)="retryInitialScenesLoad()">Retry</button>
