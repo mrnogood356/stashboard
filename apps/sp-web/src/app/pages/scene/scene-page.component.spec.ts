@@ -202,6 +202,23 @@ describe('ScenePageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Request in Whisparr');
   });
 
+  it('opens the studio on the catalog from its name and its logo', async () => {
+    const { fixture } = await renderScene(buildScene());
+    const root = fixture.nativeElement as HTMLElement;
+
+    const name = root.querySelector<HTMLAnchorElement>('[data-testid="scene-studio-link"]');
+    expect(name?.textContent?.trim()).toBe('Studio');
+    // The scene's catalog goes along, so a FansDB scene opens its FansDB studio.
+    expect(name?.getAttribute('href')).toBe('/studio/studio-1?provider=STASHDB');
+    expect(root.querySelector('a.studio-logo-overlay')?.getAttribute('href')).toBe(
+      '/studio/studio-1?provider=STASHDB',
+    );
+    // The scene on the studio's own site is still a tap away.
+    expect(root.querySelector('[data-testid="scene-studio-site"]')?.getAttribute('href')).toBe(
+      'http://studio.local',
+    );
+  });
+
   it('offers Play in the built-in player when the scene is in Stash', async () => {
     const scene = buildScene({
       status: { state: 'AVAILABLE' },

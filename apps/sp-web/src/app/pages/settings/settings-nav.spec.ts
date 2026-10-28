@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupSettingsNav } from './settings-nav';
+import { SETTINGS_SECTIONS, groupSettingsNav } from './settings-nav';
 
 describe('groupSettingsNav', () => {
   it('groups sections in group order, keeping their listed order', () => {
@@ -26,5 +26,19 @@ describe('groupSettingsNav', () => {
       label: 'More',
       items: [{ label: 'Finished downloads', route: '/settings/finished' }],
     });
+  });
+
+  it('groups Settings three by three, in order, so the cards line up', () => {
+    expect(
+      groupSettingsNav(SETTINGS_SECTIONS).map((group) => [
+        group.id,
+        group.items.map((item) => item.label),
+      ]),
+    ).toEqual([
+      ['setup', ['Integrations', 'Indexing', 'Setup check']],
+      ['behaviour', ['Notifications', 'Automation', 'Hidden']],
+      ['look', ['Appearance', 'Playback', 'Privacy']],
+      ['system', ['Account', 'About & health', 'Logs']],
+    ]);
   });
 });

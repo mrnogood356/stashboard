@@ -31,6 +31,8 @@ import { LibraryService } from '../../core/api/library.service';
 import { LibrarySceneItem } from '../../core/api/library.types';
 import { LocalLibraryService, LocalSearchResults } from '../../core/api/local-library.service';
 import { SceneCardComponent } from '../../shared/scene-card/scene-card.component';
+import { HideOwnedService, isOwned } from '../../core/preferences/hide-owned.service';
+import { OwnedToggleComponent } from '../../shared/owned-toggle/owned-toggle.component';
 import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
@@ -49,6 +51,10 @@ interface SearchResults {
   catalogPerformersTotal: number;
   catalogStudios: StudioFeedItem[];
   catalogStudiosTotal: number;
+  /** The catalog's scenes couldn't be searched. */
+  catalogScenesFailed: boolean;
+  /** Its performers or studios couldn't be searched. */
+  catalogPeopleFailed: boolean;
 }
 
 const RECENT_KEY = 'stashboard.recentSearches';
@@ -66,6 +72,8 @@ const EMPTY: SearchResults = {
   catalogPerformersTotal: 0,
   catalogStudios: [],
   catalogStudiosTotal: 0,
+  catalogScenesFailed: false,
+  catalogPeopleFailed: false,
 };
 
 /**
@@ -78,6 +86,7 @@ const EMPTY: SearchResults = {
   imports: [
     RouterLink,
     SceneCardComponent,
+    OwnedToggleComponent,
     SceneRequestModalComponent,
     HiddenCountComponent,
     OverflowXDirective,
@@ -89,6 +98,7 @@ export class SearchPageComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly discover = inject(DiscoverService);
+  private readonly hideOwned = inject(HideOwnedService);
   private readonly library = inject(LibraryService);
   private readonly local = inject(LocalLibraryService);
   /** Settings → Playback: off hides the swipe feed shortcut. */
@@ -116,6 +126,7 @@ export class SearchPageComponent implements OnInit, OnDestroy {
   }));
   protected readonly nameParams = computed(() => ({ q: this.query().trim() }));
   protected readonly searched = computed(() => this.query().trim().length >= MIN_QUERY);
+  protected readonly catalogFailed = catalogFailed;
   protected readonly nothingFound = computed(() => {
     const result = this.results();
     return (
@@ -127,7 +138,9 @@ export class SearchPageComponent implements OnInit, OnDestroy {
       result.catalogScenes.length === 0 &&
       result.catalogHidden === 0 &&
       result.catalogPerformers.length === 0 &&
-      result.catalogStudios.length === 0
+      result.catalogStudios.length === 0 &&
+      // A search that failed didn't find nothing: the page says it failed.
+      !catalogFailed(result)
     );
   });
 
@@ -176,11 +189,16 @@ export class SearchPageComponent implements OnInit, OnDestroy {
       .searchScenes(value, 1, 12, showHidden)
       .pipe(catchError(() => of(null)))
       .subscribe((response) => {
-        if (!response || this.query().trim() !== value) {
+        if (this.query().trim() !== value) {
+          return;
+        }
+        if (!response) {
+          this.results.update((results) => ({ ...results, catalogScenesFailed: true }));
           return;
         }
         this.results.update((results) => ({
           ...results,
+          catalogScenesFailed: false,
           catalogScenes: response.items,
           catalogScenesTotal: response.total ?? response.items.length,
           catalogHidden: response.hidden ?? 0,
@@ -204,6 +222,15 @@ export class SearchPageComponent implements OnInit, OnDestroy {
   }
 
   /** Remembers the search when you act on a result or press Search/Enter. */
+  /** Catalog scenes to show: all, or only the ones you don't have. */
+  protected shownCatalog(items: SceneExplorerItem[]): SceneExplorerItem[] {
+    return this.hideOwned.filter(items);
+  }
+
+  protected ownedIn(items: SceneExplorerItem[]): number {
+    return items.filter(isOwned).length;
+  }
+
   protected remember(): void {
     const value = this.query().trim();
     if (value.length < MIN_QUERY) {
@@ -292,9 +319,16 @@ export class SearchPageComponent implements OnInit, OnDestroy {
         catalogPerformersTotal: result.catalogPerformers?.total ?? 0,
         catalogStudios: result.catalogStudios?.items ?? [],
         catalogStudiosTotal: result.catalogStudios?.total ?? 0,
+        catalogScenesFailed: result.catalogScenes === null,
+        catalogPeopleFailed: result.catalogPerformers === null || result.catalogStudios === null,
       })),
     );
   }
+}
+
+/** The catalog couldn't be searched (scenes, performers or studios). */
+export function catalogFailed(result: SearchResults): boolean {
+  return result.catalogScenesFailed || result.catalogPeopleFailed;
 }
 
 function readRecent(): string[] {

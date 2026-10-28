@@ -70,18 +70,18 @@ export const SETTINGS_SECTIONS: readonly SettingsNavItem[] = [
     detail: 'Words, tags, studios and performers to hide everywhere',
   },
   {
-    label: 'Playback',
-    group: 'behaviour',
-    route: '/settings/playback',
-    icon: 'pi-play',
-    detail: 'Turn playback, previews and the feed on or off',
-  },
-  {
     label: 'Appearance',
     group: 'look',
     route: '/settings/appearance',
     icon: 'pi-palette',
     detail: 'Theme, accent colour and layout',
+  },
+  {
+    label: 'Playback',
+    group: 'look',
+    route: '/settings/playback',
+    icon: 'pi-play',
+    detail: 'Turn playback, previews and the feed on or off',
   },
   {
     label: 'Privacy',
@@ -92,7 +92,7 @@ export const SETTINGS_SECTIONS: readonly SettingsNavItem[] = [
   },
   {
     label: 'Account',
-    group: 'look',
+    group: 'system',
     route: '/settings/account',
     icon: 'pi-user',
     detail: 'Change your password',

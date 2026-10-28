@@ -27,6 +27,7 @@ import {
   type StashdbTrendingScenesResult,
 } from './stashdb.types';
 import { StashdbPeopleApi } from './stashdb-people.api';
+import { estimatedTotal, isServerSideError } from './stashdb-graphql.client';
 export * from './stashdb.types';
 
 @Injectable()
@@ -381,11 +382,7 @@ export class StashdbAdapter extends StashdbPeopleApi {
       'includeTagNames' in config && config.includeTagNames
         ? 'tags { id name } performers { performer { id name } }'
         : '';
-    const query = `
-      query QueryScenes($page: Int!, $perPage: Int!${tagVariableDeclaration}${studioVariableDeclaration}${textVariableDeclaration}) {
-        queryScenes(input: { sort: ${sort}, direction: ${direction}, page: $page, per_page: $perPage${favoritesInput}${tagInput}${studioInput}${textInput} }) {
-          count
-          scenes {
+    const sceneFields = `
             id
             title
             details
@@ -412,6 +409,13 @@ export class StashdbAdapter extends StashdbPeopleApi {
             }
             duration
             ${tagNamesField}
+    `;
+    const query = `
+      query QueryScenes($page: Int!, $perPage: Int!${tagVariableDeclaration}${studioVariableDeclaration}${textVariableDeclaration}) {
+        queryScenes(input: { sort: ${sort}, direction: ${direction}, page: $page, per_page: $perPage${favoritesInput}${tagInput}${studioInput}${textInput} }) {
+          count
+          scenes {
+            ${sceneFields}
           }
         }
       }
@@ -430,15 +434,51 @@ export class StashdbAdapter extends StashdbPeopleApi {
       variables.text = text;
     }
 
-    const payload = await this.executeQuery(config, query, variables);
-
-    const total =
-      typeof payload.data?.queryScenes?.count === 'number'
-        ? payload.data.queryScenes.count
-        : 0;
+    let rawScenes: unknown[];
+    let count: unknown;
+    if (!text) {
+      const payload = await this.executeQuery(config, query, variables);
+      rawScenes = payload.data?.queryScenes?.scenes ?? [];
+      count = payload.data?.queryScenes?.count;
+    } else {
+      try {
+        const payload = await this.executeCountedSearch(
+          config,
+          query,
+          variables,
+        );
+        rawScenes = payload.data?.queryScenes?.scenes ?? [];
+        count = payload.data?.queryScenes?.count;
+      } catch (error) {
+        // The catalog's text search failing on its side even without the
+        // count: its other search, by relevance, one page only. It can't
+        // filter, so not while studios, tags or favorites narrow the list.
+        const filtered = Boolean(
+          favorites || tagFilter || studioIds.length > 0,
+        );
+        if (!isServerSideError(error) || config.page > 1 || filtered) {
+          throw error;
+        }
+        const payload = await this.executeQuery(
+          config,
+          `query SearchScenes($term: String!, $limit: Int) {
+            searchScene(term: $term, limit: $limit) { ${sceneFields} }
+          }`,
+          { term: text, limit: config.perPage },
+        );
+        const found = (payload.data as { searchScene?: unknown } | undefined)
+          ?.searchScene;
+        rawScenes = Array.isArray(found) ? found : [];
+        count = rawScenes.length;
+      }
+    }
     const scenes = this.normalizeSceneFeedItems(
-      payload.data?.queryScenes?.scenes ?? [],
+      rawScenes as Parameters<typeof this.normalizeSceneFeedItems>[0],
     );
+    const total =
+      typeof count === 'number'
+        ? count
+        : estimatedTotal(config.page, config.perPage, rawScenes.length);
 
     return { total, scenes };
   }

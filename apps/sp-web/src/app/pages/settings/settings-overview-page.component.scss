@@ -7,13 +7,6 @@
   gap: 1rem;
 }
 
-/* The status card and banner keep a readable width; the cards use the page. */
-.overview-page > .hero-card,
-.overview-page > .setup-check-banner,
-.overview-page > .app-blocking-loader {
-  max-width: 56rem;
-}
-
 h2,
 p {
   margin: 0;
@@ -129,10 +122,17 @@ p {
   color: var(--text-muted);
 }
 
+/* Three sections a group: one even row each on wider screens, one column on phones. */
 .tool-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.8rem;
+}
+
+@media (min-width: 720px) {
+  .tool-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .tool {

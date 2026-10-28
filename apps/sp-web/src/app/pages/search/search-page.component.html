@@ -198,6 +198,14 @@
         </section>
       }
 
+      @if (catalogFailed(result)) {
+        <p class="catalog-failed" role="status" data-testid="search-catalog-failed">
+          <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+          The catalog couldn’t be searched just now, so some of what’s on it may be missing here.
+          Try again in a moment.
+        </p>
+      }
+
       @if (result.catalogScenes.length > 0 || result.catalogHidden > 0 || showHidden()) {
         <section class="block">
           <div class="block-head">
@@ -223,11 +231,13 @@
             [showing]="showHidden()"
             (toggled)="onShowHiddenChanged($event)"
           />
+          <app-owned-toggle [count]="ownedIn(result.catalogScenes)" />
           <div class="rail" appOverflowX #catalogRail="overflowX">
-            @for (item of result.catalogScenes; track item.id) {
+            @for (item of shownCatalog(result.catalogScenes); track item.id) {
               <app-scene-card
                 class="rail-card"
                 [item]="item"
+                studioBadgeRoute="studio"
                 variant="rail"
                 [requestable]="item.requestable"
                 [sceneQueryParams]="{ returnTo: currentUrl() }"
@@ -311,8 +321,8 @@
                 (click)="remember()"
               >
                 <span class="avatar" [class.has-image]="!!studio.imageUrl">
-                  @if (studio.imageUrl) {
-                    <img [src]="studio.imageUrl" alt="" loading="lazy" />
+                  @if (studio.cardImageUrl ?? studio.imageUrl; as image) {
+                    <img [src]="image" alt="" loading="lazy" />
                   } @else {
                     <span>{{ initial(studio.name) }}</span>
                   }

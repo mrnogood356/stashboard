@@ -318,6 +318,7 @@ export interface StudioFeedItem {
   name: string;
   isFavorite: boolean;
   imageUrl: string | null;
+  cardImageUrl: string | null;
   parentStudio: StudioFeedChild | null;
   childStudios: StudioFeedChild[];
 }

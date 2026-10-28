@@ -2,6 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import {
   resolveTrustProxy,
+  responseCompression,
   securityHeaders,
   staticCacheControl,
 } from './app.setup';
@@ -80,6 +81,41 @@ describe('securityHeaders', () => {
           response.headers['content-security-policy-report-only'],
         ).toContain(`'sha256-${hash}'`);
       });
+  });
+});
+
+describe('responseCompression', () => {
+  const app = express();
+  app.use(responseCompression());
+  app.get('/data', (_req, res) => {
+    res.json({ scenes: Array.from({ length: 200 }, (_, id) => ({ id })) });
+  });
+  app.get('/video', (_req, res) => {
+    res.type('video/mp4').send(Buffer.alloc(4096));
+  });
+
+  it('gzips answers when the browser accepts it', async () => {
+    const response = await request(app)
+      .get('/data')
+      .set('Accept-Encoding', 'gzip')
+      .expect(200);
+    expect(response.headers['content-encoding']).toBe('gzip');
+    expect((response.body as { scenes: unknown[] }).scenes).toHaveLength(200);
+  });
+
+  it('sends video and byte ranges as they are', async () => {
+    const video = await request(app)
+      .get('/video')
+      .set('Accept-Encoding', 'gzip')
+      .expect(200);
+    expect(video.headers['content-encoding']).toBeUndefined();
+
+    const range = await request(app)
+      .get('/data')
+      .set('Accept-Encoding', 'gzip')
+      .set('Range', 'bytes=0-10')
+      .expect(200);
+    expect(range.headers['content-encoding']).toBeUndefined();
   });
 });
 

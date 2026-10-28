@@ -1,6 +1,7 @@
 import { BadGatewayException, Logger } from '@nestjs/common';
 import { RuntimeHealthService } from '../../runtime-health/runtime-health.service';
 import { StashdbAdapter } from './stashdb.adapter';
+import { resetCatalogRateLimit } from './catalog-rate-limit';
 
 describe('StashdbAdapter', () => {
   let adapter: StashdbAdapter;
@@ -22,6 +23,7 @@ describe('StashdbAdapter', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    resetCatalogRateLimit();
     runtimeHealthService = {
       recordSuccess: jest.fn().mockResolvedValue(undefined),
       recordFailure: jest.fn().mockResolvedValue(undefined),
@@ -73,6 +75,148 @@ describe('StashdbAdapter', () => {
       warn.mock.calls.filter(([text]) => String(text).includes('MatchSearch')),
     ).toHaveLength(1);
     warn.mockRestore();
+  });
+
+  describe('when the catalog’s own search fails', () => {
+    const broken = () =>
+      new Response(
+        JSON.stringify({
+          errors: [{ message: 'window_agg placeholder (SQLSTATE XX000)' }],
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      );
+    const answer = (data: unknown) =>
+      new Response(JSON.stringify({ data }), {
+        headers: { 'content-type': 'application/json' },
+      });
+    const sentQueries = () =>
+      fetchMock.mock.calls.map(
+        ([, init]) =>
+          (JSON.parse(String((init as RequestInit).body)) as { query: string })
+            .query,
+      );
+    const config = {
+      baseUrl: 'http://stashdb.local',
+      page: 1,
+      perPage: 2,
+      sort: 'DATE' as const,
+      text: 'beach day',
+    };
+
+    beforeEach(() => {
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    });
+
+    it('asks again without the count, and estimates it', async () => {
+      fetchMock.mockResolvedValueOnce(broken()).mockResolvedValueOnce(
+        answer({
+          queryScenes: {
+            scenes: [
+              { id: 's1', title: 'One', images: [] },
+              { id: 's2', title: 'Two', images: [] },
+            ],
+          },
+        }),
+      );
+
+      const result = await adapter.getScenesBySort(config);
+
+      expect(result.scenes.map((scene) => scene.id)).toEqual(['s1', 's2']);
+      // A full page: there may be more.
+      expect(result.total).toBe(3);
+      const [first, second] = sentQueries();
+      expect(first).toMatch(/^\s*count\s*$/m);
+      expect(second).not.toMatch(/^\s*count\s*$/m);
+      expect(runtimeHealthService.recordFailure).not.toHaveBeenCalled();
+    });
+
+    it('falls back to its other search when that fails too', async () => {
+      fetchMock
+        .mockResolvedValueOnce(broken())
+        .mockResolvedValueOnce(broken())
+        .mockResolvedValueOnce(
+          answer({ searchScene: [{ id: 's9', title: 'Nine', images: [] }] }),
+        );
+
+      const result = await adapter.getScenesBySort(config);
+
+      expect(result).toMatchObject({ total: 1 });
+      expect(result.scenes.map((scene) => scene.id)).toEqual(['s9']);
+      expect(sentQueries()[2]).toContain('searchScene(term: $term');
+    });
+
+    it('doesn’t fall back while studios narrow the list: that search can’t filter', async () => {
+      fetchMock.mockImplementation(() => Promise.resolve(broken()));
+
+      await expect(
+        adapter.getScenesBySort({ ...config, studioIds: ['studio-1'] }),
+      ).rejects.toThrow('SQLSTATE');
+
+      expect(sentQueries()).toHaveLength(2);
+      expect(sentQueries().join('\n')).not.toContain('searchScene(');
+    });
+
+    it('finds performers by name without the count too', async () => {
+      fetchMock.mockResolvedValueOnce(broken()).mockResolvedValueOnce(
+        answer({
+          queryPerformers: {
+            performers: [{ id: 'p1', name: 'Ana', images: [] }],
+          },
+        }),
+      );
+
+      const result = await adapter.getPerformersFeed({
+        baseUrl: 'http://stashdb.local',
+        page: 1,
+        perPage: 12,
+        name: 'ana',
+      });
+
+      expect(result).toMatchObject({ total: 1 });
+      expect(result.performers.map((performer) => performer.id)).toEqual([
+        'p1',
+      ]);
+    });
+  });
+
+  it('waits as long as the catalog asks after a 429, then tries once more', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response('slow down', {
+          status: 429,
+          headers: { 'retry-after': '0' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: { searchScene: [] } }), {
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    await expect(
+      adapter.searchScenesByText({ baseUrl: 'http://stashdb.local' }, 'x'),
+    ).resolves.toEqual([]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(runtimeHealthService.recordFailure).not.toHaveBeenCalled();
+  });
+
+  it('gives up straight away when the catalog asks for a long wait, without calling it down', async () => {
+    fetchMock.mockResolvedValue(
+      new Response('slow down', {
+        status: 429,
+        headers: { 'retry-after': '120' },
+      }),
+    );
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    await expect(
+      adapter.searchScenesByText({ baseUrl: 'http://stashdb.local' }, 'x'),
+    ).rejects.toThrow('slow down; try again in 120 seconds');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(runtimeHealthService.recordFailure).not.toHaveBeenCalled();
   });
 
   it('says the same refusal once per catalog, and counts a lost database connection as the catalog down', async () => {

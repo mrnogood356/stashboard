@@ -24,6 +24,7 @@
         [showing]="showHidden()"
         (toggled)="onShowHiddenChanged($event)"
       />
+      <app-owned-toggle [count]="ownedCount()" />
     </div>
     <div class="page-head-compact__actions">
       <app-catalog-provider-switch />
@@ -280,7 +281,7 @@
     </section>
   } @else {
     <section class="grid">
-      @for (item of items(); track item.id) {
+      @for (item of shownItems(); track item.id) {
         <app-scene-card
           [item]="item"
           [requestable]="isRequestable(item)"
@@ -293,6 +294,9 @@
         />
       }
     </section>
+    @if (shownItems().length === 0) {
+      <p class="state">Every scene loaded so far is in your library.</p>
+    }
 
     <div #loadMoreSentinel class="load-sentinel"></div>
 

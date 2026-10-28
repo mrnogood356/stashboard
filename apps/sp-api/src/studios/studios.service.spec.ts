@@ -114,6 +114,7 @@ describe('StudiosService', () => {
           name: 'Studio One',
           isFavorite: true,
           imageUrl: 'http://studio-image',
+          cardImageUrl: 'http://studio-image/?size=600',
           parentStudio: null,
           childStudios: [{ id: 'child-1', name: 'Studio Child' }],
         },
