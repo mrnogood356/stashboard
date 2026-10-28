@@ -311,8 +311,8 @@
                 (click)="remember()"
               >
                 <span class="avatar" [class.has-image]="!!studio.imageUrl">
-                  @if (studio.imageUrl) {
-                    <img [src]="studio.imageUrl" alt="" loading="lazy" />
+                  @if (studio.cardImageUrl ?? studio.imageUrl; as image) {
+                    <img [src]="image" alt="" loading="lazy" />
                   } @else {
                     <span>{{ initial(studio.name) }}</span>
                   }

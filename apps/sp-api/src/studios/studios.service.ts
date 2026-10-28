@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { CatalogProviderService } from '../providers/catalog/catalog-provider.service';
 import { StashdbSortDirection } from '../providers/stashdb/stashdb.adapter';
 import { StashdbAdapter } from '../providers/stashdb/stashdb.adapter';
+import { withStashImageSize } from '../providers/stashdb/stashdb-image-url.util';
 import { StudioDetailsDto } from './dto/studio-details.dto';
 import { StudioFeedResponseDto } from './dto/studio-feed-response.dto';
 import { StudioSort } from './dto/studios-query.dto';
@@ -53,6 +54,7 @@ export class StudiosService {
         name: studio.name,
         isFavorite: studio.isFavorite,
         imageUrl: studio.imageUrl,
+        cardImageUrl: withStashImageSize(studio.imageUrl, 600),
         parentStudio: studio.parentStudio,
         childStudios: studio.childStudios,
       })),
