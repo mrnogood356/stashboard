@@ -111,6 +111,11 @@ export const routes: Routes = [
           import('./pages/scenes/scenes-page.component').then((m) => m.ScenesPageComponent),
       },
       {
+        path: 'calendar',
+        loadComponent: () =>
+          import('./pages/calendar/calendar-page.component').then((m) => m.CalendarPageComponent),
+      },
+      {
         path: 'acquisition',
         loadComponent: () =>
           import('./pages/acquisition/acquisition-page.component').then(

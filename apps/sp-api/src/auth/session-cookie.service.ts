@@ -13,7 +13,8 @@ export class SessionCookieService {
    */
   readonly shortSessionTtlMs = 12 * 60 * 60 * 1000;
   private readonly sessionSecret: string;
-  private readonly secureCookie: boolean;
+  /** true or false when SESSION_COOKIE_SECURE says so; unset follows the request. */
+  private readonly secureCookie: boolean | null;
 
   constructor() {
     const configuredSecret = process.env.SESSION_SECRET?.trim();
@@ -22,7 +23,7 @@ export class SessionCookieService {
     }
 
     this.sessionSecret = configuredSecret || 'test-session-secret';
-    this.secureCookie = parseBoolean(process.env.SESSION_COOKIE_SECURE);
+    this.secureCookie = parseSecureSetting(process.env.SESSION_COOKIE_SECURE);
   }
 
   readSessionId(cookieHeader: string | undefined): string | null {
@@ -65,7 +66,7 @@ export class SessionCookieService {
       ...(persistent ? { expires: expiresAt } : {}),
       httpOnly: true,
       sameSite: 'lax',
-      secure: this.secureCookie,
+      secure: this.isSecure(response),
       path: '/',
     });
   }
@@ -74,9 +75,18 @@ export class SessionCookieService {
     response.clearCookie(this.cookieName, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: this.secureCookie,
+      secure: this.isSecure(response),
       path: '/',
     });
+  }
+
+  /**
+   * Unset: Secure whenever the visit came over HTTPS, directly or (with
+   * TRUST_PROXY) through a reverse proxy that says so, so an HTTPS install
+   * gets it without a setting and a plain-HTTP LAN install still signs in.
+   */
+  private isSecure(response: Response): boolean {
+    return this.secureCookie ?? response.req?.secure === true;
   }
 
   private sign(value: string): string {
@@ -108,12 +118,12 @@ export class SessionCookieService {
   }
 }
 
-function parseBoolean(value: string | undefined): boolean {
-  if (!value) {
-    return false;
+function parseSecureSetting(value: string | undefined): boolean | null {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized || normalized === 'auto') {
+    return null;
   }
-
-  return value === '1' || value.toLowerCase() === 'true';
+  return normalized === '1' || normalized === 'true';
 }
 
 function constantTimeEquals(left: string, right: string): boolean {

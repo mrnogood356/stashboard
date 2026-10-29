@@ -71,8 +71,8 @@ const STYLESHEET_ONLOAD_HASH =
  * - Cross-Origin-Resource-Policy: TVs and cast receivers play streams cross-origin.
  * - X-Frame-Options when ALLOW_EMBEDDING=true, for dashboards (Organizr,
  *   Homarr…) that show Stashboard in an iframe.
- * The Content-Security-Policy is report-only unless CONTENT_SECURITY_POLICY=enforce
- * ("off" drops it), so a source it missed is reported, not broken.
+ * The Content-Security-Policy is enforced; CONTENT_SECURITY_POLICY=report-only
+ * only reports what it would block, and "off" drops it.
  */
 export function securityHeaders(env: NodeJS.ProcessEnv = process.env) {
   const cspMode = (env.CONTENT_SECURITY_POLICY ?? '').trim().toLowerCase();
@@ -87,7 +87,7 @@ export function securityHeaders(env: NodeJS.ProcessEnv = process.env) {
       cspMode === 'off'
         ? false
         : {
-            reportOnly: cspMode !== 'enforce',
+            reportOnly: cspMode === 'report-only',
             useDefaults: false,
             directives: {
               defaultSrc: ["'self'"],

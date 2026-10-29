@@ -18,7 +18,7 @@ import {
 import { IntegrationsService } from '../../core/api/integrations.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { SetupService } from '../../core/api/setup.service';
-import { SetupStatusResponse } from '../../core/api/setup.types';
+import { DiscoveredService, SetupStatusResponse } from '../../core/api/setup.types';
 import {
   IntegrationRepairPanelComponent,
   IntegrationRepairPanelMessage,
@@ -58,6 +58,11 @@ export class SetupPageComponent implements OnInit {
   protected readonly status = signal<SetupStatusResponse | null>(null);
   protected readonly resettingCatalogProvider = signal(false);
   protected readonly bootstrapHandoff = signal(false);
+  /** "Find my services": what it found, null before it has looked. */
+  protected readonly discovered = signal<DiscoveredService[] | null>(null);
+  protected readonly discovering = signal(false);
+  protected readonly discoverFailed = signal(false);
+  private discoveredOnce = false;
 
   private readonly allIntegrationTypes: IntegrationType[] = [
     'STASH',
@@ -111,6 +116,35 @@ export class SetupPageComponent implements OnInit {
   ngOnInit(): void {
     this.bootstrapHandoff.set(this.route.snapshot.queryParamMap.get('from') === 'bootstrap');
     this.loadSetupData();
+  }
+
+  /**
+   * Fills in the address of each required service it finds, unless one was
+   * typed already; the API key still comes from that app.
+   */
+  protected findServices(): void {
+    this.discovering.set(true);
+    this.discoverFailed.set(false);
+    this.setupService
+      .discover()
+      .pipe(finalize(() => this.discovering.set(false)))
+      .subscribe({
+        next: ({ found }) => {
+          this.discovered.set(found);
+          for (const service of found) {
+            const form = this.forms[service.type];
+            if (!form.controls.baseUrl.value.trim()) {
+              form.controls.baseUrl.setValue(service.url);
+              form.controls.baseUrl.markAsDirty();
+            }
+          }
+        },
+        error: () => this.discoverFailed.set(true),
+      });
+  }
+
+  protected isRequiredService(type: IntegrationType): boolean {
+    return this.requiredServiceTypes.includes(type);
   }
 
   protected formFor(type: IntegrationType): IntegrationForm {
@@ -495,6 +529,14 @@ export class SetupPageComponent implements OnInit {
       .subscribe({
         next: (response) => {
           this.syncSetupState(response.status, response.integrations);
+          // A fresh install looks for its services straight away.
+          const nothingEntered = this.requiredServiceTypes.every(
+            (type) => !response.integrations.some((entry) => entry.type === type && entry.baseUrl),
+          );
+          if (!this.discoveredOnce && !response.status.setupComplete && nothingEntered) {
+            this.discoveredOnce = true;
+            this.findServices();
+          }
         },
         error: () => {
           this.loadError.set('Failed to load setup data from the API.');

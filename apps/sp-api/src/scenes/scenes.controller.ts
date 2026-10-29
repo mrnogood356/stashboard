@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
+import {
+  ScenesCalendarQueryDto,
+  ScenesCalendarResponseDto,
+} from './dto/scenes-calendar.dto';
 import { SceneTagOptionDto } from './dto/scene-tag-option.dto';
 import { SceneDetailsDto } from './dto/scene-details.dto';
 import { ScenesFeedResponseDto } from './dto/scenes-feed.dto';
@@ -31,6 +43,29 @@ export class ScenesController {
     );
   }
 
+  /** Calendar: releases from your starred studios and performers between two days. */
+  @Get('calendar')
+  getCalendar(
+    @Query() query: ScenesCalendarQueryDto,
+  ): Promise<ScenesCalendarResponseDto> {
+    const from = parseDay(query.from);
+    const to = parseDay(query.to);
+    if (from === null || to === null || to < from) {
+      throw new BadRequestException(
+        'Choose a from day on or before the to day.',
+      );
+    }
+    // Both days count, so 62 days means at most 61 days apart.
+    if (to - from >= 62 * 24 * 60 * 60 * 1000) {
+      throw new BadRequestException('A calendar view covers at most 62 days.');
+    }
+    return this.scenesService.getCalendar(
+      query.from,
+      query.to,
+      query.favorites ?? 'ALL',
+    );
+  }
+
   @Get('tags')
   getSceneTagOptions(
     @Query() query: ScenesTagsQueryDto,
@@ -50,4 +85,13 @@ export class ScenesController {
   getSceneById(@Param('stashId') stashId: string): Promise<SceneDetailsDto> {
     return this.scenesService.getSceneById(stashId);
   }
+}
+
+/** A YYYY-MM-DD day as UTC milliseconds, or null for a day that doesn't exist (2026-02-30). */
+function parseDay(day: string): number | null {
+  const time = Date.parse(`${day}T00:00:00Z`);
+  if (Number.isNaN(time) || new Date(time).toISOString().slice(0, 10) !== day) {
+    return null;
+  }
+  return time;
 }

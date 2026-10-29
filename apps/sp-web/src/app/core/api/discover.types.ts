@@ -381,3 +381,12 @@ export interface StudioDetails {
   parentStudio: StudioDetailsParent | null;
   childStudios: StudioDetailsChild[];
 }
+
+/** Calendar: releases between two days (YYYY-MM-DD), oldest first. */
+export interface ScenesCalendarResponse {
+  from: string;
+  to: string;
+  items: SceneExplorerItem[];
+  /** False when the earliest days may be missing some releases. */
+  complete: boolean;
+}

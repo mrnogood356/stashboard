@@ -160,7 +160,12 @@ jobs:
           headers="$(docker exec app wget -qS -O /dev/null http://127.0.0.1:3000/api/v1/status 2>&1)"
           echo "$headers"
           echo "$headers" | grep -qi 'x-content-type-options: nosniff'
-          echo "$headers" | grep -qi 'content-security-policy-report-only'
+          # The CSP is enforced by default, not report-only.
+          echo "$headers" | grep -qi '^ *content-security-policy:'
+          if echo "$headers" | grep -qi 'content-security-policy-report-only'; then
+            echo "CSP should be enforced, not report-only" >&2
+            exit 1
+          fi
 
       - name: Clean up smoke test
         if: always()

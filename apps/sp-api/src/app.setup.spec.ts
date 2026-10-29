@@ -17,15 +17,17 @@ function appWith(env: NodeJS.ProcessEnv) {
 }
 
 describe('securityHeaders', () => {
-  it('sends the standard headers, with the CSP report-only by default', async () => {
+  it('sends the standard headers, with the CSP enforced by default', async () => {
     const response = await request(appWith({})).get('/').expect(200);
 
     expect(response.headers['x-content-type-options']).toBe('nosniff');
     expect(response.headers['x-frame-options']).toBe('SAMEORIGIN');
     expect(response.headers['referrer-policy']).toBe('no-referrer');
     expect(response.headers['x-powered-by']).toBeUndefined();
-    expect(response.headers['content-security-policy']).toBeUndefined();
-    const csp = response.headers['content-security-policy-report-only'];
+    expect(
+      response.headers['content-security-policy-report-only'],
+    ).toBeUndefined();
+    const csp = response.headers['content-security-policy'];
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("frame-ancestors 'self'");
     expect(csp).toContain("script-src 'self' 'unsafe-hashes' 'sha256-");
@@ -39,7 +41,15 @@ describe('securityHeaders', () => {
     expect(response.headers['cross-origin-resource-policy']).toBeUndefined();
   });
 
-  it('enforces the CSP, or drops it, when asked', async () => {
+  it('only reports, still enforces, or drops the CSP when asked', async () => {
+    const reported = await request(
+      appWith({ CONTENT_SECURITY_POLICY: 'report-only' }),
+    ).get('/');
+    expect(reported.headers['content-security-policy-report-only']).toContain(
+      "default-src 'self'",
+    );
+    expect(reported.headers['content-security-policy']).toBeUndefined();
+
     const enforced = await request(
       appWith({ CONTENT_SECURITY_POLICY: 'enforce' }),
     ).get('/');
@@ -63,9 +73,9 @@ describe('securityHeaders', () => {
     );
 
     expect(response.headers['x-frame-options']).toBeUndefined();
-    expect(
-      response.headers['content-security-policy-report-only'],
-    ).not.toContain('frame-ancestors');
+    expect(response.headers['content-security-policy']).not.toContain(
+      'frame-ancestors',
+    );
   });
 
   it('allows exactly the stylesheet loader Angular inlines', () => {
@@ -77,9 +87,9 @@ describe('securityHeaders', () => {
     return request(appWith({}))
       .get('/')
       .expect((response) => {
-        expect(
-          response.headers['content-security-policy-report-only'],
-        ).toContain(`'sha256-${hash}'`);
+        expect(response.headers['content-security-policy']).toContain(
+          `'sha256-${hash}'`,
+        );
       });
   });
 });

@@ -1,6 +1,7 @@
 import * as argon2 from 'argon2';
 import {
   ConflictException,
+  ForbiddenException,
   HttpException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -107,6 +108,7 @@ describe('AuthService', () => {
       authenticated: true,
       username: 'LocalAdmin',
       passkeySignIn: false,
+      setupCodeRequired: false,
     });
     expect(adminUsers).toHaveLength(1);
     expect(adminUsers[0]?.passwordHash).not.toBe('this-is-a-strong-password');
@@ -114,6 +116,58 @@ describe('AuthService', () => {
       argon2.verify(adminUsers[0].passwordHash, 'this-is-a-strong-password'),
     ).resolves.toBe(true);
     expect(sessionCookieService.setSessionCookie).toHaveBeenCalledTimes(1);
+  });
+
+  it('needs the SETUP_CODE to create the first admin when the server sets one', async () => {
+    const original = process.env.SETUP_CODE;
+    process.env.SETUP_CODE = 'open-sesame';
+    try {
+      await expect(
+        service.bootstrapAdmin(
+          { username: 'Stranger', password: 'this-is-a-strong-password' },
+          createRequest(),
+          createResponse(),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(
+        service.bootstrapAdmin(
+          {
+            username: 'Stranger',
+            password: 'this-is-a-strong-password',
+            setupCode: 'wrong',
+          },
+          createRequest(),
+          createResponse(),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(adminUsers).toHaveLength(0);
+
+      const status = await service.bootstrapAdmin(
+        {
+          username: 'LocalAdmin',
+          password: 'this-is-a-strong-password',
+          setupCode: ' open-sesame ',
+        },
+        createRequest(),
+        createResponse(),
+      );
+      expect(status.authenticated).toBe(true);
+      expect(adminUsers).toHaveLength(1);
+      // Every guess is counted against the address, and the right one clears it.
+      expect(loginAttemptService.reserve).toHaveBeenCalledTimes(3);
+      expect(loginAttemptService.reserve).toHaveBeenCalledWith([
+        expect.stringMatching(/^setup-code:/),
+      ]);
+      expect(loginAttemptService.clear).toHaveBeenCalledWith(
+        expect.stringMatching(/^setup-code:/),
+      );
+    } finally {
+      if (original === undefined) {
+        delete process.env.SETUP_CODE;
+      } else {
+        process.env.SETUP_CODE = original;
+      }
+    }
   });
 
   it('blocks bootstrap once an admin account already exists', async () => {
@@ -169,6 +223,7 @@ describe('AuthService', () => {
       authenticated: true,
       username: 'local-admin',
       passkeySignIn: false,
+      setupCodeRequired: false,
     });
     expect(loginAttemptService.clear).toHaveBeenCalledTimes(2);
     expect(adminSessions).toHaveLength(1);
@@ -340,6 +395,7 @@ describe('AuthService', () => {
       authenticated: false,
       username: null,
       passkeySignIn: false,
+      setupCodeRequired: false,
     });
   });
 
@@ -487,6 +543,7 @@ describe('AuthService', () => {
         authenticated: false,
         username: null,
         passkeySignIn: true,
+        setupCodeRequired: false,
       });
 
       passkeys.loginAvailable.mockResolvedValue(false);
@@ -505,6 +562,7 @@ describe('AuthService', () => {
       expect(signedIn).toMatchObject({
         authenticated: true,
         passkeySignIn: false,
+        setupCodeRequired: false,
       });
       expect(passkeys.loginAvailable).not.toHaveBeenCalled();
     });
@@ -515,6 +573,7 @@ describe('AuthService', () => {
       expect(status).toMatchObject({
         bootstrapRequired: true,
         passkeySignIn: false,
+        setupCodeRequired: false,
       });
     });
 
@@ -536,6 +595,7 @@ describe('AuthService', () => {
         authenticated: true,
         username: 'local-admin',
         passkeySignIn: false,
+        setupCodeRequired: false,
       });
       expect(passkeys.verifyLogin).toHaveBeenCalledWith(request, {
         id: 'cred-1',

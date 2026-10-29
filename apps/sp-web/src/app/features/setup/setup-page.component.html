@@ -108,6 +108,62 @@
         </div>
       </section>
     } @else {
+      <section class="discover-panel" aria-labelledby="discover-title" data-testid="setup-discover">
+        <div class="discover-head">
+          <div>
+            <h2 id="discover-title">Find my services</h2>
+            <p>
+              Stashboard looks for Stash, Whisparr, Prowlarr and SABnzbd on their usual ports and
+              fills in their addresses. You still paste each API key.
+            </p>
+          </div>
+          <button
+            pButton
+            type="button"
+            class="discover-button"
+            [disabled]="discovering()"
+            (click)="findServices()"
+          >
+            <i class="pi pi-search" aria-hidden="true"></i>
+            <span>{{
+              discovering() ? 'Looking…' : discovered() ? 'Look again' : 'Find my services'
+            }}</span>
+          </button>
+        </div>
+
+        @if (discoverFailed()) {
+          <p class="discover-note" role="alert">
+            Couldn’t look just now. Enter the addresses below.
+          </p>
+        } @else if (discovered(); as found) {
+          @if (found.length === 0) {
+            <p class="discover-note" role="status">
+              Didn’t find any on the usual ports. Enter their addresses below.
+            </p>
+          } @else {
+            <ul class="discover-list" role="status">
+              @for (service of found; track service.type) {
+                <li>
+                  <i class="pi pi-check-circle" aria-hidden="true"></i>
+                  <span class="discover-name">{{ labelFor(service.type) }}</span>
+                  <code>{{ service.url }}</code>
+                  <span class="discover-next">
+                    {{
+                      isRequiredService(service.type)
+                        ? 'Filled in below.'
+                        : 'Add it later in Settings → Integrations.'
+                    }}
+                  </span>
+                  <a [href]="service.keyHelpUrl" target="_blank" rel="noopener noreferrer"
+                    >Get its API key</a
+                  >
+                </li>
+              }
+            </ul>
+          }
+        }
+      </section>
+
       <section class="cards">
         @for (type of visibleCatalogProviderTypes(); track type) {
           <app-integration-repair-panel

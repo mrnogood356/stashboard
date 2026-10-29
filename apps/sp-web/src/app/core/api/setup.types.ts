@@ -81,3 +81,18 @@ function getDegradedRequiredServices(status: SetupStatusResponse): DegradedRequi
 
   return services;
 }
+
+export type DiscoverableService = 'STASH' | 'WHISPARR' | 'PROWLARR' | 'SABNZBD';
+
+/** One app "Find my services" reached, at the address to save. */
+export interface DiscoveredService {
+  type: DiscoverableService;
+  url: string;
+  /** Where in that app its API key is shown. */
+  keyHelpUrl: string;
+}
+
+export interface DiscoveryResponse {
+  found: DiscoveredService[];
+  checked: number;
+}

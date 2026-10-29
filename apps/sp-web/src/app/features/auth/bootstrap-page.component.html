@@ -16,6 +16,26 @@
       </ul>
 
       <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        @if (setupCodeRequired()) {
+          <div class="field">
+            <label for="bootstrap-setup-code">Setup code</label>
+            <div class="input-shell">
+              <i class="pi pi-key input-icon" aria-hidden="true"></i>
+              <input
+                id="bootstrap-setup-code"
+                type="password"
+                formControlName="setupCode"
+                autocomplete="off"
+                aria-describedby="bootstrap-setup-code-hint"
+                data-testid="bootstrap-setup-code"
+              />
+            </div>
+            <p id="bootstrap-setup-code-hint" class="field-hint">
+              This server was started with a setup code (SETUP_CODE). Enter it to create the admin.
+            </p>
+          </div>
+        }
+
         <div class="field">
           <label for="bootstrap-username">Username</label>
           <div class="input-shell">

@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class BootstrapAdminDto {
   @Transform(({ value }: { value: unknown }) =>
@@ -14,4 +14,10 @@ export class BootstrapAdminDto {
   @MinLength(12)
   @MaxLength(128)
   password!: string;
+
+  /** SETUP_CODE from the server's environment, when one is set. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  setupCode?: string;
 }

@@ -1,0 +1,37 @@
+# Stashboard on Unraid
+
+`stashboard.xml` is a Docker template for Unraid. Until Stashboard is listed in Community Applications, add it by hand:
+
+1. **Install PostgreSQL.** In Community Applications, install a PostgreSQL 15 or newer app (for example `postgresql17`). Note the password you give it.
+2. **Create Stashboard's database.** Open that container's console and run:
+
+   ```sh
+   psql -U postgres -c "CREATE USER stashboard;"
+   psql -U postgres -c "CREATE DATABASE stashboard OWNER stashboard;"
+   psql -U postgres -c "\password stashboard"
+   ```
+
+   The last command asks for the new password twice, so it never lands in your shell history.
+
+3. **Add the template.** Open the Unraid terminal (the `>_` icon at the top right) and run:
+
+   ```sh
+   wget -O /boot/config/plugins/dockerMan/templates-user/my-Stashboard.xml \
+     https://raw.githubusercontent.com/mrnogood356/stashboard/main/infrastructure/unraid/stashboard.xml
+   ```
+
+   Then in the Docker tab, choose **Add Container** and pick **Stashboard** from the **Template** list.
+
+4. **Fill in the database fields.** Database host is your server's IP (or the PostgreSQL container's name if both are on the same custom network). Use the user and password from step 2.
+5. **Map your media** (optional) to the same path Stash and Whisparr see, for example `/mnt/user/data` → `/data`. Renames and empty-folder cleanup need it.
+6. **Apply,** then open the Web UI. Create your account and connect Stash, Whisparr and StashDB or FansDB.
+
+Stashboard creates its tables on first start and runs as `99:100` (`nobody:users`), which owns Unraid media by default.
+
+## Opening it from outside your network
+
+Use a VPN such as Tailscale or WireGuard, or a reverse proxy with HTTPS (Nginx Proxy Manager, SWAG or a Cloudflare Tunnel). Behind HTTPS, set **Trust proxy** under the template's advanced view to your proxy: `1` when one proxy sits in front, or its address, such as `172.18.0.5` or a network like `172.18.0.0/16`. The sign-in cookie is then marked Secure on its own. Only the proxy should reach port 3000 then: anything that can reach it directly can claim to be any visitor. Set a **Setup code** before the first start if the page can be reached before you've created your account. Don't forward port 3000 straight to the internet.
+
+## Listing in Community Applications
+
+Community Applications reads templates from a repository its maintainers have added. To get listed, follow the submission steps on the Unraid forum's Community Applications thread and point it at this folder.
