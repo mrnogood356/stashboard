@@ -546,6 +546,18 @@
   white-space: nowrap;
 }
 
+/* Ctrl K on Search: it opens from anywhere. */
+.nav-kbd {
+  margin-left: auto;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.3rem;
+}
+
 /* Failed requests and downloads, on Requests. */
 .nav-count {
   margin-left: auto;

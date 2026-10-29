@@ -29,10 +29,12 @@ import {
 type GenderOption = PerformerGender | 'NONE';
 
 import { CatalogProviderSwitchComponent } from '../../shared/catalog-provider-switch/catalog-provider-switch.component';
+import { SectionBackComponent } from '../../shared/section-back/section-back.component';
 
 @Component({
   selector: 'app-performers-page',
   imports: [
+    SectionBackComponent,
     SkeletonComponent,
     CatalogProviderSwitchComponent,
     RouterLink,

@@ -57,6 +57,11 @@
                     >{{ requestsAttention() }}</span
                   >
                 }
+                @if (item.route === '/search') {
+                  <span class="nav-kbd" aria-hidden="true" title="Search from anywhere">{{
+                    isMac ? '⌘K' : 'Ctrl K'
+                  }}</span>
+                }
                 @if (item.route === '/settings' && degradedState()) {
                   <span class="nav-badge" data-testid="settings-nav-indicator">Repair</span>
                 }
@@ -225,3 +230,5 @@
     </button>
   </nav>
 }
+
+<app-quick-search />
