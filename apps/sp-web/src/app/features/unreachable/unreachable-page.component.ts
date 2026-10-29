@@ -1,10 +1,13 @@
 import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { timeout } from 'rxjs';
 import { HealthService } from '../../core/api/health.service';
 import { safeNextUrl } from '../../core/network/unreachable';
 
 /** How often it checks again on its own. */
 const RETRY_MS = 5_000;
+/** A check that hasn't answered by now counts as failed, so the next one can start. */
+const CHECK_TIMEOUT_MS = 4_000;
 
 /**
  * Shown instead of sign-in or setup when Stashboard itself can't be reached:
@@ -46,14 +49,20 @@ export class UnreachablePageComponent implements OnInit {
       return;
     }
     this.checking.set(true);
-    this.health.getStatus().subscribe({
-      next: () => {
-        this.checking.set(false);
-        void this.router.navigateByUrl(safeNextUrl(this.route.snapshot.queryParamMap.get('next')), {
-          replaceUrl: true,
-        });
-      },
-      error: () => this.checking.set(false),
-    });
+    this.health
+      .getStatus()
+      .pipe(timeout(CHECK_TIMEOUT_MS))
+      .subscribe({
+        next: () => {
+          this.checking.set(false);
+          void this.router.navigateByUrl(
+            safeNextUrl(this.route.snapshot.queryParamMap.get('next')),
+            {
+              replaceUrl: true,
+            },
+          );
+        },
+        error: () => this.checking.set(false),
+      });
   }
 }

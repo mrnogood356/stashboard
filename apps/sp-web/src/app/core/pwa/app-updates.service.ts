@@ -66,9 +66,14 @@ export class AppUpdatesService {
       return;
     }
     // After the page has loaded, so it never slows the first paint.
-    view.addEventListener('load', () => {
+    const register = () => {
       view.navigator.serviceWorker.register('/sw.js').catch(() => undefined);
-    });
+    };
+    if (this.document.readyState === 'complete') {
+      register();
+    } else {
+      view.addEventListener('load', register, { once: true });
+    }
     view.setInterval(() => void this.check(), CHECK_EVERY_MS);
     this.document.addEventListener('visibilitychange', () => {
       if (this.document.visibilityState === 'visible') {
@@ -98,7 +103,10 @@ export class AppUpdatesService {
     if (standalone) {
       return 'installed';
     }
-    return /iPhone|iPad|iPod/.test(view.navigator.userAgent) ? 'ios' : 'manual';
+    // iPads ask for desktop sites, so they say "Macintosh"; only they have a touch screen.
+    const iPadAsMac =
+      /Macintosh/.test(view.navigator.userAgent) && (view.navigator.maxTouchPoints ?? 0) > 1;
+    return /iPhone|iPad|iPod/.test(view.navigator.userAgent) || iPadAsMac ? 'ios' : 'manual';
   }
 
   reload(): void {

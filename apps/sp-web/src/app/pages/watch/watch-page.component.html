@@ -50,7 +50,13 @@
     >
       <div class="shortcuts-head">
         <h2>Keyboard shortcuts</h2>
-        <button type="button" class="icon-button" aria-label="Close" (click)="helpOpen.set(false)">
+        <button
+          #helpClose
+          type="button"
+          class="icon-button"
+          aria-label="Close"
+          (click)="setHelpOpen(false)"
+        >
           <i class="pi pi-times" aria-hidden="true"></i>
         </button>
       </div>
@@ -416,7 +422,7 @@
           class="icon-button help-button"
           aria-label="Keyboard shortcuts"
           title="Keyboard shortcuts (?)"
-          (click)="helpOpen.set(!helpOpen())"
+          (click)="setHelpOpen(!helpOpen())"
         >
           <i class="pi pi-question-circle" aria-hidden="true"></i>
         </button>

@@ -27,7 +27,7 @@ export const requireAuthenticatedGuard: CanActivateFn = (_route, state) => {
   );
 };
 
-export const loginOnlyWhenLoggedOutGuard: CanActivateFn = () => {
+export const loginOnlyWhenLoggedOutGuard: CanActivateFn = (_route, state) => {
   const authService = inject(AuthService);
   const router = inject(Router);
 
@@ -39,11 +39,14 @@ export const loginOnlyWhenLoggedOutGuard: CanActivateFn = () => {
 
       return status.authenticated ? router.createUrlTree(['/']) : true;
     }),
-    catchError(() => of(true)),
+    // Nothing to sign in to while Stashboard can't be reached.
+    catchError((error: unknown) =>
+      of(isUnreachableError(error) ? unreachableUrl(router, state.url) : true),
+    ),
   );
 };
 
-export const bootstrapOnlyWhenRequiredGuard: CanActivateFn = () => {
+export const bootstrapOnlyWhenRequiredGuard: CanActivateFn = (_route, state) => {
   const authService = inject(AuthService);
   const router = inject(Router);
 
@@ -55,6 +58,9 @@ export const bootstrapOnlyWhenRequiredGuard: CanActivateFn = () => {
 
       return status.authenticated ? router.createUrlTree(['/']) : router.createUrlTree(['/login']);
     }),
-    catchError(() => of(true)),
+    // Nothing to sign in to while Stashboard can't be reached.
+    catchError((error: unknown) =>
+      of(isUnreachableError(error) ? unreachableUrl(router, state.url) : true),
+    ),
   );
 };

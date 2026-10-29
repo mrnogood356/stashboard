@@ -105,6 +105,9 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   protected readonly volume = signal(1);
   protected readonly speedMenuOpen = signal(false);
   protected readonly helpOpen = signal(false);
+  @ViewChild('helpClose') private helpCloseRef?: ElementRef<HTMLButtonElement>;
+  /** Where focus was before the shortcuts list opened, to go back to. */
+  private helpReturnFocus: HTMLElement | null = null;
   /** Playing at 2× while you hold the picture. */
   protected readonly holding = signal(false);
   protected readonly speeds = SPEEDS;
@@ -761,9 +764,14 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     }
     const next = Math.round(Math.max(0, Math.min(1, video.volume + delta)) * 100) / 100;
     video.volume = next;
-    video.muted = next === 0;
+    // Down to 0 mutes; turning it up unmutes; turning it down leaves mute as it is.
+    if (next === 0) {
+      video.muted = true;
+    } else if (delta > 0) {
+      video.muted = false;
+    }
     writeVolume(next);
-    this.showHud(next === 0 ? 'Muted' : `Volume ${Math.round(next * 100)}%`);
+    this.showHud(next === 0 || video.muted ? 'Muted' : `Volume ${Math.round(next * 100)}%`);
   }
 
   protected setSpeed(rate: number): void {
@@ -816,6 +824,23 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     }
     this.seekTo(target.seconds);
     this.showHud(target.title);
+  }
+
+  /** Opens or closes the shortcuts list, moving focus into it and back out. */
+  protected setHelpOpen(open: boolean): void {
+    if (open === this.helpOpen()) {
+      return;
+    }
+    if (open) {
+      this.helpReturnFocus =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      this.helpOpen.set(true);
+      setTimeout(() => this.helpCloseRef?.nativeElement.focus());
+    } else {
+      this.helpOpen.set(false);
+      this.helpReturnFocus?.focus?.();
+      this.helpReturnFocus = null;
+    }
   }
 
   private showHud(text: string): void {
@@ -1079,6 +1104,8 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     if (event.pointerType === 'mouse' && event.button !== 0) {
       return;
     }
+    // A hold that ended off the picture leaves no click behind to clear this.
+    this.suppressTap = false;
     this.clearTimer(this.holdTimer);
     this.holdTimer = setTimeout(() => {
       const video = this.videoRef?.nativeElement;
@@ -1229,13 +1256,19 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
       return;
     }
+    // Space and Enter press a button you've tabbed to (speed, a menu item). After a
+    // click the button keeps focus too, but then Space should still pause.
+    const button = target instanceof Element ? target.closest('button') : null;
+    if (button && isFocusVisible(button) && (event.key === ' ' || event.key === 'Enter')) {
+      return;
+    }
     const action = playerKeyAction(event);
     if (!action) {
       return;
     }
     if (this.helpOpen() && action.type !== 'help') {
       // The list is up: any key closes it, and Esc does nothing else.
-      this.helpOpen.set(false);
+      this.setHelpOpen(false);
       if (action.type === 'escape') {
         return;
       }
@@ -1254,6 +1287,7 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
         this.changeVolume(action.delta);
         break;
       case 'seek-percent': {
+        event.preventDefault();
         const duration = this.duration();
         if (duration > 0) {
           this.seekTo((duration * action.percent) / 100);
@@ -1289,7 +1323,7 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
         }
         break;
       case 'help':
-        this.helpOpen.update((open) => !open);
+        this.setHelpOpen(!this.helpOpen());
         break;
       case 'escape':
         if (this.speedMenuOpen() || this.qualityMenuOpen() || this.chaptersMenuOpen()) {
@@ -1357,5 +1391,14 @@ function writeVolume(volume: number): void {
     localStorage.setItem(VOLUME_KEY, String(volume));
   } catch {
     // ignore
+  }
+}
+
+/** Focused from the keyboard (Tab), not left focused by a click. */
+function isFocusVisible(element: Element): boolean {
+  try {
+    return element.matches(':focus-visible');
+  } catch {
+    return false;
   }
 }

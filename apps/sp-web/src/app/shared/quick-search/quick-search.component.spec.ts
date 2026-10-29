@@ -5,6 +5,7 @@ import { DiscoverService } from '../../core/api/discover.service';
 import { LibraryService } from '../../core/api/library.service';
 import { LocalLibraryService } from '../../core/api/local-library.service';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
+import { HideOwnedService } from '../../core/preferences/hide-owned.service';
 import { QuickSearchComponent } from './quick-search.component';
 
 describe('QuickSearchComponent', () => {
@@ -45,6 +46,13 @@ describe('QuickSearchComponent', () => {
         { provide: LocalLibraryService, useValue: local },
         { provide: DiscoverService, useValue: discover },
         { provide: PlaybackSettingsService, useValue: { feedEnabled: () => true } },
+        {
+          provide: HideOwnedService,
+          useValue: {
+            filter: <T extends { status?: { state: string } }>(items: T[]) =>
+              items.filter((item) => item.status?.state !== 'AVAILABLE'),
+          },
+        },
       ],
     });
     const fixture = TestBed.createComponent(QuickSearchComponent);
@@ -120,6 +128,57 @@ describe('QuickSearchComponent', () => {
     fixture.detectChanges();
 
     expect(navigate).toHaveBeenCalledWith('/library/performer/p1');
+    expect(fixture.nativeElement.querySelector('[data-testid="quick-search"]')).toBeNull();
+  });
+
+  it('drops the last results as soon as you change the words', async () => {
+    const fixture = await render();
+    press('k', { ctrlKey: true });
+    fixture.detectChanges();
+    const input: HTMLInputElement = fixture.nativeElement.querySelector('input');
+    input.value = 'gold';
+    input.dispatchEvent(new Event('input'));
+    await vi.advanceTimersByTimeAsync(250);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="quick-item-library"]')).toBeTruthy();
+
+    input.value = 'silver';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="quick-item-library"]')).toBeNull();
+  });
+
+  it('leaves out catalog scenes you have when "Hide ones I have" is on', async () => {
+    discover.searchScenes.mockReturnValueOnce(
+      of({
+        items: [
+          { id: 'c1', title: 'Gold Owned', status: { state: 'AVAILABLE' } },
+          { id: 'c2', title: 'Gold New', status: { state: 'NOT_REQUESTED' } },
+        ],
+      }) as never,
+    );
+    const fixture = await render();
+    press('k', { ctrlKey: true });
+    fixture.detectChanges();
+    const input: HTMLInputElement = fixture.nativeElement.querySelector('input');
+    input.value = 'gold';
+    input.dispatchEvent(new Event('input'));
+    await vi.advanceTimersByTimeAsync(250);
+    fixture.detectChanges();
+
+    const catalog = [
+      ...fixture.nativeElement.querySelectorAll('[data-testid="quick-item-catalog"] .label'),
+    ].map((row: Element) => row.textContent?.trim());
+    expect(catalog).toEqual(['Gold New']);
+  });
+
+  it('closes with Esc from a result, not only from the box', async () => {
+    const fixture = await render();
+    press('k', { ctrlKey: true });
+    fixture.detectChanges();
+    const row: HTMLElement = fixture.nativeElement.querySelector('.row');
+    row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('[data-testid="quick-search"]')).toBeNull();
   });
 

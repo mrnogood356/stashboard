@@ -59,6 +59,18 @@ describe('auth route guards', () => {
     }
   });
 
+  it('shows "can’t reach" instead of the sign-in page while Stashboard is down', async () => {
+    authService.refreshStatus.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 0 })),
+    );
+
+    const login = await runGuard(loginOnlyWhenLoggedOutGuard, '/login');
+    const bootstrap = await runGuard(bootstrapOnlyWhenRequiredGuard, '/bootstrap');
+
+    expect(router.serializeUrl(login as UrlTree)).toBe('/unreachable?next=%2Flogin');
+    expect(router.serializeUrl(bootstrap as UrlTree)).toBe('/unreachable?next=%2Fbootstrap');
+  });
+
   it('still asks to sign in for other errors', async () => {
     authService.refreshStatus.mockReturnValue(
       throwError(() => new HttpErrorResponse({ status: 500 })),

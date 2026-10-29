@@ -8,8 +8,10 @@
     (click)="close()"
   ></button>
   <div
+    #panel
     class="panel"
     role="dialog"
+    (keydown)="onPanelKeydown($event)"
     aria-modal="true"
     aria-label="Search everything"
     data-testid="quick-search"

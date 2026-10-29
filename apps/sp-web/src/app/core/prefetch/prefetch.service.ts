@@ -9,6 +9,7 @@ import {
 } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, shareReplay } from 'rxjs';
+import { AuthStateStore } from '../api/auth-state.store';
 import { CatalogBrowseService } from '../catalog/catalog-browse.service';
 
 /** Marks Stashboard's own early requests, so they aren't answered from the cache they fill. */
@@ -36,6 +37,8 @@ interface Entry {
   at: number;
   /** The catalog it was asked from; a page on the other catalog asks again. */
   provider: string | null;
+  /** Who was signed in: after signing out (or in as someone else) it isn't used. */
+  user: string | null;
   response: Observable<HttpEvent<unknown>>;
 }
 
@@ -50,6 +53,7 @@ export class PrefetchService {
   private readonly http = inject(HttpClient);
   private readonly document = inject(DOCUMENT);
   private readonly catalog = inject(CatalogBrowseService);
+  private readonly auth = inject(AuthStateStore);
   private readonly entries = new Map<string, Entry>();
   private hoverTimer: ReturnType<typeof setTimeout> | null = null;
   private started = false;
@@ -95,7 +99,12 @@ export class PrefetchService {
       .pipe(shareReplay({ bufferSize: 1, refCount: false }));
     // Start it now; whoever takes it later gets the same answer.
     response.subscribe({ error: () => this.entries.delete(url) });
-    this.entries.set(url, { at: now, provider: this.catalog.providerForRequest(), response });
+    this.entries.set(url, {
+      at: now,
+      provider: this.catalog.providerForRequest(),
+      user: this.signedInAs(),
+      response,
+    });
     while (this.entries.size > MAX_ENTRIES) {
       this.entries.delete(this.entries.keys().next().value as string);
     }
@@ -109,7 +118,13 @@ export class PrefetchService {
     }
     this.entries.delete(url);
     const sameCatalog = entry.provider === this.catalog.providerForRequest();
-    return sameCatalog && now - entry.at < FRESH_MS ? entry.response : null;
+    const sameUser = entry.user !== null && entry.user === this.signedInAs();
+    return sameCatalog && sameUser && now - entry.at < FRESH_MS ? entry.response : null;
+  }
+
+  private signedInAs(): string | null {
+    const status = this.auth.status();
+    return status?.authenticated ? (status.username ?? null) : null;
   }
 
   private prefetchLink(link: HTMLAnchorElement): void {

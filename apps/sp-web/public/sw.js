@@ -53,7 +53,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (isAppFile(url.pathname)) {
-    event.respondWith(staleWhileRevalidate(request));
+    event.respondWith(staleWhileRevalidate(event));
   }
 });
 
@@ -104,42 +104,46 @@ async function cacheFirst(request) {
   return response;
 }
 
-async function staleWhileRevalidate(request) {
+async function staleWhileRevalidate(event) {
+  const request = event.request;
   const cache = await caches.open(SHELL_CACHE);
   const cached = await cache.match(request);
-  const fresh = fetch(request)
-    .then((response) => {
-      if (response.ok) {
-        void cache.put(request, response.clone());
-      }
-      return response;
-    })
-    .catch(() => cached);
+  const fresh = fetch(request).then(async (response) => {
+    if (response.ok) {
+      await cache.put(request, response.clone()).catch(() => undefined);
+    }
+    return response;
+  });
+  // The saved copy answers now; keep the worker alive until the new one is saved.
+  event.waitUntil(fresh.catch(() => undefined));
   return cached || fresh;
 }
 
-/** Saves the app and the files it starts with, so the first offline open works. */
+/**
+ * Saves the app and the files it starts with, so the first offline open works.
+ * index.html is saved last, once everything it points to is saved, and a
+ * failure fails the install: the previous worker (if any) stays in charge.
+ */
 async function precacheShell() {
-  try {
-    const response = await fetch(SHELL_URL, { cache: 'no-cache' });
-    if (!response.ok) {
-      return;
-    }
-    const html = await response.clone().text();
-    const shell = await caches.open(SHELL_CACHE);
-    await shell.put(SHELL_URL, response);
-    const files = [...html.matchAll(/(?:src|href)="([^"]+)"/g)]
-      .map((match) => new URL(match[1], self.location.origin))
-      .filter((url) => url.origin === self.location.origin && HASHED.test(url.pathname));
-    const assets = await caches.open(ASSET_CACHE);
-    await Promise.all(
-      files.map((url) =>
-        assets.match(url.href).then((hit) => (hit ? undefined : assets.add(url.href))),
-      ),
-    );
-  } catch {
-    // Offline or mid-deploy: the files are saved as the app loads them instead.
+  const response = await fetch(SHELL_URL, { cache: 'no-cache' });
+  if (!response.ok) {
+    throw new Error(`index.html answered ${response.status}`);
   }
+  const html = await response.clone().text();
+  const urls = [...html.matchAll(/(?:src|href)="([^"]+)"/g)]
+    .map((match) => new URL(match[1], self.location.origin))
+    .filter((url) => url.origin === self.location.origin);
+  const hashed = urls.filter((url) => HASHED.test(url.pathname));
+  const appFiles = urls.filter((url) => isAppFile(url.pathname));
+  const assets = await caches.open(ASSET_CACHE);
+  await Promise.all(
+    hashed.map((url) =>
+      assets.match(url.href).then((hit) => (hit ? undefined : assets.add(url.href))),
+    ),
+  );
+  const shell = await caches.open(SHELL_CACHE);
+  await shell.addAll(appFiles.map((url) => url.href));
+  await shell.put(SHELL_URL, response);
 }
 
 async function trim(cache) {

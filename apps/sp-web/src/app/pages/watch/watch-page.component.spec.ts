@@ -394,6 +394,21 @@ describe('WatchPageComponent', () => {
     localStorage.removeItem('stashboard.player.volume');
   });
 
+  it('keeps a muted video muted when you turn the volume down', async () => {
+    const fixture = await render();
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    video.volume = 0.5;
+    video.muted = true;
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    expect(video.volume).toBe(0.4);
+    expect(video.muted).toBe(true);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+    expect(video.muted).toBe(false);
+    localStorage.removeItem('stashboard.player.volume');
+  });
+
   it('lists the shortcuts with "?", and any key closes the list', async () => {
     const fixture = await render();
     const shortcuts = () => fixture.nativeElement.querySelector('[data-testid="player-shortcuts"]');

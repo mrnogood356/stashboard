@@ -2,22 +2,27 @@ import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
+import { signal } from '@angular/core';
+import { AuthStateStore } from '../api/auth-state.store';
 import { CatalogBrowseService } from '../catalog/catalog-browse.service';
 import { PrefetchService, prefetchInterceptor, prefetchUrlFor } from './prefetch.service';
 
 describe('PrefetchService', () => {
   let provider: string | null;
+  const auth = signal<{ authenticated: boolean; username: string | null } | null>(null);
   let http: HttpClient;
   let backend: HttpTestingController;
   let prefetch: PrefetchService;
 
   beforeEach(() => {
     provider = null;
+    auth.set({ authenticated: true, username: 'me' });
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(withInterceptors([prefetchInterceptor])),
         provideHttpClientTesting(),
         { provide: CatalogBrowseService, useValue: { providerForRequest: () => provider } },
+        { provide: AuthStateStore, useValue: { status: auth } },
       ],
     });
     http = TestBed.inject(HttpClient);
@@ -78,6 +83,16 @@ describe('PrefetchService', () => {
     const other = firstValueFrom(http.get('/api/scenes/5'));
     backend.expectOne('/api/scenes/5').flush({ id: '5', from: 'fansdb' });
     await expect(other).resolves.toEqual({ id: '5', from: 'fansdb' });
+  });
+
+  it('doesn’t hand an answer to someone else after signing out', async () => {
+    prefetch.prefetch('/api/scenes/6');
+    backend.expectOne('/api/scenes/6').flush({ id: '6', for: 'me' });
+    auth.set({ authenticated: true, username: 'someone-else' });
+
+    const page = firstValueFrom(http.get('/api/scenes/6'));
+    backend.expectOne('/api/scenes/6').flush({ id: '6', for: 'someone-else' });
+    await expect(page).resolves.toEqual({ id: '6', for: 'someone-else' });
   });
 
   it('starts when you point at a scene link', () => {

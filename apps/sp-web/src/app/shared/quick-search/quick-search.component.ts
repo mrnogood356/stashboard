@@ -23,6 +23,7 @@ import { DiscoverService } from '../../core/api/discover.service';
 import { LibraryService } from '../../core/api/library.service';
 import { LocalLibraryService } from '../../core/api/local-library.service';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
+import { HideOwnedService } from '../../core/preferences/hide-owned.service';
 import { QuickItem, isEditable, matchPages, startPages } from './quick-search.model';
 
 const MIN_QUERY = 2;
@@ -62,9 +63,11 @@ export class QuickSearchComponent implements OnInit {
   private readonly local = inject(LocalLibraryService);
   private readonly discover = inject(DiscoverService);
   private readonly playback = inject(PlaybackSettingsService);
+  private readonly hideOwned = inject(HideOwnedService);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly input = viewChild<ElementRef<HTMLInputElement>>('input');
+  private readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
   private readonly queries = new Subject<string>();
   private returnFocus: HTMLElement | null = null;
 
@@ -126,15 +129,18 @@ export class QuickSearchComponent implements OnInit {
         switchMap((value) => {
           if (value.length < MIN_QUERY) {
             this.searching.set(false);
-            return of(NOTHING);
+            return of({ value, found: NOTHING });
           }
           this.searching.set(true);
-          return this.search(value);
+          return this.search(value).pipe(map((found) => ({ value, found })));
         }),
       )
-      .subscribe((found) => {
-        this.found.set(found);
-        this.searching.set(false);
+      .subscribe(({ value, found }) => {
+        // An answer for what you typed before doesn't replace what you're typing now.
+        if (value === this.query().trim()) {
+          this.found.set(found);
+          this.searching.set(false);
+        }
       });
     this.destroyRef.onDestroy(() => subscription.unsubscribe());
   }
@@ -189,9 +195,40 @@ export class QuickSearchComponent implements OnInit {
   }
 
   protected onInput(value: string): void {
+    if (value.trim() !== this.query().trim()) {
+      // The rows were for the last words; they'd be wrong to pick from now.
+      this.found.set(NOTHING);
+    }
     this.query.set(value);
     this.active.set(0);
     this.queries.next(value);
+  }
+
+  /** Esc closes from anywhere in the box, and Tab stays inside it. */
+  protected onPanelKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.close();
+      return;
+    }
+    if (event.key !== 'Tab') {
+      return;
+    }
+    const focusable = Array.from(
+      this.panel()?.nativeElement.querySelectorAll<HTMLElement>('input, button') ?? [],
+    ).filter((element) => !element.hasAttribute('disabled'));
+    if (focusable.length === 0) {
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
   protected onKeydown(event: KeyboardEvent): void {
@@ -282,7 +319,8 @@ export class QuickSearchComponent implements OnInit {
           icon: 'pi-building',
           url: `/library/studio/${encodeURIComponent(studio.id)}`,
         })),
-        catalog: (result.catalog?.items ?? []).map((scene) => ({
+        // "Hide ones I have" applies here too, as on Scenes and Search.
+        catalog: this.hideOwned.filter(result.catalog?.items ?? []).map((scene) => ({
           id: `catalog:${scene.id}`,
           kind: 'catalog',
           label: scene.title,

@@ -399,6 +399,39 @@
   min-width: 8rem;
 }
 
+/* Short screens (a phone on its side): menus scroll instead of running off the top. */
+.quality-menu {
+  max-height: calc(100dvh - 6.5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Phones: the time gets its own line when the buttons need the room. */
+@media (max-width: 560px) {
+  .bar-row {
+    flex-wrap: wrap;
+    row-gap: 0.1rem;
+  }
+
+  .time {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bar-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    margin-left: auto;
+  }
+
+  .bar-actions .icon-button {
+    width: 2.35rem;
+    height: 2.35rem;
+  }
+}
+
 /* Only where there's a keyboard to use them with. */
 @media (hover: none) {
   .help-button {
