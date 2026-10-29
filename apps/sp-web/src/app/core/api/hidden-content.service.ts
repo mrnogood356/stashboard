@@ -17,6 +17,8 @@ export interface HiddenContentSettings {
   tags: HiddenItem[];
   studios: HiddenItem[];
   performers: HiddenItem[];
+  /** Leave scenes already in your library out of catalog lists. */
+  hideOwned?: boolean;
 }
 
 const LIST_BY_KIND = {
@@ -83,6 +85,7 @@ export class HiddenContentService {
       tags: settings.tags ?? [],
       studios: settings.studios ?? [],
       performers: settings.performers ?? [],
+      hideOwned: settings.hideOwned === true,
     });
   }
 }

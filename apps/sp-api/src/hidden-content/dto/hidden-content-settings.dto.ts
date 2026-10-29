@@ -2,6 +2,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsOptional,
   IsString,
@@ -41,6 +42,8 @@ export class HiddenContentSettingsDto {
   tags!: HiddenItemDto[];
   studios!: HiddenItemDto[];
   performers!: HiddenItemDto[];
+  /** Leave scenes already in your library out of catalog lists. */
+  hideOwned!: boolean;
 }
 
 export class UpdateHiddenContentSettingsDto {
@@ -70,6 +73,11 @@ export class UpdateHiddenContentSettingsDto {
   @ValidateNested({ each: true })
   @Type(() => HiddenItemDto)
   performers?: HiddenItemDto[];
+
+  /** Left out by older clients; the saved choice is kept then. */
+  @IsOptional()
+  @IsBoolean()
+  hideOwned?: boolean;
 }
 
 /** "Hide this studio" and friends: one item added to the list. */

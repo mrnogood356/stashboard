@@ -55,6 +55,23 @@ describe('SettingsHiddenPageComponent', () => {
     expect(root.textContent).toContain('Your library is never filtered');
   });
 
+  it('turns "Scenes you already have" on and saves it with the rest', async () => {
+    const saveSettings = vi.fn((settings) => of(settings));
+    const { fixture, root } = await render({
+      getSettings: vi.fn().mockReturnValue(of(saved)),
+      saveSettings,
+    });
+    const toggle = root.querySelector('[data-testid="hide-owned"]') as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+
+    toggle.click();
+    fixture.detectChanges();
+    (root.querySelector('button[type="submit"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ hideOwned: true }));
+  });
+
   it('finds a tag in the catalog, adds it and saves everything', async () => {
     const saveSettings = vi.fn((settings) => of(settings));
     const searchSceneTags = vi.fn().mockReturnValue(
@@ -99,6 +116,7 @@ describe('SettingsHiddenPageComponent', () => {
       ],
       studios: [],
       performers: [{ id: 'p-1', name: 'Jane Doe' }],
+      hideOwned: false,
     });
     expect(root.textContent).toContain('Saved.');
   });

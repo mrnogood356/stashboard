@@ -25,6 +25,7 @@ describe('HiddenContentService', () => {
       tags: [],
       studios: [],
       performers: [],
+      hideOwned: false,
     });
     const rules = await service.getRules();
     expect(rules.matchers).toEqual([]);
@@ -47,10 +48,36 @@ describe('HiddenContentService', () => {
       tags: [{ id: 'tag-1', name: 'Trans Woman' }],
       studios: [{ id: 'studio-1', name: 'studio-1' }],
       performers: [],
+      hideOwned: false,
     });
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { key: 'GLOBAL' } }),
     );
+  });
+
+  it('saves "hide scenes you have", and keeps it when an older client leaves it out', async () => {
+    const on = await service.updateSettings({
+      words: [],
+      tags: [],
+      studios: [],
+      performers: [],
+      hideOwned: true,
+    });
+    expect(on.hideOwned).toBe(true);
+
+    const kept = await service.updateSettings({
+      words: ['pov'],
+      tags: [],
+      studios: [],
+    });
+    expect(kept.hideOwned).toBe(true);
+    expect(kept.words).toEqual(['pov']);
+
+    const hidden = await service.hideItem('studio', {
+      id: 's-1',
+      name: 'Studio',
+    });
+    expect(hidden.hideOwned).toBe(true);
   });
 
   it('ignores malformed stored entries', async () => {
@@ -65,6 +92,7 @@ describe('HiddenContentService', () => {
       tags: [{ id: 'tag-1', name: 'A' }],
       studios: [],
       performers: [],
+      hideOwned: false,
     });
   });
 

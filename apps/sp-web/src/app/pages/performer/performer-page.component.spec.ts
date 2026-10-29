@@ -106,6 +106,7 @@ describe('PerformerPageComponent', () => {
           useValue: {
             ensureLoaded: vi.fn(),
             isHidden: vi.fn(() => false),
+            settings: () => null,
             hide: vi.fn(),
             unhide: vi.fn(),
           },

@@ -166,3 +166,12 @@ legend,
   opacity: 0.55;
   cursor: default;
 }
+
+.owned-row > span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.owned-row .muted {
+  font-size: 0.85rem;
+}

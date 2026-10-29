@@ -591,6 +591,8 @@ model HiddenContentSettings {
   studios    Json     @default("[]")
   /// Catalog performers to hide, as [{ id, name }].
   performers Json     @default("[]")
+  /// Leave scenes already in your library out of catalog lists.
+  hideOwned  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
