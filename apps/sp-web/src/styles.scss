@@ -1721,8 +1721,11 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
   backdrop-filter: var(--glass-blur);
 }
 
-/* A scene's own hero: the page backdrop already carries its artwork. */
-:root[data-material='glass'] app-scene-page .hero-shell :is(.hero-backdrop, .hero-shade) {
+/* A scene's own hero: with Adaptive glass the page backdrop already carries its artwork. */
+:root[data-material='glass'][data-glass-art]
+  app-scene-page
+  .hero-shell
+  :is(.hero-backdrop, .hero-shade) {
   display: none;
 }
 
