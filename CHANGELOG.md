@@ -1,5 +1,59 @@
 # Changelog
 
+## [1.2.0](https://github.com/mrnogood356/stashboard/compare/v1.1.1...v1.2.0) (2026-10-29)
+
+
+### Features
+
+* "Scenes you already have" is one setting in Settings → Hidden ([1bc1a2b](https://github.com/mrnogood356/stashboard/commit/1bc1a2bb6e63c9755a9222464fb198ec5ff2fed1))
+* a Glass style for any theme ([70b8cba](https://github.com/mrnogood356/stashboard/commit/70b8cba16d37ca9374fd73e15475ca21a27dcc1e))
+* a Glass style for any theme ([3f5a85a](https://github.com/mrnogood356/stashboard/commit/3f5a85a9a98effc4de0314e4a263b95433509561))
+* a release calendar ([a6d5294](https://github.com/mrnogood356/stashboard/commit/a6d529438c296fd298372e3869e50b8e9bcbcea1))
+* Find my services in setup ([8421974](https://github.com/mrnogood356/stashboard/commit/8421974d5498f40e02621ce082da160e3ce07bb8))
+* one "Scenes you already have" setting, a UI tidy-up and eight new themes ([7b347ef](https://github.com/mrnogood356/stashboard/commit/7b347ef133d76d401880ef4a8e4a9aee1cc94010))
+* release calendar, Find my services, safer defaults and an Unraid template ([d6c9389](https://github.com/mrnogood356/stashboard/commit/d6c9389d8711ff392263b812f1cdd589db3cd17d))
+* Requests everywhere, loading placeholders, plainer scene and Settings pages ([a6b0748](https://github.com/mrnogood356/stashboard/commit/a6b07482708a884a49b338011f1d7ae84f310515))
+* Requests in the phone tab bar, with a count of what failed ([14dbd58](https://github.com/mrnogood356/stashboard/commit/14dbd589ab81a296e356d6f1b756cdccbfbd072d))
+* Requests shows the downloads you started yourself ([dddd3f0](https://github.com/mrnogood356/stashboard/commit/dddd3f0d5ce5ade3f9e1482b8f0602003941314b))
+* Requests shows where each request is, like Seerr ([d2cd2c6](https://github.com/mrnogood356/stashboard/commit/d2cd2c606f83ca60442d47a871cd94df7dc21899))
+* Requests shows where each request is; Home updates faster ([29d98c1](https://github.com/mrnogood356/stashboard/commit/29d98c1b2e4d6d431504f3d5aecb7227bfceffe6))
+* safer defaults for exposed installs ([eeb1762](https://github.com/mrnogood356/stashboard/commit/eeb1762f01f2cf36cad8b220e21b88503364713c))
+* **web:** a fuller player: speed, volume, jumps, chapters and hold for 2× ([88e8f1e](https://github.com/mrnogood356/stashboard/commit/88e8f1ecf61c9e7328c381c6ea49445279fcf6d7))
+* **web:** calmer look, tidier Integrations and tools ([a245b1b](https://github.com/mrnogood356/stashboard/commit/a245b1bc4ad37be767dabe6aacf3620fe1a571b9))
+* **web:** calmer, more consistent look ([6b12784](https://github.com/mrnogood356/stashboard/commit/6b12784d9ea1dfe6cbacbf434b98be44d28d0a5c))
+* **web:** install Stashboard as an app, and open it offline ([cea19db](https://github.com/mrnogood356/stashboard/commit/cea19db4c38a6816397cc408374641543baad83f))
+* **web:** installable app, Ctrl+K search, a fuller player, instant scene pages ([74b2510](https://github.com/mrnogood356/stashboard/commit/74b2510d88c25d7fd5a4b5f2ba02a8195381a0d5))
+* **web:** placeholder cards while pages load ([0979d57](https://github.com/mrnogood356/stashboard/commit/0979d573bf7cbe947016b600d50c29b36d49abf0))
+* **web:** plainer Settings pages ([8910a38](https://github.com/mrnogood356/stashboard/commit/8910a387c4e204dc0850ca6c2fa64042aca7a567))
+* **web:** scene pages open instantly: their details load as you point at them ([204ed85](https://github.com/mrnogood356/stashboard/commit/204ed855614c32277e412319b94f2c39bc45f534))
+* **web:** search everything from anywhere with Ctrl+K ([57aab42](https://github.com/mrnogood356/stashboard/commit/57aab42ea28dca17209c0857adb84ddf776fea6c))
+* **web:** tidier Integrations and tool pages ([73c4e8e](https://github.com/mrnogood356/stashboard/commit/73c4e8ee597c01ae008d3f50f9e57874bf554c6b))
+* **web:** tidier scene page ([dc3896d](https://github.com/mrnogood356/stashboard/commit/dc3896dac4a9410fdd20704e1a01a2f0727691f6))
+
+
+### Bug Fixes
+
+* address review on setup code, calendar dates, discovery and Unraid docs ([338a71e](https://github.com/mrnogood356/stashboard/commit/338a71e9295e5de5da76e7880b44bbda5139d683))
+* **api:** new Stash scenes reach Home within half a minute ([ea156ae](https://github.com/mrnogood356/stashboard/commit/ea156aeb532889363003e767b6feab426408c679))
+* **logs:** one line when a service or the database is down ([a8e6451](https://github.com/mrnogood356/stashboard/commit/a8e64511c6629018787989ceae19e1bb34ed93bc))
+* Requests refresh can't drop cards; Added tab queries once ([846836c](https://github.com/mrnogood356/stashboard/commit/846836c2650c6a06c3b3472c667455e3b884df07))
+* review fixes for Requests, the scene page and Settings ([6765656](https://github.com/mrnogood356/stashboard/commit/6765656a05195c72bbc421394f390ac0d7486f84))
+* **web:** a back button on every section the phone opens from More ([959a9c8](https://github.com/mrnogood356/stashboard/commit/959a9c8d612c952a6732f130176ea66060fedcbb))
+* **web:** address review on the UI refresh ([a16116f](https://github.com/mrnogood356/stashboard/commit/a16116f135f8f7200b9b35fdae5ee275e421ef27))
+* **web:** calmer Requests cards ([a2eac11](https://github.com/mrnogood356/stashboard/commit/a2eac117ab53324588c690309e7f6959d8d9058a))
+* **web:** glass leaves scene cards solid ([888a3ba](https://github.com/mrnogood356/stashboard/commit/888a3ba1abef8bbeb64f003c78e6064a3371441c))
+* **web:** leave the browser's bare "Script error." out of the log ([1913653](https://github.com/mrnogood356/stashboard/commit/1913653357830742736b42e0d6e0ad16bec996e8))
+* **web:** page headers stop squeezing on phones ([d0a0638](https://github.com/mrnogood356/stashboard/commit/d0a0638ec8afe0b4b17c67cc9d967a660d39ea42))
+* **web:** plain words in empty pages and outage notices ([6b5098b](https://github.com/mrnogood356/stashboard/commit/6b5098be12b9988e5531c9e1879a3fa1407f3d93))
+* **web:** review fixes for offline, search and the player ([ea48d96](https://github.com/mrnogood356/stashboard/commit/ea48d96d6d5f4282e3e33f53ea5cdec2d9fe1912))
+* **web:** review fixes for switches, downloads and the hide-owned move ([86ac6ed](https://github.com/mrnogood356/stashboard/commit/86ac6ed945b93331443111203201839a96fce80f))
+* **web:** section buttons keep their size on phones ([1f4fb51](https://github.com/mrnogood356/stashboard/commit/1f4fb51528947b9150e9eed424c602a302cfe391))
+
+
+### Performance Improvements
+
+* **web:** cheaper scene card layout ([e517079](https://github.com/mrnogood356/stashboard/commit/e517079ce63b2ca503800ce478c24e901a0b64a4))
+
 ## [1.1.1](https://github.com/mrnogood356/stashboard/compare/v1.1.0...v1.1.1) (2026-10-28)
 
 
