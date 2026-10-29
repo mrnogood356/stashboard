@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Stashboard</Name>
+  <Repository>ghcr.io/mrnogood356/stashboard:latest</Repository>
+  <Registry>https://github.com/mrnogood356/stashboard/pkgs/container/stashboard</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://discourse.stashapp.cc/t/stashboard-a-fork-of-stasharr-portal/19717</Support>
+  <Project>https://github.com/mrnogood356/stashboard</Project>
+  <Overview>Discover scenes on StashDB or FansDB, request them in Whisparr, follow each request into your Stash library, and watch from the same app on your phone or desktop.[br][br]Needs a PostgreSQL 15 or newer database: install the PostgreSQL app from Community Applications first (for example postgresql17), create a database and user for Stashboard, then fill in the Database fields below. Setup in the web UI connects Stash, Whisparr and the catalog.</Overview>
+  <Category>MediaApp:Video MediaServer:Video Tools:</Category>
+  <WebUI>http://[IP]:[PORT:3000]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/mrnogood356/stashboard/main/infrastructure/unraid/stashboard.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/mrnogood356/stashboard/main/apps/sp-web/public/icons/icon-512.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>A PostgreSQL 15+ database (for example the postgresql17 app from Community Applications).</Requires>
+  <Config Name="Web UI port" Target="3000" Default="3000" Mode="tcp" Description="The port you open Stashboard on." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+  <Config Name="App data" Target="/var/lib/stashboard" Default="/mnt/user/appdata/stashboard" Mode="rw" Description="Session secret, logs and the image cache. Give Stashboard a folder of its own." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/stashboard</Config>
+  <Config Name="Media" Target="/data" Default="/mnt/user/data" Mode="rw" Description="Optional. The same media folder Stash and Whisparr use, mapped to the same path they see, so renames and empty-folder cleanup work." Type="Path" Display="always" Required="false" Mask="false">/mnt/user/data</Config>
+  <Config Name="Database host" Target="DATABASE_HOST" Default="" Mode="" Description="Your server's IP or the PostgreSQL container's name." Type="Variable" Display="always" Required="true" Mask="false"/>
+  <Config Name="Database port" Target="DATABASE_PORT" Default="5432" Mode="" Description="PostgreSQL port." Type="Variable" Display="always" Required="true" Mask="false">5432</Config>
+  <Config Name="Database name" Target="POSTGRES_DB" Default="stashboard" Mode="" Description="The database Stashboard uses. It creates its tables on first start." Type="Variable" Display="always" Required="true" Mask="false">stashboard</Config>
+  <Config Name="Database user" Target="POSTGRES_USER" Default="stashboard" Mode="" Description="A PostgreSQL user that owns that database." Type="Variable" Display="always" Required="true" Mask="false">stashboard</Config>
+  <Config Name="Database password" Target="POSTGRES_PASSWORD" Default="" Mode="" Description="That user's password." Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User Stashboard runs as. 99 is Unraid's nobody, which owns media by default." Type="Variable" Display="advanced" Required="true" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group Stashboard runs as. 100 is Unraid's users group." Type="Variable" Display="advanced" Required="true" Mask="false">100</Config>
+  <Config Name="Secure cookies" Target="SESSION_COOKIE_SECURE" Default="false" Mode="" Description="Set to true when you open Stashboard over HTTPS (through a reverse proxy)." Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+  <Config Name="Trust proxy" Target="TRUST_PROXY" Default="" Mode="" Description="Set to true (or a hop count like 1) when Stashboard is behind a reverse proxy, so login throttling sees each visitor's real address." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Log level" Target="LOG_LEVEL" Default="info" Mode="" Description="error, warn, info, debug or trace. Settings, Logs can also change it while running." Type="Variable" Display="advanced" Required="false" Mask="false">info</Config>
+</Container>
