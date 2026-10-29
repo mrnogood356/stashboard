@@ -57,29 +57,24 @@
                 @for (step of steps; track step.stage; let i = $index) {
                   <li [attr.data-state]="stepState(entry, i)" [attr.title]="step.label">
                     <span class="sr-only">{{ step.label }}</span>
+                    @if (stepState(entry, i) === 'current' && entry.progress !== null) {
+                      <!-- The step that is running fills as it goes, so there's one bar, not two. -->
+                      <span
+                        class="step-fill"
+                        role="progressbar"
+                        [style.width.%]="entry.progress"
+                        [attr.aria-valuenow]="entry.progress"
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                        [attr.aria-label]="entry.releaseTitle"
+                      ></span>
+                    }
                   </li>
                 }
               </ol>
               @if (entry.stage === 'downloading' || entry.progress !== null) {
-                @if (entry.progress !== null) {
-                  <div
-                    class="bar"
-                    role="progressbar"
-                    [attr.aria-valuenow]="entry.progress"
-                    aria-valuemin="0"
-                    aria-valuemax="100"
-                    [attr.aria-label]="entry.releaseTitle"
-                  >
-                    <span [style.width.%]="entry.progress"></span>
-                  </div>
-                }
                 <p class="meta">
-                  @if (entry.progress !== null) {
-                    {{ entry.progress }}%
-                  }
-                  @if (entry.timeLeft) {
-                    · {{ entry.timeLeft }} left
-                  }
+                  {{ progressText(entry.progress, entry.timeLeft) }}
                 </p>
               }
               @if (entry.detail) {
@@ -158,7 +153,9 @@
               ></i>
               {{ w.state === 'watching' ? 'Watching the drop-in folder' : 'Drop-in folder' }}
             </p>
-            <span class="stage watch-state">{{ watchLabel() }}</span>
+            @if (watchLabel()) {
+              <span class="stage watch-state">{{ watchLabel() }}</span>
+            }
           </div>
 
           @if (w.message) {

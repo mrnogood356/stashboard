@@ -109,12 +109,13 @@ p {
 /* Theme cards with a live mini preview of each palette. */
 .theme-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 8rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
   gap: 0.75rem;
 }
 
 .theme-card {
   display: grid;
+  align-content: start;
   gap: 0.5rem;
   min-width: 0;
   padding: 0.45rem;
@@ -227,9 +228,8 @@ p {
     0 0 0 4px var(--text-primary);
 }
 
-.swatch.theme-default span {
-  font-size: 0.8rem;
-  font-weight: 800;
+.swatch.theme-default i {
+  font-size: 0.95rem;
   color: var(--accent-contrast);
 }
 

@@ -50,13 +50,17 @@ const NOUN: Record<HiddenItemKind, string> = {
       min-height: 2.25rem;
       padding: 0.3rem 0.85rem;
       border-radius: 999px;
-      border: 1px solid var(--chip-border);
-      background: var(--chip-bg);
-      color: var(--chip-text);
+      border: 1px solid var(--border-strong);
+      background: transparent;
+      color: var(--text-secondary);
       font: inherit;
       font-size: 0.86rem;
       font-weight: 600;
       cursor: pointer;
+    }
+
+    .hide-toggle:hover:not(:disabled) {
+      color: var(--text-primary);
     }
 
     .hide-toggle span {

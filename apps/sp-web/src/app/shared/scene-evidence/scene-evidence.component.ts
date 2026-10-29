@@ -21,7 +21,7 @@ const COPIED_MS = 2000;
 let nextId = 0;
 
 /**
- * "Why is it like this?": what Stashboard, Whisparr and Stash each say about a
+ * "Status details": what Stashboard, Whisparr and Stash each say about a
  * scene, as plain facts. Collapsed until opened, and only asks the server
  * then, so it costs nothing on the page. Each part fails on its own.
  */

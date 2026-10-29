@@ -113,7 +113,9 @@
           }
           <div class="title-row">
             <h1>{{ scene.title }}</h1>
-            <app-scene-status-badge [status]="scene.status" />
+            @if (scene.status.state !== 'NOT_REQUESTED') {
+              <app-scene-status-badge [status]="scene.status" />
+            }
           </div>
 
           @if (metaLine(scene); as meta) {
@@ -144,12 +146,6 @@
                   +{{ scene.tags.length - tagsShown }} more
                 </button>
               }
-            </div>
-          }
-
-          @if (scene.studioId) {
-            <div class="hide-row">
-              <app-hide-toggle kind="studio" [itemId]="scene.studioId" [name]="scene.studio" />
             </div>
           }
 
@@ -280,6 +276,12 @@
                   <i class="pi pi-external-link external-action-icon" aria-hidden="true"></i>
                 </a>
               }
+            </div>
+          }
+
+          @if (scene.studioId) {
+            <div class="hide-row">
+              <app-hide-toggle kind="studio" [itemId]="scene.studioId" [name]="scene.studio" />
             </div>
           }
 

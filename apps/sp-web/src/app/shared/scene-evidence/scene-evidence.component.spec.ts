@@ -94,7 +94,7 @@ describe('SceneEvidenceComponent', () => {
   it('starts collapsed and asks nothing until opened', async () => {
     const { root, api, toggle } = await render();
 
-    expect(toggle.textContent).toContain('Why is it like this?');
+    expect(toggle.textContent).toContain('Status details');
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(root.querySelector('.evidence-body')).toBeNull();
     expect(api.catalogScene).not.toHaveBeenCalled();

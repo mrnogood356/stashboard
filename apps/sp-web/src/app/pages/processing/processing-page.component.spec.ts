@@ -149,7 +149,7 @@ describe('ProcessingPageComponent', () => {
     expect(text(item?.querySelector('.item-title'))).toBe('Jane.Doe.Beach.Day.1080p');
     expect(text(item?.querySelector('.stage'))).toBe('Downloading');
     expect(item?.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('42');
-    expect(text(item?.querySelector('.meta'))).toBe('42% · 0:05:00 left');
+    expect(text(item?.querySelector('.meta'))).toBe('42% · 5 min left');
     // Queued → Downloading: one step done, one current.
     const steps = [...(item?.querySelectorAll('.steps li') ?? [])].map((step) =>
       step.getAttribute('data-state'),

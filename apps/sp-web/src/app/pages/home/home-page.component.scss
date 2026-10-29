@@ -754,9 +754,9 @@ p {
   }
 
   .featured-slide {
-    aspect-ratio: 4 / 5;
-    max-height: 72vh;
-    min-height: 0;
+    aspect-ratio: 4 / 3;
+    max-height: 56vh;
+    min-height: 300px;
   }
 
   .featured-shade {

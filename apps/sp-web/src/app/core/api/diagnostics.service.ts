@@ -35,7 +35,7 @@ export interface SceneEvidence {
   sections: EvidenceSection[];
 }
 
-/** The plain facts behind a scene's state, for "Why is it like this?". */
+/** The plain facts behind a scene's state, for "Status details". */
 @Injectable({ providedIn: 'root' })
 export class DiagnosticsApiService {
   private readonly http = inject(HttpClient);
