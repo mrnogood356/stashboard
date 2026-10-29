@@ -383,10 +383,20 @@ export interface StudioDetails {
 }
 
 /** Calendar: releases between two days (YYYY-MM-DD), oldest first. */
+/** Where the calendar's releases come from: starred on the catalog, Whisparr, or both. */
+export type CalendarSource = 'ALL' | 'CATALOG' | 'WHISPARR';
+
+export type CalendarItem = SceneExplorerItem & {
+  /** Whisparr has this scene (monitored), downloaded or not. */
+  inWhisparr?: boolean;
+};
+
 export interface ScenesCalendarResponse {
   from: string;
   to: string;
-  items: SceneExplorerItem[];
+  items: CalendarItem[];
   /** False when the latest days may be missing some releases. */
   complete: boolean;
+  /** Whisparr's part: shown, not set up, or couldn't be reached just now. */
+  whisparr: 'ok' | 'off' | 'failed';
 }

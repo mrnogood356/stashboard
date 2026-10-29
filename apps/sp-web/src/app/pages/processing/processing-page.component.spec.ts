@@ -146,12 +146,12 @@ describe('ProcessingPageComponent', () => {
     );
 
     const item = root.querySelector('[data-testid="handoff"]');
-    expect(text(item?.querySelector('.item-title'))).toBe('Jane.Doe.Beach.Day.1080p');
-    expect(text(item?.querySelector('.stage'))).toBe('Downloading');
+    expect(text(item?.querySelector('.card-title'))).toBe('Jane.Doe.Beach.Day.1080p');
+    expect(text(item?.querySelector('.pill'))).toBe('Downloading');
     expect(item?.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('42');
     expect(text(item?.querySelector('.meta'))).toBe('42% · 5 min left');
     // Queued → Downloading: one step done, one current.
-    const steps = [...(item?.querySelectorAll('.steps li') ?? [])].map((step) =>
+    const steps = [...(item?.querySelectorAll('.stage-track li') ?? [])].map((step) =>
       step.getAttribute('data-state'),
     );
     expect(steps).toEqual(['done', 'current', 'todo', 'todo', 'todo', 'todo']);
@@ -206,11 +206,11 @@ describe('ProcessingPageComponent', () => {
     const [manual, sent] = [...root.querySelectorAll('[data-testid="handoff"]')];
     expect(text(manual.querySelector('[data-testid="added-in-sab"]'))).toBe('Added in SABnzbd');
     expect(sent.querySelector('[data-testid="added-in-sab"]')).toBeNull();
-    const steps = [...manual.querySelectorAll('.steps li')].map((step) =>
+    const steps = [...manual.querySelectorAll('.stage-track li')].map((step) =>
       step.getAttribute('data-state'),
     );
     expect(steps).toEqual(['done', 'done', 'done', 'done', 'current', 'todo']);
-    expect(manual.querySelector('.step-fill')).toBeNull();
+    expect(manual.querySelector('[role="progressbar"]')).toBeNull();
     expect(text(manual)).toContain('identify it');
 
     const failed = root.querySelector('[data-testid="recent-handoff"]');

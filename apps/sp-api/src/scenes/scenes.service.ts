@@ -44,7 +44,11 @@ import {
   ScenesFeedItemDto,
   ScenesFeedResponseDto,
 } from './dto/scenes-feed.dto';
-import { ScenesCalendarResponseDto } from './dto/scenes-calendar.dto';
+import {
+  type CalendarSource,
+  ScenesCalendarItemDto,
+  ScenesCalendarResponseDto,
+} from './dto/scenes-calendar.dto';
 import {
   SceneFavoritesFilter,
   SceneFeedSort,
@@ -209,16 +213,70 @@ export class ScenesService {
   }
 
   /**
-   * Releases dated from..to (YYYY-MM-DD) by the studios and performers you
-   * starred. Asks the catalog for releases after the day before `from`,
-   * oldest first, and stops once past `to`: usually one page for a month,
-   * at most CALENDAR_PAGES.
+   * The calendar from..to (YYYY-MM-DD): releases by the studios and
+   * performers you starred, and the scenes Whisparr has dated then, as one
+   * list (a scene in both shows once). `source` picks either half.
    */
   async getCalendar(
     from: string,
     to: string,
     favorites: SceneFavoritesFilter = 'ALL',
+    source: CalendarSource = 'ALL',
   ): Promise<ScenesCalendarResponseDto> {
+    const [catalog, whisparr] = await Promise.all([
+      source === 'WHISPARR'
+        ? Promise.resolve({ items: [] as ScenesFeedItemDto[], complete: true })
+        : this.getCatalogCalendar(from, to, favorites),
+      source === 'CATALOG'
+        ? Promise.resolve({
+            items: [] as ScenesCalendarItemDto[],
+            state: 'off' as const,
+          })
+        : this.getWhisparrCalendar(from, to),
+    ]);
+
+    const byId = new Map<string, ScenesCalendarItemDto>();
+    for (const item of catalog.items) {
+      byId.set(item.id, item);
+    }
+    for (const item of whisparr.items) {
+      const starred = byId.get(item.id);
+      // A starred scene Whisparr has: the catalog's details, Whisparr's status.
+      byId.set(
+        item.id,
+        starred
+          ? {
+              ...starred,
+              status: item.status,
+              requestable: false,
+              localSceneId: item.localSceneId ?? starred.localSceneId,
+              inWhisparr: true,
+            }
+          : item,
+      );
+    }
+    const items = [...byId.values()].sort((a, b) =>
+      (a.releaseDate ?? '').localeCompare(b.releaseDate ?? ''),
+    );
+    return {
+      from,
+      to,
+      items,
+      complete: catalog.complete,
+      whisparr: source === 'CATALOG' ? 'off' : whisparr.state,
+    };
+  }
+
+  /**
+   * Starred releases from..to. Asks the catalog for releases after the day
+   * before `from`, oldest first, and stops once past `to`: usually one page
+   * for a month, at most CALENDAR_PAGES.
+   */
+  private async getCatalogCalendar(
+    from: string,
+    to: string,
+    favorites: SceneFavoritesFilter,
+  ): Promise<{ items: ScenesFeedItemDto[]; complete: boolean }> {
     const items: ScenesFeedItemDto[] = [];
     let complete = false;
     for (let page = 1; page <= ScenesService.CALENDAR_PAGES; page += 1) {
@@ -252,10 +310,96 @@ export class ScenesService {
         break;
       }
     }
-    items.sort((a, b) =>
-      (a.releaseDate ?? '').localeCompare(b.releaseDate ?? ''),
-    );
-    return { from, to, items, complete };
+    return { items, complete };
+  }
+
+  /**
+   * The scenes Whisparr has dated from..to, as calendar items with the same
+   * statuses as everywhere else. Never throws: Whisparr not set up, or not
+   * answering, just leaves its half out.
+   */
+  private async getWhisparrCalendar(
+    from: string,
+    to: string,
+  ): Promise<{
+    items: ScenesCalendarItemDto[];
+    state: 'ok' | 'off' | 'failed';
+  }> {
+    const integration = await Promise.resolve()
+      .then(() => this.integrationsService.findOne(IntegrationType.WHISPARR))
+      .catch(() => null);
+    const baseUrl = integration?.baseUrl?.trim();
+    if (
+      !integration ||
+      !integration.enabled ||
+      integration.status !== IntegrationStatus.CONFIGURED ||
+      !baseUrl
+    ) {
+      return { items: [], state: 'off' };
+    }
+
+    try {
+      const scenes = await this.whisparrAdapter.getCalendar(
+        { baseUrl, apiKey: integration.apiKey },
+        from,
+        to,
+      );
+      const inRange = scenes.filter(
+        (scene) => scene.monitored && scene.date >= from && scene.date <= to,
+      );
+      const ids = inRange.map((scene) => scene.stashId);
+      const statuses =
+        await this.sceneStatusService.resolveForScenesWithEvidence(ids, {
+          movieByStashId: new Map(
+            inRange.map((scene) => [
+              scene.stashId,
+              {
+                movieId: scene.movieId,
+                stashId: scene.stashId,
+                hasFile: scene.hasFile,
+              },
+            ]),
+          ),
+        });
+      const localSceneIds = await this.sceneStatusService.resolveLocalSceneIds(
+        ids.filter((id) => statuses.get(id)?.state === 'AVAILABLE'),
+      );
+      const provider = await this.catalogProviderService
+        .getConfiguredCatalogProvider()
+        .then((catalog) => catalog.integrationType)
+        .catch(() => 'STASHDB' as const);
+      return {
+        state: 'ok',
+        items: inRange.map((scene) => ({
+          ...this.toScenesFeedItem(
+            {
+              id: scene.stashId,
+              title: scene.title,
+              details: null,
+              imageUrl: scene.imageUrl,
+              studioId: null,
+              studioName: scene.studio,
+              studioImageUrl: null,
+              releaseDate: scene.date,
+              productionDate: null,
+              date: scene.date,
+              duration: null,
+            },
+            provider === 'FANSDB' ? 'FANSDB' : 'STASHDB',
+            statuses.get(scene.stashId) ?? { state: 'REQUESTED' },
+            // Already in Whisparr, so there's nothing to request.
+            false,
+          ),
+          localSceneId: localSceneIds.get(scene.stashId) ?? null,
+          inWhisparr: true,
+        })),
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Whisparr's calendar could not be read: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return { items: [], state: 'failed' };
+    }
   }
 
   async searchSceneTags(query?: string): Promise<SceneTagOptionDto[]> {

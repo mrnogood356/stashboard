@@ -1,9 +1,11 @@
 <main class="app-page-shell">
   <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
-  <h1 class="page-title">Fix my library</h1>
-  <p class="page-lede">
-    Scenes that need a little attention. Everything here is saved straight to Stash.
-  </p>
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Fix my library</h1>
+      <p>Scenes that need a little attention. Saved straight to Stash.</p>
+    </div>
+  </header>
 
   <div class="segmented" role="tablist" aria-label="Lists">
     @for (tab of tabs; track tab.kind) {

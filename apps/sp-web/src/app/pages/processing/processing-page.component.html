@@ -1,10 +1,15 @@
-<main class="app-page-shell processing">
+<main class="app-page-shell app-page-shell--wide processing">
   <app-section-back />
-  <h1 class="page-title">Downloads</h1>
-  <p class="page-lede">
-    Downloads and dropped-in files on their way into your library. This page updates every few
-    seconds.
-  </p>
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Downloads</h1>
+      <p>On their way into your library. Updates every few seconds.</p>
+    </div>
+    <a class="head-action" routerLink="/settings/integrations">
+      <i class="pi pi-cog" aria-hidden="true"></i>
+      <span>Settings</span>
+    </a>
+  </header>
 
   @if (loadError() && !data()) {
     <div class="notice error" role="alert">
@@ -15,21 +20,30 @@
 
   @if (data(); as d) {
     <!-- SABnzbd downloads -->
-    <section class="block" aria-labelledby="processing-downloads">
-      <div class="block-head">
-        <h2 id="processing-downloads">SABnzbd downloads</h2>
-        @if (d.handoffs.length) {
-          <span class="count-badge">{{ d.handoffs.length }}</span>
-        }
+    <section
+      class="block app-section-panel"
+      data-tone="active"
+      aria-labelledby="processing-downloads"
+    >
+      <div class="app-section-head">
+        <div class="app-section-head__copy">
+          <div class="title-row">
+            <h2 id="processing-downloads">SABnzbd</h2>
+            @if (d.handoffs.length) {
+              <span class="count">{{ d.handoffs.length }} in progress</span>
+            }
+          </div>
+          <p>Downloads Stashboard sent to SABnzbd, and jobs you added there yourself.</p>
+        </div>
       </div>
 
       @if (!d.handoff.enabled) {
-        <p class="muted line">
+        <p class="line">
           Finished downloads is off, so downloads aren’t sent to SABnzbd.
           <a routerLink="/settings/integrations">Turn it on in Settings</a>
         </p>
       } @else if (!d.handoff.sabnzbdReady) {
-        <p class="muted line">
+        <p class="line">
           SABnzbd isn’t set up. <a routerLink="/settings/integrations">Set it up in Settings</a>
         </p>
       }
@@ -41,84 +55,121 @@
       }
 
       @if (d.handoffs.length === 0) {
-        <p class="muted line" data-testid="no-downloads">Nothing downloading right now.</p>
+        <p class="line" data-testid="no-downloads">Nothing downloading right now.</p>
       } @else {
-        <ul class="items">
+        <div class="cards">
           @for (entry of d.handoffs; track entry.id) {
-            <li class="item panel" [attr.data-stage]="entry.stage" data-testid="handoff">
-              <div class="item-head">
-                <p class="item-title">{{ entry.releaseTitle }}</p>
-                <span class="stage">{{ stageLabel(entry.stage) }}</span>
-              </div>
-              @if (entry.source === 'sabnzbd-manual') {
-                <span class="source-tag" data-testid="added-in-sab">Added in SABnzbd</span>
-              }
-              <ol class="steps" aria-label="Steps">
-                @for (step of steps; track step.stage; let i = $index) {
-                  <li [attr.data-state]="stepState(entry, i)" [attr.title]="step.label">
-                    <span class="sr-only">{{ step.label }}</span>
-                    @if (
-                      stepState(entry, i) === 'current' &&
-                      entry.stage === 'downloading' &&
-                      entry.progress !== null
-                    ) {
-                      <!-- The step that is running fills as it goes, so there's one bar, not two. -->
-                      <span
-                        class="step-fill"
-                        role="progressbar"
-                        [style.width.%]="entry.progress"
-                        [attr.aria-valuenow]="entry.progress"
-                        aria-valuemin="0"
-                        aria-valuemax="100"
-                        [attr.aria-label]="entry.releaseTitle"
-                      ></span>
-                    }
-                  </li>
+            <article class="card" [attr.data-stage]="entry.stage" data-testid="handoff">
+              <div class="card-art">
+                @if (entry.scene?.imageUrl; as image) {
+                  <img [src]="image" alt="" loading="lazy" />
+                } @else {
+                  <i class="pi pi-download" aria-hidden="true"></i>
                 }
-              </ol>
-              @if (entry.stage === 'downloading' || entry.progress !== null) {
-                <p class="meta">
-                  {{ progressText(entry.progress, entry.timeLeft) }}
-                </p>
-              }
-              @if (entry.detail) {
-                <p class="detail">{{ entry.detail }}</p>
-              }
-              @if (entry.canIgnore) {
-                <div class="actions">
-                  <button
-                    type="button"
-                    class="btn small"
-                    [disabled]="busy() === entry.id"
-                    (click)="ignore(entry)"
-                  >
-                    Stop watching
-                  </button>
+              </div>
+              <div class="card-body">
+                <div class="card-top">
+                  <p class="card-meta">
+                    @if (entry.scene?.studio; as studio) {
+                      <span>{{ studio }}</span>
+                    }
+                    @if (entry.source === 'sabnzbd-manual') {
+                      <span class="source-tag" data-testid="added-in-sab">Added in SABnzbd</span>
+                    }
+                  </p>
+                  <span class="pill" [attr.data-stage]="entry.stage">{{
+                    stageLabel(entry.stage)
+                  }}</span>
                 </div>
-              }
-            </li>
+                <h3 class="card-title">{{ entry.scene?.title ?? entry.releaseTitle }}</h3>
+                @if (entry.scene) {
+                  <p class="release app-break-anywhere">{{ entry.releaseTitle }}</p>
+                }
+                <app-stage-track [stages]="stages(entry)" [label]="entry.releaseTitle" />
+                @if (entry.stage === 'downloading' && entry.progress !== null) {
+                  <div class="progress">
+                    <div
+                      class="bar"
+                      role="progressbar"
+                      [attr.aria-valuenow]="entry.progress"
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                      [attr.aria-label]="entry.releaseTitle"
+                    >
+                      <span [style.width.%]="entry.progress"></span>
+                    </div>
+                    <span class="meta">{{ progressText(entry.progress, entry.timeLeft) }}</span>
+                  </div>
+                }
+                @if (entry.detail) {
+                  <p class="detail" [class.bad]="entry.stage === 'failed'">{{ entry.detail }}</p>
+                }
+                @if (entry.sceneId || entry.canRetry || entry.canIgnore) {
+                  <div class="actions">
+                    @if (entry.canRetry) {
+                      <button
+                        type="button"
+                        class="btn small primary"
+                        [disabled]="busy() === entry.id"
+                        (click)="retryHandoff(entry)"
+                      >
+                        Try again
+                      </button>
+                    }
+                    @if (entry.sceneId) {
+                      <a class="btn small" [routerLink]="['/scene', entry.sceneId]">
+                        Scene details
+                      </a>
+                    }
+                    @if (entry.canIgnore) {
+                      <button
+                        type="button"
+                        class="btn small quiet"
+                        [disabled]="busy() === entry.id"
+                        (click)="ignore(entry)"
+                      >
+                        Stop watching
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            </article>
           }
-        </ul>
+        </div>
       }
 
       @if (d.recentHandoffs.length) {
-        <h3 class="sub">Recently</h3>
-        <ul class="items compact">
+        <h3 class="sub">Finished</h3>
+        <ul class="rows">
           @for (entry of d.recentHandoffs; track entry.id) {
-            <li class="item panel" [attr.data-stage]="entry.stage" data-testid="recent-handoff">
-              <div class="item-head">
-                <p class="item-title">{{ entry.releaseTitle }}</p>
-                <span class="stage">{{ stageLabel(entry.stage) }}</span>
+            <li class="row" [attr.data-stage]="entry.stage" data-testid="recent-handoff">
+              <div class="row-art">
+                @if (entry.scene?.imageUrl; as image) {
+                  <img [src]="image" alt="" loading="lazy" />
+                } @else {
+                  <i class="pi pi-download" aria-hidden="true"></i>
+                }
               </div>
-              @if (entry.source === 'sabnzbd-manual') {
-                <span class="source-tag" data-testid="added-in-sab">Added in SABnzbd</span>
-              }
-              @if (entry.detail) {
-                <p class="detail">{{ entry.detail }}</p>
-              }
-              <p class="meta">{{ ago(entry.updatedAt) }}</p>
-              @if (entry.canRetry) {
-                <div class="actions">
+              <div class="row-copy">
+                <p class="row-title app-break-anywhere">
+                  {{ entry.scene?.title ?? entry.releaseTitle }}
+                </p>
+                <p class="row-meta">
+                  @if (entry.source === 'sabnzbd-manual') {
+                    <span class="source-tag" data-testid="added-in-sab">Added in SABnzbd</span>
+                  }
+                  {{ ago(entry.updatedAt) }}
+                </p>
+                @if (entry.detail) {
+                  <p class="detail" [class.bad]="entry.stage === 'failed'">{{ entry.detail }}</p>
+                }
+              </div>
+              <div class="row-end">
+                <span class="pill" [attr.data-stage]="entry.stage">{{
+                  stageLabel(entry.stage)
+                }}</span>
+                @if (entry.canRetry) {
                   <button
                     type="button"
                     class="btn small primary"
@@ -127,8 +178,8 @@
                   >
                     Try again
                   </button>
-                </div>
-              }
+                }
+              </div>
             </li>
           }
         </ul>
@@ -136,76 +187,25 @@
     </section>
 
     <!-- Drop-ins -->
-    <section class="block" aria-labelledby="processing-drop-ins">
-      <div class="block-head">
-        <h2 id="processing-drop-ins">Files you drop in</h2>
-      </div>
-
-      @if (watch(); as w) {
-        <div class="watch panel" [attr.data-state]="w.state" data-testid="watch-card">
-          <div class="item-head">
-            <p class="item-title">
-              <i
-                [class]="
-                  w.state === 'watching'
-                    ? 'pi pi-eye'
-                    : w.state === 'problem'
-                      ? 'pi pi-exclamation-triangle'
-                      : 'pi pi-eye-slash'
-                "
-                aria-hidden="true"
-              ></i>
-              {{ w.state === 'watching' ? 'Watching the drop-in folder' : 'Drop-in folder' }}
-            </p>
-            @if (watchLabel()) {
-              <span class="stage watch-state">{{ watchLabel() }}</span>
-            }
-          </div>
-
-          @if (w.message) {
-            <p class="detail strong" data-testid="watch-message">{{ w.message }}</p>
-          }
-          @if (w.hint) {
-            <p class="detail">{{ w.hint }}</p>
-          }
-
-          <dl class="facts">
-            @if (w.folder) {
-              <div>
-                <dt>Folder</dt>
-                <dd class="path" data-testid="watch-folder">{{ w.folder }}</dd>
-              </div>
-            }
-            @if (w.sabFolder && w.sabFolder !== w.folder) {
-              <div>
-                <dt>In SABnzbd</dt>
-                <dd class="path">{{ w.sabFolder }}</dd>
-              </div>
-            }
-            <div>
-              <dt>Last check</dt>
-              <dd>
-                {{ ago(w.lastCheckAt) ?? 'Not yet' }}
-                @if (w.lastResult && w.state === 'watching') {
-                  · {{ w.lastResult }}
-                }
-              </dd>
+    @if (watch(); as w) {
+      <section
+        class="block app-section-panel"
+        [attr.data-tone]="w.state === 'problem' ? 'attention' : w.state === 'off' ? '' : 'pending'"
+        aria-labelledby="processing-drop-ins"
+        [attr.data-state]="w.state"
+        data-testid="watch-card"
+      >
+        <div class="app-section-head">
+          <div class="app-section-head__copy">
+            <div class="title-row">
+              <h2 id="processing-drop-ins">Drop-in folder</h2>
+              @if (watchLabel()) {
+                <span class="pill watch-state" [attr.data-watch]="w.state">{{ watchLabel() }}</span>
+              }
             </div>
-            @if (w.state !== 'off' && w.nextCheckAt) {
-              <div>
-                <dt>Next check</dt>
-                <dd>{{ ago(w.nextCheckAt) }}</dd>
-              </div>
-            }
-            @if (w.lastError) {
-              <div>
-                <dt>Last error</dt>
-                <dd class="path">{{ w.lastError.message }} ({{ ago(w.lastError.at) }})</dd>
-              </div>
-            }
-          </dl>
-
-          <div class="actions">
+            <p>Files you put in SABnzbd’s folder are moved into your library and matched.</p>
+          </div>
+          <div class="head-actions">
             <button
               type="button"
               class="btn small primary"
@@ -219,121 +219,163 @@
                 <i class="pi pi-refresh" aria-hidden="true"></i> Check now
               }
             </button>
-            <a class="btn small" routerLink="/settings/integrations">Settings</a>
+            <a class="btn small" routerLink="/settings/integrations">Folder settings</a>
           </div>
         </div>
 
-        @if (w.settling.length) {
-          <h3 class="sub">Waiting until they stop changing</h3>
-          <ul class="items compact">
+        @if (w.message || w.hint) {
+          <div class="notice" [class.error]="w.state === 'problem'">
+            <i
+              [class]="w.state === 'problem' ? 'pi pi-exclamation-triangle' : 'pi pi-info-circle'"
+              aria-hidden="true"
+            ></i>
+            <div>
+              @if (w.message) {
+                <p class="strong" data-testid="watch-message">{{ w.message }}</p>
+              }
+              @if (w.hint) {
+                <p>{{ w.hint }}</p>
+              }
+            </div>
+          </div>
+        }
+
+        <dl class="facts">
+          @if (w.folder) {
+            <div>
+              <dt>Folder</dt>
+              <dd class="path" data-testid="watch-folder">{{ w.folder }}</dd>
+            </div>
+          }
+          @if (w.sabFolder && w.sabFolder !== w.folder) {
+            <div>
+              <dt>In SABnzbd</dt>
+              <dd class="path">{{ w.sabFolder }}</dd>
+            </div>
+          }
+          <div>
+            <dt>Last check</dt>
+            <dd>
+              {{ ago(w.lastCheckAt) ?? 'Not yet' }}
+              @if (w.lastResult && w.state === 'watching') {
+                · {{ w.lastResult }}
+              }
+            </dd>
+          </div>
+          @if (w.state !== 'off' && w.nextCheckAt) {
+            <div>
+              <dt>Next check</dt>
+              <dd>{{ ago(w.nextCheckAt) }}</dd>
+            </div>
+          }
+          @if (w.lastError) {
+            <div>
+              <dt>Last error</dt>
+              <dd class="path">{{ w.lastError.message }} ({{ ago(w.lastError.at) }})</dd>
+            </div>
+          }
+        </dl>
+
+        @if (w.settling.length || d.dropIns.active.length || d.dropIns.recent.length) {
+          <ul class="rows">
             @for (file of w.settling; track file.path) {
-              <li class="item panel" data-stage="settling" data-testid="settling">
-                <div class="item-head">
-                  <p class="item-title">{{ file.name }}</p>
-                  <span class="stage">Settling</span>
+              <li class="row" data-stage="settling" data-testid="settling">
+                <div class="row-art"><i class="pi pi-clock" aria-hidden="true"></i></div>
+                <div class="row-copy">
+                  <p class="row-title app-break-anywhere">{{ file.name }}</p>
+                  <p class="row-meta">
+                    @if (fileSize(file.size); as size) {
+                      {{ size }} ·
+                    }
+                    noticed {{ ago(file.firstSeenAt) }} · brought in once it hasn’t changed for
+                    {{ w.settleSeconds }} s
+                  </p>
                 </div>
-                <p class="detail path">{{ file.path }}</p>
-                <p class="meta">
-                  @if (fileSize(file.size); as size) {
-                    {{ size }} ·
+                <div class="row-end"><span class="pill" data-stage="queued">Settling</span></div>
+              </li>
+            }
+            @for (entry of d.dropIns.active; track entry.id) {
+              <li class="row" data-stage="linking" data-testid="drop-in-active">
+                <div class="row-art"><i class="pi pi-file" aria-hidden="true"></i></div>
+                <div class="row-copy">
+                  <p class="row-title app-break-anywhere">{{ entry.name }}</p>
+                  <p class="row-meta">
+                    {{ entry.error ?? 'Waiting for Stash to scan and identify it.' }}
+                  </p>
+                </div>
+                <div class="row-end">
+                  <span class="pill" data-stage="linking">Waiting for Stash</span>
+                </div>
+              </li>
+            }
+            @for (entry of failedDropIns(); track entry.id) {
+              <li class="row" data-stage="failed" data-testid="drop-in-failed">
+                <div class="row-art">
+                  <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                </div>
+                <div class="row-copy">
+                  <p class="row-title app-break-anywhere">{{ entry.name }}</p>
+                  @if (entry.error) {
+                    <p class="detail bad">{{ entry.error }}</p>
                   }
-                  noticed {{ ago(file.firstSeenAt) }} · brought in once it hasn’t changed for
-                  {{ w.settleSeconds }} s
-                </p>
+                  <p class="row-meta">{{ ago(entry.updatedAt) }}</p>
+                </div>
+                <div class="row-end">
+                  <span class="pill" data-stage="failed">Failed</span>
+                  @if (entry.canRetry) {
+                    <button
+                      type="button"
+                      class="btn small primary"
+                      [disabled]="busy() === entry.id"
+                      (click)="retryDropIn(entry)"
+                    >
+                      Try again
+                    </button>
+                  }
+                </div>
+              </li>
+            }
+            @for (entry of broughtIn(); track entry.id) {
+              <li class="row" data-stage="done" data-testid="drop-in-done">
+                <div class="row-art"><i class="pi pi-check" aria-hidden="true"></i></div>
+                <div class="row-copy">
+                  <p class="row-title app-break-anywhere">{{ entry.name }}</p>
+                  <p class="row-meta">
+                    @if (entry.finalPath) {
+                      <span class="path">{{ entry.finalPath }}</span> ·
+                    }
+                    {{ ago(entry.updatedAt) }}
+                  </p>
+                </div>
+                <div class="row-end">
+                  <span class="pill" data-stage="done">In your library</span>
+                </div>
               </li>
             }
           </ul>
         }
-      }
 
-      @if (d.dropIns.active.length) {
-        <h3 class="sub">Moved in, waiting for Stash</h3>
-        <ul class="items compact">
-          @for (entry of d.dropIns.active; track entry.id) {
-            <li class="item panel" data-stage="linking" data-testid="drop-in-active">
-              <div class="item-head">
-                <p class="item-title">{{ entry.name }}</p>
-                <span class="stage">Waiting for Stash</span>
-              </div>
-              <p class="detail">
-                {{ entry.error ?? 'Waiting for Stash to scan and identify it.' }}
-              </p>
-            </li>
-          }
-        </ul>
-      }
-
-      @if (failedDropIns().length) {
-        <h3 class="sub">Problems</h3>
-        <ul class="items compact">
-          @for (entry of failedDropIns(); track entry.id) {
-            <li class="item panel" data-stage="failed" data-testid="drop-in-failed">
-              <div class="item-head">
-                <p class="item-title">{{ entry.name }}</p>
-                <span class="stage">Failed</span>
-              </div>
-              @if (entry.error) {
-                <p class="detail">{{ entry.error }}</p>
+        @if (w.skipped.length) {
+          <details class="skipped">
+            <summary>Left alone ({{ w.skipped.length }})</summary>
+            <ul>
+              @for (entry of w.skipped; track entry.path) {
+                <li data-testid="skipped">
+                  <span class="row-title">{{ entry.name }}</span>
+                  <span class="row-meta">{{ entry.detail }}</span>
+                </li>
               }
-              <p class="meta">{{ ago(entry.updatedAt) }}</p>
-              @if (entry.canRetry) {
-                <div class="actions">
-                  <button
-                    type="button"
-                    class="btn small primary"
-                    [disabled]="busy() === entry.id"
-                    (click)="retryDropIn(entry)"
-                  >
-                    Try again
-                  </button>
-                </div>
-              }
-            </li>
-          }
-        </ul>
-      }
+            </ul>
+          </details>
+        }
+      </section>
+    }
 
-      @if (broughtIn().length) {
-        <h3 class="sub">Recently brought in</h3>
-        <ul class="items compact">
-          @for (entry of broughtIn(); track entry.id) {
-            <li class="item panel" data-stage="done" data-testid="drop-in-done">
-              <div class="item-head">
-                <p class="item-title">{{ entry.name }}</p>
-                <span class="stage">In your library</span>
-              </div>
-              @if (entry.finalPath) {
-                <p class="detail path">{{ entry.finalPath }}</p>
-              }
-              <p class="meta">{{ ago(entry.updatedAt) }}</p>
-            </li>
-          }
-        </ul>
-      }
-
-      @if (watch()?.skipped?.length) {
-        <details class="skipped panel">
-          <summary>Left alone ({{ watch()!.skipped.length }})</summary>
-          <ul>
-            @for (entry of watch()!.skipped; track entry.path) {
-              <li data-testid="skipped">
-                <span class="item-title">{{ entry.name }}</span>
-                <span class="detail">{{ entry.detail }}</span>
-              </li>
-            }
-          </ul>
-        </details>
-      }
-    </section>
-
-    <section class="block" aria-labelledby="processing-whisparr">
-      <div class="block-head">
-        <h2 id="processing-whisparr">Whisparr</h2>
-      </div>
-      <p class="muted line">
-        Whisparr’s downloads and imports are followed on
-        <a routerLink="/acquisition">Requests</a>.
-      </p>
-    </section>
+    <p class="footnote">
+      <i class="pi pi-info-circle" aria-hidden="true"></i>
+      <span
+        >Downloads Whisparr starts are followed on <a routerLink="/acquisition">Requests</a>.</span
+      >
+    </p>
   }
 </main>

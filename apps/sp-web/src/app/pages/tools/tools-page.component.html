@@ -1,11 +1,53 @@
-<main class="app-page-shell">
+<main class="app-page-shell tools-hub">
   <app-section-back />
-  <h1 class="page-title">Library tools</h1>
-  <p class="page-lede">Match, rename, tidy up and run jobs on your Stash library.</p>
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Library tools</h1>
+      <p>Match, rename, tidy up and run jobs on your Stash library.</p>
+    </div>
+  </header>
+
+  <section class="hero-card" [class.tone-good]="allClear()" data-testid="tools-status">
+    <div class="hero-head">
+      <div class="hero-copy">
+        <h2>{{ headline() }}</h2>
+        <p class="hero-lead">
+          @if (counts()) {
+            Everything here is saved straight to Stash.
+          } @else {
+            Counts show here once Stash answers.
+          }
+        </p>
+      </div>
+      @if (counts()) {
+        <span class="status-pill" [class.tone-good]="allClear()">
+          {{ allClear() ? 'All clear' : 'Needs a look' }}
+        </span>
+      }
+    </div>
+    <div class="hero-meta">
+      <a class="meta-item" routerLink="/tools/fix" [queryParams]="{ list: 'unmatched' }">
+        <span>Not matched</span>
+        <strong>{{ counts()?.unmatched ?? '–' }}</strong>
+      </a>
+      <a class="meta-item" routerLink="/tools/fix" [queryParams]="{ list: 'untagged' }">
+        <span>Without tags</span>
+        <strong>{{ counts()?.untagged ?? '–' }}</strong>
+      </a>
+      <a class="meta-item" routerLink="/tools/fix" [queryParams]="{ list: 'unorganized' }">
+        <span>Not organized</span>
+        <strong>{{ counts()?.unorganized ?? '–' }}</strong>
+      </a>
+      <a class="meta-item" routerLink="/tools/jobs">
+        <span>Stash jobs</span>
+        <strong>{{ jobsText() }}</strong>
+      </a>
+    </div>
+  </section>
 
   <h2 class="group-title">Tidy up</h2>
   <div class="tool-grid">
-    <a class="tool panel" routerLink="/tools/fix">
+    <a class="tool" routerLink="/tools/fix">
       <i class="pi pi-check-square" aria-hidden="true"></i>
       <span class="tool-title">Fix my library</span>
       <span class="tool-detail">
@@ -21,7 +63,7 @@
         }
       </span>
     </a>
-    <a class="tool panel" routerLink="/tools/organize">
+    <a class="tool" routerLink="/tools/organize">
       <i class="pi pi-link" aria-hidden="true"></i>
       <span class="tool-title">Match &amp; rename</span>
       <span class="tool-detail">
@@ -35,50 +77,35 @@
         }
       </span>
     </a>
-    <a class="tool panel" routerLink="/tools/duplicates">
+    <a class="tool" routerLink="/tools/duplicates">
       <i class="pi pi-clone" aria-hidden="true"></i>
       <span class="tool-title">Duplicates</span>
       <span class="tool-detail">Find copies of the same video and keep the best one</span>
     </a>
-    <a class="tool panel" routerLink="/tools/samples">
+  </div>
+
+  <h2 class="group-title">Clean up &amp; Stash</h2>
+  <div class="tool-grid">
+    <a class="tool" routerLink="/tools/samples">
       <i class="pi pi-filter-slash" aria-hidden="true"></i>
       <span class="tool-title">Samples</span>
       <span class="tool-detail">Find sample clips left over from downloads and remove them</span>
     </a>
-  </div>
-
-  <h2 class="group-title">Stash</h2>
-  <div class="tool-grid">
-    <a class="tool panel" routerLink="/tools/activity">
-      <i class="pi pi-history" aria-hidden="true"></i>
-      <span class="tool-title">Activity</span>
-      <span class="tool-detail">Everything Stashboard did, with Undo for renames</span>
-    </a>
-    <a class="tool panel" routerLink="/tools/jobs">
+    <a class="tool" routerLink="/tools/jobs">
       <i class="pi pi-cog" aria-hidden="true"></i>
       <span class="tool-title">Stash jobs</span>
       <span class="tool-detail">
-        @if (jobs(); as jobs) {
-          {{
-            jobs.length === 0
-              ? 'Stash is idle'
-              : jobs.length + (jobs.length === 1 ? ' job running' : ' jobs running')
-          }}
+        @if (jobsDetail(); as text) {
+          {{ text }}
         } @else {
           Scan, Generate, Identify, Auto tag and Clean up
         }
       </span>
     </a>
+    <a class="tool" routerLink="/tools/activity">
+      <i class="pi pi-history" aria-hidden="true"></i>
+      <span class="tool-title">Activity</span>
+      <span class="tool-detail">Everything Stashboard did, with Undo for renames</span>
+    </a>
   </div>
-
-  @if (feedOn()) {
-    <h2 class="group-title">Watch</h2>
-    <div class="tool-grid">
-      <a class="tool panel" routerLink="/feed">
-        <i class="pi pi-mobile" aria-hidden="true"></i>
-        <span class="tool-title">Swipe feed</span>
-        <span class="tool-detail">Preview clips from your library, one after another</span>
-      </a>
-    </div>
-  }
 </main>

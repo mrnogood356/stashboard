@@ -1,11 +1,61 @@
-section h2 {
+main {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.block {
+  --app-section-radius: 18px;
+  --app-section-padding: 0.95rem;
+  --app-section-border: 1px solid color-mix(in srgb, var(--border-strong) 52%, transparent);
+  --app-section-bg: color-mix(in srgb, var(--surface-elevated) 92%, var(--surface-1));
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.title-row h2 {
   font-size: 1.15rem;
   font-weight: 700;
-  margin: 1.6rem 0 0.75rem;
+}
+
+/* A small dot in the section's colour, like Requests and Downloads. */
+.title-row h2::before {
+  content: '';
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: 0.5rem;
+  border-radius: 50%;
+  background: var(--badge-downloading-text);
+  vertical-align: 0.1em;
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.6rem;
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.group-title {
+  margin: 0.4rem 0 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .idle {
-  padding: 1rem 0;
+  color: var(--text-muted);
 }
 
 .jobs {
@@ -21,7 +71,9 @@ section h2 {
   min-width: 0;
   display: grid;
   gap: 0.55rem;
-  padding: 0.95rem 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: var(--surface-1);
 }
 
 .job-head {
@@ -92,28 +144,38 @@ section h2 {
   }
 }
 
-.task-grid {
+.task-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 0.7rem;
+  border-radius: 18px;
+  background: var(--surface-1);
+  overflow: hidden;
 }
 
 .task {
   display: grid;
-  align-content: start;
-  justify-items: start;
-  gap: 0.4rem;
-  padding: 1rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.85rem 1rem;
   border: 0;
+  background: transparent;
   color: var(--text-primary);
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: transform 0.12s ease;
 }
 
-.task:active {
-  transform: scale(0.98);
+.task + .task {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.task:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+
+.task:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
 }
 
 .task:disabled {
@@ -124,11 +186,17 @@ section h2 {
 .task i {
   display: grid;
   place-items: center;
-  width: 2.2rem;
-  height: 2.2rem;
+  width: 2.3rem;
+  height: 2.3rem;
   border-radius: 10px;
   background: var(--accent);
   color: #fff;
+}
+
+.task-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
 }
 
 .task-title {
@@ -139,6 +207,18 @@ section h2 {
   font-size: 0.84rem;
   color: var(--text-muted);
   line-height: 1.4;
+}
+
+.task-run {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  font-size: 0.82rem;
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {

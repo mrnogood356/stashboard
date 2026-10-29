@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -33,7 +33,7 @@ function page(ids: string[], hasMore = false, pageNumber = 1): LocalScenePage {
   return { total: ids.length, page: pageNumber, hasMore, items: ids.map(card) };
 }
 
-async function render(library: Record<string, unknown>) {
+async function render(library: Record<string, unknown>, query: Record<string, string> = {}) {
   const notifications = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
   await TestBed.configureTestingModule({
     imports: [FixLibraryPageComponent],
@@ -41,6 +41,14 @@ async function render(library: Record<string, unknown>) {
       provideRouter([]),
       { provide: LocalLibraryService, useValue: library },
       { provide: AppNotificationsService, useValue: notifications },
+      ...(Object.keys(query).length
+        ? [
+            {
+              provide: ActivatedRoute,
+              useValue: { snapshot: { queryParamMap: convertToParamMap(query) } },
+            },
+          ]
+        : []),
     ],
   }).compileComponents();
   const fixture = TestBed.createComponent(FixLibraryPageComponent);
@@ -83,6 +91,19 @@ describe('FixLibraryPageComponent', () => {
     expect(tab(root, 'No tags').getAttribute('aria-selected')).toBe('true');
     expect(titles(root)).toEqual(['Scene t1']);
     expect(root.querySelector('a.organizer-link')).toBeNull();
+  });
+
+  it('opens the list a Library tools count links to', async () => {
+    const library = {
+      fixCounts: vi.fn().mockReturnValue(of({ unmatched: 0, untagged: 2, unorganized: 0 })),
+      fixScenes: vi.fn(() => of(page(['t1']))),
+      identify: vi.fn(),
+      updateScene: vi.fn(),
+    };
+    const { root } = await render(library, { list: 'untagged' });
+
+    expect(library.fixScenes).toHaveBeenCalledWith('untagged', 1);
+    expect(tab(root, 'No tags').getAttribute('aria-selected')).toBe('true');
   });
 
   it('shows more by carrying on after the scenes shown, even if some left the list', async () => {

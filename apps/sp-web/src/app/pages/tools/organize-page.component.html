@@ -1,9 +1,11 @@
 <main class="app-page-shell">
   <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
-  <h1 class="page-title">Match &amp; rename</h1>
-  <p class="page-lede">
-    Link scenes Stash couldn’t identify to StashDB, then give their files tidy names and folders.
-  </p>
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Match &amp; rename</h1>
+      <p>Link scenes to StashDB, then give their files tidy names.</p>
+    </div>
+  </header>
 
   <div class="segmented" role="tablist" aria-label="Organizer">
     <button
@@ -89,7 +91,7 @@
 
   @if (tab() === 'match') {
     <!-- ================= MATCH ================= -->
-    <section class="card panel">
+    <section class="card panel find-card">
       <div class="card-head">
         <span class="card-icon" aria-hidden="true"><i class="pi pi-sparkles"></i></span>
         <div class="card-copy">
@@ -98,11 +100,9 @@
             Looks up unmatched scenes by fingerprint and name. Nothing is saved until you confirm.
           </p>
         </div>
-      </div>
-      <div class="card-actions">
         <button
           type="button"
-          class="btn primary"
+          class="btn primary head-button"
           [disabled]="run()?.running || total() === 0"
           (click)="matchAll()"
         >
@@ -111,27 +111,29 @@
         </button>
       </div>
       @if (settings(); as settings) {
-        @if (toMove()) {
-          <button
-            type="button"
-            class="link"
-            [disabled]="run()?.running"
-            (click)="moveUnmatchedNow()"
-          >
-            Move the {{ toMove() }} unmatched {{ toMove() === 1 ? 'file' : 'files' }} now
-          </button>
-        } @else if (total()) {
-          <p class="muted small center">
-            All {{ total() }} unmatched {{ total() === 1 ? 'file is' : 'files are' }} in the
-            Unmatched folder.
-          </p>
-        }
-        <button type="button" class="link" (click)="select('settings')">Matching settings</button>
-        @if (settings.lastRun.kind === 'match' && settings.lastRun.message && !run()?.running) {
-          <p class="muted small last-run">
-            Last run {{ when(settings.lastRun.at) }}: {{ settings.lastRun.message }}
-          </p>
-        }
+        <div class="card-foot">
+          @if (toMove()) {
+            <button
+              type="button"
+              class="link"
+              [disabled]="run()?.running"
+              (click)="moveUnmatchedNow()"
+            >
+              Move the {{ toMove() }} unmatched {{ toMove() === 1 ? 'file' : 'files' }} now
+            </button>
+          } @else if (total()) {
+            <p class="muted small">
+              All {{ total() }} unmatched {{ total() === 1 ? 'file is' : 'files are' }} in the
+              Unmatched folder.
+            </p>
+          }
+          @if (settings.lastRun.kind === 'match' && settings.lastRun.message && !run()?.running) {
+            <p class="muted small last-run">
+              Last run {{ when(settings.lastRun.at) }}: {{ settings.lastRun.message }}
+            </p>
+          }
+          <button type="button" class="link" (click)="select('settings')">Matching settings</button>
+        </div>
       }
     </section>
 
@@ -412,7 +414,7 @@
             }
           } @else {
             <div class="scene-actions">
-              <button type="button" class="btn small primary" (click)="lookup(scene)">
+              <button type="button" class="btn small" (click)="lookup(scene)">
                 <i class="pi pi-search" aria-hidden="true"></i><span class="label">Find match</span>
               </button>
             </div>

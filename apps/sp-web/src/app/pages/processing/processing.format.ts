@@ -7,7 +7,7 @@ export const HANDOFF_STEPS: ReadonlyArray<{ stage: HandoffStage; label: string }
   { stage: 'unpacking', label: 'Unpacking' },
   { stage: 'moving', label: 'Moving' },
   { stage: 'linking', label: 'Waiting for Stash' },
-  { stage: 'done', label: 'In your library' },
+  { stage: 'done', label: 'In library' },
 ];
 
 const STAGE_LABELS: Record<HandoffStage, string> = {

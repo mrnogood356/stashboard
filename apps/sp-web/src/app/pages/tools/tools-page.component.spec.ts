@@ -43,7 +43,12 @@ describe('ToolsPageComponent', () => {
   it('shows what needs fixing and how many jobs are running', async () => {
     const library = {
       fixCounts: vi.fn().mockReturnValue(of({ unmatched: 3, untagged: 2, unorganized: 1 })),
-      jobs: vi.fn().mockReturnValue(of([{ id: '1' }, { id: '2' }])),
+      jobs: vi.fn().mockReturnValue(
+        of([
+          { id: '1', status: 'RUNNING' },
+          { id: '2', status: 'RUNNING' },
+        ]),
+      ),
     };
     const root = await render(library);
 
@@ -71,11 +76,32 @@ describe('ToolsPageComponent', () => {
   it('uses singular wording for one job', async () => {
     const library = {
       fixCounts: vi.fn().mockReturnValue(of({ unmatched: 0, untagged: 0, unorganized: 0 })),
-      jobs: vi.fn().mockReturnValue(of([{ id: '1' }])),
+      jobs: vi.fn().mockReturnValue(of([{ id: '1', status: 'RUNNING' }])),
     };
     const root = await render(library);
 
     expect(detail(root, 'Stash jobs')).toBe('1 job running');
+  });
+
+  it('counts waiting jobs apart from running ones, and leaves finished ones out', async () => {
+    const library = {
+      fixCounts: vi.fn().mockReturnValue(of({ unmatched: 0, untagged: 5, unorganized: 0 })),
+      jobs: vi.fn().mockReturnValue(
+        of([
+          { id: '1', status: 'RUNNING' },
+          { id: '2', status: 'READY' },
+          { id: '3', status: 'FINISHED' },
+        ]),
+      ),
+    };
+    const root = await render(library);
+
+    expect(detail(root, 'Stash jobs')).toBe('1 job running · 1 waiting');
+    expect(root.querySelector('[data-testid="tools-status"]')?.textContent).toContain('1 running');
+    const untagged = Array.from(root.querySelectorAll<HTMLAnchorElement>('.meta-item')).find(
+      (link) => link.textContent?.includes('Without tags'),
+    );
+    expect(untagged?.getAttribute('href')).toBe('/tools/fix?list=untagged');
   });
 
   it('falls back to plain descriptions when Stash cannot be reached', async () => {

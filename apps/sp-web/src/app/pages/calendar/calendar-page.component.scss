@@ -92,6 +92,12 @@
   max-width: 70ch;
 }
 
+.calendar-note a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
 /* ---------- month grid ---------- */
 
 .month {
@@ -317,9 +323,26 @@
   text-decoration: none;
 }
 
+.release-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.5rem;
+}
+
 .release-studio {
   color: var(--text-muted);
   font-size: 0.86rem;
+}
+
+.whisparr-tag {
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--badge-import-pending-border);
+  background: var(--badge-import-pending-bg);
+  color: var(--badge-import-pending-text);
+  font-size: 0.7rem;
+  font-weight: 700;
 }
 
 .request-button {

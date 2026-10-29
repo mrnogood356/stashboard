@@ -4,134 +4,145 @@
   background: none;
 }
 
+/* The section: the same panel and dot heading as Requests and Downloads. */
 .review {
   margin-top: 1rem;
-  display: grid;
-  gap: 0.75rem;
+  --app-section-radius: 18px;
+  --app-section-padding: 0.95rem;
+  --app-section-border: 1px solid color-mix(in srgb, var(--border-strong) 52%, transparent);
+  --app-section-bg: color-mix(in srgb, var(--surface-elevated) 92%, var(--surface-1));
 }
 
-.review-head {
-  display: grid;
-  gap: 0.3rem;
+.app-section-head {
+  flex-wrap: wrap;
 }
 
-.review-head h2 {
-  font-size: 1.1rem;
+.app-section-head__copy p {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  max-width: 68ch;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.title-row h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.title-row h2::before {
+  content: '';
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: 0.5rem;
+  border-radius: 50%;
+  background: var(--badge-import-pending-text);
+  vertical-align: 0.1em;
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.6rem;
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  background: var(--acquisition-chip-bg);
+  border: 1px solid var(--acquisition-chip-border);
+  font-size: 0.76rem;
+  font-weight: 700;
 }
 
 .review-tools {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.9rem;
 }
 
+/* ---- One card a match ---- */
+
 .review-list {
-  list-style: none;
+  display: grid;
+  gap: 0.75rem;
   margin: 0;
   padding: 0;
-  display: grid;
-  gap: 0.6rem;
+  list-style: none;
 }
 
 .review-item {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.6rem;
-  padding: 0.65rem;
-  border-radius: 14px;
-  background: var(--surface-2);
+  border-radius: 16px;
+  border: 1px solid var(--acquisition-card-border);
+  background: var(--acquisition-card-bg);
+  overflow: hidden;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .review-item.picked {
-  box-shadow: inset 0 0 0 2px var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* The card's strip: tick, how sure, why, and what to do. */
+.item-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.55rem 0.6rem 0.55rem 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-2) 40%, transparent);
 }
 
 .pick {
   display: flex;
-  align-items: flex-start;
-  padding-top: 0.2rem;
 }
 
 .pick input {
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
   accent-color: var(--accent);
 }
 
-.pair {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  gap: 0.6rem;
-  align-items: start;
+.reasons {
+  flex: 1 1 auto;
   min-width: 0;
-}
-
-.side {
-  display: grid;
-  gap: 0.4rem;
-  min-width: 0;
-  color: inherit;
-  text-decoration: none;
-}
-
-.art {
-  display: block;
-  width: 100%;
-  max-width: 11rem;
-  aspect-ratio: 16 / 9;
-  border-radius: 9px;
   overflow: hidden;
-  background: var(--chip-bg);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.art img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+.row-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
-.copy {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.2rem;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  justify-items: start;
-}
-
-.label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.name {
-  font-size: 0.88rem;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
-}
-
-.path {
-  overflow-wrap: anywhere;
-}
-
-.arrow {
-  align-self: center;
+.btn.quiet {
+  background: transparent;
   color: var(--text-muted);
 }
 
-.badge-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  align-items: center;
+.btn.quiet:hover:not(:disabled) {
+  color: var(--text-primary);
 }
 
 .badge {
-  padding: 0.1rem 0.45rem;
-  border-radius: 6px;
+  flex-shrink: 0;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -155,17 +166,81 @@
   color: var(--warning-text);
 }
 
-:host-context([data-theme='dark']) .badge[data-confidence='exact'] {
-  color: var(--success-text);
+/* Your file → the match, as two even halves. */
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.9rem;
+  padding: 0.85rem;
 }
 
-:host-context([data-theme='dark']) .badge[data-confidence='likely'] {
-  color: var(--warning-text);
+.side {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
 }
 
-.source-chip {
-  font-size: 0.7rem;
+.side.mine:hover .name {
+  color: var(--accent);
+}
+
+.art {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--chip-bg);
+}
+
+.art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.copy {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  justify-items: start;
+}
+
+.label {
   color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.name {
+  font-size: 0.92rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.path {
+  overflow-wrap: anywhere;
+}
+
+.arrow {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--acquisition-chip-bg);
+  border: 1px solid var(--acquisition-chip-border);
+  color: var(--text-muted);
+  font-size: 0.8rem;
 }
 
 .studio-line {
@@ -176,38 +251,39 @@
 
 .studio-logo {
   max-width: 4.5rem;
-  max-height: 1.4rem;
+  max-height: 1.2rem;
   object-fit: contain;
 }
 
-.cast,
-.alt-list {
-  grid-column: 2;
+.cast {
   display: flex;
-  gap: 0.6rem;
-  margin: 0;
-  padding: 0 0 0.2rem;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.35rem 0 0;
+  padding: 0;
   list-style: none;
-  overflow-x: auto;
-  scrollbar-width: thin;
 }
 
 .cast li {
-  display: grid;
-  justify-items: center;
-  gap: 0.25rem;
-  flex: 0 0 4.2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.6rem 0.15rem 0.15rem;
+  border-radius: 999px;
+  background: var(--acquisition-chip-bg);
+  border: 1px solid var(--acquisition-chip-border);
 }
 
 .face {
   display: grid;
   place-items: center;
-  width: 3.2rem;
-  height: 3.2rem;
+  width: 1.5rem;
+  height: 1.5rem;
   border-radius: 50%;
   overflow: hidden;
-  background: var(--chip-bg);
+  background: var(--surface-2);
   color: var(--text-muted);
+  font-size: 0.65rem;
 }
 
 .face img {
@@ -218,59 +294,75 @@
 }
 
 .face-name {
-  font-size: 0.7rem;
-  line-height: 1.2;
-  text-align: center;
-  overflow-wrap: anywhere;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .tags {
-  grid-column: 2;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
   align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.2rem;
 }
 
 .tag {
-  padding: 0.12rem 0.45rem;
-  border-radius: 999px;
-  background: var(--chip-bg);
-  font-size: 0.72rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 0.7rem;
 }
 
+/* Other possible matches, as a slim strip under the card. */
 .alternatives {
-  grid-column: 2;
-  display: grid;
-  gap: 0.35rem;
-  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border-top: 1px solid var(--border-subtle);
 }
 
-.alt-list li {
-  flex: 0 0 9.5rem;
+.alt-label {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.alt-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .alt {
-  display: grid;
-  gap: 0.25rem;
-  justify-items: start;
-  width: 100%;
-  height: 100%;
-  padding: 0.4rem;
-  border: 1px solid var(--border-subtle, transparent);
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  max-width: 22rem;
+  padding: 0.3rem 0.6rem 0.3rem 0.3rem;
+  border: 1px solid var(--border-subtle);
   border-radius: 10px;
-  background: var(--surface-elevated);
+  background: var(--surface-1);
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
+.alt:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
 .alt-art {
-  display: block;
-  width: 100%;
+  flex: 0 0 3.6rem;
   aspect-ratio: 16 / 9;
-  border-radius: 7px;
+  border-radius: 6px;
   overflow: hidden;
   background: var(--chip-bg);
 }
@@ -282,17 +374,16 @@
   display: block;
 }
 
-.alt-title {
-  font-size: 0.78rem;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
+.alt-copy {
+  display: grid;
+  min-width: 0;
 }
 
-.row-actions {
-  grid-column: 2;
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
+.alt-title {
+  overflow: hidden;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .review-bar {
@@ -327,13 +418,30 @@
   cursor: pointer;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 760px) {
   .pair {
     grid-template-columns: minmax(0, 1fr);
+    gap: 0.6rem;
   }
 
   .arrow {
     transform: rotate(90deg);
-    justify-self: start;
+    margin-left: 3rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .item-head {
+    flex-wrap: wrap;
+  }
+
+  .reasons {
+    order: 3;
+    flex-basis: 100%;
+    white-space: normal;
+  }
+
+  .side {
+    grid-template-columns: 6rem minmax(0, 1fr);
   }
 }

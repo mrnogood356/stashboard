@@ -1,5 +1,5 @@
 import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { EMPTY, Subscription, catchError, interval, switchMap } from 'rxjs';
 import {
   FixCounts,
@@ -44,7 +44,10 @@ export class FixLibraryPageComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
 
   protected readonly tabs = TABS;
-  protected readonly kind = signal<FixKind>('unmatched');
+  /** The list to open: ?list= from the Library tools counts, else Not matched. */
+  protected readonly kind = signal<FixKind>(
+    listFromQuery(inject(ActivatedRoute, { optional: true })),
+  );
   protected readonly counts = signal<FixCounts | null>(null);
   protected readonly items = signal<LocalSceneCard[]>([]);
   protected readonly loading = signal(false);
@@ -259,4 +262,9 @@ export class FixLibraryPageComponent implements OnInit, OnDestroy {
       return next;
     });
   }
+}
+
+function listFromQuery(route: ActivatedRoute | null): FixKind {
+  const list = route?.snapshot?.queryParamMap?.get('list');
+  return TABS.some((tab) => tab.kind === list) ? (list as FixKind) : 'unmatched';
 }

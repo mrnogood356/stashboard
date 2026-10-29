@@ -2,7 +2,8 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { Stage, stageNowText } from './stage-track';
 
 /**
- * Requested → Downloading → Waiting for Stash → In library, with the step
+ * Requested → Downloading → Waiting for Stash → In library (or any other
+ * list of steps, such as a download's), with the step
  * it's on lit (or red where it stopped). Phones show "Step 2 of 4 · …"
  * instead of the step names, which don't fit.
  */
@@ -10,7 +11,12 @@ import { Stage, stageNowText } from './stage-track';
   selector: 'app-stage-track',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ol class="stage-track" [attr.aria-label]="'Progress: ' + label" [attr.data-testid]="testId">
+    <ol
+      class="stage-track"
+      [style.--stage-count]="stages.length"
+      [attr.aria-label]="'Progress: ' + label"
+      [attr.data-testid]="testId"
+    >
       @for (stage of stages; track stage.label) {
         <li
           class="stage"
@@ -41,7 +47,7 @@ import { Stage, stageNowText } from './stage-track';
 
     .stage-track {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(var(--stage-count, 4), minmax(0, 1fr));
       margin: 0;
       padding: 0;
       list-style: none;

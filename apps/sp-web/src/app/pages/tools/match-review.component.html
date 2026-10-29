@@ -1,38 +1,76 @@
 @if (proposals().length > 0) {
-  <section class="review panel" aria-labelledby="review-title">
-    <div class="review-head">
-      <h2 id="review-title">
-        Check these matches <span class="muted">· {{ proposals().length }}</span>
-      </h2>
-      <p class="muted small">
-        Match all found these but saved nothing. Tick the right ones and save; anything wrong,
-        dismiss, or open the scene below to pick another.
-      </p>
-    </div>
-
-    <div class="review-tools">
-      <button type="button" class="link" (click)="pickAll()">Select all</button>
-      @if (exactCount() > 0) {
-        <button type="button" class="link" (click)="pickExact()">
-          Only “Same video” ({{ exactCount() }})
-        </button>
-      }
-      @if (pickedCount() > 0) {
-        <button type="button" class="link" (click)="pickNone()">Clear</button>
-      }
+  <section class="review app-section-panel" aria-labelledby="review-title">
+    <div class="app-section-head">
+      <div class="app-section-head__copy">
+        <div class="title-row">
+          <h2 id="review-title">Check these matches</h2>
+          <span class="count">{{ proposals().length }}</span>
+        </div>
+        <p>
+          Match all found these but saved nothing. Save the right ones; mark anything wrong, or open
+          the scene below to pick another.
+        </p>
+      </div>
+      <div class="review-tools">
+        <button type="button" class="link" (click)="pickAll()">Select all</button>
+        @if (exactCount() > 0) {
+          <button type="button" class="link" (click)="pickExact()">
+            Only “Same video” ({{ exactCount() }})
+          </button>
+        }
+        @if (pickedCount() > 0) {
+          <button type="button" class="link" (click)="pickNone()">Clear</button>
+        }
+      </div>
     </div>
 
     <ul class="review-list">
       @for (proposal of proposals(); track proposal.scene.id) {
         <li class="review-item" [class.picked]="isPicked(proposal.scene.id)">
-          <label class="pick">
-            <input
-              type="checkbox"
-              [checked]="isPicked(proposal.scene.id)"
-              (change)="toggle(proposal.scene.id)"
-              [attr.aria-label]="'Select the match for ' + proposal.scene.fileName"
-            />
-          </label>
+          <div class="item-head">
+            <label class="pick">
+              <input
+                type="checkbox"
+                [checked]="isPicked(proposal.scene.id)"
+                (change)="toggle(proposal.scene.id)"
+                [attr.aria-label]="'Select the match for ' + proposal.scene.fileName"
+              />
+            </label>
+            <span class="badge" [attr.data-confidence]="proposal.match.confidence">{{
+              confidenceLabel[proposal.match.confidence]
+            }}</span>
+            @if (proposal.match.reasons.length) {
+              <span class="reasons">{{ proposal.match.reasons.join(' · ') }}</span>
+            }
+            <div class="row-actions">
+              <button
+                type="button"
+                class="btn small quiet"
+                [disabled]="working()"
+                [attr.aria-label]="
+                  'Wrong match: ' +
+                  (proposal.match.title ?? 'Untitled') +
+                  ' for ' +
+                  proposal.scene.fileName
+                "
+                (click)="dismiss([proposal.scene.id])"
+              >
+                <i class="pi pi-times" aria-hidden="true"></i> Wrong
+              </button>
+              <button
+                type="button"
+                class="btn small primary"
+                [disabled]="busy || working()"
+                [attr.aria-label]="
+                  'Save ' + (proposal.match.title ?? 'Untitled') + ' for ' + proposal.scene.fileName
+                "
+                (click)="save([proposal.scene.id])"
+              >
+                <i class="pi pi-check" aria-hidden="true"></i> Save
+              </button>
+            </div>
+          </div>
+
           <div class="pair">
             <a
               class="side mine"
@@ -45,14 +83,16 @@
                 }
               </span>
               <span class="copy">
-                <span class="label muted">Your file</span>
+                <span class="label">Your file</span>
                 <strong class="name">{{ proposal.scene.fileName }}</strong>
                 @if (folderOf(proposal)) {
                   <span class="muted small path">{{ folderOf(proposal) }}</span>
                 }
               </span>
             </a>
-            <i class="pi pi-arrow-right arrow" aria-hidden="true"></i>
+
+            <span class="arrow" aria-hidden="true"><i class="pi pi-arrow-right"></i></span>
+
             <div class="side theirs">
               <span class="art">
                 @if (proposal.match.imageUrl) {
@@ -65,12 +105,7 @@
                 }
               </span>
               <span class="copy">
-                <span class="badge-row">
-                  <span class="badge" [attr.data-confidence]="proposal.match.confidence">{{
-                    confidenceLabel[proposal.match.confidence]
-                  }}</span>
-                  <span class="source-chip">{{ proposal.match.source }}</span>
-                </span>
+                <span class="label">{{ proposal.match.source }}</span>
                 <strong class="name">{{ proposal.match.title ?? 'Untitled' }}</strong>
                 <span class="studio-line muted small">
                   @if (proposal.match.studioImageUrl) {
@@ -89,53 +124,52 @@
                     }
                   </span>
                 </span>
-                @if (proposal.match.reasons.length) {
-                  <span class="muted small">{{ proposal.match.reasons.join(' · ') }}</span>
+                @if (castOf(proposal.match); as cast) {
+                  @if (cast.length) {
+                    <ul class="cast" aria-label="Performers">
+                      @for (person of cast; track person.name) {
+                        <li>
+                          <span class="face">
+                            @if (person.imageUrl) {
+                              <img
+                                [src]="person.imageUrl"
+                                alt=""
+                                loading="lazy"
+                                referrerpolicy="no-referrer"
+                              />
+                            } @else {
+                              <i class="pi pi-user" aria-hidden="true"></i>
+                            }
+                          </span>
+                          <span class="face-name">{{ person.name }}</span>
+                        </li>
+                      }
+                    </ul>
+                  }
+                }
+                @if (proposal.match.tags?.length) {
+                  <span class="tags">
+                    @for (tag of shownTags(proposal); track tag) {
+                      <span class="tag">{{ tag }}</span>
+                    }
+                    @if ((proposal.match.tags?.length ?? 0) > shownTags(proposal).length) {
+                      <button
+                        type="button"
+                        class="link small"
+                        (click)="showAllTags(proposal.scene.id)"
+                      >
+                        +{{ (proposal.match.tags?.length ?? 0) - shownTags(proposal).length }} more
+                      </button>
+                    }
+                  </span>
                 }
               </span>
             </div>
           </div>
 
-          @if (castOf(proposal.match); as cast) {
-            @if (cast.length) {
-              <ul class="cast" aria-label="Performers">
-                @for (person of cast; track person.name) {
-                  <li>
-                    <span class="face">
-                      @if (person.imageUrl) {
-                        <img
-                          [src]="person.imageUrl"
-                          alt=""
-                          loading="lazy"
-                          referrerpolicy="no-referrer"
-                        />
-                      } @else {
-                        <i class="pi pi-user" aria-hidden="true"></i>
-                      }
-                    </span>
-                    <span class="face-name">{{ person.name }}</span>
-                  </li>
-                }
-              </ul>
-            }
-          }
-
-          @if (proposal.match.tags?.length) {
-            <p class="tags">
-              @for (tag of shownTags(proposal); track tag) {
-                <span class="tag">{{ tag }}</span>
-              }
-              @if ((proposal.match.tags?.length ?? 0) > shownTags(proposal).length) {
-                <button type="button" class="link small" (click)="showAllTags(proposal.scene.id)">
-                  +{{ (proposal.match.tags?.length ?? 0) - shownTags(proposal).length }} more
-                </button>
-              }
-            </p>
-          }
-
           @if (proposal.alternatives.length) {
             <div class="alternatives">
-              <p class="muted small">Not this one? Tap another match:</p>
+              <span class="alt-label">Not this one?</span>
               <ul class="alt-list">
                 @for (alt of proposal.alternatives; track alt.id) {
                   <li>
@@ -156,38 +190,22 @@
                           />
                         }
                       </span>
+                      <span class="alt-copy">
+                        <strong class="alt-title">{{ alt.title ?? 'Untitled' }}</strong>
+                        <span class="muted small"
+                          >{{ alt.studio ?? 'No studio'
+                          }}{{ alt.date ? ' · ' + alt.date : '' }}</span
+                        >
+                      </span>
                       <span class="badge" [attr.data-confidence]="alt.confidence">{{
                         confidenceLabel[alt.confidence]
                       }}</span>
-                      <strong class="alt-title">{{ alt.title ?? 'Untitled' }}</strong>
-                      <span class="muted small"
-                        >{{ alt.studio ?? 'No studio' }}{{ alt.date ? ' · ' + alt.date : '' }}</span
-                      >
-                      <span class="muted small">{{ alt.source }}</span>
                     </button>
                   </li>
                 }
               </ul>
             </div>
           }
-          <div class="row-actions">
-            <button
-              type="button"
-              class="btn small primary"
-              [disabled]="busy || working()"
-              (click)="save([proposal.scene.id])"
-            >
-              <i class="pi pi-check" aria-hidden="true"></i> Save
-            </button>
-            <button
-              type="button"
-              class="btn small"
-              [disabled]="working()"
-              (click)="dismiss([proposal.scene.id])"
-            >
-              <i class="pi pi-times" aria-hidden="true"></i> Wrong
-            </button>
-          </div>
         </li>
       }
     </ul>

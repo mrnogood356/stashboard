@@ -13,7 +13,12 @@ p {
 }
 
 .back-link {
-  margin-bottom: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+/* The compact header (styles.scss) already leaves room below it. */
+.page-head-compact + * {
+  margin-top: 0;
 }
 
 .page-title {
