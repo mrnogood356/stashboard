@@ -40,8 +40,9 @@ services:
       # SESSION_SECRET: your-own-long-random-secret
       # Optional: uncomment if catalog provider checks time out on IPv4-only Docker networks.
       # NODE_OPTIONS: --no-network-family-autoselection
-      # Optional: set to true when serving Stashboard over HTTPS.
-      SESSION_COOKIE_SECURE: "false"
+      # Optional: a code the first visitor must enter to create the admin account.
+      # Set it if the page can be reached before you've signed up.
+      # SETUP_CODE: pick-a-long-code
       # The user Stashboard runs as. It can only rename and clean up media this user
       # may change, so match your media's owner (Unraid: 99/100; most Linux: 1000/1000).
       PUID: 99

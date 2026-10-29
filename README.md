@@ -93,8 +93,9 @@ services:
       # SESSION_SECRET: your-own-long-random-secret
       # Optional: uncomment if catalog provider checks time out on IPv4-only Docker networks.
       # NODE_OPTIONS: --no-network-family-autoselection
-      # Optional: set to true when serving Stashboard over HTTPS.
-      SESSION_COOKIE_SECURE: "false"
+      # Optional: a code the first visitor must enter to create the admin account.
+      # Set it if the page can be reached before you've signed up.
+      # SETUP_CODE: pick-a-long-code
       # The user Stashboard runs as. It can only rename and clean up media this user
       # may change, so match your media's owner (Unraid: 99/100; most Linux: 1000/1000).
       PUID: 99
@@ -136,13 +137,15 @@ Tag guidance:
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `TRUST_PROXY` | unset | Set to `true` (or a hop count like `1`) when Stashboard sits behind a reverse proxy, so login throttling sees each visitor's real address instead of the proxy's. |
+| `TRUST_PROXY` | unset | Set when Stashboard sits behind a reverse proxy: `1` for one proxy in front, or the proxy's address or network (such as `172.18.0.0/16`). Login throttling then sees each visitor's real address, and HTTPS through the proxy marks the sign-in cookie Secure. Let only the proxy reach the app's port. `true` trusts any address and isn't recommended. |
+| `SESSION_COOKIE_SECURE` | auto | The sign-in cookie is marked Secure whenever you visit over HTTPS. Set `true` or `false` to force it. |
+| `SETUP_CODE` | unset | A code the first visitor must enter to create the admin account. Set it if the page can be reached before you've signed up. |
 | `DATABASE_PORT` | `5432` | Postgres port used when `DATABASE_URL` is derived from the `POSTGRES_*` values. |
 | `MEDIA_CACHE_TTL_HOURS` | `24` | How long Stash screenshots and logos are kept in the image cache. |
 | `MEDIA_CACHE_MAX_MB` | `512` | Size cap for the image cache; the oldest images are removed first. |
 | `MEDIA_CACHE_DISABLED` | unset | Set to `true` to turn the image cache off. |
 | `PUID` / `PGID` | `99` / `100` | The user and group Stashboard runs as (it starts as root only to hand its data folder to them). Folder cleanup and renames only work on media this user may change, so match your media's owner: `99`/`100` on Unraid, usually `1000`/`1000` elsewhere. `PUID=0` keeps running as root. |
-| `CONTENT_SECURITY_POLICY` | report-only | Browser Content-Security-Policy. By default violations are only reported in the browser console; set to `enforce` to block them, or `off` to send no policy. |
+| `CONTENT_SECURITY_POLICY` | `enforce` | Browser Content-Security-Policy. By default the browser blocks anything the policy doesn't allow; set to `report-only` to only report violations in the browser console, or `off` to send no policy. |
 | `ALLOW_EMBEDDING` | unset | Set to `true` to let dashboards such as Organizr or Homarr show Stashboard in an iframe. By default other sites can't frame it. |
 
 The image cache lives in the app data volume (`/var/lib/stashboard/media-cache`).
