@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -26,7 +27,7 @@ describe('SettingsHiddenPageComponent', () => {
     await TestBed.configureTestingModule({
       imports: [SettingsHiddenPageComponent],
       providers: [
-        { provide: HiddenContentService, useValue: hidden },
+        { provide: HiddenContentService, useValue: { settings: () => null, ...hidden } },
         {
           provide: DiscoverService,
           useValue: {
@@ -70,6 +71,28 @@ describe('SettingsHiddenPageComponent', () => {
     fixture.detectChanges();
 
     expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ hideOwned: true }));
+  });
+
+  it('follows the saved "Scenes you already have" until the switch is touched', async () => {
+    const shared = signal<Record<string, unknown> | null>(null);
+    const { fixture, root } = await render({
+      settings: shared,
+      getSettings: vi.fn().mockReturnValue(of(saved)),
+    });
+    const toggle = () => root.querySelector('[data-testid="hide-owned"]') as HTMLInputElement;
+
+    // Turned on elsewhere (another tab, or carried over from this device).
+    shared.set({ ...saved, hideOwned: true });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(toggle().checked).toBe(true);
+
+    toggle().click();
+    fixture.detectChanges();
+    shared.set({ ...saved, hideOwned: true });
+    fixture.detectChanges();
+    expect(toggle().checked).toBe(false);
   });
 
   it('finds a tag in the catalog, adds it and saves everything', async () => {

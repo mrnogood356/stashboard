@@ -93,6 +93,8 @@ export function buildThemeTokens(
     '--border-strong': p.borderStrong,
     '--danger': p.danger,
     '--success': p.success,
+    // A checked switch's track is the success colour; pastel greens need a dark knob.
+    '--switch-knob': readableTextOn(p.success),
     '--warning': p.warning,
     '--info': p.info,
     ...accentTokens(accent, p.surface1, theme.scheme),

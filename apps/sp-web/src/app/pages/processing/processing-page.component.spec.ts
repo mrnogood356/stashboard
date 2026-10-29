@@ -178,7 +178,8 @@ describe('ProcessingPageComponent', () => {
             releaseTitle: 'Manual.Release',
             status: 'completed',
             stage: 'linking',
-            progress: null,
+            // The download is finished; that's not progress through linking.
+            progress: 100,
             timeLeft: null,
             detail: 'Moved to /data/Manual.mkv; waiting for Stash to pick it up and identify it.',
           }),
@@ -209,6 +210,7 @@ describe('ProcessingPageComponent', () => {
       step.getAttribute('data-state'),
     );
     expect(steps).toEqual(['done', 'done', 'done', 'done', 'current', 'todo']);
+    expect(manual.querySelector('.step-fill')).toBeNull();
     expect(text(manual)).toContain('identify it');
 
     const failed = root.querySelector('[data-testid="recent-handoff"]');

@@ -68,9 +68,12 @@ export function stageNowText(stages: Stage[]): string {
   return `Step ${index + 1} of ${stages.length} · ${stage.label}${stage.state === 'failed' ? ' failed' : ''}`;
 }
 
-/** Whisparr's and SABnzbd's "hh:mm:ss" or "d.hh:mm:ss" as "6 min left". */
+/**
+ * "hh:mm:ss", Whisparr's "d.hh:mm:ss" and SABnzbd's "d:hh:mm:ss" as
+ * "6 min left".
+ */
 export function timeLeftText(value: string | null | undefined): string | null {
-  const match = /^(?:(\d+)\.)?(\d+):(\d+):(\d+)/.exec(value?.trim() ?? '');
+  const match = /^(?:(\d+)[.:])?(\d+):(\d+):(\d+)/.exec(value?.trim() ?? '');
   if (!match) {
     return null;
   }

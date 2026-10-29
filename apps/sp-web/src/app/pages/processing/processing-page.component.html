@@ -57,7 +57,11 @@
                 @for (step of steps; track step.stage; let i = $index) {
                   <li [attr.data-state]="stepState(entry, i)" [attr.title]="step.label">
                     <span class="sr-only">{{ step.label }}</span>
-                    @if (stepState(entry, i) === 'current' && entry.progress !== null) {
+                    @if (
+                      stepState(entry, i) === 'current' &&
+                      entry.stage === 'downloading' &&
+                      entry.progress !== null
+                    ) {
                       <!-- The step that is running fills as it goes, so there's one bar, not two. -->
                       <span
                         class="step-fill"

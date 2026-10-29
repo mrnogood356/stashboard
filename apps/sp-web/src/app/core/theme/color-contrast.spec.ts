@@ -84,6 +84,16 @@ describe('theme tokens', () => {
     }
   });
 
+  it('keeps a checked switch’s knob visible on its track in every derived theme', () => {
+    for (const theme of ALL_THEMES.filter((option) => !option.builtIn)) {
+      const tokens = buildThemeTokens(theme);
+      expect(
+        contrastRatio(tokens['--switch-knob'], theme.palette.success),
+        theme.id,
+      ).toBeGreaterThanOrEqual(UI_CONTRAST);
+    }
+  });
+
   it('gives every theme an accent with readable text on it and as text on cards', () => {
     for (const theme of ALL_THEMES) {
       const tokens = buildThemeTokens(theme);

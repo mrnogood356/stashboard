@@ -16,6 +16,7 @@ const MOVED_KEY = 'sp-hide-owned-moved';
 export class HideOwnedService {
   private readonly hidden = inject(HiddenContentService);
   private readonly cached = signal(read(CACHE_KEY) === '1');
+  private moving = false;
 
   readonly hideOwned = computed(() => this.hidden.settings()?.hideOwned ?? this.cached());
 
@@ -27,11 +28,18 @@ export class HideOwnedService {
         return;
       }
       // It used to be a switch on each list, kept on the device; carry it over once.
+      // Marked done only once the server has it, so a failed save is tried again next time.
       if (!settings.hideOwned && this.cached() && read(MOVED_KEY) !== '1') {
-        write(MOVED_KEY, '1');
-        this.hidden.saveSettings({ ...settings, hideOwned: true }).subscribe({
-          error: () => undefined,
-        });
+        if (!this.moving) {
+          this.moving = true;
+          this.hidden.saveSettings({ ...settings, hideOwned: true }).subscribe({
+            next: () => {
+              this.moving = false;
+              write(MOVED_KEY, '1');
+            },
+            error: () => (this.moving = false),
+          });
+        }
         return;
       }
       write(MOVED_KEY, '1');

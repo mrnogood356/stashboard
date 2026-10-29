@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { HiddenContentService, HiddenContentSettings } from '../api/hidden-content.service';
 import { HideOwnedService } from './hide-owned.service';
 
@@ -50,6 +50,18 @@ describe('HideOwnedService', () => {
 
     expect(saveSettings).toHaveBeenCalledWith({ ...base, hideOwned: true });
     expect(localStorage.getItem('sp-hide-owned-moved')).toBe('1');
+  });
+
+  it('tries the carry-over again next time when the save fails', () => {
+    localStorage.setItem('sp-hide-owned', '1');
+    saveSettings.mockReturnValueOnce(throwError(() => new Error('down')));
+    TestBed.inject(HideOwnedService);
+
+    settings.set({ ...base, hideOwned: false });
+    TestBed.tick();
+
+    expect(saveSettings).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem('sp-hide-owned-moved')).toBeNull();
   });
 
   it('doesn’t carry it over again once it has', () => {
