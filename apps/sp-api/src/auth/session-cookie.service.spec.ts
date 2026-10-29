@@ -62,6 +62,36 @@ describe('SessionCookieService', () => {
     expect(service.readSessionId(`x${cookie}`)).toBeNull();
   });
 
+  it('marks the cookie Secure on HTTPS visits when the setting is left unset', () => {
+    process.env.SESSION_SECRET = 'secret-a';
+    delete process.env.SESSION_COOKIE_SECURE;
+    const service = new SessionCookieService();
+    const expires = new Date(Date.now() + 60_000);
+    const over = (secure: boolean) => {
+      const cookie = jest.fn();
+      service.setSessionCookie(
+        { cookie, req: { secure } } as unknown as Response,
+        'session-1',
+        expires,
+      );
+      return (cookie.mock.calls[0] as [string, string, { secure: boolean }])[2]
+        .secure;
+    };
+
+    expect(over(true)).toBe(true);
+    expect(over(false)).toBe(false);
+
+    process.env.SESSION_COOKIE_SECURE = 'false';
+    const never = new SessionCookieService();
+    const cookie = jest.fn();
+    never.setSessionCookie(
+      { cookie, req: { secure: true } } as unknown as Response,
+      'session-1',
+      expires,
+    );
+    expect(cookie.mock.calls[0][2]).toMatchObject({ secure: false });
+  });
+
   it('sets an http-only, same-site cookie, secure only when configured', () => {
     process.env.SESSION_SECRET = 'secret-a';
     const cookie = jest.fn();

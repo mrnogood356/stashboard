@@ -23,6 +23,8 @@ export interface AuthStatusResponse {
    * site is on HTTPS with a domain name. Says nothing about whose passkey.
    */
   passkeySignIn: boolean;
+  /** No admin yet, and the server's SETUP_CODE must be given to create one. */
+  setupCodeRequired: boolean;
 }
 
 export type AuthenticatedRequest = Request & {
