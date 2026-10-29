@@ -29,7 +29,7 @@ export class ScenesCalendarResponseDto {
   items!: ScenesFeedItemDto[];
   /**
    * False when the catalog had more to look through than one calendar view
-   * reads, so the earliest days may be missing some releases.
+   * reads, so the latest days may be missing some releases.
    */
   complete!: boolean;
 }

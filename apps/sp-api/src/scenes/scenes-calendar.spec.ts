@@ -24,15 +24,11 @@ describe('ScenesService.getCalendar', () => {
     return { service, feed };
   }
 
-  it('keeps the releases inside the days asked for, oldest first, and stops once past them', async () => {
+  it('asks for releases from the first day on, oldest first, and stops once past the last', async () => {
     const { service, feed } = serviceWith([
-      [
-        scene('future', '2026-12-01'),
-        scene('b', '2026-11-20'),
-        scene('a', '2026-11-03'),
-      ],
-      [scene('c', '2026-11-01'), scene('old', '2026-10-15')],
-      [scene('never-read', '2026-09-01')],
+      [scene('c', '2026-11-01'), scene('a', '2026-11-03')],
+      [scene('b', '2026-11-20'), scene('future', '2026-12-01')],
+      [scene('never-read', '2026-12-09')],
     ]);
 
     const result = await service.getCalendar(
@@ -48,20 +44,26 @@ describe('ScenesService.getCalendar', () => {
       1,
       100,
       'DATE',
-      'DESC',
+      'ASC',
       [],
       'OR',
       'STUDIO',
+      [],
+      undefined,
+      [],
+      [],
+      false,
+      '2026-10-31',
     );
   });
 
-  it('says when it stopped reading before reaching the first day', async () => {
-    const pages = Array.from({ length: 12 }, () => [scene('x', '2027-05-01')]);
+  it('says when it stopped reading before reaching the last day', async () => {
+    const pages = Array.from({ length: 12 }, () => [scene('x', '2026-11-02')]);
     const { service, feed } = serviceWith(pages);
 
     const result = await service.getCalendar('2026-11-01', '2026-11-30');
 
-    expect(result.items).toEqual([]);
+    expect(result.items).toHaveLength(10);
     expect(result.complete).toBe(false);
     expect(feed).toHaveBeenCalledTimes(10);
   });

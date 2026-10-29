@@ -106,6 +106,8 @@ export class ScenesService {
     tagNames: string[] = [],
     /** Also show scenes Settings → Hidden content leaves out. */
     showHidden = false,
+    /** Only scenes released after this day (YYYY-MM-DD). */
+    releasedAfter?: string,
   ): Promise<ScenesFeedResponseDto> {
     const catalogProvider =
       await this.catalogProviderService.getConfiguredCatalogProvider();
@@ -151,6 +153,7 @@ export class ScenesService {
       studioIds: normalizedStudioIds,
       ...(search.text ? { text: search.text } : {}),
       ...(needsTags ? { includeTagNames: true } : {}),
+      ...(releasedAfter ? { releasedAfter } : {}),
       tagFilter:
         normalizedTagIds.length > 0
           ? {
@@ -207,8 +210,9 @@ export class ScenesService {
 
   /**
    * Releases dated from..to (YYYY-MM-DD) by the studios and performers you
-   * starred. The catalog can only sort by date, not stop at one, so this
-   * reads it newest first until it passes `from`, at most CALENDAR_PAGES pages.
+   * starred. Asks the catalog for releases after the day before `from`,
+   * oldest first, and stops once past `to`: usually one page for a month,
+   * at most CALENDAR_PAGES.
    */
   async getCalendar(
     from: string,
@@ -222,10 +226,16 @@ export class ScenesService {
         page,
         ScenesService.CALENDAR_PAGE_SIZE,
         'DATE',
-        'DESC',
+        'ASC',
         [],
         'OR',
         favorites,
+        [],
+        undefined,
+        [],
+        [],
+        false,
+        dayBefore(from),
       );
       for (const item of feed.items) {
         if (
@@ -236,8 +246,8 @@ export class ScenesService {
           items.push(item);
         }
       }
-      const oldest = feed.items.at(-1)?.releaseDate ?? null;
-      if (!feed.hasMore || (oldest !== null && oldest < from)) {
+      const newest = feed.items.at(-1)?.releaseDate ?? null;
+      if (!feed.hasMore || (newest !== null && newest > to)) {
         complete = true;
         break;
       }
@@ -649,4 +659,10 @@ export class ScenesService {
       return null;
     }
   }
+}
+
+/** The day before a YYYY-MM-DD day. */
+function dayBefore(day: string): string {
+  const time = Date.parse(`${day}T00:00:00Z`) - 24 * 60 * 60 * 1000;
+  return new Date(time).toISOString().slice(0, 10);
 }

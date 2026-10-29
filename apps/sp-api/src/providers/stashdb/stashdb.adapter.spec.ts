@@ -77,6 +77,37 @@ describe('StashdbAdapter', () => {
     warn.mockRestore();
   });
 
+  it('filters scenes to releases after a day when asked', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ data: { queryScenes: { count: 0, scenes: [] } } }),
+        {
+          headers: { 'content-type': 'application/json' },
+        },
+      ),
+    );
+
+    await adapter.getScenesBySort({
+      baseUrl: 'http://stashdb.local',
+      page: 1,
+      perPage: 100,
+      sort: 'DATE',
+      direction: 'ASC',
+      favorites: 'STUDIO',
+      releasedAfter: '2026-10-31',
+    });
+
+    const body = JSON.parse(
+      String((fetchMock.mock.calls[0][1] as RequestInit).body),
+    ) as { query: string; variables: Record<string, unknown> };
+    expect(body.query).toContain('$releasedAfter: Date!');
+    expect(body.query).toContain(
+      'date: { value: $releasedAfter, modifier: GREATER_THAN }',
+    );
+    expect(body.query).toContain('direction: ASC');
+    expect(body.variables.releasedAfter).toBe('2026-10-31');
+  });
+
   describe('when the catalog’s own search fails', () => {
     const broken = () =>
       new Response(
