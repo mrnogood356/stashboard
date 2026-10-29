@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { AppLockService } from './core/app-lock/app-lock.service';
 import { AppUpdatesService } from './core/pwa/app-updates.service';
+import { PrefetchService } from './core/prefetch/prefetch.service';
 import { AppStatusComponent } from './shared/app-status/app-status.component';
 import { AppLockScreenComponent } from './shared/app-lock-screen/app-lock-screen.component';
 import { ConfirmDialog } from 'primeng/confirmdialog';
@@ -31,5 +32,7 @@ export class App {
     inject(AppLockService).start();
     // Installable app: offline notice, "updated" notice, service worker.
     inject(AppUpdatesService).start();
+    // Scene details start loading when you point at a scene, not when you open it.
+    inject(PrefetchService).start();
   }
 }
