@@ -511,6 +511,7 @@ describe('Stashboard API (e2e)', () => {
       authenticated: false,
       username: null,
       passkeySignIn: false,
+      setupCodeRequired: false,
     });
     await request(server).post('/api/auth/login/passkey/options').expect(400);
     await request(server)
