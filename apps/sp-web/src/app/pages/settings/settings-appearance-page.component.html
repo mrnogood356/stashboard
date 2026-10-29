@@ -160,6 +160,29 @@
       </p>
     </section>
 
+    <section class="card" aria-labelledby="appearance-style">
+      <div class="card-head">
+        <h3 id="appearance-style">Style</h3>
+        <p class="muted">
+          Glass makes the sidebar, tab bar, menus and panels frosted and see-through, like iOS.
+          Works with any theme. Turns solid when your device asks for less transparency.
+        </p>
+      </div>
+      <div class="segmented" role="group" aria-label="Style">
+        @for (option of materialOptions; track option.value) {
+          <button
+            type="button"
+            [class.active]="draft().material === option.value"
+            [attr.aria-pressed]="draft().material === option.value"
+            [attr.data-testid]="'material-' + option.value"
+            (click)="update({ material: option.value })"
+          >
+            {{ option.label }}
+          </button>
+        }
+      </div>
+    </section>
+
     <section class="card" aria-labelledby="appearance-layout">
       <div class="card-head">
         <h3 id="appearance-layout">Layout</h3>

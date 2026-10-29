@@ -36,6 +36,7 @@ export interface AppearanceCache {
   radius: AppearanceSettings['radius'];
   density: AppearanceSettings['density'];
   fontScale: AppearanceSettings['fontScale'];
+  material: AppearanceSettings['material'];
   customCss: string;
   /** The settings themselves, so the app starts from them before the server answers. */
   settings: AppearanceSettings;
@@ -173,6 +174,7 @@ export function buildAppearanceCache(settings: AppearanceSettings): AppearanceCa
     radius: settings.radius,
     density: settings.density,
     fontScale: settings.fontScale,
+    material: settings.material,
     customCss: settings.customCss,
     settings,
   };

@@ -92,15 +92,17 @@ describe('SettingsAppearancePageComponent', () => {
     );
   });
 
-  it('changes mode, radius, density and text size', async () => {
+  it('changes mode, style, radius, density and text size', async () => {
     const { theme, click } = await render();
     click('mode-dark');
+    click('material-glass');
     click('radius-sharp');
     click('density-compact');
     click('font-large');
     expect(theme.preview).toHaveBeenLastCalledWith(
       expect.objectContaining({
         mode: 'dark',
+        material: 'glass',
         radius: 'sharp',
         density: 'compact',
         fontScale: 'large',

@@ -208,6 +208,7 @@ describe('Stashboard API (e2e)', () => {
       radius: 'round',
       density: 'compact',
       fontScale: 'large',
+      material: 'glass',
       customCss: '.x { color: red; }',
     };
     await request(server)

@@ -3,6 +3,7 @@ import {
   AppearanceSettings,
   CUSTOM_CSS_MAX_LENGTH,
   DENSITY_OPTIONS,
+  MATERIAL_OPTIONS,
   FONT_SCALE_OPTIONS,
   MODE_OPTIONS,
   RADIUS_OPTIONS,
@@ -41,6 +42,7 @@ export class SettingsAppearancePageComponent implements OnInit, OnDestroy {
   protected readonly modeOptions = MODE_OPTIONS;
   protected readonly radiusOptions = RADIUS_OPTIONS;
   protected readonly densityOptions = DENSITY_OPTIONS;
+  protected readonly materialOptions = MATERIAL_OPTIONS;
   protected readonly fontScaleOptions = FONT_SCALE_OPTIONS;
   protected readonly customCssMax = CUSTOM_CSS_MAX_LENGTH;
 

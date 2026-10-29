@@ -58,6 +58,7 @@ describe('ThemeService', () => {
       root().removeAttribute(name);
     }
     root().removeAttribute('data-font-scale');
+    root().removeAttribute('data-material');
   });
 
   afterEach(() => {
@@ -129,6 +130,7 @@ describe('ThemeService', () => {
         accentColor: '#ff9f0a',
         density: 'compact',
         fontScale: 'large',
+        material: 'glass',
         customCss: '.x { color: red; }',
       }),
     );
@@ -139,6 +141,7 @@ describe('ThemeService', () => {
     expect(root().getAttribute('data-theme-id')).toBe('nord');
     expect(root().getAttribute('data-density')).toBe('compact');
     expect(root().getAttribute('data-font-scale')).toBe('large');
+    expect(root().getAttribute('data-material')).toBe('glass');
     expect(tokenCss()).toContain('--accent:#ff9f0a');
     expect(tokenCss().startsWith(':root:root[data-theme]{')).toBe(true);
     expect(meta.content).toBe('#242933');

@@ -1,4 +1,5 @@
 import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
+import { GlassArtService } from '../../core/theme/glass-art.service';
 import { Stage, stagesForStatus } from '../../shared/stage-track/stage-track';
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -80,6 +81,7 @@ export class ScenePageComponent implements OnInit, OnDestroy {
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly scene = signal<SceneDetails | null>(null);
+  private readonly glassArt = inject(GlassArtService).follow(() => this.scene()?.imageUrl);
   protected readonly descriptionExpanded = signal(false);
   protected readonly selectedStashCopyUrl = signal<string | null>(null);
   protected readonly requestModalOpen = signal(false);
