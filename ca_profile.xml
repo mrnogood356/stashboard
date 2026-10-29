@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Maintainer>
+  <Icon>https://raw.githubusercontent.com/mrnogood356/stashboard/main/apps/sp-web/public/icons/icon-512.png</Icon>
+  <Profile>Stashboard is a self-hosted web app that sits on top of Stash and Whisparr. Browse StashDB or FansDB, request scenes in one tap, follow each request into your Stash library, and watch it from the same app on your phone or desktop. It also tidies your library: matching unorganised files, renaming them, and finding duplicates and leftover samples. Stashboard needs a PostgreSQL database; the Unraid setup guide is on GitHub.</Profile>
+  <WebPage>https://github.com/mrnogood356/stashboard</WebPage>
+  <Forum>https://discourse.stashapp.cc/t/stashboard-a-fork-of-stasharr-portal/19717</Forum>
+</Maintainer>
