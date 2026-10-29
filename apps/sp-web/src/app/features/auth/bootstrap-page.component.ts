@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/api/auth.service';
@@ -18,6 +18,10 @@ export class BootstrapPageComponent {
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly handoffMessage = signal<string | null>(null);
   protected readonly showPassword = signal(false);
+  /** The server was started with SETUP_CODE, so creating the admin needs it. */
+  protected readonly setupCodeRequired = computed(
+    () => this.authService.status()?.setupCodeRequired === true,
+  );
 
   protected readonly form = new FormGroup({
     username: new FormControl('', {
@@ -32,21 +36,26 @@ export class BootstrapPageComponent {
       nonNullable: true,
       validators: [Validators.required],
     }),
+    setupCode: new FormControl('', { nonNullable: true }),
   });
 
   protected submit(): void {
     this.errorMessage.set(null);
     this.handoffMessage.set(null);
 
-    if (this.form.invalid || this.passwordMismatch()) {
+    const needsCode = this.setupCodeRequired() && !this.form.controls.setupCode.value.trim();
+    if (this.form.invalid || this.passwordMismatch() || needsCode) {
       this.form.markAllAsTouched();
       return;
     }
 
-    const { username, password } = this.form.getRawValue();
+    const { username, password, setupCode } = this.form.getRawValue();
     this.submitting.set(true);
 
-    this.authService.bootstrap({ username, password }).subscribe({
+    const payload = this.setupCodeRequired()
+      ? { username, password, setupCode: setupCode.trim() }
+      : { username, password };
+    this.authService.bootstrap(payload).subscribe({
       next: () => {
         this.submitting.set(false);
         this.handoffMessage.set('Admin account created. Opening required integration setup next.');

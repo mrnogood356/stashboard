@@ -7,11 +7,14 @@ export interface AuthStatusResponse {
    * added for App Lock. Older servers leave it out.
    */
   passkeySignIn?: boolean;
+  /** No admin yet, and the server's SETUP_CODE is needed to create one. */
+  setupCodeRequired?: boolean;
 }
 
 export interface BootstrapAdminPayload {
   username: string;
   password: string;
+  setupCode?: string;
 }
 
 export interface LoginPayload {

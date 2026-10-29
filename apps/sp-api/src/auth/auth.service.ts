@@ -2,13 +2,14 @@ import {
   HttpException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { AdminUser } from '@prisma/client';
 import * as argon2 from 'argon2';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { AppLockPasskeyService } from '../app-lock/app-lock-passkey.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -57,6 +58,13 @@ export class AuthService {
     request: Request,
     response: Response,
   ): Promise<AuthStatusResponse> {
+    if (!setupCodeMatches(dto.setupCode)) {
+      this.logger.warn('Refused to create an admin account: wrong setup code.');
+      throw new ForbiddenException(
+        'That setup code is wrong. It is the SETUP_CODE set on the server.',
+      );
+    }
+
     const passwordHash = await argon2.hash(dto.password, {
       type: argon2.argon2id,
     });
@@ -683,6 +691,8 @@ export class AuthService {
       authenticated: authContext.authenticated,
       username: authContext.user?.username ?? null,
       passkeySignIn,
+      setupCodeRequired:
+        authContext.bootstrapRequired && configuredSetupCode() !== null,
     };
   }
 
@@ -724,4 +734,22 @@ function isUniqueConstraintError(error: unknown): error is { code: string } {
     'code' in error &&
     error.code === 'P2002'
   );
+}
+
+/**
+ * SETUP_CODE: when set, creating the first admin also needs this code, so
+ * someone who reaches a fresh install before you do can't claim it.
+ */
+function configuredSetupCode(): string | null {
+  return process.env.SETUP_CODE?.trim() || null;
+}
+
+function setupCodeMatches(given: string | undefined): boolean {
+  const expected = configuredSetupCode();
+  if (!expected) {
+    return true;
+  }
+  const a = Buffer.from(expected);
+  const b = Buffer.from(given?.trim() ?? '');
+  return a.length === b.length && timingSafeEqual(a, b);
 }
