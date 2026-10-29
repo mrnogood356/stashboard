@@ -26,15 +26,15 @@
       }
     </div>
     <div class="hero-meta">
-      <a class="meta-item" routerLink="/tools/fix">
+      <a class="meta-item" routerLink="/tools/fix" [queryParams]="{ list: 'unmatched' }">
         <span>Not matched</span>
         <strong>{{ counts()?.unmatched ?? '–' }}</strong>
       </a>
-      <a class="meta-item" routerLink="/tools/fix">
+      <a class="meta-item" routerLink="/tools/fix" [queryParams]="{ list: 'untagged' }">
         <span>Without tags</span>
         <strong>{{ counts()?.untagged ?? '–' }}</strong>
       </a>
-      <a class="meta-item" routerLink="/tools/fix">
+      <a class="meta-item" routerLink="/tools/fix" [queryParams]="{ list: 'unorganized' }">
         <span>Not organized</span>
         <strong>{{ counts()?.unorganized ?? '–' }}</strong>
       </a>
@@ -95,12 +95,8 @@
       <i class="pi pi-cog" aria-hidden="true"></i>
       <span class="tool-title">Stash jobs</span>
       <span class="tool-detail">
-        @if (jobs(); as jobs) {
-          {{
-            jobs.length === 0
-              ? 'Stash is idle'
-              : jobs.length + (jobs.length === 1 ? ' job running' : ' jobs running')
-          }}
+        @if (jobsDetail(); as text) {
+          {{ text }}
         } @else {
           Scan, Generate, Identify, Auto tag and Clean up
         }

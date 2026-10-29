@@ -47,6 +47,12 @@
                 type="button"
                 class="btn small quiet"
                 [disabled]="working()"
+                [attr.aria-label]="
+                  'Wrong match: ' +
+                  (proposal.match.title ?? 'Untitled') +
+                  ' for ' +
+                  proposal.scene.fileName
+                "
                 (click)="dismiss([proposal.scene.id])"
               >
                 <i class="pi pi-times" aria-hidden="true"></i> Wrong
@@ -55,6 +61,9 @@
                 type="button"
                 class="btn small primary"
                 [disabled]="busy || working()"
+                [attr.aria-label]="
+                  'Save ' + (proposal.match.title ?? 'Untitled') + ' for ' + proposal.scene.fileName
+                "
                 (click)="save([proposal.scene.id])"
               >
                 <i class="pi pi-check" aria-hidden="true"></i> Save

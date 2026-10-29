@@ -158,7 +158,14 @@ describe('ScenesService.getCalendar with Whisparr', () => {
 
   it('adds the scenes Whisparr has dated then, once each, with their status', async () => {
     const { service, getCalendar } = serviceWith(
-      [scene('shared', '2026-11-04'), scene('starred', '2026-11-02')],
+      [
+        {
+          ...scene('shared', '2026-11-04'),
+          requestable: true,
+          status: { state: 'NOT_REQUESTED' },
+        },
+        scene('starred', '2026-11-02'),
+      ],
       [
         whisparrScene('shared', '2026-11-04'),
         whisparrScene('w1', '2026-11-10'),
@@ -182,7 +189,11 @@ describe('ScenesService.getCalendar with Whisparr', () => {
       'w2',
     ]);
     const byId = new Map(result.items.map((item) => [item.id, item]));
-    expect(byId.get('shared')?.inWhisparr).toBe(true);
+    expect(byId.get('shared')).toMatchObject({
+      inWhisparr: true,
+      requestable: false,
+      status: { state: 'REQUESTED' },
+    });
     expect(byId.get('starred')?.inWhisparr).toBeUndefined();
     expect(byId.get('w1')).toMatchObject({
       title: 'Title w1',

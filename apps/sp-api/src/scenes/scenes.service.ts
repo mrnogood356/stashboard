@@ -241,7 +241,19 @@ export class ScenesService {
     }
     for (const item of whisparr.items) {
       const starred = byId.get(item.id);
-      byId.set(item.id, starred ? { ...starred, inWhisparr: true } : item);
+      // A starred scene Whisparr has: the catalog's details, Whisparr's status.
+      byId.set(
+        item.id,
+        starred
+          ? {
+              ...starred,
+              status: item.status,
+              requestable: false,
+              localSceneId: item.localSceneId ?? starred.localSceneId,
+              inWhisparr: true,
+            }
+          : item,
+      );
     }
     const items = [...byId.values()].sort((a, b) =>
       (a.releaseDate ?? '').localeCompare(b.releaseDate ?? ''),

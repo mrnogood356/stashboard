@@ -58,7 +58,11 @@
   @if (!loading() && whose() !== 'STUDIO' && whose() !== 'PERFORMER') {
     @if (whisparr() === 'off') {
       <p class="calendar-note" role="status" data-testid="whisparr-off">
-        Whisparr isn’t connected, so only starred releases show.
+        @if (whose() === 'WHISPARR') {
+          Whisparr isn’t connected, so there’s nothing to show here.
+        } @else {
+          Whisparr isn’t connected, so only starred releases show.
+        }
         <a routerLink="/settings/integrations">Connect it in Settings</a>
       </p>
     } @else if (whisparr() === 'failed') {
@@ -191,7 +195,11 @@
           <i class="pi pi-calendar" aria-hidden="true"></i>
           <p>
             @if (whose() === 'WHISPARR') {
-              Whisparr has nothing dated this month.
+              @if (whisparr() === 'ok') {
+                Whisparr has nothing dated this month.
+              } @else {
+                Whisparr’s scenes can’t be shown right now.
+              }
             } @else {
               No releases this month from the studios and performers you starred{{
                 whose() === 'ALL' ? ' or in Whisparr' : ''
