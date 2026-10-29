@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   APPEARANCE_DENSITIES,
   APPEARANCE_FONT_SCALES,
+  APPEARANCE_MATERIALS,
   APPEARANCE_MODES,
   APPEARANCE_RADII,
   type AppearanceResponse,
@@ -22,6 +23,7 @@ export const DEFAULT_APPEARANCE: AppearanceResponse = {
   radius: 'default',
   density: 'comfortable',
   fontScale: 'default',
+  material: 'solid',
   customCss: '',
   updatedAt: null,
 };
@@ -34,6 +36,7 @@ interface AppearanceRow {
   radius: string;
   density: string;
   fontScale: string;
+  material: string;
   customCss: string;
   updatedAt: Date;
 }
@@ -63,6 +66,7 @@ export class AppearanceService {
       density: body.density,
       fontScale: body.fontScale,
       customCss: body.customCss ?? '',
+      ...(body.material ? { material: body.material } : {}),
     };
     const row = await this.prisma.appearanceSettings.upsert({
       where: { key: KEY },
@@ -116,6 +120,11 @@ function describe(row: AppearanceRow): AppearanceResponse {
       row.fontScale,
       APPEARANCE_FONT_SCALES,
       DEFAULT_APPEARANCE.fontScale,
+    ),
+    material: pick(
+      row.material,
+      APPEARANCE_MATERIALS,
+      DEFAULT_APPEARANCE.material,
     ),
     customCss: row.customCss,
     updatedAt: row.updatedAt.toISOString(),

@@ -21,6 +21,7 @@ const VALID = {
   radius: 'round',
   density: 'compact',
   fontScale: 'large',
+  material: 'glass',
   customCss: '.app-shell { letter-spacing: 0.01em; }',
 };
 
@@ -110,6 +111,7 @@ describe('Appearance API', () => {
     ['an unknown radius', { radius: 'pill' }],
     ['an unknown density', { density: 'cozy' }],
     ['an unknown font scale', { fontScale: 'huge' }],
+    ['an unknown material', { material: 'chrome' }],
     ['custom CSS that is too long', { customCss: 'a'.repeat(20_001) }],
     ['custom CSS that is not text', { customCss: { evil: true } }],
     ['an unexpected field', { isAdmin: true }],
@@ -153,6 +155,7 @@ describe('AppearanceService', () => {
           radius: '??',
           density: '??',
           fontScale: '??',
+          material: '??',
           updatedAt: new Date('2026-10-22T10:00:00Z'),
         }),
       },
@@ -163,6 +166,31 @@ describe('AppearanceService', () => {
       customCss: VALID.customCss,
       updatedAt: '2026-10-22T10:00:00.000Z',
     });
+  });
+});
+
+describe('AppearanceService.update', () => {
+  it('keeps the saved material when an older client leaves it out', async () => {
+    const upsert = jest.fn(
+      ({ create }: { create: Record<string, unknown> }) => ({
+        material: 'glass',
+        ...create,
+        updatedAt: new Date('2026-10-22T10:00:00Z'),
+      }),
+    );
+    const service = new AppearanceService({
+      appearanceSettings: { upsert },
+    } as unknown as PrismaService);
+    const { material: _omit, ...older } = VALID;
+    void _omit;
+
+    const saved = await service.update(older as UpdateAppearanceDto);
+
+    const [{ update }] = upsert.mock.calls[0] as unknown as [
+      { update: Record<string, unknown> },
+    ];
+    expect(update).not.toHaveProperty('material');
+    expect(saved.material).toBe('glass');
   });
 });
 

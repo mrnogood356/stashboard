@@ -573,6 +573,8 @@ model AppearanceSettings {
   density     String   @default("comfortable")
   /// small | default | large
   fontScale   String   @default("default")
+  /// solid | glass (frosted, see-through bars and panels)
+  material    String   @default("solid")
   /// Plain text applied as a stylesheet; never HTML.
   customCss   String   @default("")
   createdAt   DateTime @default(now())

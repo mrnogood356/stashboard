@@ -9,7 +9,9 @@
   var root = document.documentElement;
   var prefersDark = false;
   try {
-    prefersDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    prefersDark = !!(
+      window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+    );
   } catch (e) {
     /* keep light */
   }
@@ -53,7 +55,10 @@
 
   root.setAttribute('data-theme', scheme);
   root.style.colorScheme = scheme;
-  setMeta('apple-mobile-web-app-status-bar-style', scheme === 'dark' ? 'black-translucent' : 'default');
+  setMeta(
+    'apple-mobile-web-app-status-bar-style',
+    scheme === 'dark' ? 'black-translucent' : 'default',
+  );
 
   if (!cache) {
     setMeta('theme-color', scheme === 'dark' ? '#111215' : '#f2f2f7');
@@ -70,6 +75,9 @@
   }
   if (cache.fontScale && cache.fontScale !== 'default') {
     root.setAttribute('data-font-scale', String(cache.fontScale));
+  }
+  if (cache.material === 'glass') {
+    root.setAttribute('data-material', 'glass');
   }
   if (typeof theme.css === 'string') {
     addStyle('sp-theme-tokens', theme.css);

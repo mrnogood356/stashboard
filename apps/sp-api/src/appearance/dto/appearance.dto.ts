@@ -37,6 +37,8 @@ export const APPEARANCE_MODES = ['light', 'dark', 'system'] as const;
 export const APPEARANCE_RADII = ['sharp', 'default', 'round'] as const;
 export const APPEARANCE_DENSITIES = ['compact', 'comfortable'] as const;
 export const APPEARANCE_FONT_SCALES = ['small', 'default', 'large'] as const;
+/** solid, or glass: frosted, see-through bars and panels over a soft backdrop. */
+export const APPEARANCE_MATERIALS = ['solid', 'glass'] as const;
 
 /** Custom CSS is stored as plain text; this keeps it a tweak, not a second stylesheet. */
 export const CUSTOM_CSS_MAX_LENGTH = 20_000;
@@ -49,6 +51,7 @@ export type AppearanceMode = (typeof APPEARANCE_MODES)[number];
 export type AppearanceRadius = (typeof APPEARANCE_RADII)[number];
 export type AppearanceDensity = (typeof APPEARANCE_DENSITIES)[number];
 export type AppearanceFontScale = (typeof APPEARANCE_FONT_SCALES)[number];
+export type AppearanceMaterial = (typeof APPEARANCE_MATERIALS)[number];
 
 export class UpdateAppearanceDto {
   @IsIn(APPEARANCE_MODES)
@@ -77,6 +80,11 @@ export class UpdateAppearanceDto {
   @IsIn(APPEARANCE_FONT_SCALES)
   fontScale!: AppearanceFontScale;
 
+  /** Left out by older clients; the saved value is kept then. */
+  @IsOptional()
+  @IsIn(APPEARANCE_MATERIALS)
+  material?: AppearanceMaterial;
+
   @IsOptional()
   @IsString()
   @MaxLength(CUSTOM_CSS_MAX_LENGTH)
@@ -91,6 +99,7 @@ export interface AppearanceResponse {
   radius: AppearanceRadius;
   density: AppearanceDensity;
   fontScale: AppearanceFontScale;
+  material: AppearanceMaterial;
   customCss: string;
   /** When it was last saved; null while the defaults apply. */
   updatedAt: string | null;

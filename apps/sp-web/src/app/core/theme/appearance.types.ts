@@ -4,6 +4,8 @@ export type AppearanceMode = 'light' | 'dark' | 'system';
 export type AppearanceRadius = 'sharp' | 'default' | 'round';
 export type AppearanceDensity = 'compact' | 'comfortable';
 export type AppearanceFontScale = 'small' | 'default' | 'large';
+/** solid, or glass: frosted, see-through bars and panels. */
+export type AppearanceMaterial = 'solid' | 'glass';
 
 /** Settings → Appearance, as GET/PUT /api/appearance carry it. */
 export interface AppearanceSettings {
@@ -15,6 +17,7 @@ export interface AppearanceSettings {
   radius: AppearanceRadius;
   density: AppearanceDensity;
   fontScale: AppearanceFontScale;
+  material: AppearanceMaterial;
   customCss: string;
 }
 
@@ -31,6 +34,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   radius: 'default',
   density: 'comfortable',
   fontScale: 'default',
+  material: 'solid',
   customCss: '',
 };
 
@@ -52,6 +56,11 @@ export const RADIUS_OPTIONS: readonly { value: AppearanceRadius; label: string }
 export const DENSITY_OPTIONS: readonly { value: AppearanceDensity; label: string }[] = [
   { value: 'compact', label: 'Compact' },
   { value: 'comfortable', label: 'Comfortable' },
+];
+
+export const MATERIAL_OPTIONS: readonly { value: AppearanceMaterial; label: string }[] = [
+  { value: 'solid', label: 'Solid' },
+  { value: 'glass', label: 'Glass' },
 ];
 
 export const FONT_SCALE_OPTIONS: readonly { value: AppearanceFontScale; label: string }[] = [
@@ -81,6 +90,7 @@ export function normalizeAppearance(value: unknown): AppearanceSettings {
     radius: oneOf(input['radius'], ['sharp', 'default', 'round'] as const, d.radius),
     density: oneOf(input['density'], ['compact', 'comfortable'] as const, d.density),
     fontScale: oneOf(input['fontScale'], ['small', 'default', 'large'] as const, d.fontScale),
+    material: oneOf(input['material'], ['solid', 'glass'] as const, d.material),
     customCss:
       typeof input['customCss'] === 'string'
         ? input['customCss'].slice(0, CUSTOM_CSS_MAX_LENGTH)
@@ -97,6 +107,7 @@ export function sameAppearance(a: AppearanceSettings, b: AppearanceSettings): bo
     a.radius === b.radius &&
     a.density === b.density &&
     a.fontScale === b.fontScale &&
+    a.material === b.material &&
     a.customCss === b.customCss
   );
 }

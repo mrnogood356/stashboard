@@ -1,4 +1,5 @@
 import { Observable } from 'rxjs';
+import { GlassArtService } from '../../core/theme/glass-art.service';
 import {
   Component,
   ElementRef,
@@ -353,6 +354,10 @@ export class HomePageComponent implements OnInit, OnDestroy {
     return slides;
   });
   protected readonly featuredIndex = signal(0);
+  private readonly glassArt = inject(GlassArtService).follow(() => {
+    const slide = this.featured()[this.featuredIndex()];
+    return slide?.item.imageUrl ?? slide?.item.cardImageUrl;
+  });
   private featuredTimer: ReturnType<typeof setInterval> | null = null;
   private featuredPaused = false;
 

@@ -1,4 +1,5 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { GlassArtService } from '../../core/theme/glass-art.service';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
@@ -52,6 +53,7 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly scene = signal<LocalSceneDetails | null>(null);
+  private readonly glassArt = inject(GlassArtService).follow(() => this.scene()?.imageUrl);
   protected readonly descriptionExpanded = signal(false);
   protected readonly backPath = signal('/library');
   protected readonly backQueryParams = signal<Params>({});
