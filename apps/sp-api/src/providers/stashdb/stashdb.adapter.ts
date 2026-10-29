@@ -378,6 +378,16 @@ export class StashdbAdapter extends StashdbPeopleApi {
         : null;
     const textVariableDeclaration = text ? ', $text: String' : '';
     const textInput = text ? ', text: $text' : '';
+    const releasedAfter =
+      'releasedAfter' in config && config.releasedAfter
+        ? config.releasedAfter
+        : null;
+    const dateVariableDeclaration = releasedAfter
+      ? ', $releasedAfter: Date!'
+      : '';
+    const dateInput = releasedAfter
+      ? ', date: { value: $releasedAfter, modifier: GREATER_THAN }'
+      : '';
     const tagNamesField =
       'includeTagNames' in config && config.includeTagNames
         ? 'tags { id name } performers { performer { id name } }'
@@ -411,8 +421,8 @@ export class StashdbAdapter extends StashdbPeopleApi {
             ${tagNamesField}
     `;
     const query = `
-      query QueryScenes($page: Int!, $perPage: Int!${tagVariableDeclaration}${studioVariableDeclaration}${textVariableDeclaration}) {
-        queryScenes(input: { sort: ${sort}, direction: ${direction}, page: $page, per_page: $perPage${favoritesInput}${tagInput}${studioInput}${textInput} }) {
+      query QueryScenes($page: Int!, $perPage: Int!${tagVariableDeclaration}${studioVariableDeclaration}${textVariableDeclaration}${dateVariableDeclaration}) {
+        queryScenes(input: { sort: ${sort}, direction: ${direction}, page: $page, per_page: $perPage${favoritesInput}${tagInput}${studioInput}${textInput}${dateInput} }) {
           count
           scenes {
             ${sceneFields}
@@ -432,6 +442,9 @@ export class StashdbAdapter extends StashdbPeopleApi {
     }
     if (text) {
       variables.text = text;
+    }
+    if (releasedAfter) {
+      variables.releasedAfter = releasedAfter;
     }
 
     let rawScenes: unknown[];

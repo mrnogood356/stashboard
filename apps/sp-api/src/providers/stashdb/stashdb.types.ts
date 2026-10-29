@@ -27,6 +27,8 @@ export interface StashdbAdapterSceneFeedConfig extends StashdbAdapterTrendingCon
   text?: string;
   /** Also fetch tags and performers (ids and names), for leaving out excluded words, tags and performers. */
   includeTagNames?: boolean;
+  /** Only scenes released after this day (YYYY-MM-DD). */
+  releasedAfter?: string;
 }
 
 export type StashdbSceneFeedFavorites = 'PERFORMER' | 'STUDIO' | 'ALL';

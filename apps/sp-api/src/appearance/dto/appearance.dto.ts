@@ -37,8 +37,11 @@ export const APPEARANCE_MODES = ['light', 'dark', 'system'] as const;
 export const APPEARANCE_RADII = ['sharp', 'default', 'round'] as const;
 export const APPEARANCE_DENSITIES = ['compact', 'comfortable'] as const;
 export const APPEARANCE_FONT_SCALES = ['small', 'default', 'large'] as const;
-/** solid, or glass: frosted, see-through bars and panels over a soft backdrop. */
-export const APPEARANCE_MATERIALS = ['solid', 'glass'] as const;
+/**
+ * solid; glass: frosted, see-through bars and panels over a soft backdrop;
+ * adaptive: glass whose backdrop also takes on the open page's artwork.
+ */
+export const APPEARANCE_MATERIALS = ['solid', 'glass', 'adaptive'] as const;
 
 /** Custom CSS is stored as plain text; this keeps it a tweak, not a second stylesheet. */
 export const CUSTOM_CSS_MAX_LENGTH = 20_000;

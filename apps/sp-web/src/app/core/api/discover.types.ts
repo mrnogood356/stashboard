@@ -387,6 +387,6 @@ export interface ScenesCalendarResponse {
   from: string;
   to: string;
   items: SceneExplorerItem[];
-  /** False when the earliest days may be missing some releases. */
+  /** False when the latest days may be missing some releases. */
   complete: boolean;
 }

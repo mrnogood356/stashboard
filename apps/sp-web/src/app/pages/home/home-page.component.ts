@@ -354,9 +354,20 @@ export class HomePageComponent implements OnInit, OnDestroy {
     return slides;
   });
   protected readonly featuredIndex = signal(0);
+  /**
+   * Home keeps one scene's art behind the glass while it's open: not the
+   * rotating slide, and not a new address each time watch progress bumps the
+   * image's version. It moves on only when that scene leaves the featured list.
+   */
+  private homeArt: { id: string; url: string } | null = null;
   private readonly glassArt = inject(GlassArtService).follow(() => {
-    const slide = this.featured()[this.featuredIndex()];
-    return slide?.item.imageUrl ?? slide?.item.cardImageUrl;
+    const slides = this.featured();
+    if (!this.homeArt || !slides.some((slide) => slide.item.id === this.homeArt?.id)) {
+      const first = slides.find((slide) => slide.item.imageUrl ?? slide.item.cardImageUrl);
+      const url = first?.item.imageUrl ?? first?.item.cardImageUrl;
+      this.homeArt = first && url ? { id: first.item.id, url } : null;
+    }
+    return this.homeArt?.url;
   });
   private featuredTimer: ReturnType<typeof setInterval> | null = null;
   private featuredPaused = false;
