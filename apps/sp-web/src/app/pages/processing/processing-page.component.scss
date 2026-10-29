@@ -41,7 +41,7 @@
 
 .block[data-tone='attention'] {
   --section-tone: var(--badge-failed-text);
-  border-color: color-mix(in srgb, var(--badge-failed-border) 70%, transparent);
+  border-color: var(--acquisition-attention-border);
 }
 
 .app-section-head__copy p {
@@ -130,17 +130,17 @@
   gap: 0.95rem;
   padding: 0.75rem;
   border-radius: 16px;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 40%, transparent);
-  background: var(--surface-1);
+  border: 1px solid var(--acquisition-card-border);
+  background: var(--acquisition-card-bg);
 }
 
 .card[data-stage='downloading'],
 .card[data-stage='unpacking'] {
-  border-color: color-mix(in srgb, var(--badge-downloading-border) 70%, transparent);
+  border-color: var(--acquisition-active-border);
 }
 
 .card[data-stage='failed'] {
-  border-color: color-mix(in srgb, var(--badge-failed-border) 80%, transparent);
+  border-color: var(--acquisition-attention-border);
 }
 
 .card-art,
@@ -346,7 +346,8 @@ app-stage-track {
   padding: 0;
   list-style: none;
   border-radius: 14px;
-  background: var(--surface-1);
+  border: 1px solid var(--acquisition-card-border);
+  background: var(--acquisition-card-bg);
   overflow: hidden;
 }
 

@@ -92,46 +92,49 @@
                 @if (proposal.match.reasons.length) {
                   <span class="muted small">{{ proposal.match.reasons.join(' · ') }}</span>
                 }
+                @if (castOf(proposal.match); as cast) {
+                  @if (cast.length) {
+                    <ul class="cast" aria-label="Performers">
+                      @for (person of cast; track person.name) {
+                        <li>
+                          <span class="face">
+                            @if (person.imageUrl) {
+                              <img
+                                [src]="person.imageUrl"
+                                alt=""
+                                loading="lazy"
+                                referrerpolicy="no-referrer"
+                              />
+                            } @else {
+                              <i class="pi pi-user" aria-hidden="true"></i>
+                            }
+                          </span>
+                          <span class="face-name">{{ person.name }}</span>
+                        </li>
+                      }
+                    </ul>
+                  }
+                }
+
+                @if (proposal.match.tags?.length) {
+                  <p class="tags">
+                    @for (tag of shownTags(proposal); track tag) {
+                      <span class="tag">{{ tag }}</span>
+                    }
+                    @if ((proposal.match.tags?.length ?? 0) > shownTags(proposal).length) {
+                      <button
+                        type="button"
+                        class="link small"
+                        (click)="showAllTags(proposal.scene.id)"
+                      >
+                        +{{ (proposal.match.tags?.length ?? 0) - shownTags(proposal).length }} more
+                      </button>
+                    }
+                  </p>
+                }
               </span>
             </div>
           </div>
-
-          @if (castOf(proposal.match); as cast) {
-            @if (cast.length) {
-              <ul class="cast" aria-label="Performers">
-                @for (person of cast; track person.name) {
-                  <li>
-                    <span class="face">
-                      @if (person.imageUrl) {
-                        <img
-                          [src]="person.imageUrl"
-                          alt=""
-                          loading="lazy"
-                          referrerpolicy="no-referrer"
-                        />
-                      } @else {
-                        <i class="pi pi-user" aria-hidden="true"></i>
-                      }
-                    </span>
-                    <span class="face-name">{{ person.name }}</span>
-                  </li>
-                }
-              </ul>
-            }
-          }
-
-          @if (proposal.match.tags?.length) {
-            <p class="tags">
-              @for (tag of shownTags(proposal); track tag) {
-                <span class="tag">{{ tag }}</span>
-              }
-              @if ((proposal.match.tags?.length ?? 0) > shownTags(proposal).length) {
-                <button type="button" class="link small" (click)="showAllTags(proposal.scene.id)">
-                  +{{ (proposal.match.tags?.length ?? 0) - shownTags(proposal).length }} more
-                </button>
-              }
-            </p>
-          }
 
           @if (proposal.alternatives.length) {
             <div class="alternatives">

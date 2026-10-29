@@ -79,6 +79,42 @@
   line-height: 1.4;
 }
 
+/* Find matches: Match all beside the heading, the status on one line below. */
+.find-card .card-copy {
+  flex: 1 1 auto;
+}
+
+.head-button {
+  flex: 0 0 auto;
+}
+
+.card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 1rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.card-foot .link {
+  margin-left: auto;
+}
+
+@media (max-width: 560px) {
+  .find-card .card-head {
+    flex-wrap: wrap;
+  }
+
+  .head-button {
+    width: 100%;
+  }
+
+  .card-foot .link {
+    margin-left: 0;
+  }
+}
+
 /* iOS-style switch row inside a card */
 .switches {
   display: grid;
