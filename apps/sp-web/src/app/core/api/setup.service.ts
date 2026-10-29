@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { SetupStatusResponse } from './setup.types';
+import { DiscoveryResponse, SetupStatusResponse } from './setup.types';
 
 @Injectable({
   providedIn: 'root',
@@ -11,5 +11,10 @@ export class SetupService {
 
   getStatus(): Observable<SetupStatusResponse> {
     return this.http.get<SetupStatusResponse>('/api/setup/status');
+  }
+
+  /** Looks for Stash, Whisparr, Prowlarr and SABnzbd on the usual ports nearby. */
+  discover(): Observable<DiscoveryResponse> {
+    return this.http.post<DiscoveryResponse>('/api/setup/discover', {});
   }
 }
