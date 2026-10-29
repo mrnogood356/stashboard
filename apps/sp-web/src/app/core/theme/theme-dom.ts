@@ -24,7 +24,14 @@ export function applyAppearanceToDocument(
   setOrRemoveAttribute(root, 'data-radius', settings.radius, 'default');
   setOrRemoveAttribute(root, 'data-density', settings.density, 'comfortable');
   setOrRemoveAttribute(root, 'data-font-scale', settings.fontScale, 'default');
-  setOrRemoveAttribute(root, 'data-material', settings.material, 'solid');
+  // Adaptive is glass too; data-glass-art adds the page's artwork behind it.
+  setOrRemoveAttribute(
+    root,
+    'data-material',
+    settings.material === 'solid' ? 'solid' : 'glass',
+    'solid',
+  );
+  root.toggleAttribute('data-glass-art', settings.material === 'adaptive');
 
   styleElement(doc, THEME_STYLE_ID, doc.head).textContent = applied.css;
   applyCustomCss(doc, settings.customCss);

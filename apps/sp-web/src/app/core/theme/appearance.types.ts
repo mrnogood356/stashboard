@@ -5,7 +5,7 @@ export type AppearanceRadius = 'sharp' | 'default' | 'round';
 export type AppearanceDensity = 'compact' | 'comfortable';
 export type AppearanceFontScale = 'small' | 'default' | 'large';
 /** solid, or glass: frosted, see-through bars and panels. */
-export type AppearanceMaterial = 'solid' | 'glass';
+export type AppearanceMaterial = 'solid' | 'glass' | 'adaptive';
 
 /** Settings → Appearance, as GET/PUT /api/appearance carry it. */
 export interface AppearanceSettings {
@@ -61,6 +61,7 @@ export const DENSITY_OPTIONS: readonly { value: AppearanceDensity; label: string
 export const MATERIAL_OPTIONS: readonly { value: AppearanceMaterial; label: string }[] = [
   { value: 'solid', label: 'Solid' },
   { value: 'glass', label: 'Glass' },
+  { value: 'adaptive', label: 'Adaptive glass' },
 ];
 
 export const FONT_SCALE_OPTIONS: readonly { value: AppearanceFontScale; label: string }[] = [
@@ -90,7 +91,7 @@ export function normalizeAppearance(value: unknown): AppearanceSettings {
     radius: oneOf(input['radius'], ['sharp', 'default', 'round'] as const, d.radius),
     density: oneOf(input['density'], ['compact', 'comfortable'] as const, d.density),
     fontScale: oneOf(input['fontScale'], ['small', 'default', 'large'] as const, d.fontScale),
-    material: oneOf(input['material'], ['solid', 'glass'] as const, d.material),
+    material: oneOf(input['material'], ['solid', 'glass', 'adaptive'] as const, d.material),
     customCss:
       typeof input['customCss'] === 'string'
         ? input['customCss'].slice(0, CUSTOM_CSS_MAX_LENGTH)

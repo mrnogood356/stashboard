@@ -1598,7 +1598,7 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
 
 /* ---------- Glass style (Settings → Appearance → Style) ----------
  * Frosted, see-through bars and panels over a soft backdrop that picks up
- * the accent (and, where a page sets --glass-art, that page's artwork).
+ * the accent (and, with Adaptive glass, the open page's artwork).
  * Scene cards and lists stay solid: easier to read and lighter on phones.
  */
 :root[data-material='glass'] {
@@ -1655,17 +1655,39 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
     var(--app-bg);
 }
 
-/* A page's artwork, blurred far past recognition, tints the backdrop. */
-:root[data-material='glass'] body::after {
-  content: '';
+/* Adaptive glass: the page's artwork, blurred far past recognition, tints
+   the backdrop. Two layers (GlassArtService) so a new image fades in over the
+   old one. */
+.glass-art {
+  display: none;
+}
+
+:root[data-material='glass'][data-glass-art] .glass-art {
+  display: block;
   position: fixed;
   inset: -12vmax;
   z-index: -1;
   pointer-events: none;
-  background: var(--glass-art, none) center / cover no-repeat;
   filter: blur(80px) saturate(140%);
   opacity: 0.45;
-  transition: opacity 400ms ease;
+}
+
+.glass-art > span {
+  position: absolute;
+  inset: 0;
+  background: center / cover no-repeat;
+  opacity: 0;
+  transition: opacity 700ms ease;
+}
+
+.glass-art > span.is-shown {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-art > span {
+    transition: none;
+  }
 }
 
 :root[data-material='glass'] .layout {
@@ -1705,7 +1727,7 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
 }
 
 /* Darker themes keep the artwork dimmer, so text on the backdrop stays readable. */
-:root[data-material='glass'][data-theme='dark'] body::after {
+:root[data-material='glass'][data-theme='dark'] .glass-art {
   opacity: 0.26;
 }
 
@@ -1729,7 +1751,7 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
 
 /* Reduce Transparency (iOS and macOS accessibility): solid panels instead. */
 @media (prefers-reduced-transparency: reduce) {
-  :root[data-material='glass'] body::after {
+  :root[data-material='glass'] .glass-art {
     display: none;
   }
 

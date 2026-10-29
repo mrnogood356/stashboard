@@ -76,8 +76,11 @@
   if (cache.fontScale && cache.fontScale !== 'default') {
     root.setAttribute('data-font-scale', String(cache.fontScale));
   }
-  if (cache.material === 'glass') {
+  if (cache.material === 'glass' || cache.material === 'adaptive') {
     root.setAttribute('data-material', 'glass');
+  }
+  if (cache.material === 'adaptive') {
+    root.setAttribute('data-glass-art', '');
   }
   if (typeof theme.css === 'string') {
     addStyle('sp-theme-tokens', theme.css);
