@@ -17,6 +17,7 @@ import { AppNotificationsService } from '../../core/notifications/app-notificati
 import { summarizeDegradedSetupState } from '../../core/api/setup.types';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
 import { QuickSearchComponent } from '../../shared/quick-search/quick-search.component';
+import { NavigationHistoryService } from '../../core/navigation/navigation-history.service';
 
 interface ShellDegradedState {
   kind: 'setup' | 'runtime';
@@ -177,6 +178,7 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
   private readonly appLock = inject(AppLockService);
   private readonly themeService = inject(ThemeService);
   private readonly playbackSettings = inject(PlaybackSettingsService);
+  private readonly navigationHistory = inject(NavigationHistoryService);
   private readonly phoneShellMediaQuery = this.createPhoneShellMediaQuery();
   private readonly phoneShellMediaChangeHandler = (event: MediaQueryListEvent) => {
     this.mobileShell.set(event.matches);
@@ -238,6 +240,8 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    // So the back button on More's sections knows where you came from.
+    this.navigationHistory.start();
     void this.appLock.refresh();
     // The saved theme may have changed on another device.
     void this.themeService.syncFromServer();

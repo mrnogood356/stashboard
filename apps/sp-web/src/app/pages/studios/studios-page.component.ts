@@ -21,10 +21,12 @@ import { AppNotificationsService } from '../../core/notifications/app-notificati
 import { SortDirection, StudioFeedItem, StudioFeedSort } from '../../core/api/discover.types';
 
 import { CatalogProviderSwitchComponent } from '../../shared/catalog-provider-switch/catalog-provider-switch.component';
+import { SectionBackComponent } from '../../shared/section-back/section-back.component';
 
 @Component({
   selector: 'app-studios-page',
   imports: [
+    SectionBackComponent,
     SkeletonComponent,
     CatalogProviderSwitchComponent,
     RouterLink,
