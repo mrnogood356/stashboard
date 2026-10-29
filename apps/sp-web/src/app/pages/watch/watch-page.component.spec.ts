@@ -352,6 +352,85 @@ describe('WatchPageComponent', () => {
     fixture.destroy();
   });
 
+  it('jumps by number, steps chapters, changes speed and volume from the keyboard', async () => {
+    playback.getInfo.mockReturnValue(
+      of({
+        ...baseInfo,
+        markers: [
+          { id: 'm1', title: 'Intro', seconds: 0, imageUrl: '/m1' },
+          { id: 'm2', title: 'Beach', seconds: 900, imageUrl: '/m2' },
+        ],
+      }),
+    );
+    const fixture = await render();
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    const press = (key: string) => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key }));
+      fixture.detectChanges();
+    };
+    const hud = () =>
+      (
+        fixture.nativeElement.querySelector('[data-testid="player-hud"]') as HTMLElement | null
+      )?.textContent?.trim();
+
+    press('2');
+    expect(video.currentTime).toBe(360);
+    press(']');
+    expect(video.currentTime).toBe(900);
+    expect(hud()).toBe('Beach');
+
+    press('>');
+    expect(video.playbackRate).toBe(1.25);
+    expect(
+      (fixture.nativeElement.querySelector('[data-testid="speed-button"]') as HTMLElement)
+        .textContent,
+    ).toContain('1.25×');
+
+    video.volume = 0.5;
+    press('ArrowDown');
+    expect(video.volume).toBe(0.4);
+    expect(hud()).toBe('Volume 40%');
+    expect(localStorage.getItem('stashboard.player.volume')).toBe('0.4');
+    localStorage.removeItem('stashboard.player.volume');
+  });
+
+  it('lists the shortcuts with "?", and any key closes the list', async () => {
+    const fixture = await render();
+    const shortcuts = () => fixture.nativeElement.querySelector('[data-testid="player-shortcuts"]');
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '?' }));
+    fixture.detectChanges();
+    expect(shortcuts()?.textContent).toContain('Jump to 0%–90%');
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    expect(shortcuts()).toBeNull();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
+
+  it('plays at 2× while you hold the picture, then goes back to your speed', async () => {
+    vi.useFakeTimers();
+    try {
+      const fixture = await render();
+      const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+      Object.defineProperty(video, 'paused', { configurable: true, get: () => false });
+      const surface = fixture.nativeElement.querySelector('.surface') as HTMLElement;
+
+      surface.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch' }));
+      vi.advanceTimersByTime(500);
+      fixture.detectChanges();
+      expect(video.playbackRate).toBe(2);
+      expect(fixture.nativeElement.querySelector('.hold-badge')).toBeTruthy();
+
+      surface.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'touch' }));
+      fixture.detectChanges();
+      expect(video.playbackRate).toBe(1);
+      expect(fixture.nativeElement.querySelector('.hold-badge')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('ignores player keys while App Lock is up', async () => {
     const locked = signal(false);
     const fixture = await render({ locked });

@@ -10,7 +10,16 @@
     [attr.poster]="info()?.posterUrl ?? null"
   ></video>
 
-  <div class="surface" (click)="onSurfaceTap($any($event))" aria-hidden="true"></div>
+  <div
+    class="surface"
+    (click)="onSurfaceTap($any($event))"
+    (pointerdown)="onSurfaceDown($event)"
+    (pointerup)="onSurfaceUp()"
+    (pointercancel)="onSurfaceUp()"
+    (pointerleave)="onSurfaceUp()"
+    (contextmenu)="holding() && $event.preventDefault()"
+    aria-hidden="true"
+  ></div>
 
   @if (loading() || buffering()) {
     <div class="spinner" role="status" aria-live="polite">
@@ -23,6 +32,41 @@
     <div class="skip-flash" [class.forward]="direction === 'forward'" aria-hidden="true">
       <i [class]="direction === 'forward' ? 'pi pi-forward' : 'pi pi-backward'"></i>
       <span>10s</span>
+    </div>
+  }
+
+  @if (holding()) {
+    <div class="hold-badge" aria-hidden="true">2× <i class="pi pi-forward"></i></div>
+  } @else if (hud(); as text) {
+    <div class="hud" role="status" data-testid="player-hud">{{ text }}</div>
+  }
+
+  @if (helpOpen()) {
+    <div
+      class="shortcuts"
+      role="dialog"
+      aria-label="Keyboard shortcuts"
+      data-testid="player-shortcuts"
+    >
+      <div class="shortcuts-head">
+        <h2>Keyboard shortcuts</h2>
+        <button type="button" class="icon-button" aria-label="Close" (click)="helpOpen.set(false)">
+          <i class="pi pi-times" aria-hidden="true"></i>
+        </button>
+      </div>
+      <dl>
+        @for (shortcut of shortcuts; track shortcut.does) {
+          <div>
+            <dt>
+              @for (key of shortcut.keys; track key) {
+                <kbd>{{ key }}</kbd>
+              }
+            </dt>
+            <dd>{{ shortcut.does }}</dd>
+          </div>
+        }
+      </dl>
+      <p class="shortcuts-touch">On a phone: double-tap the sides to skip, hold to play at 2×.</p>
     </div>
   }
 
@@ -286,6 +330,36 @@
           </div>
         }
 
+        <div class="quality">
+          <button
+            type="button"
+            class="icon-button speed-button"
+            data-testid="speed-button"
+            (click)="toggleSpeedMenu()"
+            [attr.aria-label]="'Speed ' + speedLabel(speed())"
+            [attr.aria-expanded]="speedMenuOpen()"
+          >
+            {{ speedLabel(speed()) }}
+          </button>
+          @if (speedMenuOpen()) {
+            <ul class="quality-menu speed-menu" role="menu" aria-label="Speed">
+              @for (rate of speeds; track rate) {
+                <li>
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    [attr.aria-checked]="rate === speed()"
+                    [class.active]="rate === speed()"
+                    (click)="setSpeed(rate)"
+                  >
+                    {{ rate === 1 ? 'Normal' : speedLabel(rate) }}
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+
         @if (qualities().length > 1) {
           <div class="quality">
             <button
@@ -337,6 +411,15 @@
             <i class="pi pi-clone" aria-hidden="true"></i>
           </button>
         }
+        <button
+          type="button"
+          class="icon-button help-button"
+          aria-label="Keyboard shortcuts"
+          title="Keyboard shortcuts (?)"
+          (click)="helpOpen.set(!helpOpen())"
+        >
+          <i class="pi pi-question-circle" aria-hidden="true"></i>
+        </button>
         <button
           type="button"
           class="icon-button"
