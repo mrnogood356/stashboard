@@ -1,7 +1,6 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { FixCounts, LocalLibraryService, StashJob } from '../../core/api/local-library.service';
-import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
 import { SectionBackComponent } from '../../shared/section-back/section-back.component';
 
 /** Library tools: fix-my-library, duplicates and Stash jobs, with a quick status. */
@@ -13,11 +12,30 @@ import { SectionBackComponent } from '../../shared/section-back/section-back.com
 })
 export class ToolsPageComponent implements OnInit {
   private readonly library = inject(LocalLibraryService);
-  /** Settings → Playback: off hides the swipe feed. */
-  protected readonly feedOn = inject(PlaybackSettingsService).feedEnabled;
-
   protected readonly counts = signal<FixCounts | null>(null);
   protected readonly jobs = signal<StashJob[] | null>(null);
+
+  protected readonly allClear = computed(() => {
+    const counts = this.counts();
+    return counts !== null && this.toFix(counts) === 0;
+  });
+
+  /**
+   * The status card's heading. The counts overlap (one scene can be
+   * unmatched and untagged), so they aren't added up.
+   */
+  protected readonly headline = computed(() => {
+    const counts = this.counts();
+    if (!counts) {
+      return 'Your Stash library';
+    }
+    return this.toFix(counts) === 0 ? 'Your library is in good shape' : 'Some scenes need a look';
+  });
+
+  protected readonly jobsText = computed(() => {
+    const jobs = this.jobs();
+    return jobs === null ? '–' : jobs.length === 0 ? 'Idle' : `${jobs.length} running`;
+  });
 
   ngOnInit(): void {
     this.library.fixCounts().subscribe({

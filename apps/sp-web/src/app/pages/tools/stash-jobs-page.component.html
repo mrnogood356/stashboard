@@ -1,12 +1,19 @@
 <main class="app-page-shell">
   <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
-  <h1 class="page-title">Stash jobs</h1>
-  <p class="page-lede">
-    Run Stash's library tasks without opening Stash. They keep running if you leave this page.
-  </p>
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Stash jobs</h1>
+      <p>Run Stash’s library tasks. They keep going if you leave this page.</p>
+    </div>
+  </header>
 
-  <section class="running">
-    <h2>Running now</h2>
+  <section class="running block app-section-panel" data-tone="active">
+    <div class="title-row">
+      <h2>Running now</h2>
+      @if (jobs().length) {
+        <span class="count">{{ jobs().length }}</span>
+      }
+    </div>
     @if (error(); as message) {
       <div class="notice error" role="alert">
         <i class="pi pi-exclamation-circle" aria-hidden="true"></i><span>{{ message }}</span>
@@ -16,7 +23,7 @@
     }
     <ul class="jobs">
       @for (job of jobs(); track job.id) {
-        <li class="job panel">
+        <li class="job">
           <div class="job-head">
             <p class="job-title">{{ job.description }}</p>
             <span class="job-status" [class.running]="job.status === 'RUNNING'">{{
@@ -48,18 +55,16 @@
   </section>
 
   <section class="tasks">
-    <h2>Start a task</h2>
-    <div class="task-grid">
+    <h2 class="group-title">Start a task</h2>
+    <div class="task-list">
       @for (card of tasks; track card.task) {
-        <button
-          type="button"
-          class="task panel"
-          [disabled]="starting() !== null"
-          (click)="start(card)"
-        >
+        <button type="button" class="task" [disabled]="starting() !== null" (click)="start(card)">
           <i [class]="card.icon" aria-hidden="true"></i>
-          <span class="task-title">{{ starting() === card.task ? 'Starting…' : card.title }}</span>
-          <span class="task-detail">{{ card.detail }}</span>
+          <span class="task-copy">
+            <span class="task-title">{{ card.title }}</span>
+            <span class="task-detail">{{ card.detail }}</span>
+          </span>
+          <span class="task-run">{{ starting() === card.task ? 'Starting…' : 'Run' }}</span>
         </button>
       }
     </div>

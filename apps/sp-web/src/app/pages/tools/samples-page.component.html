@@ -1,10 +1,11 @@
 <main class="app-page-shell">
   <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
-  <h1 class="page-title">Samples</h1>
-  <p class="page-lede">
-    Sample clips that came with downloads. Check them over, then remove them one at a time or all at
-    once.
-  </p>
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Samples</h1>
+      <p>Sample clips that came with downloads. Check them, then remove them.</p>
+    </div>
+  </header>
 
   <div class="segmented" role="tablist" aria-label="What counts as a sample">
     @for (option of lengthOptions; track option.value) {

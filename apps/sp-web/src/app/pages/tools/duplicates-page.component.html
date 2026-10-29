@@ -1,10 +1,11 @@
 <main class="app-page-shell">
   <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
-  <h1 class="page-title">Duplicates</h1>
-  <p class="page-lede">
-    Copies of the same video in your library. The best copy (highest quality) is marked; remove the
-    others to free up space.
-  </p>
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Duplicates</h1>
+      <p>Copies of the same video. Keep the best one, remove the rest.</p>
+    </div>
+  </header>
 
   <div class="segmented" role="tablist" aria-label="How close a match">
     @for (option of accuracyOptions; track option.value) {

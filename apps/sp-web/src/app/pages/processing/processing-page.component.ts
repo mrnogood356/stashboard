@@ -12,7 +12,8 @@ import {
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { HANDOFF_STEPS, fileSize, relativeTime, stageLabel, stepIndex } from './processing.format';
 import { SectionBackComponent } from '../../shared/section-back/section-back.component';
-import { timeLeftText } from '../../shared/stage-track/stage-track';
+import { Stage, timeLeftText } from '../../shared/stage-track/stage-track';
+import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
 
 /** How often the page refreshes while it's on screen. */
 const POLL_MS = 5_000;
@@ -31,7 +32,7 @@ const WATCH_LABELS: Record<DropInWatchStatus['state'], string> = {
  */
 @Component({
   selector: 'app-processing-page',
-  imports: [SectionBackComponent, RouterLink],
+  imports: [SectionBackComponent, RouterLink, StageTrackComponent],
   templateUrl: './processing-page.component.html',
   styleUrls: ['../tools/tools-shared.scss', './processing-page.component.scss'],
 })
@@ -144,10 +145,27 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
     return relativeTime(iso, this.now());
   }
 
-  /** The step a download is on, for the step dots: done, current or not yet. */
-  protected stepState(entry: ProcessingHandoff, index: number): 'done' | 'current' | 'todo' {
-    const at = stepIndex(entry.stage);
-    return index < at ? 'done' : index === at ? 'current' : 'todo';
+  /**
+   * A download's steps for the step track. A failure is shown where it
+   * stopped: at Waiting for Stash once it was moved in, else at Downloading.
+   */
+  protected stages(entry: ProcessingHandoff): Stage[] {
+    const failed = entry.stage === 'failed';
+    const at = failed
+      ? stepIndex(entry.finalPath ? 'linking' : 'downloading')
+      : stepIndex(entry.stage);
+    const finished = entry.stage === 'done';
+    return this.steps.map((step, index) => ({
+      label: step.label,
+      state:
+        index < at || (finished && index <= at)
+          ? 'done'
+          : index === at
+            ? failed
+              ? 'failed'
+              : 'current'
+            : 'todo',
+    }));
   }
 
   private run(
