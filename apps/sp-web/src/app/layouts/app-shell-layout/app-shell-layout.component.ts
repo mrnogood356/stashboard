@@ -16,6 +16,7 @@ import { SetupStatusStore } from '../../core/api/setup-status.store';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { summarizeDegradedSetupState } from '../../core/api/setup.types';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
+import { QuickSearchComponent } from '../../shared/quick-search/quick-search.component';
 
 interface ShellDegradedState {
   kind: 'setup' | 'runtime';
@@ -151,7 +152,13 @@ const MOBILE_SECONDARY_NAV_ITEMS: readonly ShellNavItem[] = [
 
 @Component({
   selector: 'app-shell-layout',
-  imports: [RouterLink, RouterOutlet, ThemeToggleComponent, ImageObscurationToggleComponent],
+  imports: [
+    RouterLink,
+    RouterOutlet,
+    ThemeToggleComponent,
+    ImageObscurationToggleComponent,
+    QuickSearchComponent,
+  ],
   templateUrl: './app-shell-layout.component.html',
   styleUrl: './app-shell-layout.component.scss',
 })
@@ -193,6 +200,8 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
   /** Failed requests and downloads, shown as a count on Requests. */
   protected readonly requestsAttention = signal(0);
   protected readonly collapsed = signal(false);
+  protected readonly isMac =
+    typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform ?? '');
   protected readonly mobileShell = signal(this.phoneShellMediaQuery?.matches ?? false);
   protected readonly moreMenuOpen = signal(false);
   protected readonly loggingOut = signal(false);
