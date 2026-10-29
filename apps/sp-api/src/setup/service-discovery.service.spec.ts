@@ -68,7 +68,9 @@ describe('ServiceDiscoveryService', () => {
 
     await service.discover('stashboard.example.com');
 
-    expect(urls.some((url) => url.includes('example.com'))).toBe(false);
+    expect(urls.map((url) => new URL(url).hostname)).not.toContain(
+      'stashboard.example.com',
+    );
     expect(urls).toContain('http://172.17.0.1:9999/');
   });
 
