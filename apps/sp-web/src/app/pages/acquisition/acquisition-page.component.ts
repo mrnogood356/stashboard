@@ -245,7 +245,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     }
   }
 
-  /** The scene's page, where "Why is it like this?" has the raw facts. */
+  /** The scene's page, where "Status details" has the raw facts. */
   protected openScene(item: AcquisitionSceneItem): void {
     void this.router.navigate(['/scene', item.id], {
       queryParams: { returnTo: this.currentRouteUrl() },

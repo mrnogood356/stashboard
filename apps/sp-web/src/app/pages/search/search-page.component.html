@@ -232,7 +232,10 @@
             [showing]="showHidden()"
             (toggled)="onShowHiddenChanged($event)"
           />
-          <app-owned-toggle [count]="ownedIn(result.catalogScenes)" />
+          <app-owned-note
+            [total]="result.catalogScenes.length"
+            [owned]="ownedIn(result.catalogScenes)"
+          />
           <div class="rail" appOverflowX #catalogRail="overflowX">
             @for (item of shownCatalog(result.catalogScenes); track item.id) {
               <app-scene-card

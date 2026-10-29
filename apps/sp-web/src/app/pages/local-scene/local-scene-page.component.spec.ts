@@ -107,7 +107,7 @@ describe('LocalScenePageComponent', () => {
     expect(root.textContent).not.toContain('Catalog page');
   });
 
-  it('has a collapsed “Why is it like this?” panel for the Stash scene', async () => {
+  it('has a collapsed “Status details” panel for the Stash scene', async () => {
     diagnosticsApi.localScene.mockReset().mockReturnValue(of(null));
     const { root } = await render(vi.fn().mockReturnValue(of(sceneDetails())));
     const toggle = root.querySelector<HTMLButtonElement>('app-scene-evidence .evidence-toggle');

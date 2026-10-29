@@ -93,6 +93,8 @@ export function buildThemeTokens(
     '--border-strong': p.borderStrong,
     '--danger': p.danger,
     '--success': p.success,
+    // A checked switch's track is the success colour; pastel greens need a dark knob.
+    '--switch-knob': readableTextOn(p.success),
     '--warning': p.warning,
     '--info': p.info,
     ...accentTokens(accent, p.surface1, theme.scheme),
@@ -125,7 +127,7 @@ export function buildThemeTokens(
     '--button-bg': p.elevated,
     '--button-border': p.borderStrong,
     '--button-text': p.text,
-    '--glass-bg': rgbWithAlpha(p.appBg, 74),
+    '--glass-bg': rgbWithAlpha(p.appBg, 88),
     '--separator': `color-mix(in srgb, ${p.borderStrong} 55%, transparent)`,
     '--warning-bg': `color-mix(in srgb, ${p.warning} 16%, ${p.surface1})`,
     '--warning-border': `color-mix(in srgb, ${p.warning} 45%, ${p.surface1})`,

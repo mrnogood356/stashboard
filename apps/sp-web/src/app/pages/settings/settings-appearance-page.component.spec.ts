@@ -61,7 +61,7 @@ describe('SettingsAppearancePageComponent', () => {
     const { theme, el } = await render({ darkTheme: 'nord' });
     expect(theme.syncFromServer).toHaveBeenCalled();
     const cards = el.querySelectorAll('.theme-card');
-    expect(cards.length).toBe(11);
+    expect(cards.length).toBe(19);
     expect(el.querySelector('[data-testid="theme-nord"]')?.getAttribute('aria-pressed')).toBe(
       'true',
     );

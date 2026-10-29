@@ -46,7 +46,7 @@ import { RuntimeHealthService } from '../../core/api/runtime-health.service';
 import { SetupStatusStore } from '../../core/api/setup-status.store';
 import { SceneCardComponent } from '../../shared/scene-card/scene-card.component';
 import { HideOwnedService, isOwned } from '../../core/preferences/hide-owned.service';
-import { OwnedToggleComponent } from '../../shared/owned-toggle/owned-toggle.component';
+import { OwnedNoteComponent } from '../../shared/owned-note/owned-note.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
 import {
   buildReadinessPageAlert,
@@ -88,7 +88,7 @@ import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.com
     MultiSelect,
     RouterLink,
     SceneCardComponent,
-    OwnedToggleComponent,
+    OwnedNoteComponent,
     SceneRequestModalComponent,
   ],
   templateUrl: './scenes-page.component.html',

@@ -43,7 +43,7 @@ import {
 } from '../../core/api/discover.types';
 import { SceneCardComponent } from '../../shared/scene-card/scene-card.component';
 import { HideOwnedService, isOwned } from '../../core/preferences/hide-owned.service';
-import { OwnedToggleComponent } from '../../shared/owned-toggle/owned-toggle.component';
+import { OwnedNoteComponent } from '../../shared/owned-note/owned-note.component';
 import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.component';
 import { HideToggleComponent } from '../../shared/hide-toggle/hide-toggle.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
@@ -67,7 +67,7 @@ interface MultiSelectOption {
     MultiSelect,
     ButtonDirective,
     SceneCardComponent,
-    OwnedToggleComponent,
+    OwnedNoteComponent,
     SceneRequestModalComponent,
     HiddenCountComponent,
   ],

@@ -4,7 +4,9 @@
     <div class="page-head-compact__title">
       <h1>Studios</h1>
       @if (!loading() && !error()) {
-        <p class="state">{{ total() }} studios</p>
+        <p class="state">
+          {{ total().toLocaleString() }} {{ total() === 1 ? 'studio' : 'studios' }}
+        </p>
       }
     </div>
     <div class="page-head-compact__actions">

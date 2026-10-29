@@ -2,8 +2,9 @@
   <header class="section-head">
     <h2>Hidden</h2>
     <p class="lede">
-      Catalog scenes with these words, tags, studios or performers are left out of browsing. Your
-      library is never filtered, and any list can still show them with “Show anyway”.
+      Catalog scenes with these words, tags, studios or performers are left out of browsing, and so
+      are scenes you already have if you choose. Your library is never filtered, and any list can
+      still show hidden scenes with “Show anyway”.
     </p>
   </header>
 
@@ -18,6 +19,26 @@
     </div>
   } @else {
     <form class="card" (ngSubmit)="save()">
+      <div class="switch-row owned-row">
+        <span>
+          Scenes you already have
+          <span class="muted"
+            >Leave scenes that are in your library out of Scenes, Search and performer and studio
+            pages.</span
+          >
+        </span>
+        <input
+          type="checkbox"
+          class="app-switch"
+          role="switch"
+          name="hideOwned"
+          aria-label="Hide scenes you already have"
+          data-testid="hide-owned"
+          [ngModel]="hideOwned()"
+          (ngModelChange)="onHideOwnedChanged($event)"
+        />
+      </div>
+
       <label class="field">
         <span class="field-label">Words</span>
         <input

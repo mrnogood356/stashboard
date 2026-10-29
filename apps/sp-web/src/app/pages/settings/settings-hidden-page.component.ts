@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
   Observable,
@@ -62,6 +62,15 @@ export class SettingsHiddenPageComponent implements OnInit, OnDestroy {
     performers: [],
   });
   protected readonly searching = signal<PickerKind | null>(null);
+  protected readonly hideOwned = signal(false);
+  /** Until the switch is touched it follows the saved setting (another tab, or the one-time move). */
+  private hideOwnedTouched = false;
+  private readonly followSavedHideOwned = effect(() => {
+    const saved = this.hiddenContent.settings();
+    if (saved && !this.hideOwnedTouched) {
+      this.hideOwned.set(saved.hideOwned === true);
+    }
+  });
 
   ngOnInit(): void {
     this.searchSubscription = this.searches
@@ -97,6 +106,7 @@ export class SettingsHiddenPageComponent implements OnInit, OnDestroy {
         this.tags.set(settings.tags);
         this.studios.set(settings.studios);
         this.performers.set(settings.performers ?? []);
+        this.hideOwned.set(settings.hideOwned === true);
         this.loading.set(false);
       },
       error: () => {
@@ -112,6 +122,12 @@ export class SettingsHiddenPageComponent implements OnInit, OnDestroy {
 
   protected chosen(kind: PickerKind): HiddenItem[] {
     return this.list(kind)();
+  }
+
+  protected onHideOwnedChanged(value: boolean): void {
+    this.hideOwnedTouched = true;
+    this.hideOwned.set(value);
+    this.status.set(null);
   }
 
   protected onWordsChanged(value: string): void {
@@ -161,6 +177,7 @@ export class SettingsHiddenPageComponent implements OnInit, OnDestroy {
         tags: this.tags(),
         studios: this.studios(),
         performers: this.performers(),
+        hideOwned: this.hideOwned(),
       })
       .subscribe({
         next: (saved) => {
@@ -168,6 +185,8 @@ export class SettingsHiddenPageComponent implements OnInit, OnDestroy {
           this.tags.set(saved.tags);
           this.studios.set(saved.studios);
           this.performers.set(saved.performers ?? []);
+          this.hideOwned.set(saved.hideOwned === true);
+          this.hideOwnedTouched = false;
           this.saving.set(false);
           this.status.set({ kind: 'ok', text: 'Saved. Lists use it from now on.' });
         },

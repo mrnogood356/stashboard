@@ -241,7 +241,7 @@
       </div>
     </section>
 
-    <app-owned-toggle class="owned-line" [count]="ownedCount()" />
+    <app-owned-note [total]="scenes().length" [owned]="ownedCount()" />
 
     @if (loadingScenes()) {
       <app-skeleton kind="grid" [count]="8" label="Loading scenes" />

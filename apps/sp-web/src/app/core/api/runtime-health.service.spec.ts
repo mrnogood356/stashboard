@@ -10,6 +10,7 @@ import { SetupService } from './setup.service';
 import { SetupStatusStore } from './setup-status.store';
 import { SetupStatusResponse } from './setup.types';
 import { AuthService } from './auth.service';
+import { HiddenContentService } from './hidden-content.service';
 import { AppNotificationsService } from '../notifications/app-notifications.service';
 import { AppShellLayoutComponent } from '../../layouts/app-shell-layout/app-shell-layout.component';
 import { AcquisitionPageComponent } from '../../pages/acquisition/acquisition-page.component';
@@ -252,6 +253,10 @@ describe('RuntimeHealthService', () => {
         {
           provide: ActivatedRoute,
           useValue: activatedRoute,
+        },
+        {
+          provide: HiddenContentService,
+          useValue: { settings: () => null, ensureLoaded: vi.fn() },
         },
       ],
     }).compileComponents();

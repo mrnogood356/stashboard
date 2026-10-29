@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -26,7 +27,7 @@ describe('SettingsHiddenPageComponent', () => {
     await TestBed.configureTestingModule({
       imports: [SettingsHiddenPageComponent],
       providers: [
-        { provide: HiddenContentService, useValue: hidden },
+        { provide: HiddenContentService, useValue: { settings: () => null, ...hidden } },
         {
           provide: DiscoverService,
           useValue: {
@@ -53,6 +54,45 @@ describe('SettingsHiddenPageComponent', () => {
     );
     expect(root.querySelector('[data-testid="hidden-tags"]')?.textContent).toContain('Trans Woman');
     expect(root.textContent).toContain('Your library is never filtered');
+  });
+
+  it('turns "Scenes you already have" on and saves it with the rest', async () => {
+    const saveSettings = vi.fn((settings) => of(settings));
+    const { fixture, root } = await render({
+      getSettings: vi.fn().mockReturnValue(of(saved)),
+      saveSettings,
+    });
+    const toggle = root.querySelector('[data-testid="hide-owned"]') as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+
+    toggle.click();
+    fixture.detectChanges();
+    (root.querySelector('button[type="submit"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ hideOwned: true }));
+  });
+
+  it('follows the saved "Scenes you already have" until the switch is touched', async () => {
+    const shared = signal<Record<string, unknown> | null>(null);
+    const { fixture, root } = await render({
+      settings: shared,
+      getSettings: vi.fn().mockReturnValue(of(saved)),
+    });
+    const toggle = () => root.querySelector('[data-testid="hide-owned"]') as HTMLInputElement;
+
+    // Turned on elsewhere (another tab, or carried over from this device).
+    shared.set({ ...saved, hideOwned: true });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(toggle().checked).toBe(true);
+
+    toggle().click();
+    fixture.detectChanges();
+    shared.set({ ...saved, hideOwned: true });
+    fixture.detectChanges();
+    expect(toggle().checked).toBe(false);
   });
 
   it('finds a tag in the catalog, adds it and saves everything', async () => {
@@ -99,6 +139,7 @@ describe('SettingsHiddenPageComponent', () => {
       ],
       studios: [],
       performers: [{ id: 'p-1', name: 'Jane Doe' }],
+      hideOwned: false,
     });
     expect(root.textContent).toContain('Saved.');
   });

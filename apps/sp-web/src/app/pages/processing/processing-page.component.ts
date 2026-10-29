@@ -12,6 +12,7 @@ import {
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { HANDOFF_STEPS, fileSize, relativeTime, stageLabel, stepIndex } from './processing.format';
 import { SectionBackComponent } from '../../shared/section-back/section-back.component';
+import { timeLeftText } from '../../shared/stage-track/stage-track';
 
 /** How often the page refreshes while it's on screen. */
 const POLL_MS = 5_000;
@@ -57,6 +58,19 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
   protected readonly now = signal(Date.now());
 
   protected readonly watch = computed(() => this.data()?.dropIns.watch ?? null);
+  /** "47% · 8 min left", in the same words as Requests. */
+  protected progressText(progress: number | null, timeLeft: string | null): string {
+    const parts: string[] = [];
+    if (progress !== null) {
+      parts.push(`${progress}%`);
+    }
+    const left = timeLeftText(timeLeft);
+    if (left) {
+      parts.push(left);
+    }
+    return parts.join(' · ');
+  }
+
   protected readonly watchLabel = computed(() => {
     const watch = this.watch();
     return watch ? WATCH_LABELS[watch.state] : '';

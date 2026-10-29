@@ -49,7 +49,13 @@ describe('Hidden content API', () => {
     await request(server())
       .get('/api/hidden-content/settings')
       .expect(200)
-      .expect({ words: [], tags: [], studios: [], performers: [] });
+      .expect({
+        words: [],
+        tags: [],
+        studios: [],
+        performers: [],
+        hideOwned: false,
+      });
 
     const response = await request(server())
       .put('/api/hidden-content/settings')
@@ -58,6 +64,7 @@ describe('Hidden content API', () => {
         tags: [{ id: 'tag-1', name: ' Trans Woman ' }],
         studios: [],
         performers: [{ id: 'p-1', name: 'Jane' }],
+        hideOwned: true,
       })
       .expect(200);
 
@@ -66,6 +73,7 @@ describe('Hidden content API', () => {
       tags: [{ id: 'tag-1', name: 'Trans Woman' }],
       studios: [],
       performers: [{ id: 'p-1', name: 'Jane' }],
+      hideOwned: true,
     });
   });
 

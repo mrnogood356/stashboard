@@ -53,6 +53,7 @@ export class HiddenContentService {
       tags: readItems(row?.tags),
       studios: readItems(row?.studios),
       performers: readItems(row?.performers),
+      hideOwned: row?.hideOwned ?? false,
     };
   }
 
@@ -60,12 +61,16 @@ export class HiddenContentService {
     dto: UpdateHiddenContentSettingsDto,
   ): Promise<HiddenContentSettingsDto> {
     return this.serialize(async () => {
-      const current = dto.performers ? null : await this.getSettings();
+      const current =
+        dto.performers && dto.hideOwned !== undefined
+          ? null
+          : await this.getSettings();
       const saved = await this.write({
         words: dto.words,
         tags: dto.tags,
         studios: dto.studios,
         performers: dto.performers ?? current?.performers ?? [],
+        hideOwned: dto.hideOwned ?? current?.hideOwned ?? false,
       });
       this.logger.log(`Hidden content saved: ${describeCounts(saved)}.`);
       return saved;
@@ -149,6 +154,7 @@ export class HiddenContentService {
       performers: dedupeItems(
         settings.performers,
       ) as unknown as Prisma.InputJsonValue,
+      hideOwned: settings.hideOwned === true,
     };
     await this.prisma.hiddenContentSettings.upsert({
       where: { key: SETTINGS_KEY },
@@ -205,6 +211,7 @@ function describeCounts(settings: HiddenContentSettingsDto): string {
     `${settings.tags.length} tags`,
     `${settings.studios.length} studios`,
     `${settings.performers.length} performers`,
+    ...(settings.hideOwned ? ['and scenes you have'] : []),
   ].join(', ');
 }
 

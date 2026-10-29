@@ -310,6 +310,7 @@ describe('Stashboard API (e2e)', () => {
       tags: [],
       studios: [],
       performers: [],
+      hideOwned: false,
     });
 
     const saved = await request(server)
@@ -319,6 +320,7 @@ describe('Stashboard API (e2e)', () => {
         words: ['Trans, transgender'],
         tags: [{ id: 'tag-1', name: 'Trans Woman' }],
         studios: [],
+        hideOwned: true,
       })
       .expect(200);
     expect(saved.body).toEqual({
@@ -326,6 +328,7 @@ describe('Stashboard API (e2e)', () => {
       tags: [{ id: 'tag-1', name: 'Trans Woman' }],
       studios: [],
       performers: [],
+      hideOwned: true,
     });
 
     const reloaded = await request(server)
@@ -341,6 +344,8 @@ describe('Stashboard API (e2e)', () => {
       .expect(200);
     expect(hidden.body.performers).toEqual([{ id: 'p-1', name: 'Jane Doe' }]);
     expect(hidden.body.words).toEqual(['trans', 'transgender']);
+    // Hiding one more item keeps "Scenes you already have" as saved.
+    expect(hidden.body.hideOwned).toBe(true);
     const unhidden = await request(server)
       .post('/api/hidden-content/unhide')
       .set('Cookie', cookie)

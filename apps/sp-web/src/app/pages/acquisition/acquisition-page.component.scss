@@ -154,11 +154,12 @@ a {
   padding: 1.35rem 1.2rem;
 }
 
+/* The sections are the panels; the wrapper around them stays invisible. */
 .section-shell {
-  --app-section-border: 1px solid color-mix(in srgb, var(--border-strong) 55%, transparent);
-  --app-section-radius: 22px;
-  --app-section-padding: 1rem;
-  --app-section-bg: color-mix(in srgb, var(--surface-elevated) 94%, var(--surface-1));
+  --app-section-border: 0;
+  --app-section-radius: 0;
+  --app-section-padding: 0;
+  --app-section-bg: transparent;
 }
 
 .lifecycle-section {
@@ -170,23 +171,32 @@ a {
 }
 
 .lifecycle-section[data-tone='attention'] {
-  background: var(--acquisition-attention-bg);
+  --section-tone: var(--badge-failed-text);
   border-color: var(--acquisition-attention-border);
 }
 
 .lifecycle-section[data-tone='pending'] {
-  background: var(--acquisition-pending-bg);
-  border-color: var(--acquisition-pending-border);
+  --section-tone: var(--badge-import-pending-text);
 }
 
 .lifecycle-section[data-tone='active'] {
-  background: var(--acquisition-active-bg);
-  border-color: var(--acquisition-active-border);
+  --section-tone: var(--badge-downloading-text);
 }
 
 .lifecycle-section[data-tone='passive'] {
-  background: var(--acquisition-passive-bg);
-  border-color: var(--acquisition-passive-border);
+  --section-tone: var(--badge-requested-text);
+}
+
+/* A small dot in the section's colour, instead of tinting the whole panel. */
+.lifecycle-section[data-tone]:not([data-tone='']) .section-title-row h3::before {
+  content: '';
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: 0.5rem;
+  border-radius: 50%;
+  background: var(--section-tone, var(--border-strong));
+  vertical-align: 0.1em;
 }
 
 .lifecycle-section-head p {

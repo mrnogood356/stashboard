@@ -87,7 +87,7 @@ export class SettingsOverviewPageComponent implements OnInit {
       return this.degradedState()!.message;
     }
 
-    return 'Every required integration is ready and the app is ready for normal use.';
+    return 'Stash, Whisparr and the catalog are all connected.';
   });
 
   ngOnInit(): void {

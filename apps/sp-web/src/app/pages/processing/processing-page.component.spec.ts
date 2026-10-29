@@ -149,7 +149,7 @@ describe('ProcessingPageComponent', () => {
     expect(text(item?.querySelector('.item-title'))).toBe('Jane.Doe.Beach.Day.1080p');
     expect(text(item?.querySelector('.stage'))).toBe('Downloading');
     expect(item?.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('42');
-    expect(text(item?.querySelector('.meta'))).toBe('42% · 0:05:00 left');
+    expect(text(item?.querySelector('.meta'))).toBe('42% · 5 min left');
     // Queued → Downloading: one step done, one current.
     const steps = [...(item?.querySelectorAll('.steps li') ?? [])].map((step) =>
       step.getAttribute('data-state'),
@@ -178,7 +178,8 @@ describe('ProcessingPageComponent', () => {
             releaseTitle: 'Manual.Release',
             status: 'completed',
             stage: 'linking',
-            progress: null,
+            // The download is finished; that's not progress through linking.
+            progress: 100,
             timeLeft: null,
             detail: 'Moved to /data/Manual.mkv; waiting for Stash to pick it up and identify it.',
           }),
@@ -209,6 +210,7 @@ describe('ProcessingPageComponent', () => {
       step.getAttribute('data-state'),
     );
     expect(steps).toEqual(['done', 'done', 'done', 'done', 'current', 'todo']);
+    expect(manual.querySelector('.step-fill')).toBeNull();
     expect(text(manual)).toContain('identify it');
 
     const failed = root.querySelector('[data-testid="recent-handoff"]');

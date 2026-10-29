@@ -24,7 +24,6 @@
         [showing]="showHidden()"
         (toggled)="onShowHiddenChanged($event)"
       />
-      <app-owned-toggle [count]="ownedCount()" />
     </div>
     <div class="page-head-compact__actions">
       <app-catalog-provider-switch />
@@ -283,9 +282,7 @@
         />
       }
     </section>
-    @if (shownItems().length === 0) {
-      <p class="state">Every scene loaded so far is in your library.</p>
-    }
+    <app-owned-note [total]="items().length" [owned]="ownedCount()" />
 
     <div #loadMoreSentinel class="load-sentinel"></div>
 

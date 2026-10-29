@@ -50,7 +50,7 @@ const ACTION_LINK: Partial<Record<TimelineAction['kind'], string>> = {
  * The story of a scene's request, as a short vertical list of steps:
  * where it's been, where it is now (or stuck, with what to do), and what's
  * next. Only asks the server once it scrolls into view. "Details" opens
- * the raw facts ("Why is it like this?").
+ * the raw facts ("Status details").
  */
 @Component({
   selector: 'app-scene-timeline',

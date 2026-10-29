@@ -204,12 +204,12 @@ describe('ScenePageComponent', () => {
     expect(fresh.fixture.nativeElement.querySelector('[data-testid="scene-progress"]')).toBeNull();
   });
 
-  it('has a collapsed “Why is it like this?” panel for the catalog scene', async () => {
+  it('has a collapsed “Status details” panel for the catalog scene', async () => {
     const { fixture, diagnosticsApi } = await renderScene(buildScene());
     const root = fixture.nativeElement as HTMLElement;
     const toggle = root.querySelector<HTMLButtonElement>('app-scene-evidence .evidence-toggle');
 
-    expect(toggle?.textContent).toContain('Why is it like this?');
+    expect(toggle?.textContent).toContain('Status details');
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
     expect(diagnosticsApi.catalogScene).not.toHaveBeenCalled();
 
@@ -230,7 +230,7 @@ describe('ScenePageComponent', () => {
       'Whisparr says: Unpacking failed',
     );
 
-    // "Details" opens "Why is it like this?".
+    // "Details" opens "Status details".
     root.querySelector<HTMLButtonElement>('app-scene-timeline .timeline-link')!.click();
     fixture.detectChanges();
     expect(diagnosticsApi.catalogScene).toHaveBeenCalledWith('scene-1');

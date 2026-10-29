@@ -40,14 +40,12 @@
           <span>Catalog provider</span>
           <strong>{{ catalogProviderLabel() }}</strong>
         </div>
-        <div class="meta-item">
-          <span>Runtime</span>
-          <strong>{{ health()?.service ?? 'Unknown' }}</strong>
-        </div>
-        <div class="meta-item">
-          <span>Version</span>
-          <strong>{{ health()?.version ?? 'Unknown' }}</strong>
-        </div>
+        @if (health()?.version; as version) {
+          <div class="meta-item">
+            <span>Version</span>
+            <strong>{{ version }}</strong>
+          </div>
+        }
       </div>
 
       @if (loadError()) {

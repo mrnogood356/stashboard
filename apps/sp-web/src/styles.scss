@@ -55,9 +55,9 @@
   --switch-knob: #ffffff;
   --scrollbar-thumb: var(--border-strong);
   --overlay-backdrop: rgb(0 0 0 / 40%);
-  --glass-bg: rgb(249 249 251 / 72%);
+  --glass-bg: rgb(249 249 251 / 86%);
   --glass-border: rgb(0 0 0 / 8%);
-  --glass-blur: saturate(180%) blur(22px);
+  --glass-blur: saturate(140%) blur(24px);
   --separator: rgb(60 60 67 / 14%);
   --badge-not-requested-bg: #ebebf0;
   --badge-not-requested-border: transparent;
@@ -426,7 +426,7 @@
   --chip-bg: #26262b;
   --chip-border: transparent;
   --chip-text: #ececf0;
-  --glass-bg: color-mix(in srgb, var(--surface-1) 72%, transparent);
+  --glass-bg: color-mix(in srgb, var(--surface-1) 88%, transparent);
   --glass-border: rgb(255 255 255 / 8%);
   --separator: rgb(84 84 88 / 45%);
   --badge-not-requested-bg: rgb(255 255 255 / 10%);

@@ -11,6 +11,9 @@ export const LIGHT_THEME_IDS = [
   'light',
   'catppuccin-latte',
   'solarized-light',
+  'github-light',
+  'rose-pine-dawn',
+  'gruvbox-light',
 ] as const;
 
 /** Built-in themes with a dark background. */
@@ -23,6 +26,11 @@ export const DARK_THEME_IDS = [
   'dracula',
   'catppuccin-mocha',
   'solarized-dark',
+  'tokyo-night',
+  'gruvbox-dark',
+  'rose-pine',
+  'everforest',
+  'github-dark',
 ] as const;
 
 export const APPEARANCE_MODES = ['light', 'dark', 'system'] as const;
