@@ -204,6 +204,10 @@ If an older local database says migration `20260402142846` was modified after it
 
 For repo structure, release automation, CI expectations, PR conventions, and contributor deployment notes, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## How It's Made
+
+Stashboard is built with heavy help from AI coding tools (Anthropic's Claude Code). Changes are reviewed and tested before they're merged: every pull request runs the full test suite and an automated code review, and features are checked in a browser. Bug reports are very welcome; please [open an issue](https://github.com/mrnogood356/stashboard/issues).
+
 ## Credits
 
 Stashboard is based on [Stasharr Portal](https://github.com/enymawse/stasharr-portal) by enymawse, and like it is licensed under the [GNU General Public License v3.0](LICENSE).
