@@ -48,14 +48,15 @@ export class ScenesController {
   getCalendar(
     @Query() query: ScenesCalendarQueryDto,
   ): Promise<ScenesCalendarResponseDto> {
-    const from = Date.parse(`${query.from}T00:00:00Z`);
-    const to = Date.parse(`${query.to}T00:00:00Z`);
-    if (Number.isNaN(from) || Number.isNaN(to) || to < from) {
+    const from = parseDay(query.from);
+    const to = parseDay(query.to);
+    if (from === null || to === null || to < from) {
       throw new BadRequestException(
         'Choose a from day on or before the to day.',
       );
     }
-    if (to - from > 62 * 24 * 60 * 60 * 1000) {
+    // Both days count, so 62 days means at most 61 days apart.
+    if (to - from >= 62 * 24 * 60 * 60 * 1000) {
       throw new BadRequestException('A calendar view covers at most 62 days.');
     }
     return this.scenesService.getCalendar(
@@ -84,4 +85,13 @@ export class ScenesController {
   getSceneById(@Param('stashId') stashId: string): Promise<SceneDetailsDto> {
     return this.scenesService.getSceneById(stashId);
   }
+}
+
+/** A YYYY-MM-DD day as UTC milliseconds, or null for a day that doesn't exist (2026-02-30). */
+function parseDay(day: string): number | null {
+  const time = Date.parse(`${day}T00:00:00Z`);
+  if (Number.isNaN(time) || new Date(time).toISOString().slice(0, 10) !== day) {
+    return null;
+  }
+  return time;
 }

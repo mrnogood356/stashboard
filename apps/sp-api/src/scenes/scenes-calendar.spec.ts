@@ -1,4 +1,6 @@
+import { BadRequestException } from '@nestjs/common';
 import type { ScenesFeedItemDto } from './dto/scenes-feed.dto';
+import { ScenesController } from './scenes.controller';
 import { ScenesService } from './scenes.service';
 
 const scene = (id: string, releaseDate: string | null) =>
@@ -62,5 +64,29 @@ describe('ScenesService.getCalendar', () => {
     expect(result.items).toEqual([]);
     expect(result.complete).toBe(false);
     expect(feed).toHaveBeenCalledTimes(10);
+  });
+});
+
+describe('ScenesController.getCalendar', () => {
+  const getCalendar = jest.fn().mockResolvedValue({ items: [] });
+  const controller = new ScenesController({
+    getCalendar,
+  } as unknown as ScenesService);
+
+  it('takes up to 62 days, counting both ends', async () => {
+    await controller.getCalendar({ from: '2026-11-01', to: '2027-01-01' });
+    expect(getCalendar).toHaveBeenCalledWith('2026-11-01', '2027-01-01', 'ALL');
+    expect(() =>
+      controller.getCalendar({ from: '2026-11-01', to: '2027-01-02' }),
+    ).toThrow(BadRequestException);
+  });
+
+  it('turns down days that do not exist and reversed ranges', () => {
+    expect(() =>
+      controller.getCalendar({ from: '2026-02-30', to: '2026-03-10' }),
+    ).toThrow(BadRequestException);
+    expect(() =>
+      controller.getCalendar({ from: '2026-03-10', to: '2026-03-01' }),
+    ).toThrow(BadRequestException);
   });
 });

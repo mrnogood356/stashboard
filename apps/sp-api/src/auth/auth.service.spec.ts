@@ -153,6 +153,14 @@ describe('AuthService', () => {
       );
       expect(status.authenticated).toBe(true);
       expect(adminUsers).toHaveLength(1);
+      // Every guess is counted against the address, and the right one clears it.
+      expect(loginAttemptService.reserve).toHaveBeenCalledTimes(3);
+      expect(loginAttemptService.reserve).toHaveBeenCalledWith([
+        expect.stringMatching(/^setup-code:/),
+      ]);
+      expect(loginAttemptService.clear).toHaveBeenCalledWith(
+        expect.stringMatching(/^setup-code:/),
+      );
     } finally {
       if (original === undefined) {
         delete process.env.SETUP_CODE;

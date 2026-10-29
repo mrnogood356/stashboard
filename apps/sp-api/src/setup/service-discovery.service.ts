@@ -44,6 +44,7 @@ const KEY_PAGES: Record<DiscoverableService, string> = {
 const PROBE_TIMEOUT_MS = 1500;
 /** Enough of a page to read its <title>. */
 const MAX_BODY_BYTES = 64 * 1024;
+const MAX_REDIRECTS = 3;
 
 type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -171,18 +172,63 @@ export class ServiceDiscoveryService {
     }
   }
 
+  /**
+   * Fetches a page, following redirects only within the same address (an app
+   * sending / to /login), never out to somewhere else, and reads no more than
+   * MAX_BODY_BYTES of it.
+   */
   private async read(url: string): Promise<string | null> {
-    const response = await this.fetcher(url, {
-      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
-      redirect: 'follow',
-      headers: { Accept: 'text/html,application/json' },
-    });
-    if (!response.ok) {
-      return null;
+    const signal = AbortSignal.timeout(PROBE_TIMEOUT_MS);
+    let current = url;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+      const response = await this.fetcher(current, {
+        signal,
+        redirect: 'manual',
+        headers: { Accept: 'text/html,application/json' },
+      });
+      const location = response.headers.get('location');
+      if (response.status >= 300 && response.status < 400 && location) {
+        await response.body?.cancel();
+        const next = new URL(location, current);
+        if (next.origin !== new URL(current).origin) {
+          return null;
+        }
+        current = next.href;
+        continue;
+      }
+      if (!response.ok) {
+        await response.body?.cancel();
+        return null;
+      }
+      return readCapped(response, MAX_BODY_BYTES);
     }
-    const text = await response.text();
-    return text.slice(0, MAX_BODY_BYTES);
+    return null;
   }
+}
+
+async function readCapped(
+  response: Response,
+  maxBytes: number,
+): Promise<string> {
+  if (!response.body) {
+    return '';
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (size < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      chunks.push(value);
+      size += value.byteLength;
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks).subarray(0, maxBytes));
 }
 
 function hostnameOf(hostHeader: string | undefined): string | null {

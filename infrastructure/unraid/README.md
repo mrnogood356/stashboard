@@ -3,12 +3,15 @@
 `stashboard.xml` is a Docker template for Unraid. Until Stashboard is listed in Community Applications, add it by hand:
 
 1. **Install PostgreSQL.** In Community Applications, install a PostgreSQL 15 or newer app (for example `postgresql17`). Note the password you give it.
-2. **Create Stashboard's database.** Open that container's console and run, with a password of your own:
+2. **Create Stashboard's database.** Open that container's console and run:
 
    ```sh
-   psql -U postgres -c "CREATE USER stashboard WITH PASSWORD 'change-this-password';"
+   psql -U postgres -c "CREATE USER stashboard;"
    psql -U postgres -c "CREATE DATABASE stashboard OWNER stashboard;"
+   psql -U postgres -c "\password stashboard"
    ```
+
+   The last command asks for the new password twice, so it never lands in your shell history.
 
 3. **Add the template.** Open the Unraid terminal (the `>_` icon at the top right) and run:
 
@@ -27,7 +30,7 @@ Stashboard creates its tables on first start and runs as `99:100` (`nobody:users
 
 ## Opening it from outside your network
 
-Use a VPN such as Tailscale or WireGuard, or a reverse proxy with HTTPS (Nginx Proxy Manager, SWAG or a Cloudflare Tunnel). Behind HTTPS, set **Trust proxy** to `true` under the template's advanced view; the sign-in cookie is then marked Secure on its own. Set a **Setup code** before the first start if the page can be reached before you've created your account. Don't forward port 3000 straight to the internet.
+Use a VPN such as Tailscale or WireGuard, or a reverse proxy with HTTPS (Nginx Proxy Manager, SWAG or a Cloudflare Tunnel). Behind HTTPS, set **Trust proxy** under the template's advanced view to your proxy: `1` when one proxy sits in front, or its address, such as `172.18.0.5` or a network like `172.18.0.0/16`. The sign-in cookie is then marked Secure on its own. Only the proxy should reach port 3000 then: anything that can reach it directly can claim to be any visitor. Set a **Setup code** before the first start if the page can be reached before you've created your account. Don't forward port 3000 straight to the internet.
 
 ## Listing in Community Applications
 

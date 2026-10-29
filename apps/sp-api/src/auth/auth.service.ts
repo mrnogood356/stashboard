@@ -58,11 +58,21 @@ export class AuthService {
     request: Request,
     response: Response,
   ): Promise<AuthStatusResponse> {
-    if (!setupCodeMatches(dto.setupCode)) {
-      this.logger.warn('Refused to create an admin account: wrong setup code.');
-      throw new ForbiddenException(
-        'That setup code is wrong. It is the SETUP_CODE set on the server.',
-      );
+    if (configuredSetupCode()) {
+      // Throttled like logins, and counted before the check so parallel
+      // guesses can't all pass it.
+      const ipAddress = this.getRequestIp(request);
+      const attemptKeys = [`setup-code:${ipAddress}`];
+      this.loginAttemptService.reserve(attemptKeys);
+      if (!setupCodeMatches(dto.setupCode)) {
+        this.logger.warn(
+          `Refused to create an admin account from ${ipAddress}: wrong setup code.`,
+        );
+        throw new ForbiddenException(
+          'That setup code is wrong. It is the SETUP_CODE set on the server.',
+        );
+      }
+      attemptKeys.forEach((key) => this.loginAttemptService.clear(key));
     }
 
     const passwordHash = await argon2.hash(dto.password, {

@@ -74,6 +74,44 @@ describe('ServiceDiscoveryService', () => {
     expect(urls).toContain('http://172.17.0.1:9999/');
   });
 
+  it('follows a redirect on the same address but never one that leaves it', async () => {
+    const urls: string[] = [];
+    const redirect = (location: string) =>
+      new Response(null, { status: 302, headers: { location } });
+    const fetcher = jest.fn((url: string) => {
+      urls.push(url);
+      if (url === 'http://172.17.0.1:9999/')
+        return Promise.resolve(redirect('/login'));
+      if (url === 'http://172.17.0.1:9999/login')
+        return Promise.resolve(page('Stash'));
+      if (url === 'http://172.17.0.1:6969/')
+        return Promise.resolve(redirect('http://whisparr.example.com/'));
+      return Promise.reject(new Error('ECONNREFUSED'));
+    });
+    const service = new ServiceDiscoveryService(fetcher, routes);
+
+    const result = await service.discover(undefined);
+
+    expect(result.found.map((entry) => entry.type)).toEqual(['STASH']);
+    expect(urls.map((url) => new URL(url).hostname)).not.toContain(
+      'whisparr.example.com',
+    );
+  });
+
+  it('reads only the start of a large page', async () => {
+    const huge = `<title>Stash</title>${'x'.repeat(5 * 1024 * 1024)}`;
+    const fetcher = jest.fn((url: string) =>
+      url === 'http://172.17.0.1:9999/'
+        ? Promise.resolve(new Response(huge))
+        : Promise.reject(new Error('ECONNREFUSED')),
+    );
+    const service = new ServiceDiscoveryService(fetcher, routes);
+
+    const result = await service.discover(undefined);
+
+    expect(result.found.map((entry) => entry.type)).toEqual(['STASH']);
+  });
+
   it('knows which addresses are on your own network', () => {
     expect(isPrivateHost('192.168.1.5')).toBe(true);
     expect(isPrivateHost('10.0.0.2')).toBe(true);
