@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
+import {
+  ScenesCalendarQueryDto,
+  ScenesCalendarResponseDto,
+} from './dto/scenes-calendar.dto';
 import { SceneTagOptionDto } from './dto/scene-tag-option.dto';
 import { SceneDetailsDto } from './dto/scene-details.dto';
 import { ScenesFeedResponseDto } from './dto/scenes-feed.dto';
@@ -28,6 +40,28 @@ export class ScenesController {
       query.exclude,
       query.tagNames,
       query.showHidden,
+    );
+  }
+
+  /** Calendar: releases from your starred studios and performers between two days. */
+  @Get('calendar')
+  getCalendar(
+    @Query() query: ScenesCalendarQueryDto,
+  ): Promise<ScenesCalendarResponseDto> {
+    const from = Date.parse(`${query.from}T00:00:00Z`);
+    const to = Date.parse(`${query.to}T00:00:00Z`);
+    if (Number.isNaN(from) || Number.isNaN(to) || to < from) {
+      throw new BadRequestException(
+        'Choose a from day on or before the to day.',
+      );
+    }
+    if (to - from > 62 * 24 * 60 * 60 * 1000) {
+      throw new BadRequestException('A calendar view covers at most 62 days.');
+    }
+    return this.scenesService.getCalendar(
+      query.from,
+      query.to,
+      query.favorites ?? 'ALL',
     );
   }
 

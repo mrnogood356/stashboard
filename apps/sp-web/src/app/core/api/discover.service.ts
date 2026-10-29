@@ -23,6 +23,7 @@ import {
   SubmitSceneRequestPayload,
   SubmitSceneRequestResponse,
   StudioDetails,
+  ScenesCalendarResponse,
 } from './discover.types';
 import { CatalogProviderType } from './integrations.types';
 
@@ -50,6 +51,16 @@ export class DiscoverService {
       params = params.set('showHidden', '1');
     }
     return this.http.get<ScenesFeedResponse>('/api/scenes', { params });
+  }
+
+  /** Releases from your starred studios and/or performers between two days. */
+  getCalendar(
+    from: string,
+    to: string,
+    favorites: SceneFavoritesFilter = 'ALL',
+  ): Observable<ScenesCalendarResponse> {
+    const params = new HttpParams().set('from', from).set('to', to).set('favorites', favorites);
+    return this.http.get<ScenesCalendarResponse>('/api/scenes/calendar', { params });
   }
 
   getScenesFeed(

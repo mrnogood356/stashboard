@@ -50,6 +50,13 @@ const SCENES_NAV_ITEM: ShellNavItem = {
   activePrefixes: ['/scenes', '/scene/'],
 };
 
+const CALENDAR_NAV_ITEM: ShellNavItem = {
+  label: 'Calendar',
+  route: '/calendar',
+  icon: 'pi pi-calendar',
+  exact: true,
+};
+
 const ACQUISITION_NAV_ITEM: ShellNavItem = {
   label: 'Requests',
   route: '/acquisition',
@@ -126,7 +133,10 @@ interface ShellNavGroup {
 
 const DESKTOP_NAV_GROUPS: readonly ShellNavGroup[] = [
   { label: null, items: [HOME_NAV_ITEM, SEARCH_NAV_ITEM] },
-  { label: 'Browse', items: [SCENES_NAV_ITEM, PERFORMERS_NAV_ITEM, STUDIOS_NAV_ITEM] },
+  {
+    label: 'Browse',
+    items: [SCENES_NAV_ITEM, CALENDAR_NAV_ITEM, PERFORMERS_NAV_ITEM, STUDIOS_NAV_ITEM],
+  },
   { label: 'Your library', items: [LIBRARY_NAV_ITEM, FEED_NAV_ITEM, TOOLS_NAV_ITEM] },
   { label: 'Requests & downloads', items: [ACQUISITION_NAV_ITEM, PROCESSING_NAV_ITEM] },
   { label: null, items: [SETTINGS_NAV_ITEM] },
@@ -143,6 +153,7 @@ const MOBILE_PRIMARY_NAV_ITEMS: readonly ShellNavItem[] = [
 
 const MOBILE_SECONDARY_NAV_ITEMS: readonly ShellNavItem[] = [
   SEARCH_NAV_ITEM,
+  CALENDAR_NAV_ITEM,
   PERFORMERS_NAV_ITEM,
   STUDIOS_NAV_ITEM,
   FEED_NAV_ITEM,

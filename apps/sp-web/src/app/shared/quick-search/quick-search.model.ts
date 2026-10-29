@@ -29,6 +29,12 @@ export interface QuickPage {
 export const QUICK_PAGES: readonly QuickPage[] = [
   { label: 'Home', url: '/home', icon: 'pi-home' },
   { label: 'Scenes', url: '/scenes', icon: 'pi-video', keywords: 'browse catalog discover' },
+  {
+    label: 'Calendar',
+    url: '/calendar',
+    icon: 'pi-calendar',
+    keywords: 'releases upcoming new schedule',
+  },
   { label: 'Performers', url: '/performers', icon: 'pi-users', keywords: 'people' },
   { label: 'Studios', url: '/studios', icon: 'pi-building' },
   { label: 'Library', url: '/library', icon: 'pi-folder-open', keywords: 'stash mine owned' },
