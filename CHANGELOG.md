@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.3.0](https://github.com/mrnogood356/stashboard/compare/v1.2.0...v1.3.0) (2026-10-29)
+
+
+### Features
+
+* **appearance:** make the artwork backdrop its own Adaptive glass style ([cc7adac](https://github.com/mrnogood356/stashboard/commit/cc7adac7468ff09703ebe0152cc1b9dc029068ca))
+* show Whisparr's scenes on the calendar too ([51c1608](https://github.com/mrnogood356/stashboard/commit/51c1608978116ce28b7cc5a8a93d7d8d2fe2be8c))
+* **web:** bring Downloads and the Tools hub in line with Requests and Settings ([1eb92d9](https://github.com/mrnogood356/stashboard/commit/1eb92d9c2c0e7cf26c09361fc6fd1d03c5deabaa))
+* **web:** give each suggested match its own card ([45aecc0](https://github.com/mrnogood356/stashboard/commit/45aecc033ce7811fa63ee5d53ddc253a9d5ff3d6))
+* **web:** tidy Duplicates, Samples, Fix and Match & rename lists ([8f9169c](https://github.com/mrnogood356/stashboard/commit/8f9169c03c3b69095328cdb03b1a9c2feec07ad2))
+
+
+### Bug Fixes
+
+* address review on the calendar, Tools hub and match cards ([74cd7e9](https://github.com/mrnogood356/stashboard/commit/74cd7e9f29ced72e8a1640e96809a540d96f362f))
+* **appearance:** keep the scene hero's backdrop in plain Glass ([c8b40e3](https://github.com/mrnogood356/stashboard/commit/c8b40e34b7735d4acdadbc00ee42b6d3507f4abb))
+* **calendar:** ask the catalog for the month instead of paging to it ([9d68337](https://github.com/mrnogood356/stashboard/commit/9d68337e09c0b52f8f7da3b8a813336a6b52df9b))
+
 ## [1.2.0](https://github.com/mrnogood356/stashboard/compare/v1.1.1...v1.2.0) (2026-10-29)
 
 
