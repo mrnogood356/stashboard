@@ -1,0 +1,66 @@
+import type { ScenesFeedItemDto } from './dto/scenes-feed.dto';
+import { ScenesService } from './scenes.service';
+
+const scene = (id: string, releaseDate: string | null) =>
+  ({ id, releaseDate }) as unknown as ScenesFeedItemDto;
+
+describe('ScenesService.getCalendar', () => {
+  function serviceWith(pages: ScenesFeedItemDto[][]) {
+    const service = Object.create(ScenesService.prototype) as ScenesService;
+    const feed = jest
+      .spyOn(service, 'getScenesFeed')
+      .mockImplementation((page = 1) =>
+        Promise.resolve({
+          total: 1000,
+          page,
+          perPage: 100,
+          hasMore: page < pages.length,
+          hidden: 0,
+          items: pages[page - 1] ?? [],
+        }),
+      );
+    return { service, feed };
+  }
+
+  it('keeps the releases inside the days asked for, oldest first, and stops once past them', async () => {
+    const { service, feed } = serviceWith([
+      [
+        scene('future', '2026-12-01'),
+        scene('b', '2026-11-20'),
+        scene('a', '2026-11-03'),
+      ],
+      [scene('c', '2026-11-01'), scene('old', '2026-10-15')],
+      [scene('never-read', '2026-09-01')],
+    ]);
+
+    const result = await service.getCalendar(
+      '2026-11-01',
+      '2026-11-30',
+      'STUDIO',
+    );
+
+    expect(result.items.map((item) => item.id)).toEqual(['c', 'a', 'b']);
+    expect(result.complete).toBe(true);
+    expect(feed).toHaveBeenCalledTimes(2);
+    expect(feed).toHaveBeenCalledWith(
+      1,
+      100,
+      'DATE',
+      'DESC',
+      [],
+      'OR',
+      'STUDIO',
+    );
+  });
+
+  it('says when it stopped reading before reaching the first day', async () => {
+    const pages = Array.from({ length: 12 }, () => [scene('x', '2027-05-01')]);
+    const { service, feed } = serviceWith(pages);
+
+    const result = await service.getCalendar('2026-11-01', '2026-11-30');
+
+    expect(result.items).toEqual([]);
+    expect(result.complete).toBe(false);
+    expect(feed).toHaveBeenCalledTimes(10);
+  });
+});

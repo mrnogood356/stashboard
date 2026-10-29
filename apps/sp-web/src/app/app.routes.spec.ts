@@ -39,6 +39,7 @@ describe('app routes', () => {
       'tools/duplicates',
       'search',
       'scenes',
+      'calendar',
       'acquisition',
       'processing',
       'library/scene/:sceneId',

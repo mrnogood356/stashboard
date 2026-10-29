@@ -1,0 +1,416 @@
+:host {
+  display: block;
+}
+
+.calendar-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.calendar-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.calendar-title h1 {
+  margin: 0;
+}
+
+.calendar-count {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.nav-button,
+.today-button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.5rem;
+  height: 2.5rem;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nav-button {
+  padding: 0;
+}
+
+.today-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.whose {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.9rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.whose button {
+  min-height: 2.2rem;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.whose button.active {
+  background: var(--surface-1);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+}
+
+.calendar-lead,
+.calendar-note {
+  margin: 0.6rem 0 1rem;
+  color: var(--text-muted);
+  max-width: 70ch;
+}
+
+/* ---------- month grid ---------- */
+
+.month {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.weekdays,
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.weekdays span {
+  padding: 0 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.day {
+  display: grid;
+  align-content: start;
+  gap: 0.3rem;
+  min-height: 7.5rem;
+  min-width: 0;
+  padding: 0.45rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: calc(12px * var(--radius-scale, 1));
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+}
+
+.day.has-scenes {
+  cursor: pointer;
+}
+
+.day:disabled {
+  cursor: default;
+}
+
+.day.outside {
+  background: transparent;
+  border-color: transparent;
+  opacity: 0.45;
+}
+
+.day.today .day-number {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.day.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.day:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.day-number {
+  font-size: 0.85rem;
+  font-weight: 700;
+  justify-self: start;
+}
+
+.day-scenes {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.mini {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.15rem;
+  border-radius: 7px;
+  background: var(--surface-2);
+}
+
+.mini img {
+  width: 2.4rem;
+  height: 1.4rem;
+  flex: none;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.mini-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+}
+
+/* Status: a small dot on the thumbnail's corner. */
+.mini.is-owned::after,
+.mini.is-requested::after,
+.mini.is-failed::after {
+  content: '';
+  position: absolute;
+  top: 0.05rem;
+  left: 0.05rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--surface-1);
+}
+
+.mini.is-owned::after {
+  background: var(--success);
+}
+
+.mini.is-requested::after {
+  background: var(--accent);
+}
+
+.mini.is-failed::after {
+  background: var(--danger);
+}
+
+.more {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--accent-text, var(--accent));
+}
+
+/* ---------- list ---------- */
+
+.agenda {
+  display: grid;
+  gap: 1.1rem;
+  margin-top: 1.4rem;
+}
+
+.show-all {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text, var(--accent));
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.agenda-day h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.today-chip {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--accent-soft, color-mix(in srgb, var(--accent) 16%, transparent));
+  color: var(--accent-text, var(--accent));
+  font-size: 0.75rem;
+}
+
+.agenda-day ul {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.release {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.5rem;
+  border-radius: calc(14px * var(--radius-scale, 1));
+  background: var(--surface-1);
+}
+
+.release-art {
+  display: block;
+  aspect-ratio: 16 / 9;
+  border-radius: calc(9px * var(--radius-scale, 1));
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.release-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.release-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.release-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.release-studio {
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+
+.request-button {
+  min-height: 2.2rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.calendar-empty,
+.calendar-error {
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  padding: 2rem 1rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.calendar-empty .pi {
+  font-size: 1.6rem;
+}
+
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* Phones: the grid shrinks to dots and the list does the work. */
+@media (max-width: 720px) {
+  .day {
+    min-height: 3.2rem;
+    padding: 0.3rem;
+    justify-items: center;
+  }
+
+  .day-number {
+    justify-self: center;
+  }
+
+  .day-scenes {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.15rem;
+  }
+
+  .mini {
+    width: 0.4rem;
+    height: 0.4rem;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+
+  .mini img,
+  .mini-title,
+  .more {
+    display: none;
+  }
+
+  .mini::after {
+    display: none;
+  }
+
+  .mini.is-owned {
+    background: var(--success);
+  }
+
+  .mini.is-requested {
+    background: var(--accent);
+  }
+
+  .weekdays span {
+    padding: 0;
+    text-align: center;
+    font-size: 0.7rem;
+  }
+
+  .release {
+    grid-template-columns: 5.2rem minmax(0, 1fr);
+  }
+
+  .release-action {
+    grid-column: 2;
+  }
+}

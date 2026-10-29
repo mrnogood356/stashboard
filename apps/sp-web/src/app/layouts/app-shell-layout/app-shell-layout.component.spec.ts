@@ -242,6 +242,7 @@ describe('AppShellLayoutComponent', () => {
       'Home',
       `Search${searchHint?.textContent?.trim() ?? ''}`,
       'Scenes',
+      'Calendar',
       'Performers',
       'Studios',
       'Library',

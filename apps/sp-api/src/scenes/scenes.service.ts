@@ -40,7 +40,11 @@ import {
   SceneStashAvailabilityDto,
   SceneWhisparrAvailabilityDto,
 } from './dto/scene-details.dto';
-import { ScenesFeedResponseDto } from './dto/scenes-feed.dto';
+import {
+  ScenesFeedItemDto,
+  ScenesFeedResponseDto,
+} from './dto/scenes-feed.dto';
+import { ScenesCalendarResponseDto } from './dto/scenes-calendar.dto';
 import {
   SceneFavoritesFilter,
   SceneFeedSort,
@@ -57,6 +61,9 @@ export class ScenesService {
   private readonly logger = new Logger(ScenesService.name);
   private static readonly DEFAULT_PAGE = 1;
   private static readonly DEFAULT_PER_PAGE = 24;
+  /** The catalog's largest page, and how many a calendar view reads at most. */
+  private static readonly CALENDAR_PAGE_SIZE = 100;
+  private static readonly CALENDAR_PAGES = 10;
   /**
    * Catalog lists barely change minute to minute, and Home asks for several at
    * once on every visit, so keep each page for a short while.
@@ -196,6 +203,49 @@ export class ScenesService {
         };
       }),
     };
+  }
+
+  /**
+   * Releases dated from..to (YYYY-MM-DD) by the studios and performers you
+   * starred. The catalog can only sort by date, not stop at one, so this
+   * reads it newest first until it passes `from`, at most CALENDAR_PAGES pages.
+   */
+  async getCalendar(
+    from: string,
+    to: string,
+    favorites: SceneFavoritesFilter = 'ALL',
+  ): Promise<ScenesCalendarResponseDto> {
+    const items: ScenesFeedItemDto[] = [];
+    let complete = false;
+    for (let page = 1; page <= ScenesService.CALENDAR_PAGES; page += 1) {
+      const feed = await this.getScenesFeed(
+        page,
+        ScenesService.CALENDAR_PAGE_SIZE,
+        'DATE',
+        'DESC',
+        [],
+        'OR',
+        favorites,
+      );
+      for (const item of feed.items) {
+        if (
+          item.releaseDate &&
+          item.releaseDate >= from &&
+          item.releaseDate <= to
+        ) {
+          items.push(item);
+        }
+      }
+      const oldest = feed.items.at(-1)?.releaseDate ?? null;
+      if (!feed.hasMore || (oldest !== null && oldest < from)) {
+        complete = true;
+        break;
+      }
+    }
+    items.sort((a, b) =>
+      (a.releaseDate ?? '').localeCompare(b.releaseDate ?? ''),
+    );
+    return { from, to, items, complete };
   }
 
   async searchSceneTags(query?: string): Promise<SceneTagOptionDto[]> {

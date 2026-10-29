@@ -1,0 +1,182 @@
+<main class="app-page-shell app-page-shell--wide calendar-page">
+  <app-section-back />
+  <header class="calendar-head">
+    <div class="calendar-title">
+      <h1>{{ title() }}</h1>
+      @if (!loading() && !error()) {
+        <p class="calendar-count">
+          {{ releaseCount() }} {{ releaseCount() === 1 ? 'release' : 'releases' }}
+        </p>
+      }
+    </div>
+    <div class="calendar-nav">
+      <button
+        type="button"
+        class="nav-button"
+        aria-label="Previous month"
+        (click)="previousMonth()"
+      >
+        <i class="pi pi-chevron-left" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="today-button" [disabled]="isThisMonth()" (click)="thisMonth()">
+        Today
+      </button>
+      <button type="button" class="nav-button" aria-label="Next month" (click)="nextMonth()">
+        <i class="pi pi-chevron-right" aria-hidden="true"></i>
+      </button>
+    </div>
+  </header>
+
+  <div class="whose" role="group" aria-label="Whose releases">
+    @for (option of whoseOptions; track option.value) {
+      <button
+        type="button"
+        [class.active]="whose() === option.value"
+        [attr.aria-pressed]="whose() === option.value"
+        [attr.data-testid]="'whose-' + option.value"
+        (click)="setWhose(option.value)"
+      >
+        {{ option.label }}
+      </button>
+    }
+  </div>
+  <p class="calendar-lead">
+    New and upcoming scenes from the studios and performers you starred. Star more on their pages to
+    see them here.
+  </p>
+
+  @if (loading()) {
+    <app-skeleton kind="grid" [count]="7" label="Loading the calendar" />
+  } @else if (error(); as message) {
+    <div class="calendar-error" role="alert">
+      <p>{{ message }}</p>
+      <button type="button" class="app-btn" (click)="retry()">Try again</button>
+    </div>
+  } @else {
+    <section class="month" aria-label="Month">
+      <div class="weekdays" aria-hidden="true">
+        @for (weekday of weekdays; track weekday) {
+          <span>{{ weekday }}</span>
+        }
+      </div>
+      @for (week of weeks(); track $index) {
+        <div class="week">
+          @for (day of week; track day.key) {
+            @let scenes = scenesOn(day.key);
+            <button
+              type="button"
+              class="day"
+              [class.outside]="!day.inMonth"
+              [class.today]="day.isToday"
+              [class.selected]="selectedDay() === day.key"
+              [class.has-scenes]="scenes.length > 0"
+              [disabled]="!day.inMonth || scenes.length === 0"
+              [attr.aria-pressed]="selectedDay() === day.key"
+              [attr.aria-label]="
+                day.day + (scenes.length ? ', ' + scenes.length + ' releases' : ', no releases')
+              "
+              [attr.data-testid]="'day-' + day.key"
+              (click)="selectDay(day.key)"
+            >
+              <span class="day-number">{{ day.day }}</span>
+              @if (day.inMonth) {
+                <span class="day-scenes">
+                  @for (scene of scenes.slice(0, perCell); track scene.id) {
+                    <span class="mini" [class]="'mini ' + statusClass(scene)" [title]="scene.title">
+                      @if (scene.cardImageUrl || scene.imageUrl; as image) {
+                        <img [src]="image" alt="" loading="lazy" />
+                      }
+                      <span class="mini-title">{{ scene.title }}</span>
+                    </span>
+                  }
+                  @if (scenes.length > perCell) {
+                    <span class="more">+{{ scenes.length - perCell }} more</span>
+                  }
+                </span>
+              }
+            </button>
+          }
+        </div>
+      }
+    </section>
+
+    @if (!complete()) {
+      <p class="calendar-note" role="status">
+        You follow a lot of studios and performers, so the first days of this month may be missing
+        some releases.
+      </p>
+    }
+
+    <section class="agenda" aria-label="Releases">
+      @if (selectedDay()) {
+        <button type="button" class="show-all" (click)="selectDay(selectedDay()!)">
+          Show the whole month
+        </button>
+      }
+      @for (entry of selectedAgenda(); track entry.key) {
+        <div class="agenda-day" [attr.data-testid]="'agenda-' + entry.key">
+          <h2>
+            {{ entry.label }}
+            @if (entry.isToday) {
+              <span class="today-chip">Today</span>
+            }
+          </h2>
+          <ul>
+            @for (scene of entry.scenes; track scene.id) {
+              <li class="release" [class]="'release ' + statusClass(scene)">
+                <a
+                  class="release-art"
+                  [routerLink]="['/scene', scene.id]"
+                  [queryParams]="{ returnTo: returnTo() }"
+                  [attr.aria-label]="scene.title"
+                >
+                  @if (scene.cardImageUrl || scene.imageUrl; as image) {
+                    <img [src]="image" alt="" loading="lazy" />
+                  }
+                </a>
+                <div class="release-copy">
+                  <a
+                    class="release-title"
+                    [routerLink]="['/scene', scene.id]"
+                    [queryParams]="{ returnTo: returnTo() }"
+                    >{{ scene.title }}</a
+                  >
+                  @if (scene.studio) {
+                    <span class="release-studio">{{ scene.studio }}</span>
+                  }
+                </div>
+                <div class="release-action">
+                  @if (scene.requestable) {
+                    <button type="button" class="request-button" (click)="openRequest(scene)">
+                      Request
+                    </button>
+                  } @else if (scene.status.state !== 'NOT_REQUESTED') {
+                    <app-scene-status-badge [status]="scene.status" />
+                  }
+                </div>
+              </li>
+            }
+          </ul>
+        </div>
+      } @empty {
+        <div class="calendar-empty">
+          <i class="pi pi-calendar" aria-hidden="true"></i>
+          <p>No releases this month from the studios and performers you starred.</p>
+          <div class="empty-actions">
+            <a class="app-btn" routerLink="/studios">Find studios</a>
+            <a class="app-btn" routerLink="/performers">Find performers</a>
+          </div>
+        </div>
+      }
+    </section>
+  }
+
+  <app-scene-request-modal
+    [open]="requestContext() !== null"
+    [sceneId]="requestContext()?.id ?? null"
+    [sceneTitle]="requestContext()?.title ?? null"
+    [sceneImageUrl]="requestContext()?.imageUrl ?? null"
+    (closed)="requestContext.set(null)"
+    (submitted)="onRequestSubmitted($event)"
+  />
+</main>
