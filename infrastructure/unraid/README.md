@@ -24,7 +24,7 @@ Stashboard creates its tables on first start and runs as `99:100` (`nobody:users
 
 ## Opening it from outside your network
 
-Use a VPN such as Tailscale or WireGuard, or a reverse proxy with HTTPS (Nginx Proxy Manager, SWAG or a Cloudflare Tunnel). Behind HTTPS, set **Secure cookies** to `true` and **Trust proxy** to `true` under the template's advanced view. Don't forward port 3000 straight to the internet.
+Use a VPN such as Tailscale or WireGuard, or a reverse proxy with HTTPS (Nginx Proxy Manager, SWAG or a Cloudflare Tunnel). Behind HTTPS, set **Trust proxy** to `true` under the template's advanced view; the sign-in cookie is then marked Secure on its own. Set a **Setup code** before the first start if the page can be reached before you've created your account. Don't forward port 3000 straight to the internet.
 
 ## Listing in Community Applications
 
