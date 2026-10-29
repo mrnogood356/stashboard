@@ -91,6 +91,19 @@ export interface WhisparrMovieSummary {
   date?: string | null;
 }
 
+/** A scene on Whisparr's calendar: one it has, with a release date in the range asked. */
+export interface WhisparrCalendarScene {
+  movieId: number;
+  stashId: string;
+  title: string;
+  studio: string | null;
+  /** Release date, YYYY-MM-DD. */
+  date: string;
+  hasFile: boolean;
+  monitored: boolean;
+  imageUrl: string | null;
+}
+
 export interface WhisparrManualImportItem {
   path: string;
   /** Passed back to Whisparr unchanged. */
@@ -868,6 +881,55 @@ export class WhisparrAdapter {
                 this.readString(row.digitalRelease) ??
                 ''
               ).slice(0, 10) || null,
+          },
+        ];
+      });
+    });
+  }
+
+  /**
+   * Whisparr's calendar: the monitored scenes it has with a release date from
+   * `start` to `end` (YYYY-MM-DD), whether or not they're downloaded yet.
+   */
+  async getCalendar(
+    config: WhisparrAdapterBaseConfig,
+    start: string,
+    end: string,
+  ): Promise<WhisparrCalendarScene[]> {
+    return this.trackRuntimeHealth(async () => {
+      const parsed = new URL(config.baseUrl);
+      parsed.pathname = `${parsed.pathname.replace(/\/+$/, '')}/api/v3/calendar`;
+      parsed.search = new URLSearchParams({
+        start: `${start}T00:00:00Z`,
+        end: `${end}T23:59:59Z`,
+      }).toString();
+      const payload = await this.fetchJsonPayload(parsed.toString(), config, {
+        timeoutMs: 30_000,
+      });
+      return (Array.isArray(payload) ? payload : []).flatMap((entry) => {
+        const row = entry as Record<string, unknown> | null;
+        const movieId = this.readNumber(row?.id);
+        const stashId =
+          this.readString(row?.stashId) ?? this.readString(row?.foreignId);
+        const date = (
+          this.readString(row?.releaseDate) ??
+          this.readString(row?.digitalRelease) ??
+          ''
+        ).slice(0, 10);
+        if (!row || movieId === null || !stashId || !date) {
+          return [];
+        }
+        return [
+          {
+            movieId,
+            stashId,
+            title: this.readString(row.title) ?? `Scene ${movieId}`,
+            studio:
+              this.readString(row.studioTitle) ?? this.readString(row.studio),
+            date,
+            hasFile: row.hasFile === true,
+            monitored: row.monitored !== false,
+            imageUrl: calendarImage(row.images),
           },
         ];
       });
@@ -1872,4 +1934,21 @@ function endpointPath(endpoint: string): string {
   } catch {
     return 'request';
   }
+}
+
+/** The scene's picture: Whisparr's screenshot (or poster) at its source. */
+function calendarImage(images: unknown): string | null {
+  if (!Array.isArray(images)) {
+    return null;
+  }
+  const rows = images as Array<Record<string, unknown> | null>;
+  const pick = (type: string) =>
+    rows.find(
+      (image) =>
+        typeof image?.coverType === 'string' &&
+        image.coverType.toLowerCase() === type,
+    );
+  const image = pick('screenshot') ?? pick('poster') ?? rows[0];
+  const url = image?.remoteUrl ?? image?.url;
+  return typeof url === 'string' && /^https?:\/\//i.test(url) ? url : null;
 }

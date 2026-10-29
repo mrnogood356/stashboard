@@ -43,7 +43,7 @@ export class ScenesController {
     );
   }
 
-  /** Calendar: releases from your starred studios and performers between two days. */
+  /** Calendar: releases from your starred studios and performers, and scenes in Whisparr, between two days. */
   @Get('calendar')
   getCalendar(
     @Query() query: ScenesCalendarQueryDto,
@@ -63,6 +63,7 @@ export class ScenesController {
       query.from,
       query.to,
       query.favorites ?? 'ALL',
+      query.source ?? 'ALL',
     );
   }
 

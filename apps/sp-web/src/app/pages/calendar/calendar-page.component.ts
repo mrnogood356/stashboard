@@ -3,9 +3,11 @@ import { Router, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { DiscoverService } from '../../core/api/discover.service';
 import {
+  CalendarItem,
   SceneExplorerItem,
   SceneFavoritesFilter,
   SceneRequestContext,
+  ScenesCalendarResponse,
 } from '../../core/api/discover.types';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
 import { SceneStatusBadgeComponent } from '../../shared/scene-status-badge/scene-status-badge.component';
@@ -25,15 +27,20 @@ import {
 const PER_CELL = 3;
 const WHOSE_KEY = 'stashboard.calendar.whose';
 
-const WHOSE_OPTIONS: readonly { value: SceneFavoritesFilter; label: string }[] = [
-  { value: 'ALL', label: 'Both' },
+/** Everything, your starred studios or performers alone, or only what's in Whisparr. */
+type Whose = SceneFavoritesFilter | 'WHISPARR';
+
+const WHOSE_OPTIONS: readonly { value: Whose; label: string }[] = [
+  { value: 'ALL', label: 'Everything' },
   { value: 'STUDIO', label: 'Studios' },
   { value: 'PERFORMER', label: 'Performers' },
+  { value: 'WHISPARR', label: 'In Whisparr' },
 ];
 
 /**
- * Calendar: what the studios and performers you starred release, a month at
- * a time, with what you already have or requested marked. Nothing is
+ * Calendar: what the studios and performers you starred release, and the
+ * scenes Whisparr has dated, a month at a time, with what you already have
+ * or requested marked. Nothing is
  * requested for you; Request is there when you want it.
  */
 @Component({
@@ -59,11 +66,12 @@ export class CalendarPageComponent implements OnInit {
   protected readonly perCell = PER_CELL;
 
   protected readonly month = signal(startOfMonth(new Date()));
-  protected readonly whose = signal<SceneFavoritesFilter>(readWhose());
+  protected readonly whose = signal<Whose>(readWhose());
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
-  protected readonly items = signal<SceneExplorerItem[]>([]);
+  protected readonly items = signal<CalendarItem[]>([]);
   protected readonly complete = signal(true);
+  protected readonly whisparr = signal<ScenesCalendarResponse['whisparr']>('ok');
   protected readonly selectedDay = signal<string | null>(null);
 
   protected readonly requestContext = signal<SceneRequestContext | null>(null);
@@ -75,7 +83,7 @@ export class CalendarPageComponent implements OnInit {
   );
 
   protected readonly byDay = computed(() => {
-    const map = new Map<string, SceneExplorerItem[]>();
+    const map = new Map<string, CalendarItem[]>();
     for (const item of this.items()) {
       if (item.releaseDate) {
         const list = map.get(item.releaseDate) ?? [];
@@ -123,7 +131,7 @@ export class CalendarPageComponent implements OnInit {
     this.load();
   }
 
-  protected setWhose(value: SceneFavoritesFilter): void {
+  protected setWhose(value: Whose): void {
     if (value === this.whose()) {
       return;
     }
@@ -136,7 +144,7 @@ export class CalendarPageComponent implements OnInit {
     this.load();
   }
 
-  protected scenesOn(key: string): SceneExplorerItem[] {
+  protected scenesOn(key: string): CalendarItem[] {
     return this.byDay().get(key) ?? [];
   }
 
@@ -184,10 +192,16 @@ export class CalendarPageComponent implements OnInit {
     this.loading.set(true);
     this.error.set(null);
     this.selectedDay.set(null);
-    this.request = this.discover.getCalendar(from, to, this.whose()).subscribe({
+    const whose = this.whose();
+    const request =
+      whose === 'WHISPARR'
+        ? this.discover.getCalendar(from, to, 'ALL', 'WHISPARR')
+        : this.discover.getCalendar(from, to, whose, whose === 'ALL' ? 'ALL' : 'CATALOG');
+    this.request = request.subscribe({
       next: (response) => {
         this.items.set(response.items);
         this.complete.set(response.complete);
+        this.whisparr.set(response.whisparr ?? 'off');
         this.loading.set(false);
       },
       error: () => {
@@ -203,10 +217,10 @@ export class CalendarPageComponent implements OnInit {
   }
 }
 
-function readWhose(): SceneFavoritesFilter {
+function readWhose(): Whose {
   try {
     const saved = localStorage.getItem(WHOSE_KEY);
-    return saved === 'STUDIO' || saved === 'PERFORMER' ? saved : 'ALL';
+    return saved === 'STUDIO' || saved === 'PERFORMER' || saved === 'WHISPARR' ? saved : 'ALL';
   } catch {
     return 'ALL';
   }

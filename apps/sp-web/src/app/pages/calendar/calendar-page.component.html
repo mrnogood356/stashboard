@@ -41,9 +41,32 @@
     }
   </div>
   <p class="calendar-lead">
-    New and upcoming scenes from the studios and performers you starred. Star more on their pages to
-    see them here.
+    @switch (whose()) {
+      @case ('WHISPARR') {
+        The scenes Whisparr has dated this month, downloaded or still to come.
+      }
+      @case ('ALL') {
+        New and upcoming scenes from the studios and performers you starred, and the scenes in
+        Whisparr.
+      }
+      @default {
+        New and upcoming scenes from the {{ whose() === 'STUDIO' ? 'studios' : 'performers' }} you
+        starred. Star more on their pages to see them here.
+      }
+    }
   </p>
+  @if (!loading() && whose() !== 'STUDIO' && whose() !== 'PERFORMER') {
+    @if (whisparr() === 'off') {
+      <p class="calendar-note" role="status" data-testid="whisparr-off">
+        Whisparr isn’t connected, so only starred releases show.
+        <a routerLink="/settings/integrations">Connect it in Settings</a>
+      </p>
+    } @else if (whisparr() === 'failed') {
+      <p class="calendar-note" role="status" data-testid="whisparr-failed">
+        Couldn’t reach Whisparr just now, so its scenes aren’t shown.
+      </p>
+    }
+  }
 
   @if (loading()) {
     <app-skeleton kind="grid" [count]="7" label="Loading the calendar" />
@@ -141,9 +164,14 @@
                     [queryParams]="{ returnTo: returnTo() }"
                     >{{ scene.title }}</a
                   >
-                  @if (scene.studio) {
-                    <span class="release-studio">{{ scene.studio }}</span>
-                  }
+                  <span class="release-meta">
+                    @if (scene.studio) {
+                      <span class="release-studio">{{ scene.studio }}</span>
+                    }
+                    @if (scene.inWhisparr) {
+                      <span class="whisparr-tag" data-testid="in-whisparr">In Whisparr</span>
+                    }
+                  </span>
                 </div>
                 <div class="release-action">
                   @if (scene.requestable) {
@@ -161,7 +189,15 @@
       } @empty {
         <div class="calendar-empty">
           <i class="pi pi-calendar" aria-hidden="true"></i>
-          <p>No releases this month from the studios and performers you starred.</p>
+          <p>
+            @if (whose() === 'WHISPARR') {
+              Whisparr has nothing dated this month.
+            } @else {
+              No releases this month from the studios and performers you starred{{
+                whose() === 'ALL' ? ' or in Whisparr' : ''
+              }}.
+            }
+          </p>
           <div class="empty-actions">
             <a class="app-btn" routerLink="/studios">Find studios</a>
             <a class="app-btn" routerLink="/performers">Find performers</a>

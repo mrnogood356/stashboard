@@ -68,7 +68,7 @@ describe('CalendarPageComponent', () => {
     );
     const { fixture, root } = await render(getCalendar);
 
-    expect(getCalendar).toHaveBeenCalledWith(first, expect.any(String), 'ALL');
+    expect(getCalendar).toHaveBeenCalledWith(first, expect.any(String), 'ALL', 'ALL');
     expect(root.textContent).toContain('3 releases');
     expect(root.querySelector(`[data-testid="day-${first}"] .day-scenes`)?.children).toHaveLength(
       2,
@@ -93,13 +93,57 @@ describe('CalendarPageComponent', () => {
 
     (root.querySelector('[data-testid="whose-STUDIO"]') as HTMLButtonElement).click();
     fixture.detectChanges();
-    expect(getCalendar).toHaveBeenLastCalledWith(expect.any(String), expect.any(String), 'STUDIO');
+    expect(getCalendar).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.any(String),
+      'STUDIO',
+      'CATALOG',
+    );
     expect(localStorage.getItem('stashboard.calendar.whose')).toBe('STUDIO');
 
     const before = getCalendar.mock.calls.at(-1)?.[0] as string;
     (root.querySelector('[aria-label="Next month"]') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(getCalendar.mock.calls.at(-1)?.[0]).not.toBe(before);
+  });
+
+  it('shows only Whisparr’s scenes, tagged, and says when Whisparr is off', async () => {
+    const first = new Date();
+    const day = `${first.getFullYear()}-${String(first.getMonth() + 1).padStart(2, '0')}-10`;
+    const getCalendar = vi.fn((_from: string, _to: string, _whose: string, source: string) =>
+      of({
+        from: '',
+        to: '',
+        complete: true,
+        whisparr: source === 'CATALOG' ? 'off' : 'ok',
+        items:
+          source === 'WHISPARR'
+            ? [{ ...scene('w1', day, { requestable: false }), inWhisparr: true }]
+            : [],
+      }),
+    );
+    const { fixture, root } = await render(getCalendar);
+
+    (root.querySelector('[data-testid="whose-WHISPARR"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(getCalendar).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.any(String),
+      'ALL',
+      'WHISPARR',
+    );
+    expect(root.querySelector('[data-testid="in-whisparr"]')?.textContent?.trim()).toBe(
+      'In Whisparr',
+    );
+
+    getCalendar.mockReturnValue(
+      of({ from: '', to: '', complete: true, whisparr: 'off', items: [] }),
+    );
+    (root.querySelector('[data-testid="whose-ALL"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="whisparr-off"]')?.textContent).toContain(
+      'Whisparr isn’t connected',
+    );
   });
 
   it('says when the calendar could not be loaded', async () => {

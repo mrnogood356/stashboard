@@ -31,6 +31,60 @@ describe('WhisparrAdapter', () => {
     );
   });
 
+  it('reads the calendar for the days asked, with each scene’s StashDB id and picture', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve([
+          {
+            id: 7,
+            title: 'Golden Hour',
+            foreignId: 'stash-7',
+            studioTitle: 'Coastline',
+            releaseDate: '2026-11-04T00:00:00Z',
+            hasFile: true,
+            monitored: true,
+            images: [
+              {
+                coverType: 'poster',
+                remoteUrl: 'https://cdn.example/poster.jpg',
+              },
+              {
+                coverType: 'screenshot',
+                url: '/MediaCover/7/s.jpg',
+                remoteUrl: 'https://cdn.example/shot.jpg',
+              },
+            ],
+          },
+          { id: 8, title: 'No date', foreignId: 'stash-8' },
+          { id: 9, title: 'No id', releaseDate: '2026-11-05' },
+        ]),
+    });
+
+    const scenes = await adapter.getCalendar(
+      { baseUrl: 'http://w/', apiKey: 'k' },
+      '2026-11-01',
+      '2026-11-30',
+    );
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(url.pathname).toBe('/api/v3/calendar');
+    expect(url.searchParams.get('start')).toBe('2026-11-01T00:00:00Z');
+    expect(url.searchParams.get('end')).toBe('2026-11-30T23:59:59Z');
+    expect(scenes).toEqual([
+      {
+        movieId: 7,
+        stashId: 'stash-7',
+        title: 'Golden Hour',
+        studio: 'Coastline',
+        date: '2026-11-04',
+        hasFile: true,
+        monitored: true,
+        imageUrl: 'https://cdn.example/shot.jpg',
+      },
+    ]);
+  });
+
   describe('import settings', () => {
     it('reads hardlinks and counts enabled torrent clients', async () => {
       fetchMock.mockImplementation((url: string) =>
