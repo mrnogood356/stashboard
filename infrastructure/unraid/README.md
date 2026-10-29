@@ -10,11 +10,14 @@
    psql -U postgres -c "CREATE DATABASE stashboard OWNER stashboard;"
    ```
 
-3. **Add the template.** In the Docker tab, choose **Add Container**, then paste this into **Template**:
+3. **Add the template.** Open the Unraid terminal (the `>_` icon at the top right) and run:
 
+   ```sh
+   wget -O /boot/config/plugins/dockerMan/templates-user/my-Stashboard.xml \
+     https://raw.githubusercontent.com/mrnogood356/stashboard/main/infrastructure/unraid/stashboard.xml
    ```
-   https://raw.githubusercontent.com/mrnogood356/stashboard/main/infrastructure/unraid/stashboard.xml
-   ```
+
+   Then in the Docker tab, choose **Add Container** and pick **Stashboard** from the **Template** list.
 
 4. **Fill in the database fields.** Database host is your server's IP (or the PostgreSQL container's name if both are on the same custom network). Use the user and password from step 2.
 5. **Map your media** (optional) to the same path Stash and Whisparr see, for example `/mnt/user/data` → `/data`. Renames and empty-folder cleanup need it.
