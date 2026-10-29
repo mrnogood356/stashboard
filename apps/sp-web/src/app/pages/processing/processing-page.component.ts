@@ -11,6 +11,7 @@ import {
 } from '../../core/api/download-handoff.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { HANDOFF_STEPS, fileSize, relativeTime, stageLabel, stepIndex } from './processing.format';
+import { SectionBackComponent } from '../../shared/section-back/section-back.component';
 
 /** How often the page refreshes while it's on screen. */
 const POLL_MS = 5_000;
@@ -29,7 +30,7 @@ const WATCH_LABELS: Record<DropInWatchStatus['state'], string> = {
  */
 @Component({
   selector: 'app-processing-page',
-  imports: [RouterLink],
+  imports: [SectionBackComponent, RouterLink],
   templateUrl: './processing-page.component.html',
   styleUrls: ['../tools/tools-shared.scss', './processing-page.component.scss'],
 })

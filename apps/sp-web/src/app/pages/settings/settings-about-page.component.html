@@ -60,6 +60,40 @@
     </p>
   </article>
 
+  <article class="card app-card" data-testid="install-card">
+    <p class="eyebrow">App</p>
+    @switch (updates.installState()) {
+      @case ('installed') {
+        <p>Running as an installed app.</p>
+      }
+      @case ('prompt') {
+        <p>Install Stashboard to open it from your home screen or dock, full screen.</p>
+        <button
+          type="button"
+          class="pill primary install"
+          data-testid="install-app"
+          (click)="updates.install()"
+        >
+          <i class="pi pi-download" aria-hidden="true"></i>
+          Install Stashboard
+        </button>
+      }
+      @case ('ios') {
+        <p>
+          To install it on this iPhone or iPad, tap Share
+          <i class="pi pi-upload" aria-label="(the square with an arrow)"></i>, then
+          <strong>Add to Home Screen</strong>.
+        </p>
+      }
+      @default {
+        <p>
+          Install it from your browser: in Chrome or Edge, use the install button in the address
+          bar; in Safari on a Mac, choose File → Add to Dock.
+        </p>
+      }
+    }
+  </article>
+
   <section class="group">
     <h3>
       Health

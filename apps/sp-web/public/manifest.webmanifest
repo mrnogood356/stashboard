@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "Stashboard",
   "short_name": "Stashboard",
   "description": "Discover scenes, track requests and browse your Stash library.",
@@ -6,8 +7,8 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0f1722",
-  "theme_color": "#0f1722",
+  "background_color": "#111215",
+  "theme_color": "#111215",
   "icons": [
     {
       "src": "icons/icon-192.png",

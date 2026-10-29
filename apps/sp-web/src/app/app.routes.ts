@@ -10,6 +10,7 @@ import {
   setupOnlyWhenIncompleteGuard,
 } from './core/guards/setup-route.guard';
 import { AppShellLayoutComponent } from './layouts/app-shell-layout/app-shell-layout.component';
+import { UnreachablePageComponent } from './features/unreachable/unreachable-page.component';
 
 export const routes: Routes = [
   {
@@ -17,6 +18,11 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/auth/bootstrap-page.component').then((m) => m.BootstrapPageComponent),
     canActivate: [bootstrapOnlyWhenRequiredGuard],
+  },
+  {
+    path: 'unreachable',
+    // In the main bundle: it's what shows when the rest can't be fetched.
+    component: UnreachablePageComponent,
   },
   {
     path: 'login',

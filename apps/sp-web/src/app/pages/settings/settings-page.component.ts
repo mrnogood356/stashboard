@@ -2,10 +2,11 @@ import { Component, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs/operators';
+import { SectionBackComponent } from '../../shared/section-back/section-back.component';
 
 @Component({
   selector: 'app-settings-page',
-  imports: [RouterLink, RouterOutlet],
+  imports: [SectionBackComponent, RouterLink, RouterOutlet],
   templateUrl: './settings-page.component.html',
   styleUrl: './settings-page.component.scss',
 })

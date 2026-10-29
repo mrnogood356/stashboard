@@ -2,11 +2,12 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { FixCounts, LocalLibraryService, StashJob } from '../../core/api/local-library.service';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
+import { SectionBackComponent } from '../../shared/section-back/section-back.component';
 
 /** Library tools: fix-my-library, duplicates and Stash jobs, with a quick status. */
 @Component({
   selector: 'app-tools-page',
-  imports: [RouterLink],
+  imports: [SectionBackComponent, RouterLink],
   templateUrl: './tools-page.component.html',
   styleUrls: ['./tools-shared.scss', './tools-page.component.scss'],
 })
