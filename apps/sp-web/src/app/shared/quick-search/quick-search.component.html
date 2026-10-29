@@ -1,0 +1,99 @@
+@if (open()) {
+  <button
+    type="button"
+    class="backdrop"
+    tabindex="-1"
+    aria-label="Close search"
+    data-testid="quick-search-backdrop"
+    (click)="close()"
+  ></button>
+  <div
+    #panel
+    class="panel"
+    role="dialog"
+    (keydown)="onPanelKeydown($event)"
+    aria-modal="true"
+    aria-label="Search everything"
+    data-testid="quick-search"
+  >
+    <div class="field">
+      <i class="pi pi-search" aria-hidden="true"></i>
+      <input
+        #input
+        type="search"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-controls="quick-results"
+        [attr.aria-expanded]="items().length > 0"
+        [attr.aria-activedescendant]="activeId() ? 'quick-' + activeId() : null"
+        placeholder="Search scenes, people and pages"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+        enterkeyhint="go"
+        data-testid="quick-search-input"
+        [value]="query()"
+        (input)="onInput($any($event.target).value)"
+        (keydown)="onKeydown($event)"
+      />
+      @if (searching()) {
+        <i class="pi pi-spin pi-spinner busy" aria-label="Searching"></i>
+      }
+      <kbd class="esc" aria-hidden="true">Esc</kbd>
+    </div>
+
+    <div id="quick-results" class="results" role="listbox" aria-label="Results">
+      @for (group of groups(); track group.title) {
+        @if (group.title) {
+          <p class="group-title" role="presentation">{{ group.title }}</p>
+        }
+        @for (item of group.items; track item.id) {
+          <button
+            type="button"
+            role="option"
+            class="row"
+            [id]="'quick-' + item.id"
+            [class.active]="item.id === activeId()"
+            [class.all]="item.kind === 'all'"
+            [attr.aria-selected]="item.id === activeId()"
+            [attr.data-testid]="'quick-item-' + item.kind"
+            (mousemove)="active.set(indexOf(item))"
+            (click)="choose(item)"
+          >
+            @if (item.imageUrl) {
+              <img
+                class="thumb"
+                [class.round]="item.kind === 'performer'"
+                [src]="item.imageUrl"
+                alt=""
+                loading="lazy"
+              />
+            } @else {
+              <span class="thumb icon" aria-hidden="true"><i [class]="'pi ' + item.icon"></i></span>
+            }
+            <span class="copy">
+              <span class="label">{{ item.label }}</span>
+              @if (item.detail) {
+                <span class="detail">{{ item.detail }}</span>
+              }
+            </span>
+            @if (item.id === activeId()) {
+              <i class="pi pi-arrow-right enter" aria-hidden="true"></i>
+            }
+          </button>
+        }
+      } @empty {
+        <p class="empty">Nothing yet.</p>
+      }
+    </div>
+
+    <p class="hints" aria-hidden="true">
+      <span><kbd>↑</kbd><kbd>↓</kbd> to move</span>
+      <span><kbd>Enter</kbd> to open</span>
+      <span
+        ><kbd>{{ isMac ? '⌘' : 'Ctrl' }}</kbd
+        ><kbd>K</kbd> or <kbd>/</kbd> from anywhere</span
+      >
+    </p>
+  </div>
+}

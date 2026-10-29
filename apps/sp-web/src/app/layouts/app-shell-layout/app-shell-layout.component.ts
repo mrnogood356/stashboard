@@ -16,6 +16,8 @@ import { SetupStatusStore } from '../../core/api/setup-status.store';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { summarizeDegradedSetupState } from '../../core/api/setup.types';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
+import { QuickSearchComponent } from '../../shared/quick-search/quick-search.component';
+import { NavigationHistoryService } from '../../core/navigation/navigation-history.service';
 
 interface ShellDegradedState {
   kind: 'setup' | 'runtime';
@@ -151,7 +153,13 @@ const MOBILE_SECONDARY_NAV_ITEMS: readonly ShellNavItem[] = [
 
 @Component({
   selector: 'app-shell-layout',
-  imports: [RouterLink, RouterOutlet, ThemeToggleComponent, ImageObscurationToggleComponent],
+  imports: [
+    RouterLink,
+    RouterOutlet,
+    ThemeToggleComponent,
+    ImageObscurationToggleComponent,
+    QuickSearchComponent,
+  ],
   templateUrl: './app-shell-layout.component.html',
   styleUrl: './app-shell-layout.component.scss',
 })
@@ -170,6 +178,7 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
   private readonly appLock = inject(AppLockService);
   private readonly themeService = inject(ThemeService);
   private readonly playbackSettings = inject(PlaybackSettingsService);
+  private readonly navigationHistory = inject(NavigationHistoryService);
   private readonly phoneShellMediaQuery = this.createPhoneShellMediaQuery();
   private readonly phoneShellMediaChangeHandler = (event: MediaQueryListEvent) => {
     this.mobileShell.set(event.matches);
@@ -193,6 +202,8 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
   /** Failed requests and downloads, shown as a count on Requests. */
   protected readonly requestsAttention = signal(0);
   protected readonly collapsed = signal(false);
+  protected readonly isMac =
+    typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform ?? '');
   protected readonly mobileShell = signal(this.phoneShellMediaQuery?.matches ?? false);
   protected readonly moreMenuOpen = signal(false);
   protected readonly loggingOut = signal(false);
@@ -229,6 +240,8 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    // So the back button on More's sections knows where you came from.
+    this.navigationHistory.start();
     void this.appLock.refresh();
     // The saved theme may have changed on another device.
     void this.themeService.syncFromServer();

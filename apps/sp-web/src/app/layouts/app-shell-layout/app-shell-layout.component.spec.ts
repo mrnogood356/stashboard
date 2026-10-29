@@ -233,13 +233,14 @@ describe('AppShellLayoutComponent', () => {
     const navLabels = navLinks
       .map((link) => link.textContent?.replace(/\s+/g, ' ').trim())
       .filter((label): label is string => Boolean(label));
+    const searchHint = fixture.nativeElement.querySelector('a.nav-item .nav-kbd');
 
     expect(runtimeHealthService.ensureStarted).toHaveBeenCalledTimes(1);
     expect(fixture.nativeElement.querySelector('[data-testid="desktop-sidebar"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[data-testid="mobile-bottom-nav"]')).toBeNull();
     expect(navLabels).toEqual([
       'Home',
-      'Search',
+      `Search${searchHint?.textContent?.trim() ?? ''}`,
       'Scenes',
       'Performers',
       'Studios',

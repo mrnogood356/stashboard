@@ -5,6 +5,7 @@ import {
   withInMemoryScrolling,
   withPreloading,
 } from '@angular/router';
+import { prefetchInterceptor } from './core/prefetch/prefetch.service';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { ConfirmationService, MessageService } from 'primeng/api';
@@ -135,7 +136,13 @@ export const appConfig: ApplicationConfig = {
       withPreloading(PreloadAllModules),
     ),
     provideHttpClient(
-      withInterceptors([catalogProviderInterceptor, appLockInterceptor, authRedirectInterceptor]),
+      withInterceptors([
+        // First, so it sees the URL exactly as the page asked for it.
+        prefetchInterceptor,
+        catalogProviderInterceptor,
+        appLockInterceptor,
+        authRedirectInterceptor,
+      ]),
     ),
     provideAnimationsAsync(),
     providePrimeNG({
