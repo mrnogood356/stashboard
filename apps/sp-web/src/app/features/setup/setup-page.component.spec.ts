@@ -43,11 +43,22 @@ describe('SetupPageComponent', () => {
   async function renderPage(
     status: SetupStatusResponse,
     integrations: IntegrationResponse[],
-    options: { queryParams?: Record<string, string> } = {},
+    options: {
+      queryParams?: Record<string, string>;
+      discovered?: { found: { type: string; url: string; keyHelpUrl: string }[]; checked: number };
+    } = {},
   ) {
     const queryParamMap = convertToParamMap(options.queryParams ?? {});
     const setupService = {
       getStatus: vi.fn().mockReturnValue(of(status)),
+      discover: vi.fn().mockReturnValue(
+        of(
+          options.discovered ?? {
+            found: [],
+            checked: 25,
+          },
+        ),
+      ),
     };
     const integrationsService = {
       getIntegrations: vi.fn().mockReturnValue(of(integrations)),
@@ -126,6 +137,47 @@ describe('SetupPageComponent', () => {
     expect(card).toBeTruthy();
     return card as HTMLElement;
   }
+
+  it('looks for the services on a fresh install and fills in what it finds', async () => {
+    const { fixture, component, setupService } = await renderPage(
+      {
+        setupComplete: false,
+        required: { stash: false, catalog: false, whisparr: false },
+        catalogProvider: null,
+      },
+      [
+        buildIntegration({ type: 'STASH', status: 'NOT_CONFIGURED', baseUrl: null }),
+        buildIntegration({ type: 'WHISPARR', status: 'NOT_CONFIGURED', baseUrl: null }),
+      ],
+      {
+        discovered: {
+          found: [
+            {
+              type: 'STASH',
+              url: 'http://192.168.1.50:9999',
+              keyHelpUrl: 'http://192.168.1.50:9999/settings?tab=security',
+            },
+            {
+              type: 'PROWLARR',
+              url: 'http://192.168.1.50:9696',
+              keyHelpUrl: 'http://192.168.1.50:9696/settings/general',
+            },
+          ],
+          checked: 25,
+        },
+      },
+    );
+
+    expect(setupService.discover).toHaveBeenCalledTimes(1);
+    expect(component.forms.STASH.controls.baseUrl.value).toBe('http://192.168.1.50:9999');
+    expect(component.forms.WHISPARR.controls.baseUrl.value).toBe('');
+    const panel = fixture.nativeElement.querySelector('[data-testid="setup-discover"]');
+    expect(textContent(panel)).toContain('http://192.168.1.50:9999 Filled in below.');
+    expect(textContent(panel)).toContain('Add it later in Settings → Integrations.');
+    expect(panel.querySelector('a')?.getAttribute('href')).toBe(
+      'http://192.168.1.50:9999/settings?tab=security',
+    );
+  });
 
   it('shows checklist progress and Save & Test guidance before a provider is chosen', async () => {
     const { fixture, component } = await renderPage(
