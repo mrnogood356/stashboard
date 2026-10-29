@@ -18,6 +18,15 @@ import { PlaybackInfo, PlaybackService, SceneMarker } from '../../core/api/playb
 import { LocalLibraryService, LocalSceneCard } from '../../core/api/local-library.service';
 import { AppLockService } from '../../core/app-lock/app-lock.service';
 import {
+  FRAME_SECONDS,
+  PLAYER_SHORTCUTS,
+  SKIP_SECONDS,
+  SPEEDS,
+  playerKeyAction,
+  speedLabel,
+  stepSpeed,
+} from './player-keys';
+import {
   PlaybackCandidate,
   PlayerEnvironment,
   QualityOption,
@@ -36,7 +45,10 @@ import {
 const SAVE_INTERVAL_MS = 15_000;
 /** Hide the controls after this long without interaction while playing. */
 const CONTROLS_HIDE_MS = 3_000;
-const SKIP_SECONDS = 10;
+/** Volume is remembered across scenes, on this device. */
+const VOLUME_KEY = 'stashboard.player.volume';
+/** Press and hold on the picture this long to play at 2× until you let go. */
+const HOLD_MS = 450;
 /** Seconds the Up next card waits before playing the next scene. */
 const UP_NEXT_SECONDS = 8;
 /** The tag used for the last chapter you added, offered again next time. */
@@ -87,6 +99,20 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   protected readonly airplayAvailable = signal(false);
   protected readonly castAvailable = signal(false);
   protected readonly skipFlash = signal<'back' | 'forward' | null>(null);
+  /** A short note over the picture: "Volume 60%", "1.5×", the chapter you jumped to. */
+  protected readonly hud = signal<string | null>(null);
+  protected readonly speed = signal(1);
+  protected readonly volume = signal(1);
+  protected readonly speedMenuOpen = signal(false);
+  protected readonly helpOpen = signal(false);
+  @ViewChild('helpClose') private helpCloseRef?: ElementRef<HTMLButtonElement>;
+  /** Where focus was before the shortcuts list opened, to go back to. */
+  private helpReturnFocus: HTMLElement | null = null;
+  /** Playing at 2× while you hold the picture. */
+  protected readonly holding = signal(false);
+  protected readonly speeds = SPEEDS;
+  protected readonly shortcuts = PLAYER_SHORTCUTS;
+  protected readonly speedLabel = speedLabel;
   protected readonly scrub = signal<{
     time: number;
     left: number;
@@ -146,6 +172,11 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   /** Set once the page is gone: late answers and timers must not start playback. */
   private destroyed = false;
   private lastTap = 0;
+  private hudTimer: ReturnType<typeof setTimeout> | null = null;
+  private holdTimer: ReturnType<typeof setTimeout> | null = null;
+  private speedBeforeHold = 1;
+  /** The click that ends a hold isn't also a tap. */
+  private suppressTap = false;
   private scrubbing = false;
   private readonly cleanup: Array<() => void> = [];
   private nextCandidate: LocalSceneCard | null = null;
@@ -483,7 +514,16 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       const ranges = video.buffered;
       this.bufferedEnd.set(ranges.length > 0 ? ranges.end(ranges.length - 1) : 0);
     });
-    on('volumechange', () => this.muted.set(video.muted));
+    video.volume = readVolume();
+    on('volumechange', () => {
+      this.muted.set(video.muted);
+      this.volume.set(video.volume);
+    });
+    on('ratechange', () => {
+      if (!this.holding()) {
+        this.speed.set(video.playbackRate);
+      }
+    });
     on('ended', () => {
       this.playing.set(false);
       this.saveProgress('ended');
@@ -717,6 +757,98 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  protected changeVolume(delta: number): void {
+    const video = this.videoRef?.nativeElement;
+    if (!video) {
+      return;
+    }
+    const next = Math.round(Math.max(0, Math.min(1, video.volume + delta)) * 100) / 100;
+    video.volume = next;
+    // Down to 0 mutes; turning it up unmutes; turning it down leaves mute as it is.
+    if (next === 0) {
+      video.muted = true;
+    } else if (delta > 0) {
+      video.muted = false;
+    }
+    writeVolume(next);
+    this.showHud(next === 0 || video.muted ? 'Muted' : `Volume ${Math.round(next * 100)}%`);
+  }
+
+  protected setSpeed(rate: number): void {
+    const video = this.videoRef?.nativeElement;
+    this.speedMenuOpen.set(false);
+    if (!video) {
+      return;
+    }
+    video.playbackRate = rate;
+    this.speed.set(rate);
+    this.showHud(speedLabel(rate));
+  }
+
+  protected toggleSpeedMenu(): void {
+    this.speedMenuOpen.update((open) => !open);
+    this.qualityMenuOpen.set(false);
+    this.chaptersMenuOpen.set(false);
+    this.showControls();
+  }
+
+  /** One frame back or forward; pauses first, as stepping only makes sense paused. */
+  private stepFrame(direction: -1 | 1): void {
+    const video = this.videoRef?.nativeElement;
+    if (!video) {
+      return;
+    }
+    video.pause();
+    this.seekTo(video.currentTime + direction * FRAME_SECONDS);
+  }
+
+  /** The previous or next chapter; "previous" restarts this one if you're past its start. */
+  private stepChapter(direction: -1 | 1): void {
+    const video = this.videoRef?.nativeElement;
+    const markers = [...this.markers()].sort((a, b) => a.seconds - b.seconds);
+    if (!video || markers.length === 0) {
+      this.showHud('No chapters');
+      return;
+    }
+    const now = video.currentTime;
+    const target =
+      direction === 1
+        ? markers.find((marker) => marker.seconds > now + 0.5)
+        : [...markers].reverse().find((marker) => marker.seconds < now - 2);
+    if (!target) {
+      if (direction === -1) {
+        this.seekTo(0);
+        this.showHud('Start');
+      }
+      return;
+    }
+    this.seekTo(target.seconds);
+    this.showHud(target.title);
+  }
+
+  /** Opens or closes the shortcuts list, moving focus into it and back out. */
+  protected setHelpOpen(open: boolean): void {
+    if (open === this.helpOpen()) {
+      return;
+    }
+    if (open) {
+      this.helpReturnFocus =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      this.helpOpen.set(true);
+      setTimeout(() => this.helpCloseRef?.nativeElement.focus());
+    } else {
+      this.helpOpen.set(false);
+      this.helpReturnFocus?.focus?.();
+      this.helpReturnFocus = null;
+    }
+  }
+
+  private showHud(text: string): void {
+    this.hud.set(text);
+    this.clearTimer(this.hudTimer);
+    this.hudTimer = setTimeout(() => this.hud.set(null), 900);
+  }
+
   protected async toggleFullscreen(): Promise<void> {
     const shell = this.shellRef?.nativeElement;
     const video = this.videoRef?.nativeElement;
@@ -788,6 +920,7 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
 
   protected toggleQualityMenu(): void {
     this.qualityMenuOpen.update((open) => !open);
+    this.speedMenuOpen.set(false);
     this.showControls();
   }
 
@@ -808,6 +941,7 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   protected toggleChaptersMenu(): void {
     this.chaptersMenuOpen.update((open) => !open);
     this.qualityMenuOpen.set(false);
+    this.speedMenuOpen.set(false);
     this.showControls();
   }
 
@@ -966,7 +1100,43 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
    * Mouse: click plays/pauses, double-click toggles fullscreen.
    * Touch: tap shows/hides controls, double-tap on the left or right third skips.
    */
+  protected onSurfaceDown(event: PointerEvent): void {
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+      return;
+    }
+    // A hold that ended off the picture leaves no click behind to clear this.
+    this.suppressTap = false;
+    this.clearTimer(this.holdTimer);
+    this.holdTimer = setTimeout(() => {
+      const video = this.videoRef?.nativeElement;
+      if (!video || video.paused) {
+        return;
+      }
+      this.speedBeforeHold = video.playbackRate;
+      this.holding.set(true);
+      this.suppressTap = true;
+      video.playbackRate = 2;
+    }, HOLD_MS);
+  }
+
+  protected onSurfaceUp(): void {
+    this.clearTimer(this.holdTimer);
+    this.holdTimer = null;
+    if (!this.holding()) {
+      return;
+    }
+    const video = this.videoRef?.nativeElement;
+    if (video) {
+      video.playbackRate = this.speedBeforeHold;
+    }
+    this.holding.set(false);
+  }
+
   protected onSurfaceTap(event: PointerEvent): void {
+    if (this.suppressTap) {
+      this.suppressTap = false;
+      return;
+    }
     const now = Date.now();
     const isDoubleTap = now - this.lastTap < 300;
     this.lastTap = now;
@@ -1004,7 +1174,7 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   private scheduleHideControls(): void {
     this.clearTimer(this.hideTimer);
     this.hideTimer = setTimeout(() => {
-      if (this.playing() && !this.qualityMenuOpen() && !this.scrubbing) {
+      if (this.playing() && !this.qualityMenuOpen() && !this.speedMenuOpen() && !this.scrubbing) {
         this.controlsVisible.set(false);
       }
     }, CONTROLS_HIDE_MS);
@@ -1086,34 +1256,84 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
       return;
     }
-    switch (event.key) {
-      case ' ':
-      case 'k':
+    // Space and Enter press a button you've tabbed to (speed, a menu item). After a
+    // click the button keeps focus too, but then Space should still pause.
+    const button = target instanceof Element ? target.closest('button') : null;
+    if (button && isFocusVisible(button) && (event.key === ' ' || event.key === 'Enter')) {
+      return;
+    }
+    const action = playerKeyAction(event);
+    if (!action) {
+      return;
+    }
+    if (this.helpOpen() && action.type !== 'help') {
+      // The list is up: any key closes it, and Esc does nothing else.
+      this.setHelpOpen(false);
+      if (action.type === 'escape') {
+        return;
+      }
+    }
+    switch (action.type) {
+      case 'toggle-play':
         event.preventDefault();
         this.togglePlay();
         break;
-      case 'ArrowLeft':
-      case 'j':
-        this.skip(-SKIP_SECONDS);
+      case 'skip':
+        event.preventDefault();
+        this.skip(action.seconds);
         break;
-      case 'ArrowRight':
-      case 'l':
-        this.skip(SKIP_SECONDS);
+      case 'volume':
+        event.preventDefault();
+        this.changeVolume(action.delta);
         break;
-      case 'f':
+      case 'seek-percent': {
+        event.preventDefault();
+        const duration = this.duration();
+        if (duration > 0) {
+          this.seekTo((duration * action.percent) / 100);
+          this.showHud(`${action.percent}%`);
+        }
+        break;
+      }
+      case 'frame':
+        this.stepFrame(action.direction);
+        break;
+      case 'speed':
+        this.setSpeed(stepSpeed(this.speed(), action.direction));
+        break;
+      case 'chapter':
+        this.stepChapter(action.direction);
+        break;
+      case 'next':
+        if (this.upNext() || this.nextCandidate) {
+          this.playUpNext();
+        } else {
+          this.showHud('Nothing up next');
+        }
+        break;
+      case 'fullscreen':
         void this.toggleFullscreen();
         break;
-      case 'm':
+      case 'mute':
         this.toggleMute();
         break;
-      case 'Escape':
-        if (!document.fullscreenElement && !this.qualityMenuOpen()) {
+      case 'pip':
+        if (this.pipAvailable()) {
+          void this.togglePip();
+        }
+        break;
+      case 'help':
+        this.setHelpOpen(!this.helpOpen());
+        break;
+      case 'escape':
+        if (this.speedMenuOpen() || this.qualityMenuOpen() || this.chaptersMenuOpen()) {
+          this.speedMenuOpen.set(false);
+          this.qualityMenuOpen.set(false);
+          this.chaptersMenuOpen.set(false);
+        } else if (!document.fullscreenElement) {
           this.goBack();
         }
-        this.qualityMenuOpen.set(false);
         break;
-      default:
-        return;
     }
     this.showControls();
   }
@@ -1154,5 +1374,31 @@ function writeLastMarkerTag(tag: { id: string; name: string } | null): void {
     localStorage.setItem(LAST_MARKER_TAG_KEY, JSON.stringify(tag));
   } catch {
     // ignore
+  }
+}
+
+function readVolume(): number {
+  try {
+    const value = Number(localStorage.getItem(VOLUME_KEY));
+    return localStorage.getItem(VOLUME_KEY) !== null && value >= 0 && value <= 1 ? value : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function writeVolume(volume: number): void {
+  try {
+    localStorage.setItem(VOLUME_KEY, String(volume));
+  } catch {
+    // ignore
+  }
+}
+
+/** Focused from the keyboard (Tab), not left focused by a click. */
+function isFocusVisible(element: Element): boolean {
+  try {
+    return element.matches(':focus-visible');
+  } catch {
+    return false;
   }
 }

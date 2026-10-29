@@ -216,3 +216,11 @@ p {
   display: grid;
   gap: 0.65rem;
 }
+
+.app-card p {
+  margin: 0;
+}
+
+.app-card .install {
+  justify-self: start;
+}

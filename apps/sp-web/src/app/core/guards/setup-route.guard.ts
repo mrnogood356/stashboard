@@ -4,6 +4,7 @@ import { CanActivateFn, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { SetupService } from '../api/setup.service';
+import { isUnreachableError, unreachableUrl } from '../network/unreachable';
 
 export const requireSetupCompleteGuard: CanActivateFn = (_route, state) => {
   const setupService = inject(SetupService);
@@ -17,7 +18,9 @@ export const requireSetupCompleteGuard: CanActivateFn = (_route, state) => {
       of(
         error instanceof HttpErrorResponse && error.status === 401
           ? router.createUrlTree(['/login'])
-          : router.createUrlTree(['/setup']),
+          : isUnreachableError(error)
+            ? unreachableUrl(router, state.url)
+            : router.createUrlTree(['/setup']),
       ),
     ),
   );

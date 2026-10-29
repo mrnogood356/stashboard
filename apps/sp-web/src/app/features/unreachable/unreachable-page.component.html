@@ -1,0 +1,28 @@
+<main class="auth-page">
+  <div class="auth-wrap">
+    <header class="brand">
+      <img class="brand-icon" src="/icons/icon-192.png" alt="" width="76" height="76" />
+      <h1>Can’t reach Stashboard</h1>
+      <p class="brand-lead" data-testid="unreachable-reason">
+        @if (offline()) {
+          You’re offline. It opens again as soon as you’re back online.
+        } @else {
+          Stashboard isn’t answering. It may be restarting or updating; this page checks again every
+          few seconds.
+        }
+      </p>
+    </header>
+
+    <section class="auth-card" aria-live="polite">
+      <button
+        type="button"
+        class="primary-action"
+        data-testid="unreachable-retry"
+        [disabled]="checking()"
+        (click)="check()"
+      >
+        {{ checking() ? 'Checking…' : 'Try again' }}
+      </button>
+    </section>
+  </div>
+</main>

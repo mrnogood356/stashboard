@@ -55,13 +55,15 @@ describe('SettingsPageComponent', () => {
   it('shows the Settings heading on the main page, with no back link', async () => {
     const { root } = await open('/settings');
     expect(root.querySelector('h1')?.textContent).toContain('Settings');
-    expect(root.querySelector('.back-link')).toBeNull();
+    expect(root.querySelector('a.back-link')).toBeNull();
+    // The phone's back button for sections opened from More (CSS hides it on wide screens).
+    expect(root.querySelector('[data-testid="section-back"]')).not.toBeNull();
     expect(root.querySelector('.section-body')).not.toBeNull();
   });
 
   it('shows a back link to Settings instead of the heading inside a section', async () => {
     const { root } = await open('/settings/logs');
-    const back = root.querySelector<HTMLAnchorElement>('.back-link');
+    const back = root.querySelector<HTMLAnchorElement>('a.back-link');
     expect(back?.textContent?.trim()).toBe('Settings');
     expect(back?.getAttribute('href')).toBe('/settings');
     expect(root.querySelector('h1')).toBeNull();
@@ -69,11 +71,11 @@ describe('SettingsPageComponent', () => {
 
   it('switches between the two as you move around', async () => {
     const { harness, root } = await open('/settings/appearance');
-    expect(root.querySelector('.back-link')).not.toBeNull();
+    expect(root.querySelector('a.back-link')).not.toBeNull();
     await harness.navigateByUrl('/settings');
-    expect(root.querySelector('.back-link')).toBeNull();
+    expect(root.querySelector('a.back-link')).toBeNull();
     expect(root.querySelector('h1')).not.toBeNull();
     await harness.navigateByUrl('/settings/about?tab=x');
-    expect(root.querySelector('.back-link')).not.toBeNull();
+    expect(root.querySelector('a.back-link')).not.toBeNull();
   });
 });

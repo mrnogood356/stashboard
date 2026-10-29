@@ -37,6 +37,7 @@ import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.com
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
 import { OverflowXDirective } from '../../shared/overflow-x/overflow-x.directive';
+import { SectionBackComponent } from '../../shared/section-back/section-back.component';
 
 interface SearchResults {
   library: LibrarySceneItem[];
@@ -84,6 +85,7 @@ const EMPTY: SearchResults = {
 @Component({
   selector: 'app-search-page',
   imports: [
+    SectionBackComponent,
     RouterLink,
     SceneCardComponent,
     OwnedNoteComponent,
