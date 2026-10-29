@@ -1592,6 +1592,10 @@ body {
   }
 }
 
+// Settings panels only: scene cards and request rows also use .card, and
+// they stay solid (a blur behind every card in a grid is heavy on phones).
+$glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-page, app-settings-hidden-page, app-settings-logs-page, app-settings-notifications-page, app-settings-playback-page, app-settings-privacy-page, app-indexing-settings-page) .card';
+
 /* ---------- Glass style (Settings → Appearance → Style) ----------
  * Frosted, see-through bars and panels over a soft backdrop that picks up
  * the accent (and, where a page sets --glass-art, that page's artwork).
@@ -1680,7 +1684,7 @@ body {
     .p-toast-message,
     .quick-search-panel,
     .content .app-section-panel:not(.section-shell),
-    .content .card,
+    #{$glass-settings-cards},
     .content .actions-bar,
     .content .hero-shell,
     .content .processing-card
@@ -1707,7 +1711,7 @@ body {
 
 /* Things you read for a while get a denser frost. */
 :root[data-material='glass']
-  :is(.app-overlay-panel, .p-dialog, .p-popover, .quick-search-panel, .content .card) {
+  :is(.app-overlay-panel, .p-dialog, .p-popover, .quick-search-panel, #{$glass-settings-cards}) {
   background-color: var(--glass-fill-strong);
 }
 
@@ -1740,7 +1744,7 @@ body {
       .p-toast-message,
       .quick-search-panel,
       .content .app-section-panel:not(.section-shell),
-      .content .card,
+      #{$glass-settings-cards},
       .content .actions-bar,
       .content .hero-shell,
       .content .processing-card
