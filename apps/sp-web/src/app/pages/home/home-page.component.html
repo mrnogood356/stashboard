@@ -34,7 +34,7 @@
         [attr.aria-pressed]="editorOpen()"
         aria-label="Customize Home"
         title="Customize Home"
-        (click)="editorOpen() ? cancelEditor() : openEditor()"
+        (click)="editorOpen() ? closeEditor() : openEditor()"
       >
         <i class="pi pi-sliders-h" aria-hidden="true"></i>
         <span>Customize</span>
@@ -61,7 +61,7 @@
   }
 
   @if (loading()) {
-    <div class="rail-stack" role="status" aria-live="polite" aria-label="Loading your Home rails">
+    <div class="rail-stack" role="status" aria-live="polite" aria-label="Loading your Home rows">
       @for (r of skeletonRails; track r) {
         <div class="skeleton-rail" aria-hidden="true">
           <div class="skeleton-line skeleton-title"></div>
@@ -81,154 +81,26 @@
     </section>
   } @else {
     @if (editorOpen()) {
-      <section class="editor-shell app-section-panel" aria-label="Customize Home rails">
-        <div class="editor-head app-section-head">
-          <div>
-            <p class="eyebrow">Customize Home</p>
-            <h2>Reorder built-ins and add custom Catalog or Stash scene rails</h2>
-          </div>
-          <div class="editor-actions app-action-row">
-            <button type="button" class="state-button secondary" (click)="cancelEditor()">
-              Close
-            </button>
-            <button
-              type="button"
-              class="state-button"
-              [disabled]="!hasDraftChanges() || savingRails()"
-              (click)="saveRails()"
-            >
-              {{ savingRails() ? 'Saving...' : 'Save Order & Enabled State' }}
-            </button>
-          </div>
-        </div>
-
-        <p class="editor-note">
-          Built-in rails stay fixed to their saved favorites or library query. Custom rails save
-          their filter definition immediately when you create or edit them. Enable/disable and
-          ordering changes are staged until you save this editor.
-        </p>
-
-        @if (saveError(); as saveError) {
-          <p class="editor-error">{{ saveError }}</p>
-        }
-        @if (deleteError(); as deleteError) {
-          <p class="editor-error">{{ deleteError }}</p>
-        }
-
-        <div class="editor-toolbar app-action-row">
-          <button
-            type="button"
-            class="state-button"
-            [disabled]="!canMutateCustomRails()"
-            (click)="openCreateRailForm()"
-          >
-            Add Rail
-          </button>
-          @if (!canMutateCustomRails()) {
-            <span class="toolbar-hint"
-              >Save or cancel ordering changes before editing custom rails.</span
-            >
-          }
-        </div>
-
-        <div class="editor-list">
-          @for (rail of draftRails(); track rail.id; let i = $index) {
-            <article class="editor-item">
-              <div class="editor-item-copy">
-                <div class="editor-item-headline">
-                  <span class="rail-kind-pill">{{ kindLabel(rail) }}</span>
-                  <h3>{{ rail.title }}</h3>
-                </div>
-                <p>{{ rail.subtitle || 'No subtitle' }}</p>
-                <div class="editor-summary-line">
-                  <span>{{ sourceLabel(rail.source) }}</span>
-                  <span>{{ rail.config.sort }}</span>
-                  <span>{{ rail.config.direction }}</span>
-                  <span>Limit {{ rail.config.limit }}</span>
-                  @if (isStashRail(rail) && rail.config.titleQuery) {
-                    <span>Title contains "{{ rail.config.titleQuery }}"</span>
-                  }
-                  @if (railFavoritesValue(rail); as favorites) {
-                    <span>{{ favorites }}</span>
-                  }
-                  @if (railLocalFavoritesValue(rail); as localFavorites) {
-                    <span>{{ localFavorites }}</span>
-                  }
-                  @if (railTagCount(rail) > 0) {
-                    <span>{{ railTagCount(rail) }} tags</span>
-                  }
-                  @if (railStudioCount(rail) > 0) {
-                    <span>{{ railStudioCount(rail) }} studios</span>
-                  }
-                </div>
-              </div>
-
-              <div class="editor-item-controls app-action-row">
-                <label class="rail-toggle app-action-row">
-                  <input
-                    type="checkbox"
-                    [checked]="rail.enabled"
-                    (change)="setDraftRailEnabled(rail.id, $any($event.target).checked)"
-                  />
-                  <span>{{ rail.enabled ? 'Enabled' : 'Disabled' }}</span>
-                </label>
-
-                <div class="move-controls app-action-row">
-                  <button
-                    type="button"
-                    class="mini-button"
-                    [disabled]="!canMoveDraftRail(i, 'up')"
-                    (click)="moveDraftRail(i, 'up')"
-                  >
-                    Move Up
-                  </button>
-                  <button
-                    type="button"
-                    class="mini-button"
-                    [disabled]="!canMoveDraftRail(i, 'down')"
-                    (click)="moveDraftRail(i, 'down')"
-                  >
-                    Move Down
-                  </button>
-                  @if (rail.editable) {
-                    <button
-                      type="button"
-                      class="mini-button"
-                      [disabled]="!canMutateCustomRails()"
-                      (click)="openEditRailForm(rail)"
-                    >
-                      Edit
-                    </button>
-                  }
-                  @if (rail.deletable) {
-                    <button
-                      type="button"
-                      class="mini-button danger"
-                      [disabled]="!canMutateCustomRails() || isDeletingRail(rail.id)"
-                      (click)="deleteCustomRail(rail)"
-                    >
-                      {{ isDeletingRail(rail.id) ? 'Deleting...' : 'Delete' }}
-                    </button>
-                  }
-                </div>
-              </div>
-            </article>
-          }
-        </div>
-
+      <app-home-rows-editor
+        [rows]="railConfigs()"
+        [previews]="railItemsById()"
+        [formOpen]="railFormOpen()"
+        (closed)="closeEditor()"
+        (rowsChanged)="onRowsChanged($event)"
+        (rowChanged)="onRowChanged($event)"
+        (editFilters)="openEditRailForm($event)"
+        (buildOwn)="openCreateRailForm()"
+      >
         @if (railFormOpen() && railForm(); as form) {
           <section class="rail-form-shell app-section-panel app-control-shell">
-            <div class="rail-form-head app-section-head">
-              <div>
-                <p class="eyebrow">{{ editingRailId() ? 'Edit Rail' : 'Add Rail' }}</p>
-                <h3>
-                  {{
-                    editingRailId()
-                      ? 'Update custom Home scene rail'
-                      : 'Create a custom Home scene rail'
-                  }}
-                </h3>
-              </div>
+            <div class="rail-form-head">
+              <p class="form-lede">
+                {{
+                  editingRailId()
+                    ? 'Change which scenes this row shows.'
+                    : 'Choose where the scenes come from and how they’re picked.'
+                }}
+              </p>
               <div class="editor-actions app-action-row">
                 <button type="button" class="state-button secondary" (click)="closeRailForm()">
                   Cancel
@@ -239,9 +111,7 @@
                   [disabled]="railFormSaving()"
                   (click)="saveRailForm()"
                 >
-                  {{
-                    railFormSaving() ? 'Saving...' : editingRailId() ? 'Update Rail' : 'Create Rail'
-                  }}
+                  {{ railFormSaving() ? 'Saving…' : editingRailId() ? 'Save' : 'Add row' }}
                 </button>
               </div>
             </div>
@@ -269,13 +139,13 @@
 
               @if (editingRailId()) {
                 <p class="editor-note source-note">
-                  Source is fixed after creation. Create a new rail if you want to switch between
+                  Where a row’s scenes come from can’t change. Make a new row to switch between
                   Catalog and Stash.
                 </p>
               }
 
               <label class="control-field app-control-field">
-                <span class="app-control-label">Title</span>
+                <span class="app-control-label">Name</span>
                 <input
                   class="app-control-input"
                   type="text"
@@ -290,18 +160,18 @@
               </label>
 
               <label class="control-field app-control-field">
-                <span class="app-control-label">Subtitle</span>
+                <span class="app-control-label">Description</span>
                 <input
                   class="app-control-input"
                   type="text"
                   [ngModel]="form.subtitle"
                   (ngModelChange)="updateRailForm('subtitle', $event)"
-                  placeholder="Optional context for this rail"
+                  placeholder="Optional line under the name"
                 />
               </label>
 
               <label class="control-field checkbox-field compact-toggle app-control-field">
-                <span class="app-control-label">Enabled</span>
+                <span class="app-control-label">On Home</span>
                 <label class="toggle-inline">
                   <input
                     type="checkbox"
@@ -313,7 +183,7 @@
               </label>
 
               <label class="control-field app-control-field">
-                <span class="app-control-label">Item Limit</span>
+                <span class="app-control-label">Scenes</span>
                 <input
                   class="app-control-input"
                   type="number"
@@ -528,25 +398,22 @@
                 </div>
 
                 <p class="editor-note source-note">
-                  Stash rails use your local library filters only, including title search, local
-                  tags, local studios, and favorite performer, studio, or tag toggles.
+                  Library rows use your own library’s filters: title search, tags, studios and
+                  favorite performers, studios or tags.
                 </p>
               }
             }
           </section>
         }
-      </section>
+      </app-home-rows-editor>
     }
 
     @if (isNoRailsEnabledState()) {
       <section class="home-state empty-state app-state-block">
-        <h2>No Home rails are enabled</h2>
-        <p>
-          Turn at least one rail back on or create a custom rail to restore your personalized
-          landing page.
-        </p>
+        <h2>All your Home rows are turned off</h2>
+        <p>Turn a row back on, or add one, to fill Home again.</p>
         <div class="empty-links app-action-row">
-          <button type="button" class="hero-link" (click)="openEditor()">Edit Rails</button>
+          <button type="button" class="hero-link" (click)="openEditor()">Customize Home</button>
         </div>
       </section>
     } @else if (isPageEmptyState()) {
@@ -664,7 +531,13 @@
       <div class="rail-stack">
         @for (rail of rails(); track rail.id; let idx = $index) {
           @if (showRail(rail)) {
-            <section class="rail-section" [style.--rail-index]="idx">
+            <section
+              class="rail-section"
+              [style.--rail-index]="idx"
+              [attr.data-size]="rail.look.size"
+              [attr.data-style]="rail.look.style"
+              [attr.data-devices]="rail.look.devices"
+            >
               <header class="rail-head">
                 <div class="rail-copy">
                   <h2 [attr.title]="rail.summary.sortLabel + ' · ' + rail.summary.favoritesLabel">
@@ -744,6 +617,10 @@
                           "
                           [playQueryParams]="{ returnTo: currentRouteUrl() }"
                           [progress]="item.progress ?? null"
+                          [showStudio]="rail.look.showStudio"
+                          [showDate]="rail.look.showDate"
+                          [showDuration]="rail.look.showDuration"
+                          [showActions]="rail.look.showActions"
                           [menuActions]="
                             rail.key === 'CONTINUE_WATCHING' ? continueWatchingActions : []
                           "

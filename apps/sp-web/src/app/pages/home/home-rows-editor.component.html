@@ -1,0 +1,345 @@
+<div class="sheet-backdrop" aria-hidden="true" (click)="closed.emit()"></div>
+<section
+  class="sheet"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="rows-editor-title"
+  data-testid="rows-editor"
+  (keydown.escape)="closed.emit()"
+>
+  <header class="sheet-head">
+    @if (view() === 'gallery' && !formOpen) {
+      <button
+        type="button"
+        class="icon-button"
+        aria-label="Back to your rows"
+        (click)="view.set('rows')"
+      >
+        <i class="pi pi-arrow-left" aria-hidden="true"></i>
+      </button>
+    }
+    <div class="sheet-title">
+      <h2 id="rows-editor-title">
+        {{ formOpen ? 'Your own row' : view() === 'gallery' ? 'Add a row' : 'Customize Home' }}
+      </h2>
+      @if (view() === 'rows' && !formOpen) {
+        <p>
+          {{ shownCount() }} of {{ order().length }} rows shown
+          @if (saving()) {
+            · Saving…
+          }
+        </p>
+      }
+    </div>
+    <button type="button" class="icon-button" aria-label="Close" (click)="closed.emit()">
+      <i class="pi pi-times" aria-hidden="true"></i>
+    </button>
+  </header>
+
+  @if (error(); as message) {
+    <p class="sheet-error" role="alert">{{ message }}</p>
+  }
+
+  <div class="sheet-body">
+    @if (formOpen) {
+      <ng-content />
+    } @else if (view() === 'gallery') {
+      @if (galleryError()) {
+        <p class="muted">Couldn’t load the ready-made rows. Try again in a moment.</p>
+      } @else if (!gallery()) {
+        <p class="muted" role="status">Loading…</p>
+      } @else {
+        <button type="button" class="own-row" data-testid="build-own" (click)="startOwn()">
+          <i class="pi pi-sliders-h" aria-hidden="true"></i>
+          <span>
+            <strong>Build your own</strong>
+            <span class="muted">Pick the source, sort, tags, studios and favorites.</span>
+          </span>
+          <i class="pi pi-angle-right chevron" aria-hidden="true"></i>
+        </button>
+        @for (group of galleryGroups(); track group.label) {
+          <h3 class="group-label">{{ group.label }}</h3>
+          <ul class="gallery">
+            @for (item of group.items; track item.id) {
+              <li class="gallery-item" [attr.data-testid]="'gallery-' + item.id">
+                <span class="gallery-copy">
+                  <strong>{{ item.title }}</strong>
+                  <span class="muted">{{ item.description }}</span>
+                </span>
+                @if (item.added) {
+                  <span class="on-home"
+                    ><i class="pi pi-check" aria-hidden="true"></i> On Home</span
+                  >
+                } @else {
+                  <button
+                    type="button"
+                    class="pill-button"
+                    [disabled]="adding() !== null"
+                    [attr.aria-label]="'Add ' + item.title"
+                    (click)="add(item)"
+                  >
+                    {{ adding() === item.id ? 'Adding…' : 'Add' }}
+                  </button>
+                }
+              </li>
+            }
+          </ul>
+        }
+      }
+    } @else {
+      <button type="button" class="add-row" data-testid="add-row" (click)="openGallery()">
+        <i class="pi pi-plus" aria-hidden="true"></i> Add a row
+      </button>
+
+      <ul class="rows" cdkDropList [cdkDropListData]="order()" (cdkDropListDropped)="drop($event)">
+        @for (row of order(); track row.id; let i = $index, first = $first, last = $last) {
+          <li
+            class="row"
+            cdkDrag
+            cdkDragLockAxis="y"
+            [class.off]="!row.enabled"
+            [class.open]="openRowId() === row.id"
+            [attr.data-testid]="'row-' + row.id"
+          >
+            <div class="row-main">
+              <span class="drag-handle" cdkDragHandle aria-hidden="true">
+                <i class="pi pi-bars"></i>
+              </span>
+              <button
+                type="button"
+                class="row-copy"
+                [attr.aria-expanded]="openRowId() === row.id"
+                [attr.aria-label]="'Change how ' + row.title + ' looks'"
+                (click)="toggleOpen(row)"
+              >
+                <strong>{{ row.title }}</strong>
+                <span class="muted">{{ describe(row) }}</span>
+              </button>
+              <span class="row-moves">
+                <button
+                  type="button"
+                  class="mini"
+                  [disabled]="first || saving()"
+                  [attr.aria-label]="'Move ' + row.title + ' up'"
+                  (click)="move(i, -1)"
+                >
+                  <i class="pi pi-angle-up" aria-hidden="true"></i>
+                </button>
+                <button
+                  type="button"
+                  class="mini"
+                  [disabled]="last || saving()"
+                  [attr.aria-label]="'Move ' + row.title + ' down'"
+                  (click)="move(i, 1)"
+                >
+                  <i class="pi pi-angle-down" aria-hidden="true"></i>
+                </button>
+              </span>
+              <input
+                type="checkbox"
+                class="app-switch"
+                role="switch"
+                [checked]="row.enabled"
+                [attr.aria-label]="'Show ' + row.title"
+                (change)="setShown(row, $any($event.target).checked)"
+              />
+            </div>
+
+            @if (openRowId() === row.id) {
+              @let look = display(row);
+              <div class="row-settings" data-testid="row-settings">
+                @if (preview(row).length > 0) {
+                  <div class="preview" [attr.data-style]="look.style" aria-hidden="true">
+                    @for (item of preview(row); track item.id) {
+                      <span class="preview-card">
+                        @if (item.cardImageUrl ?? item.imageUrl; as src) {
+                          <img [src]="src" alt="" loading="lazy" />
+                        }
+                      </span>
+                    }
+                  </div>
+                }
+
+                <label class="field">
+                  <span class="label">Name</span>
+                  <input
+                    class="text-input"
+                    type="text"
+                    maxlength="80"
+                    [value]="row.title"
+                    (change)="rename(row, $any($event.target).value)"
+                  />
+                </label>
+
+                <div class="field">
+                  <span class="label" id="size-{{ row.id }}">Card size</span>
+                  <div
+                    class="segmented"
+                    role="radiogroup"
+                    [attr.aria-labelledby]="'size-' + row.id"
+                  >
+                    @for (size of ['small', 'regular', 'large']; track size) {
+                      <button
+                        type="button"
+                        role="radio"
+                        [attr.aria-checked]="look.size === size"
+                        [class.selected]="look.size === size"
+                        (click)="setDisplay(row, { size: $any(size) })"
+                      >
+                        {{ size === 'small' ? 'Small' : size === 'regular' ? 'Regular' : 'Large' }}
+                      </button>
+                    }
+                  </div>
+                </div>
+
+                <div class="field">
+                  <span class="label" id="style-{{ row.id }}">Card style</span>
+                  <div
+                    class="segmented"
+                    role="radiogroup"
+                    [attr.aria-labelledby]="'style-' + row.id"
+                  >
+                    @for (style of ['wide', 'poster', 'spotlight']; track style) {
+                      <button
+                        type="button"
+                        role="radio"
+                        [attr.aria-checked]="look.style === style"
+                        [class.selected]="look.style === style"
+                        (click)="setDisplay(row, { style: $any(style) })"
+                      >
+                        <span
+                          class="style-icon"
+                          [attr.data-style]="style"
+                          aria-hidden="true"
+                        ></span>
+                        {{
+                          style === 'wide' ? 'Wide' : style === 'poster' ? 'Poster' : 'Spotlight'
+                        }}
+                      </button>
+                    }
+                  </div>
+                </div>
+
+                <div class="field">
+                  <span class="label">On each card</span>
+                  <div class="chips">
+                    <label class="chip" [class.on]="look.showStudio">
+                      <input
+                        type="checkbox"
+                        [checked]="look.showStudio"
+                        (change)="setDisplay(row, { showStudio: $any($event.target).checked })"
+                      />
+                      Studio
+                    </label>
+                    <label class="chip" [class.on]="look.showDate">
+                      <input
+                        type="checkbox"
+                        [checked]="look.showDate"
+                        (change)="setDisplay(row, { showDate: $any($event.target).checked })"
+                      />
+                      Date
+                    </label>
+                    <label class="chip" [class.on]="look.showDuration">
+                      <input
+                        type="checkbox"
+                        [checked]="look.showDuration"
+                        (change)="setDisplay(row, { showDuration: $any($event.target).checked })"
+                      />
+                      Length
+                    </label>
+                    <label class="chip" [class.on]="look.showActions">
+                      <input
+                        type="checkbox"
+                        [checked]="look.showActions"
+                        (change)="setDisplay(row, { showActions: $any($event.target).checked })"
+                      />
+                      Buttons
+                    </label>
+                  </div>
+                </div>
+
+                <div class="field-pair">
+                  <div class="field">
+                    <span class="label" id="devices-{{ row.id }}">Show on</span>
+                    <div
+                      class="segmented"
+                      role="radiogroup"
+                      [attr.aria-labelledby]="'devices-' + row.id"
+                    >
+                      @for (devices of ['all', 'phone', 'desktop']; track devices) {
+                        <button
+                          type="button"
+                          role="radio"
+                          [attr.aria-checked]="look.devices === devices"
+                          [class.selected]="look.devices === devices"
+                          (click)="setDisplay(row, { devices: $any(devices) })"
+                        >
+                          {{
+                            devices === 'all'
+                              ? 'Everywhere'
+                              : devices === 'phone'
+                                ? 'Phone'
+                                : 'Desktop'
+                          }}
+                        </button>
+                      }
+                    </div>
+                  </div>
+                  <label class="field count">
+                    <span class="label">Scenes</span>
+                    <select
+                      class="text-input"
+                      [value]="look.limit ?? row.config.limit"
+                      (change)="setCount(row, $any($event.target).value)"
+                    >
+                      @for (count of countOptions; track count) {
+                        <option
+                          [value]="count"
+                          [selected]="(look.limit ?? row.config.limit) === count"
+                        >
+                          {{ count }}
+                        </option>
+                      }
+                    </select>
+                  </label>
+                </div>
+
+                <div class="switch-line">
+                  <span>“See all” link</span>
+                  <input
+                    type="checkbox"
+                    class="app-switch"
+                    role="switch"
+                    aria-label="Show a See all link"
+                    [checked]="look.seeAll"
+                    (change)="setDisplay(row, { seeAll: $any($event.target).checked })"
+                  />
+                </div>
+
+                @if (row.editable || row.deletable) {
+                  <div class="row-actions">
+                    @if (row.editable) {
+                      <button type="button" class="pill-button" (click)="editFilters.emit(row)">
+                        <i class="pi pi-filter" aria-hidden="true"></i> Edit filters
+                      </button>
+                    }
+                    @if (row.deletable) {
+                      <button
+                        type="button"
+                        class="pill-button danger"
+                        [disabled]="saving()"
+                        (click)="remove(row)"
+                      >
+                        <i class="pi pi-trash" aria-hidden="true"></i> Remove
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</section>

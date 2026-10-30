@@ -52,6 +52,8 @@ import {
   HomeStashSceneRailConfig,
   HomeStashdbSceneRailConfig,
   HomeRailViewSummary,
+  DEFAULT_HOME_ROW_DISPLAY,
+  HomeRowDisplay,
   SaveHomeRailPayload,
 } from '../../core/api/home.types';
 import { AuthStateStore } from '../../core/api/auth-state.store';
@@ -66,6 +68,7 @@ import { LocalLibraryService } from '../../core/api/local-library.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { NeedsYouCardComponent } from './needs-you-card.component';
 import { ProcessingCardComponent } from './processing-card.component';
+import { HomeRowsEditorComponent } from './home-rows-editor.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
 import {
   buildReadinessPageAlert,
@@ -84,6 +87,8 @@ type HomeRailView = HomeRailConfig & {
     queryParams: Record<string, string>;
   } | null;
   summary: HomeRailViewSummary;
+  /** How the row looks, with defaults filled in. */
+  look: HomeRowDisplay;
 };
 
 /** One slide of the featured banner at the top of Home. */
@@ -136,6 +141,7 @@ type RailFavoritesOption = SceneFavoritesFilter | 'NONE';
     SceneRequestModalComponent,
     NeedsYouCardComponent,
     ProcessingCardComponent,
+    HomeRowsEditorComponent,
   ],
   templateUrl: './home-page.component.html',
   styleUrl: './home-page.component.scss',
@@ -168,7 +174,7 @@ export class HomePageComponent implements OnInit, OnDestroy {
   ];
   protected static readonly SOURCE_OPTIONS: Array<{ value: HomeRailSource; label: string }> = [
     { value: 'STASHDB', label: 'Catalog' },
-    { value: 'STASH', label: 'Stash' },
+    { value: 'STASH', label: 'Your library' },
   ];
   protected static readonly DIRECTION_OPTIONS: Array<{
     value: SortDirection;
@@ -203,29 +209,22 @@ export class HomePageComponent implements OnInit, OnDestroy {
   private readonly tagSearchTerms = new Subject<string>();
   private readonly studioSearchTerms = new Subject<string>();
   private loadSubscription: Subscription | null = null;
-  private saveSubscription: Subscription | null = null;
   private tagSearchSubscription: Subscription | null = null;
   private studioSearchSubscription: Subscription | null = null;
   private railFormMutationSubscription: Subscription | null = null;
-  private railDeleteSubscription: Subscription | null = null;
 
   @ViewChildren('railViewport')
   private railViewports?: QueryList<ElementRef<HTMLDivElement>>;
 
   protected readonly loading = signal(false);
   protected readonly configError = signal<string | null>(null);
-  protected readonly savingRails = signal(false);
-  protected readonly saveError = signal<string | null>(null);
   protected readonly railConfigs = signal<HomeRailConfig[]>([]);
-  protected readonly draftRails = signal<HomeRailConfig[]>([]);
   protected readonly editorOpen = signal(false);
 
   protected readonly railFormOpen = signal(false);
   protected readonly editingRailId = signal<string | null>(null);
   protected readonly railFormSaving = signal(false);
   protected readonly railFormError = signal<string | null>(null);
-  protected readonly deletingRailId = signal<string | null>(null);
-  protected readonly deleteError = signal<string | null>(null);
   protected readonly railForm = signal<HomeRailFormDraft | null>(null);
 
   protected readonly tagSearchTerm = signal('');
@@ -428,17 +427,14 @@ export class HomePageComponent implements OnInit, OnDestroy {
       clearInterval(this.featuredTimer);
     }
     this.loadSubscription?.unsubscribe();
-    this.saveSubscription?.unsubscribe();
     this.tagSearchSubscription?.unsubscribe();
     this.studioSearchSubscription?.unsubscribe();
     this.railFormMutationSubscription?.unsubscribe();
-    this.railDeleteSubscription?.unsubscribe();
   }
 
   protected loadHome(): void {
     this.loadSubscription?.unsubscribe();
     this.configError.set(null);
-    this.saveError.set(null);
     // Show Home from the last visit straight away, then refresh it in the background.
     const showingCache = this.restoreFromCache();
     this.loading.set(!showingCache);
@@ -449,7 +445,6 @@ export class HomePageComponent implements OnInit, OnDestroy {
         map((rails) => this.sortRails(rails)),
         switchMap((rails) => {
           this.railConfigs.set(rails);
-          this.draftRails.set(this.cloneRails(rails));
           writeUserCache(this.cacheUser(), HOME_CACHE_RAILS_KEY, rails);
           // Keep last visit's items until each rail's fresh ones arrive.
           const railIds = new Set(rails.map((rail) => rail.id));
@@ -480,7 +475,6 @@ export class HomePageComponent implements OnInit, OnDestroy {
           }
           this.configError.set('Home couldn’t load just now. Try again in a moment.');
           this.railConfigs.set([]);
-          this.draftRails.set([]);
         },
       });
   }
@@ -515,7 +509,6 @@ export class HomePageComponent implements OnInit, OnDestroy {
     }
     const sorted = this.sortRails(rails);
     this.railConfigs.set(sorted);
-    this.draftRails.set(this.cloneRails(sorted));
     this.railItemsById.set(itemsById);
     this.railErrorsById.set({});
     return true;
@@ -542,7 +535,8 @@ export class HomePageComponent implements OnInit, OnDestroy {
         pending: !(rail.id in this.railItemsById()) && !(rail.id in this.railErrorsById()),
         items: this.railItemsById()[rail.id] ?? [],
         error: this.railErrorsById()[rail.id] ?? null,
-        seeAllLink: this.buildSeeAllLink(rail),
+        seeAllLink: (rail.display?.seeAll ?? true) ? this.buildSeeAllLink(rail) : null,
+        look: { ...DEFAULT_HOME_ROW_DISPLAY, ...(rail.display ?? {}) },
         summary: this.summarizeRail(rail),
       }));
   }
@@ -592,7 +586,7 @@ export class HomePageComponent implements OnInit, OnDestroy {
 
   protected emptyStateMessage(): string {
     if (this.pageAlert()) {
-      return 'Home rails may be empty because required integrations are degraded. Repair integrations, then refresh Home to reload rail data.';
+      return 'Home rows may be empty because a service isn’t answering. Repair it in Settings → Integrations, then refresh Home.';
     }
 
     return firstUseEmptyStateCopy('home').message;
@@ -603,79 +597,41 @@ export class HomePageComponent implements OnInit, OnDestroy {
   }
 
   protected openEditor(): void {
-    this.draftRails.set(this.cloneRails(this.railConfigs()));
-    this.saveError.set(null);
     this.closeRailForm();
     this.editorOpen.set(true);
   }
 
-  protected cancelEditor(): void {
-    this.draftRails.set(this.cloneRails(this.railConfigs()));
-    this.saveError.set(null);
-    this.deleteError.set(null);
+  protected closeEditor(): void {
     this.closeRailForm();
     this.editorOpen.set(false);
   }
 
-  protected setDraftRailEnabled(railId: string, enabled: boolean): void {
-    this.draftRails.update((rails) =>
-      rails.map((rail) => (rail.id === railId ? { ...rail, enabled } : rail)),
-    );
-  }
-
-  protected moveDraftRail(index: number, direction: 'up' | 'down'): void {
-    this.draftRails.update((rails) => {
-      const targetIndex = direction === 'up' ? index - 1 : index + 1;
-      if (targetIndex < 0 || targetIndex >= rails.length) {
-        return rails;
+  /** The editor changed the rows' order, switches, or added or removed one. */
+  protected onRowsChanged(rows: HomeRailConfig[]): void {
+    const sorted = this.sortRails(rows);
+    this.railConfigs.set(sorted);
+    writeUserCache(this.cacheUser(), HOME_CACHE_RAILS_KEY, sorted);
+    // Rows that just appeared (added or turned on) load their scenes now.
+    const loaded = this.railItemsById();
+    for (const row of sorted) {
+      if (row.enabled && !(row.id in loaded) && !(row.id in this.railErrorsById())) {
+        this.loadSingleRailSafe(row).subscribe((result) => this.applyRailResult(result));
       }
-
-      const next = [...rails];
-      const [movedRail] = next.splice(index, 1);
-      next.splice(targetIndex, 0, movedRail);
-      return next.map((rail, currentIndex) => ({
-        ...rail,
-        sortOrder: currentIndex,
-      }));
-    });
-  }
-
-  protected canMoveDraftRail(index: number, direction: 'up' | 'down'): boolean {
-    return direction === 'up' ? index > 0 : index < this.draftRails().length - 1;
-  }
-
-  protected hasDraftChanges(): boolean {
-    const persisted = this.railConfigs();
-    const draft = this.draftRails();
-    if (persisted.length !== draft.length) {
-      return true;
     }
-
-    return draft.some((rail, index) => {
-      const persistedRail = persisted[index];
-      if (!persistedRail) {
-        return true;
-      }
-
-      return (
-        rail.id !== persistedRail.id ||
-        rail.enabled !== persistedRail.enabled ||
-        rail.sortOrder !== persistedRail.sortOrder
-      );
-    });
   }
 
-  protected canMutateCustomRails(): boolean {
-    return !this.hasDraftChanges() && !this.savingRails() && !this.railFormSaving();
+  /** The editor changed how one row looks. */
+  protected onRowChanged(row: HomeRailConfig): void {
+    const before = this.railConfigs().find((r) => r.id === row.id);
+    this.railConfigs.update((rows) => rows.map((r) => (r.id === row.id ? row : r)));
+    writeUserCache(this.cacheUser(), HOME_CACHE_RAILS_KEY, this.railConfigs());
+    if (before && rowLimit(before) !== rowLimit(row)) {
+      this.loadSingleRailSafe(row).subscribe((result) => this.applyRailResult(result));
+    }
   }
 
   protected openCreateRailForm(): void {
-    if (!this.canMutateCustomRails()) {
-      return;
-    }
-
     this.editingRailId.set(null);
-    this.deleteError.set(null);
     this.railFormError.set(null);
     this.railForm.set(this.createEmptyRailForm());
     this.formTagSelectedIdsModel.set([]);
@@ -688,12 +644,11 @@ export class HomePageComponent implements OnInit, OnDestroy {
   }
 
   protected openEditRailForm(rail: HomeRailConfig): void {
-    if (!rail.editable || !this.canMutateCustomRails()) {
+    if (!rail.editable) {
       return;
     }
 
     this.editingRailId.set(rail.id);
-    this.deleteError.set(null);
     this.railFormError.set(null);
     const form = this.buildFormFromRail(rail);
     this.railForm.set(form);
@@ -723,52 +678,6 @@ export class HomePageComponent implements OnInit, OnDestroy {
     this.studioSearchError.set(null);
   }
 
-  protected saveRails(): void {
-    if (this.savingRails() || !this.hasDraftChanges()) {
-      return;
-    }
-
-    this.saveSubscription?.unsubscribe();
-    this.savingRails.set(true);
-    this.saveError.set(null);
-
-    const orderedRails = this.draftRails().map((rail, index) => ({
-      ...rail,
-      sortOrder: index,
-    }));
-
-    this.saveSubscription = this.homeService
-      .updateRails({
-        rails: orderedRails.map((rail) => ({
-          id: rail.id,
-          enabled: rail.enabled,
-        })),
-      })
-      .pipe(
-        map((rails) => this.sortRails(rails)),
-        switchMap((rails) => {
-          this.railConfigs.set(rails);
-          this.draftRails.set(this.cloneRails(rails));
-          return this.loadRailContent(rails).pipe(map((content) => ({ rails, content })));
-        }),
-        finalize(() => this.savingRails.set(false)),
-      )
-      .subscribe({
-        next: ({ rails, content }) => {
-          this.railItemsById.set(content.itemsById);
-          this.railErrorsById.set(content.errorsById);
-          writeUserCache(this.cacheUser(), HOME_CACHE_RAILS_KEY, rails);
-          for (const railId of Object.keys(content.itemsById)) {
-            this.saveRailItemsToCache(railId);
-          }
-          this.editorOpen.set(false);
-        },
-        error: () => {
-          this.saveError.set('Unable to save Home rails right now.');
-        },
-      });
-  }
-
   protected saveRailForm(): void {
     const form = this.railForm();
     if (!form || this.railFormSaving()) {
@@ -777,7 +686,7 @@ export class HomePageComponent implements OnInit, OnDestroy {
 
     const payload = this.buildRailPayload(form);
     if (!payload.title.trim()) {
-      this.railFormError.set('A title is required for custom Home rails.');
+      this.railFormError.set('Give the row a name.');
       return;
     }
 
@@ -798,43 +707,9 @@ export class HomePageComponent implements OnInit, OnDestroy {
           this.loadHome();
         },
         error: () => {
-          this.railFormError.set('Unable to save this Home rail right now.');
+          this.railFormError.set('Couldn’t save this row. Try again in a moment.');
         },
       });
-  }
-
-  protected deleteCustomRail(rail: HomeRailConfig): void {
-    if (!rail.deletable || !this.canMutateCustomRails()) {
-      return;
-    }
-
-    if (!window.confirm(`Delete the Home rail "${rail.title}"?`)) {
-      return;
-    }
-
-    this.railDeleteSubscription?.unsubscribe();
-    this.deletingRailId.set(rail.id);
-    this.deleteError.set(null);
-
-    this.railDeleteSubscription = this.homeService
-      .deleteRail(rail.id)
-      .pipe(finalize(() => this.deletingRailId.set(null)))
-      .subscribe({
-        next: () => {
-          if (this.editingRailId() === rail.id) {
-            this.closeRailForm();
-          }
-          this.editorOpen.set(true);
-          this.loadHome();
-        },
-        error: () => {
-          this.deleteError.set('Unable to delete this Home rail right now.');
-        },
-      });
-  }
-
-  protected isDeletingRail(railId: string): boolean {
-    return this.deletingRailId() === railId;
   }
 
   protected updateRailForm<
@@ -1073,10 +948,6 @@ export class HomePageComponent implements OnInit, OnDestroy {
     });
   }
 
-  protected kindLabel(rail: HomeRailConfig): string {
-    return rail.kind === 'BUILTIN' ? 'Built-in' : 'Custom';
-  }
-
   protected sourceLabel(source: HomeRailSource): string {
     return source === 'STASH' ? 'Stash' : 'Catalog';
   }
@@ -1200,7 +1071,7 @@ export class HomePageComponent implements OnInit, OnDestroy {
     return this.discoverService
       .getScenesFeed(
         1,
-        rail.config.limit,
+        rowLimit(rail),
         rail.config.sort,
         rail.config.direction,
         rail.config.tagIds,
@@ -1693,4 +1564,9 @@ export class HomePageComponent implements OnInit, OnDestroy {
       ? this.homeService.searchStashStudios(query)
       : this.discoverService.searchPerformerStudios(query);
   }
+}
+
+/** How many scenes a row shows: its own count, or the one it was made with. */
+function rowLimit(row: HomeRailConfig): number {
+  return row.display?.limit ?? row.config.limit;
 }

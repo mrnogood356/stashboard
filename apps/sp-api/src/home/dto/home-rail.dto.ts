@@ -17,6 +17,11 @@ export const HOME_RAIL_KEY_VALUES = [
   'UNWATCHED_LIBRARY',
   'MOST_PLAYED_LIBRARY',
   'CONTINUE_WATCHING',
+  'REDISCOVER',
+  'TOP_RATED',
+  'QUICK_PICKS',
+  'LIBRARY_4K',
+  'COMING_SOON',
 ] as const;
 export type HomeRailKey = (typeof HOME_RAIL_KEY_VALUES)[number];
 
@@ -81,6 +86,44 @@ export class HomeRailStashSceneConfigDto {
 export type HomeRailSceneConfigDto =
   HomeRailStashdbSceneConfigDto | HomeRailStashSceneConfigDto;
 
+export const HOME_ROW_SIZE_VALUES = ['small', 'regular', 'large'] as const;
+export type HomeRowSize = (typeof HOME_ROW_SIZE_VALUES)[number];
+/** wide: 16:9 thumbnails; poster: tall cards; spotlight: the first one big. */
+export const HOME_ROW_STYLE_VALUES = ['wide', 'poster', 'spotlight'] as const;
+export type HomeRowStyle = (typeof HOME_ROW_STYLE_VALUES)[number];
+export const HOME_ROW_DEVICE_VALUES = ['all', 'phone', 'desktop'] as const;
+export type HomeRowDevices = (typeof HOME_ROW_DEVICE_VALUES)[number];
+
+/** How a Home row looks. Saved per row; every field has a default. */
+export class HomeRowDisplayDto {
+  /** The row's own name, instead of its built-in one; null keeps that. */
+  title!: string | null;
+  size!: HomeRowSize;
+  style!: HomeRowStyle;
+  showStudio!: boolean;
+  showDate!: boolean;
+  showDuration!: boolean;
+  /** Request, Find and status on each card. */
+  showActions!: boolean;
+  devices!: HomeRowDevices;
+  seeAll!: boolean;
+  /** How many scenes; null keeps the row's own count. */
+  limit!: number | null;
+}
+
+export const DEFAULT_HOME_ROW_DISPLAY: HomeRowDisplayDto = {
+  title: null,
+  size: 'regular',
+  style: 'wide',
+  showStudio: true,
+  showDate: true,
+  showDuration: false,
+  showActions: true,
+  devices: 'all',
+  seeAll: true,
+  limit: null,
+};
+
 export class HomeRailDto {
   id!: string;
   key!: HomeRailKey | null;
@@ -94,4 +137,5 @@ export class HomeRailDto {
   editable!: boolean;
   deletable!: boolean;
   config!: HomeRailSceneConfigDto;
+  display!: HomeRowDisplayDto;
 }

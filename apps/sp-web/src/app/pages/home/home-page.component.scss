@@ -595,10 +595,82 @@ p {
   scroll-snap-align: start;
 }
 
+/* ---------- Building a row of your own, inside the Customize sheet ---------- */
+
+app-home-rows-editor .rail-form-shell {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+}
+
+app-home-rows-editor .rail-form-head {
+  display: grid;
+  gap: 0.75rem;
+}
+
+app-home-rows-editor .form-lede {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+app-home-rows-editor .rail-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+app-home-rows-editor .rail-form-pickers {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* ---------- How each row looks (Customize Home) ---------- */
+
+.rail-section {
+  /* Half the picture's height, to centre the scroll buttons on it. */
+  --rail-media-half: calc(var(--rail-card-width) * 9 / 32);
+}
+
+.rail-section[data-size='small'] {
+  --rail-card-width: clamp(170px, 13vw, 220px);
+}
+
+.rail-section[data-size='large'] {
+  --rail-card-width: clamp(300px, 26vw, 420px);
+}
+
+.rail-section[data-style='poster'] {
+  --rail-card-width: clamp(150px, 12vw, 200px);
+  --scene-card-aspect: 2 / 3;
+  --rail-media-half: calc(var(--rail-card-width) * 3 / 4);
+}
+
+.rail-section[data-style='poster'][data-size='small'] {
+  --rail-card-width: clamp(120px, 9.5vw, 160px);
+}
+
+.rail-section[data-style='poster'][data-size='large'] {
+  --rail-card-width: clamp(190px, 16vw, 260px);
+}
+
+/* Spotlight: the first scene twice as wide (and so twice as tall). */
+.rail-section[data-style='spotlight'] .rail-track > app-scene-card:first-child {
+  grid-column: span 2;
+}
+
+@media (max-width: 720px) {
+  .rail-section[data-devices='desktop'] {
+    display: none;
+  }
+}
+
+@media (min-width: 721px) {
+  .rail-section[data-devices='phone'] {
+    display: none;
+  }
+}
+
 .scroll-button {
   position: absolute;
   /* Centre on the picture, not the text under it. */
-  top: calc(var(--rail-card-width) * 9 / 32);
+  top: var(--rail-media-half, calc(var(--rail-card-width) * 9 / 32));
   z-index: 2;
   display: inline-flex;
   align-items: center;
@@ -809,6 +881,35 @@ p {
 
   .rail-track {
     gap: 0.6rem;
+  }
+
+  .rail-section[data-size='small'] {
+    --rail-card-width: 52vw;
+  }
+
+  .rail-section[data-size='large'] {
+    --rail-card-width: 86vw;
+  }
+
+  .rail-section[data-style='poster'] {
+    --rail-card-width: 40vw;
+  }
+
+  .rail-section[data-style='poster'][data-size='small'] {
+    --rail-card-width: 31vw;
+  }
+
+  .rail-section[data-style='poster'][data-size='large'] {
+    --rail-card-width: 52vw;
+  }
+
+  /* A phone has no room for a double-width card. */
+  .rail-section[data-style='spotlight'] .rail-track > app-scene-card:first-child {
+    grid-column: span 1;
+  }
+
+  .rail-section[data-style='spotlight'] {
+    --rail-card-width: 86vw;
   }
 
   .rail-copy p {

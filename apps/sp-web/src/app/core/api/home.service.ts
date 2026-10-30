@@ -5,6 +5,9 @@ import {
   HomeAttention,
   HomeRailContentResponse,
   HomeRailConfig,
+  HomeRowDisplay,
+  HomeRowGalleryId,
+  HomeRowGalleryItem,
   SaveHomeRailPayload,
   UpdateHomeRailsPayload,
 } from './home.types';
@@ -52,6 +55,22 @@ export class HomeService {
 
   updateRail(id: string, payload: SaveHomeRailPayload): Observable<HomeRailConfig> {
     return this.http.patch<HomeRailConfig>(`/api/home/rails/${encodeURIComponent(id)}`, payload);
+  }
+
+  /** Changes how one row looks; fields left out keep their value. */
+  updateRowDisplay(id: string, change: Partial<HomeRowDisplay>): Observable<HomeRailConfig> {
+    return this.http.patch<HomeRailConfig>(
+      `/api/home/rails/${encodeURIComponent(id)}/display`,
+      change,
+    );
+  }
+
+  getRowGallery(): Observable<HomeRowGalleryItem[]> {
+    return this.http.get<HomeRowGalleryItem[]>('/api/home/rails/gallery');
+  }
+
+  addGalleryRow(id: HomeRowGalleryId): Observable<HomeRailConfig> {
+    return this.http.post<HomeRailConfig>(`/api/home/rails/gallery/${encodeURIComponent(id)}`, {});
   }
 
   deleteRail(id: string): Observable<void> {
