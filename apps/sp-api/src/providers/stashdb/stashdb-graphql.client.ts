@@ -24,6 +24,46 @@ const REFUSAL_LOG_INTERVAL_MS = 10 * 60_000;
  */
 const SERVER_SIDE_ERROR = /SQLSTATE\s*(?!08)[0-9A-Z]{5}/i;
 
+/**
+ * A catalog that types an argument stash-box sends as an enum (sort: DATE)
+ * as a string instead: ThePornDB's stash-box endpoint does.
+ */
+const STRING_ARGUMENT_ERROR =
+  /String cannot represent a non string value: ([A-Z][A-Z0-9_]*)/;
+/** How many such values one query may need quoted before giving up. */
+const MAX_STRING_ARGUMENT_RETRIES = 6;
+
+/** The value the catalog wants as a string, from its error, if that's what it said. */
+export function stringArgumentFrom(
+  payload: StashdbGraphqlResponse,
+): string | null {
+  for (const error of payload.errors ?? []) {
+    const match =
+      typeof error?.message === 'string'
+        ? STRING_ARGUMENT_ERROR.exec(error.message)
+        : null;
+    if (match) {
+      return match[1];
+    }
+  }
+  return null;
+}
+
+/** The query with each of these bare enum values written as a string. */
+export function quoteArguments(
+  query: string,
+  values: ReadonlySet<string>,
+): string {
+  let quoted = query;
+  for (const value of values) {
+    quoted = quoted.replace(
+      new RegExp(`(:\\s*)${value}\\b(?!")`, 'g'),
+      `$1"${value}"`,
+    );
+  }
+  return quoted;
+}
+
 /** True when the catalog answered, but its own database failed the query. */
 export function isServerSideError(error: unknown): boolean {
   return error instanceof Error && SERVER_SIDE_ERROR.test(error.message);
@@ -42,13 +82,15 @@ export function estimatedTotal(
 }
 
 /**
- * Talks to a stash-box GraphQL API (StashDB, FansDB): the request, readable
+ * Talks to a stash-box GraphQL API (StashDB, FansDB, ThePornDB): the request, readable
  * network errors, runtime-health reporting, and shared normalizers.
  */
 export abstract class StashdbGraphqlClient {
   protected readonly logger = new Logger('StashdbAdapter');
   /** When each refusal (query and message) was last logged as a warning. */
   private readonly refusalsLogged = new Map<string, number>();
+  /** Per catalog host: enum values it wants sent as strings. */
+  private readonly stringArguments = new Map<string, Set<string>>();
 
   constructor(protected readonly runtimeHealthService: RuntimeHealthService) {}
 
@@ -138,7 +180,45 @@ export abstract class StashdbGraphqlClient {
     );
   }
 
+  /**
+   * Sends the query. A catalog that wants one of stash-box's enum values as a
+   * string gets it quoted, and is asked again; what it wanted is remembered,
+   * so later queries go out right the first time.
+   */
   protected async executeQueryRaw(
+    config: StashdbAdapterBaseConfig,
+    query: string,
+    variables?: Record<string, unknown>,
+    trackRuntimeHealth = true,
+  ): Promise<StashdbGraphqlResponse> {
+    const host = hostOf(this.resolveGraphqlEndpoint(config.baseUrl));
+    let known = this.stringArguments.get(host);
+    let payload = await this.sendQuery(
+      config,
+      known ? quoteArguments(query, known) : query,
+      variables,
+      trackRuntimeHealth,
+    );
+    for (let tries = 0; tries < MAX_STRING_ARGUMENT_RETRIES; tries += 1) {
+      const value = stringArgumentFrom(payload);
+      if (!value || known?.has(value)) {
+        break;
+      }
+      known = known ?? new Set<string>();
+      known.add(value);
+      this.stringArguments.set(host, known);
+      this.logger.debug(`The catalog at ${host} takes ${value} as a string.`);
+      payload = await this.sendQuery(
+        config,
+        quoteArguments(query, known),
+        variables,
+        trackRuntimeHealth,
+      );
+    }
+    return payload;
+  }
+
+  private async sendQuery(
     config: StashdbAdapterBaseConfig,
     query: string,
     variables?: Record<string, unknown>,

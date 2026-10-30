@@ -77,6 +77,65 @@ describe('StashdbAdapter', () => {
     warn.mockRestore();
   });
 
+  it('sends enum values as strings to a catalog that wants them so (ThePornDB), and remembers it', async () => {
+    const queries: string[] = [];
+    fetchMock.mockImplementation((_url: string, init: RequestInit) => {
+      const { query } = JSON.parse(String(init.body)) as { query: string };
+      queries.push(query);
+      // Like ThePornDB: sort and direction are strings there.
+      const bare = /(?:sort|direction):\s*([A-Z_]+)\b/.exec(query);
+      const body = bare
+        ? {
+            errors: [
+              {
+                message: `String cannot represent a non string value: ${bare[1]}`,
+              },
+            ],
+          }
+        : { data: { queryScenes: { count: 0, scenes: [] } } };
+      return Promise.resolve(
+        new Response(JSON.stringify(body), {
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    });
+    const config = {
+      baseUrl: 'https://theporndb.net/graphql',
+      page: 1,
+      perPage: 24,
+    };
+
+    await expect(adapter.getScenesSortedByDate(config)).resolves.toMatchObject({
+      total: 0,
+    });
+    expect(queries).toHaveLength(3);
+    expect(queries[2]).toContain('sort: "DATE"');
+    expect(queries[2]).toContain('direction: "DESC"');
+
+    // Next time it goes out right first time.
+    await adapter.getScenesSortedByDate(config);
+    expect(queries).toHaveLength(4);
+    expect(runtimeHealthService.recordFailure).not.toHaveBeenCalled();
+  });
+
+  it('leaves enum values alone for StashDB', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({ data: { queryScenes: { count: 0, scenes: [] } } }),
+        { headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    await adapter.getScenesSortedByDate({
+      baseUrl: 'https://stashdb.org/graphql',
+      page: 1,
+      perPage: 24,
+    });
+    const { query } = JSON.parse(
+      String((fetchMock.mock.calls[0][1] as RequestInit).body),
+    ) as { query: string };
+    expect(query).toContain('sort: DATE');
+  });
+
   it('filters scenes to releases after a day when asked', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
