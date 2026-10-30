@@ -920,7 +920,10 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
       return 'Back to Scenes';
     }
     if (returnTo.startsWith('/acquisition')) {
-      return 'Back to Acquisition';
+      return 'Back to Requests';
+    }
+    if (returnTo.startsWith('/processing')) {
+      return 'Back to Downloads';
     }
     if (returnTo.startsWith('/performer/')) {
       return 'Back to Performer';

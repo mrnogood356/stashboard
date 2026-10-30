@@ -599,7 +599,10 @@ export class ScenePageComponent implements OnInit, OnDestroy {
       return 'Back to Scenes';
     }
     if (returnTo.startsWith('/acquisition')) {
-      return 'Back to Acquisition';
+      return 'Back to Requests';
+    }
+    if (returnTo.startsWith('/processing')) {
+      return 'Back to Downloads';
     }
     if (returnTo.startsWith('/library')) {
       return 'Back to Library';
