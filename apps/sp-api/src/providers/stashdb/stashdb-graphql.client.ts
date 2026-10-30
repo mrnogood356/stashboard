@@ -192,25 +192,33 @@ export abstract class StashdbGraphqlClient {
     trackRuntimeHealth = true,
   ): Promise<StashdbGraphqlResponse> {
     const host = hostOf(this.resolveGraphqlEndpoint(config.baseUrl));
-    let known = this.stringArguments.get(host);
+    const known = () => this.stringArguments.get(host) ?? new Set<string>();
+    let sent = quoteArguments(query, known());
     let payload = await this.sendQuery(
       config,
-      known ? quoteArguments(query, known) : query,
+      sent,
       variables,
       trackRuntimeHealth,
     );
     for (let tries = 0; tries < MAX_STRING_ARGUMENT_RETRIES; tries += 1) {
       const value = stringArgumentFrom(payload);
-      if (!value || known?.has(value)) {
+      if (!value) {
         break;
       }
-      known = known ?? new Set<string>();
-      known.add(value);
-      this.stringArguments.set(host, known);
-      this.logger.debug(`The catalog at ${host} takes ${value} as a string.`);
+      if (!known().has(value)) {
+        this.stringArguments.set(host, new Set([...known(), value]));
+        this.logger.debug(`The catalog at ${host} takes ${value} as a string.`);
+      }
+      // Another request may have learned it meanwhile: ask again whenever
+      // what's known now changes this query.
+      const next = quoteArguments(query, known());
+      if (next === sent) {
+        break;
+      }
+      sent = next;
       payload = await this.sendQuery(
         config,
-        quoteArguments(query, known),
+        sent,
         variables,
         trackRuntimeHealth,
       );

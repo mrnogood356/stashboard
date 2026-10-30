@@ -118,6 +118,52 @@ describe('StashdbAdapter', () => {
     expect(runtimeHealthService.recordFailure).not.toHaveBeenCalled();
   });
 
+  it('retries a query whose value another request learned meanwhile', async () => {
+    let calls = 0;
+    const queries: string[] = [];
+    fetchMock.mockImplementation((_url: string, init: RequestInit) => {
+      const { query } = JSON.parse(String(init.body)) as { query: string };
+      queries.push(query);
+      calls += 1;
+      const bare = /(?:sort|direction):\s*([A-Z_]+)\b/.exec(query);
+      const body = bare
+        ? {
+            errors: [
+              {
+                message: `String cannot represent a non string value: ${bare[1]}`,
+              },
+            ],
+          }
+        : { data: { queryScenes: { count: 0, scenes: [] } } };
+      // The first two (sent together, both bare) answer after both went out.
+      const delay = calls <= 2 ? 10 : 0;
+      return new Promise((resolve) =>
+        setTimeout(
+          () =>
+            resolve(
+              new Response(JSON.stringify(body), {
+                headers: { 'content-type': 'application/json' },
+              }),
+            ),
+          delay,
+        ),
+      );
+    });
+    const config = {
+      baseUrl: 'https://theporndb.net/graphql',
+      page: 1,
+      perPage: 24,
+    };
+
+    await expect(
+      Promise.all([
+        adapter.getScenesSortedByDate(config),
+        adapter.getScenesSortedByDate(config),
+      ]),
+    ).resolves.toHaveLength(2);
+    expect(queries.at(-1)).toContain('direction: "DESC"');
+  });
+
   it('leaves enum values alone for StashDB', async () => {
     fetchMock.mockResolvedValue(
       new Response(
