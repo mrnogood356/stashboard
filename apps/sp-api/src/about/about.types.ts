@@ -63,3 +63,15 @@ export interface HealthResponse {
   disks: DiskHealth[];
   jobs: JobHealth[];
 }
+
+export interface ReleaseNotesResponse {
+  /** The running version, for the browser to remember. */
+  current: string;
+  /** Releases after the one asked about, up to the running one, newest first. */
+  releases: Array<{
+    version: string;
+    date: string | null;
+    features: string[];
+    fixes: string[];
+  }>;
+}

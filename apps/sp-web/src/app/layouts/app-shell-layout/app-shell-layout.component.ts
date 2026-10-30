@@ -17,6 +17,7 @@ import { AppNotificationsService } from '../../core/notifications/app-notificati
 import { summarizeDegradedSetupState } from '../../core/api/setup.types';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
 import { QuickSearchComponent } from '../../shared/quick-search/quick-search.component';
+import { WhatsNewComponent } from '../../shared/whats-new/whats-new.component';
 import { NavigationHistoryService } from '../../core/navigation/navigation-history.service';
 
 interface ShellDegradedState {
@@ -170,6 +171,7 @@ const MOBILE_SECONDARY_NAV_ITEMS: readonly ShellNavItem[] = [
     ThemeToggleComponent,
     ImageObscurationToggleComponent,
     QuickSearchComponent,
+    WhatsNewComponent,
   ],
   templateUrl: './app-shell-layout.component.html',
   styleUrl: './app-shell-layout.component.scss',

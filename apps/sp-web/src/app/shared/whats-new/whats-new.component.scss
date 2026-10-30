@@ -1,0 +1,126 @@
+.whats-new {
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: min(80dvh, 44rem);
+  padding: 0;
+  border: 1px solid var(--surface-panel-border, var(--border-subtle));
+  border-radius: 22px;
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 35%);
+}
+
+.whats-new[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.whats-new::backdrop {
+  background: rgb(0 0 0 / 45%);
+  backdrop-filter: blur(4px);
+}
+
+.head {
+  display: grid;
+  gap: 0.3rem;
+  padding: 1.25rem 1.25rem 0.75rem;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+
+.body {
+  display: grid;
+  gap: 1.1rem;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.25rem 1.25rem 1rem;
+}
+
+.release {
+  display: grid;
+  gap: 0.5rem;
+}
+
+h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.date,
+.kind {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.kind {
+  margin: 0.25rem 0 0;
+}
+
+.changes {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.changes li {
+  display: grid;
+  grid-template-columns: 1.1rem minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: start;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.changes i {
+  margin-top: 0.2rem;
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+
+.fixes li {
+  color: var(--text-muted);
+}
+
+.fixes i {
+  color: var(--text-muted);
+}
+
+.foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.85rem 1.25rem 1.1rem;
+  border-top: 1px solid var(--separator, var(--border-subtle));
+}
+
+.ok {
+  height: 2.5rem;
+  padding: 0 1.3rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--focus-ring, var(--accent));
+  color: var(--accent-contrast, #fff);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}

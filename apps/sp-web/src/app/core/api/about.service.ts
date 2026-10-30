@@ -67,6 +67,20 @@ export interface HealthResponse {
   jobs: JobHealth[];
 }
 
+export interface ReleaseNotes {
+  version: string;
+  date: string | null;
+  features: string[];
+  fixes: string[];
+}
+
+export interface ReleaseNotesResponse {
+  /** The running version. */
+  current: string;
+  /** Releases after the one asked about, up to the running one, newest first. */
+  releases: ReleaseNotes[];
+}
+
 /** Settings → About & health: which build is running and how it's doing. */
 @Injectable({ providedIn: 'root' })
 export class AboutApiService {
@@ -82,5 +96,12 @@ export class AboutApiService {
 
   update(): Observable<UpdateCheckResponse> {
     return this.http.get<UpdateCheckResponse>('/api/about/update');
+  }
+
+  /** What changed since the version this browser last ran. */
+  changes(since: string | null): Observable<ReleaseNotesResponse> {
+    return this.http.get<ReleaseNotesResponse>('/api/about/changes', {
+      params: since ? { since } : {},
+    });
   }
 }

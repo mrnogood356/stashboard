@@ -1,6 +1,16 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 import { AboutService } from './about.service';
+import { ReleaseNotesService } from './release-notes.service';
 import { UpdateCheckService } from './update-check.service';
+
+export class ReleaseNotesQueryDto {
+  /** The version this browser last ran. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  since?: string;
+}
 
 /**
  * Settings → About & health. Three calls so each part of the page shows as
@@ -12,6 +22,7 @@ export class AboutController {
   constructor(
     private readonly about: AboutService,
     private readonly updates: UpdateCheckService,
+    private readonly releaseNotes: ReleaseNotesService,
   ) {}
 
   @Get()
@@ -27,5 +38,10 @@ export class AboutController {
   @Get('update')
   update() {
     return this.updates.check();
+  }
+
+  @Get('changes')
+  changes(@Query() query: ReleaseNotesQueryDto) {
+    return this.releaseNotes.since(query.since);
   }
 }
