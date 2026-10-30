@@ -1,0 +1,67 @@
+name: Bug report
+description: Something in Stashboard isn't working.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. The quickest way in is **Settings → About & health → Report a problem**: it fills in your version and recent errors for you, with addresses and keys taken out.
+  - type: input
+    id: version
+    attributes:
+      label: Stashboard version
+      description: Shown in Settings → About & health.
+      placeholder: 1.3.0
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How it's installed
+      options:
+        - Unraid (Community Applications template)
+        - Docker Compose
+        - Docker run
+        - Something else
+    validations:
+      required: true
+  - type: dropdown
+    id: services
+    attributes:
+      label: What it's connected to
+      multiple: true
+      options:
+        - Stash
+        - StashDB
+        - FansDB
+        - Whisparr
+        - Prowlarr
+        - SABnzbd
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      placeholder: |
+        1. Go to …
+        2. Tap …
+        3. See …
+  - type: textarea
+    id: details
+    attributes:
+      label: Details from About & health
+      description: In Stashboard, Settings → About & health → Copy for support, then paste here. Add anything from Settings → Logs that looks related.
+      render: text
+  - type: checkboxes
+    id: private
+    attributes:
+      label: Before you send it
+      options:
+        - label: I've checked there are no passwords, API keys or private addresses in this report.
+          required: true
