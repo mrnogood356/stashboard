@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.4.0](https://github.com/mrnogood356/stashboard/compare/v1.3.0...v1.4.0) (2026-10-30)
+
+
+### Features
+
+* a bug report form, and Report a problem in About & health ([5440bfc](https://github.com/mrnogood356/stashboard/commit/5440bfc433abf29a788578d3534cf9e95d10b287))
+* **notifications:** send to Pushover, and to protected ntfy topics ([a7f318f](https://github.com/mrnogood356/stashboard/commit/a7f318fae2c834c0be3fcb10c88de346580481ec))
+* say what's new the first time Stashboard opens after an update ([ba22b9b](https://github.com/mrnogood356/stashboard/commit/ba22b9ba0ff9bbe99f9c64aa6908e98ca2c1ba31))
+* **security:** encrypt saved API keys, tokens and secret links ([e65ea51](https://github.com/mrnogood356/stashboard/commit/e65ea5124c2f8a0b9c5f569665982171abd29216))
+* **settings:** back up every setting to a file, and restore it ([a6f7840](https://github.com/mrnogood356/stashboard/commit/a6f784008c2b8a6004a088822ccb9e9b992198be))
+
+
+### Bug Fixes
+
+* address review on notifications, Report a problem and What's new ([40dba06](https://github.com/mrnogood356/stashboard/commit/40dba062bc6a27b6ddeacea8359e82613250f41e))
+* **security:** address review on secret encryption ([f9534b7](https://github.com/mrnogood356/stashboard/commit/f9534b7b475fdc2ded37a604a81af1dcc2fb7ca0))
+* **web:** back links say Requests and Downloads, not Acquisition ([048fd3f](https://github.com/mrnogood356/stashboard/commit/048fd3f5abc736231bbfedb5273ff7415044793c))
+* **web:** channel chips fit a phone; What's new names the release ([c150249](https://github.com/mrnogood356/stashboard/commit/c1502493572c7d0e2c5fc1bd5a7c5dd6091ee2a3))
+
 ## [1.3.0](https://github.com/mrnogood356/stashboard/compare/v1.2.0...v1.3.0) (2026-10-29)
 
 
