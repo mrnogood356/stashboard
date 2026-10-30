@@ -82,6 +82,7 @@ export class AutomationService
   implements OnApplicationBootstrap, OnModuleDestroy
 {
   private readonly logger = new Logger(AutomationService.name);
+  private warnedLockedToken = false;
   private running = false;
   private rerunReason: AutomationReason | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -131,16 +132,17 @@ export class AutomationService
     const existing = await this.prisma.libraryAutomationSettings.findUnique({
       where: { key: KEY },
     });
-    // A token saved under a secret key that's since been lost reads as null:
-    // make a new one (Whisparr needs the new link).
+    // A token saved under a different secret key reads as null. It's kept
+    // as stored (the right key may be back next start); until then no call
+    // matches it, and Settings → Automation can make a new link.
     if (existing && !existing.webhookToken) {
-      this.logger.warn(
-        'Made a new Whisparr webhook link, because the saved one couldn’t be unlocked. Copy it from Settings → Automation into Whisparr.',
-      );
-      return this.prisma.libraryAutomationSettings.update({
-        where: { key: KEY },
-        data: { webhookToken: newToken() },
-      });
+      if (!this.warnedLockedToken) {
+        this.warnedLockedToken = true;
+        this.logger.warn(
+          'The Whisparr webhook link can’t be unlocked, so Whisparr’s calls are refused. Restore the secret key, or make a new link in Settings → Automation and paste it into Whisparr.',
+        );
+      }
+      return { ...existing, webhookToken: '' };
     }
     if (existing) {
       return existing;
@@ -200,6 +202,9 @@ export class AutomationService
   /** True when the token matches (constant-time). */
   async verifyToken(token: string): Promise<boolean> {
     const settings = await this.getSettings();
+    if (!settings.webhookToken) {
+      return false;
+    }
     const expected = Buffer.from(settings.webhookToken);
     const given = Buffer.from(token ?? '');
     return expected.length === given.length && timingSafeEqual(expected, given);

@@ -1,4 +1,10 @@
-import { mkdtempSync, readFileSync, statSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SECRET_PREFIX, SecretBox, loadSecretKey } from './secret-box';
@@ -19,12 +25,16 @@ describe('SecretBox', () => {
     expect(new SecretBox(key(2)).decrypt(sealed, 'test key')).toBeNull();
   });
 
-  it('reads values saved before encryption as they are, and never locks twice', () => {
+  it('reads values saved before encryption as they are', () => {
     const box = new SecretBox(key(1));
     expect(box.decrypt('plain-old-key', 'test key')).toBe('plain-old-key');
-    const sealed = box.encrypt('x');
-    expect(box.encrypt(sealed)).toBe(sealed);
     expect(box.encrypt('')).toBe('');
+  });
+
+  it('round-trips a value that happens to start with the prefix', () => {
+    const box = new SecretBox(key(1));
+    const odd = `${SECRET_PREFIX}not-really-encrypted`;
+    expect(box.decrypt(box.encrypt(odd), 'test key')).toBe(odd);
   });
 
   it('saves values as they are when there is no key', () => {
@@ -48,12 +58,36 @@ describe('loadSecretKey', () => {
     );
   });
 
-  it('prefers STASHBOARD_SECRET_KEY over the file', () => {
-    const fromEnv = loadSecretKey({
+  it('prefers STASHBOARD_SECRET_KEY over the file, giving the same key each time', () => {
+    const env = {
       STASHBOARD_SECRET_KEY: 'my passphrase',
       APP_DATA_DIR: '/nonexistent/should-not-be-touched',
-    });
+    };
+    const fromEnv = loadSecretKey(env);
     expect(fromEnv).toHaveLength(32);
+    expect(loadSecretKey(env)?.equals(fromEnv!)).toBe(true);
+    expect(
+      loadSecretKey({ ...env, STASHBOARD_SECRET_KEY: 'other' })?.equals(
+        fromEnv!,
+      ),
+    ).toBe(false);
+  });
+
+  it('stops the start when the key file is there but damaged', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sb-key-'));
+    writeFileSync(join(dir, 'secret-key'), 'not a key\n');
+    expect(() => loadSecretKey({ APP_DATA_DIR: dir })).toThrow(
+      /doesn't hold a valid secret key/,
+    );
+  });
+
+  it('stops the start when the key file is there but can’t be read', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sb-key-'));
+    // A folder where the file should be: it exists, but can't be read as one.
+    mkdirSync(join(dir, 'secret-key'));
+    expect(() => loadSecretKey({ APP_DATA_DIR: dir })).toThrow(
+      /Couldn't read the secret key/,
+    );
   });
 });
 

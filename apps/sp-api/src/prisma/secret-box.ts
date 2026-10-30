@@ -2,16 +2,10 @@ import { Logger } from '@nestjs/common';
 import {
   createCipheriv,
   createDecipheriv,
-  createHash,
   randomBytes,
+  scryptSync,
 } from 'node:crypto';
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 /** What every encrypted value starts with; anything else is from before encryption. */
@@ -53,7 +47,9 @@ export class SecretBox {
   }
 
   encrypt(value: string): string {
-    if (!this.key || value === '' || value.startsWith(SECRET_PREFIX)) {
+    // Everything is encrypted, even text that happens to start with the
+    // prefix, so whatever is saved reads back exactly as it went in.
+    if (!this.key || value === '') {
       return value;
     }
     const iv = randomBytes(IV_BYTES);
@@ -100,11 +96,17 @@ export class SecretBox {
   }
 }
 
+/** Fixed, so the same STASHBOARD_SECRET_KEY always gives the same key. */
+const PASSPHRASE_SALT = 'stashboard-secret-key-v1';
+
 /**
- * STASHBOARD_SECRET_KEY (any text; hashed to 32 bytes), else the key file in
- * the app data folder, made on first start. Null, with an error logged, when
- * neither can be had: secrets are then saved as they are rather than locked
- * with a key that would be lost on restart.
+ * STASHBOARD_SECRET_KEY (any text, stretched with scrypt so a short one is
+ * still slow to guess), else the key file in the app data folder, made on
+ * first start. A key file that's there but unreadable or damaged stops the
+ * start: carrying on would save new keys unencrypted and lose the old ones.
+ * Null, with an error logged, only when there's no key file and one can't be
+ * made: secrets are then saved as they are rather than locked with a key
+ * that would be lost on restart.
  */
 export function loadSecretKey(
   env: NodeJS.ProcessEnv = process.env,
@@ -112,20 +114,22 @@ export function loadSecretKey(
   const logger = new Logger('Secrets');
   const configured = env.STASHBOARD_SECRET_KEY?.trim();
   if (configured) {
-    return createHash('sha256').update(configured).digest();
+    return scryptSync(configured, PASSPHRASE_SALT, 32, {
+      N: 2 ** 15,
+      r: 8,
+      p: 1,
+      maxmem: 64 * 1024 * 1024,
+    });
   }
   const file = join(
     env.APP_DATA_DIR?.trim() || '/var/lib/stashboard',
     KEY_FILE,
   );
+  const existing = readKeyFile(file);
+  if (existing) {
+    return existing;
+  }
   try {
-    if (existsSync(file)) {
-      const key = Buffer.from(readFileSync(file, 'utf8').trim(), 'base64');
-      if (key.length !== 32) {
-        throw new Error(`${file} doesn't hold a 32-byte key`);
-      }
-      return key;
-    }
     mkdirSync(dirname(file), { recursive: true });
     const key = randomBytes(32);
     try {
@@ -151,4 +155,26 @@ export function loadSecretKey(
     );
     return null;
   }
+}
+
+/** The key in the file; null only when there's no file yet. */
+function readKeyFile(file: string): Buffer | null {
+  let text: string;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return null;
+    }
+    throw new Error(
+      `Couldn't read the secret key at ${file} (${(error as Error).message}). Fix its permissions, or restore it from a backup.`,
+    );
+  }
+  const key = Buffer.from(text.trim(), 'base64');
+  if (key.length !== 32) {
+    throw new Error(
+      `${file} doesn't hold a valid secret key. Restore it from a backup; deleting it means entering every API key again.`,
+    );
+  }
+  return key;
 }

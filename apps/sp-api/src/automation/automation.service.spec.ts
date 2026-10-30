@@ -83,18 +83,18 @@ describe('AutomationService', () => {
 
   afterEach(() => jest.useRealTimers());
 
-  it('makes a new webhook token when the saved one can’t be unlocked', async () => {
+  it('keeps a webhook token it can’t unlock, and refuses every call until it’s replaced', async () => {
     settings = { ...settings, webhookToken: null };
 
     await expect(service.verifyToken('secret-token')).resolves.toBe(false);
+    await expect(service.verifyToken('')).resolves.toBe(false);
+    // Nothing overwrites the stored token: the right key may come back.
+    expect(prisma.libraryAutomationSettings.update).not.toHaveBeenCalled();
 
-    expect(prisma.libraryAutomationSettings.update).toHaveBeenCalledWith({
-      where: { key: 'GLOBAL' },
-      data: { webhookToken: expect.stringMatching(/^[0-9a-f]{48}$/) },
-    });
-    await expect(
-      service.verifyToken(String(settings.webhookToken)),
-    ).resolves.toBe(true);
+    // Making a new link in Settings works again.
+    const fresh = await service.regenerateToken();
+    const token = fresh.webhookPath.split('/').pop() ?? '';
+    await expect(service.verifyToken(token)).resolves.toBe(true);
   });
 
   it('scans, identifies and generates previews for the new scenes, then refreshes Stashboard', async () => {
