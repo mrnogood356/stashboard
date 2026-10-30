@@ -12,7 +12,7 @@
   <div class="body">
     @for (release of releases(); track release.version) {
       <section class="release">
-        @if (releases().length > 1) {
+        @if (releases().length > 1 || release.version !== current()) {
           <h3>
             {{ release.version }}
             @if (release.date) {
