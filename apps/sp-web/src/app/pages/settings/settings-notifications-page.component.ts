@@ -90,7 +90,12 @@ export class SettingsNotificationsPageComponent implements OnInit {
     key: K,
     value: NotificationSettings[K],
   ): void {
-    this.form.update((current) => ({ ...current, [key]: value }));
+    this.form.update((current) => ({
+      ...current,
+      [key]: value,
+      // A Pushover token is no ntfy token: it must never reach an ntfy server.
+      ...(key === 'channel' && value !== current.channel ? { token: null } : {}),
+    }));
     this.status.set(null);
   }
 

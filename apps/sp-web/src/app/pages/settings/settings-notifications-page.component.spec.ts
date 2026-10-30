@@ -93,4 +93,36 @@ describe('SettingsNotificationsPageComponent', () => {
 
     expect(testButton().disabled).toBe(false);
   });
+
+  it('forgets the Pushover token when switching to ntfy, so it never reaches ntfy', async () => {
+    const sendTest = vi.fn().mockReturnValue(of(undefined));
+    const fixture = await render({
+      getSettings: vi.fn().mockReturnValue(
+        of({
+          ...saved,
+          channel: 'PUSHOVER' as const,
+          url: 'https://ntfy.sh/topic',
+          token: 'pushover-app-token',
+          userKey: 'user-key',
+        }),
+      ),
+      sendTest,
+    });
+    const root = fixture.nativeElement as HTMLElement;
+
+    Array.from(root.querySelectorAll('label.channel-option'))
+      .find((label) => label.textContent?.trim() === 'ntfy')!
+      .querySelector('input')!
+      .click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    Array.from(root.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Send test'))!
+      .click();
+
+    expect(sendTest).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: 'NTFY', token: null }),
+    );
+  });
 });

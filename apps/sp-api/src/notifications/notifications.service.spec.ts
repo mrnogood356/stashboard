@@ -171,6 +171,26 @@ describe('NotificationsService', () => {
     });
   });
 
+  it('keeps Pushover messages inside its length limits', async () => {
+    findUniqueMock.mockResolvedValue(
+      enabledSettings({
+        channel: 'PUSHOVER',
+        url: null,
+        token: 'app-token',
+        userKey: 'user-key',
+      }),
+    );
+    await service.notifySceneChanges(
+      Array.from({ length: 5 }, (_, i) => ({
+        event: 'AVAILABLE' as const,
+        title: `${i} ${'long title '.repeat(40)}`,
+      })),
+    );
+    const payload = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(payload.message.length).toBeLessThanOrEqual(1024);
+    expect(payload.message.endsWith('…')).toBe(true);
+  });
+
   it('needs both Pushover keys, not a URL, to turn Pushover on', async () => {
     const base = {
       enabled: true,

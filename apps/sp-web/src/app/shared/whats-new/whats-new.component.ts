@@ -3,7 +3,7 @@ import { AboutApiService, ReleaseNotes } from '../../core/api/about.service';
 
 /** The last version this browser opened; "What's new" covers everything after it. */
 export const SEEN_VERSION_KEY = 'sp-seen-version';
-const RELEASE = /^\d+\.\d+\.\d+$/;
+const RELEASE = /^v?\d+\.\d+\.\d+$/;
 
 /**
  * After an update, a short note of what changed since this browser last

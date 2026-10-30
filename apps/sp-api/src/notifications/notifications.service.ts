@@ -11,6 +11,9 @@ const SETTINGS_KEY = 'GLOBAL';
 const MAX_LISTED_TITLES = 5;
 const SEND_TIMEOUT_MS = 10_000;
 const PUSHOVER_URL = 'https://api.pushover.net/1/messages.json';
+/** Pushover refuses a whole message over these. */
+const PUSHOVER_TITLE_MAX = 250;
+const PUSHOVER_MESSAGE_MAX = 1024;
 
 export type SceneNotificationEvent = 'DOWNLOADING' | 'AVAILABLE' | 'FAILED';
 
@@ -238,8 +241,8 @@ export class NotificationsService {
           body: JSON.stringify({
             token: destination.token,
             user: destination.userKey,
-            title: message.title,
-            message: message.body,
+            title: clip(message.title, PUSHOVER_TITLE_MAX),
+            message: clip(message.body, PUSHOVER_MESSAGE_MAX),
           }),
         };
         break;
@@ -337,6 +340,10 @@ function assertHttpUrl(value: string): void {
       'Enter a full URL starting with http:// or https://.',
     );
   }
+}
+
+function clip(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
 /** HTTP headers must be ASCII; ntfy titles fall back to plain text. */
