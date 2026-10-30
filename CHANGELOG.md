@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.0](https://github.com/mrnogood356/stashboard/compare/v1.4.0...v1.5.0) (2026-10-30)
+
+
+### Features
+
+* **home:** Customize Home as rows, with a look per row and ready-made rows ([03fa183](https://github.com/mrnogood356/stashboard/commit/03fa183909197e8eb828aece4a93fa6fcee71ab0))
+
+
+### Bug Fixes
+
+* **web:** copy buttons work on http:// addresses ([1b184b2](https://github.com/mrnogood356/stashboard/commit/1b184b26e938a8094e9511fa873956948c0a6273))
+
 ## [1.4.0](https://github.com/mrnogood356/stashboard/compare/v1.3.0...v1.4.0) (2026-10-30)
 
 
