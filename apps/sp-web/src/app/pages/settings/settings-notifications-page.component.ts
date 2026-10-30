@@ -21,6 +21,11 @@ const CHANNEL_HELP: Record<
     placeholder: 'https://ntfy.sh/your-private-topic',
     help: 'Use your topic URL, on ntfy.sh or your own ntfy server. Subscribe to the same topic in the ntfy app.',
   },
+  PUSHOVER: {
+    label: 'Pushover',
+    placeholder: '',
+    help: 'Your user key is on the Pushover dashboard. For the token, create an application there (Stashboard as the name) and copy its API token.',
+  },
   WEBHOOK: {
     label: 'Webhook',
     placeholder: 'https://example.local/hooks/stashboard',
@@ -49,6 +54,8 @@ export class SettingsNotificationsPageComponent implements OnInit {
     enabled: false,
     channel: 'DISCORD',
     url: null,
+    token: null,
+    userKey: null,
     notifyDownloading: false,
     notifyAvailable: true,
     notifyFailed: true,
@@ -69,6 +76,14 @@ export class SettingsNotificationsPageComponent implements OnInit {
 
   protected help() {
     return CHANNEL_HELP[this.form().channel];
+  }
+
+  /** Whether the form has what the chosen channel needs to send. */
+  protected canSend(): boolean {
+    const form = this.form();
+    return form.channel === 'PUSHOVER'
+      ? Boolean(form.token?.trim() && form.userKey?.trim())
+      : Boolean(form.url?.trim());
   }
 
   protected update<K extends keyof NotificationSettings>(

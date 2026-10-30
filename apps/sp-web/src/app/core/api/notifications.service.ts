@@ -2,12 +2,16 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
-export type NotificationChannel = 'DISCORD' | 'NTFY' | 'WEBHOOK';
+export type NotificationChannel = 'DISCORD' | 'NTFY' | 'WEBHOOK' | 'PUSHOVER';
 
 export interface NotificationSettings {
   enabled: boolean;
   channel: NotificationChannel;
   url: string | null;
+  /** Pushover's application token, or an ntfy access token. */
+  token: string | null;
+  /** Pushover's user (or group) key. */
+  userKey: string | null;
   notifyDownloading: boolean;
   notifyAvailable: boolean;
   notifyFailed: boolean;

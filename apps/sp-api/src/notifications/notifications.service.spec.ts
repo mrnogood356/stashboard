@@ -35,6 +35,8 @@ describe('NotificationsService', () => {
       enabled: false,
       channel: 'DISCORD',
       url: null,
+      token: null,
+      userKey: null,
       notifyDownloading: false,
       notifyAvailable: true,
       notifyFailed: true,
@@ -125,6 +127,77 @@ describe('NotificationsService', () => {
         method: 'POST',
         body: 'Scene A',
         headers: expect.objectContaining({ Title: 'Now in your library' }),
+      }),
+    );
+  });
+
+  it('sends an ntfy access token when one is set', async () => {
+    findUniqueMock.mockResolvedValue(
+      enabledSettings({
+        channel: 'NTFY',
+        url: 'https://ntfy.example/private',
+        token: 'tk_secret',
+      }),
+    );
+    await service.notifySceneChanges([
+      { event: 'AVAILABLE', title: 'Scene A' },
+    ]);
+    expect(fetchMock.mock.calls[0][1].headers).toEqual(
+      expect.objectContaining({ Authorization: 'Bearer tk_secret' }),
+    );
+  });
+
+  it('sends Pushover messages with its two keys and no URL', async () => {
+    findUniqueMock.mockResolvedValue(
+      enabledSettings({
+        channel: 'PUSHOVER',
+        url: null,
+        token: 'app-token',
+        userKey: 'user-key',
+      }),
+    );
+    await service.notifySceneChanges([
+      { event: 'AVAILABLE', title: 'Scene A' },
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.pushover.net/1/messages.json',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({
+      token: 'app-token',
+      user: 'user-key',
+      title: 'Now in your library',
+      message: 'Scene A',
+    });
+  });
+
+  it('needs both Pushover keys, not a URL, to turn Pushover on', async () => {
+    const base = {
+      enabled: true,
+      channel: 'PUSHOVER' as const,
+      notifyDownloading: false,
+      notifyAvailable: true,
+      notifyFailed: true,
+    };
+    await expect(
+      service.updateSettings({ ...base, token: 'app-token' }),
+    ).rejects.toThrow('Pushover user key and application token');
+    expect(upsertMock).not.toHaveBeenCalled();
+
+    findUniqueMock.mockResolvedValue(null);
+    await service.updateSettings({
+      ...base,
+      token: ' app-token ',
+      userKey: 'user-key',
+    });
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          channel: 'PUSHOVER',
+          url: null,
+          token: 'app-token',
+          userKey: 'user-key',
+        }),
       }),
     );
   });
