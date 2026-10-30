@@ -10,6 +10,7 @@ import {
   LogsApiService,
 } from '../../core/api/logs.service';
 import { formatBytes } from './settings-about-page.component';
+import { copyText } from '../../core/clipboard/copy-text';
 
 /** How often the live view asks for new entries. */
 export const LIVE_INTERVAL_MS = 3_000;
@@ -318,7 +319,7 @@ export class SettingsLogsPageComponent implements OnInit, OnDestroy {
 
   protected async copy(entry: LogEntry): Promise<void> {
     try {
-      await navigator.clipboard.writeText(entryText(entry));
+      await copyText(entryText(entry));
       this.copiedId.set(entry.id);
       if (this.copiedTimer) {
         clearTimeout(this.copiedTimer);

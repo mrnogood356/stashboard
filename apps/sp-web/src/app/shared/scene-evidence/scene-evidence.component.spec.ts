@@ -172,6 +172,8 @@ describe('SceneEvidenceComponent', () => {
 
   it('copies the whole evidence as plain text', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
+    // The clipboard API is only offered on secure pages.
+    Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText },
@@ -189,6 +191,8 @@ describe('SceneEvidenceComponent', () => {
   });
 
   it('says how to copy by hand when the browser won’t', async () => {
+    // The clipboard API is only offered on secure pages.
+    Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },

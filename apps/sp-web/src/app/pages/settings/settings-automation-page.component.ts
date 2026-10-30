@@ -2,6 +2,7 @@ import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular
 import { RouterLink } from '@angular/router';
 import { AutomationApiService, AutomationSettings } from '../../core/api/automation.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
+import { copyText } from '../../core/clipboard/copy-text';
 
 type ToggleKey =
   | 'scanOnImport'
@@ -79,7 +80,7 @@ export class SettingsAutomationPageComponent implements OnInit, OnDestroy {
 
   protected async copyUrl(): Promise<void> {
     try {
-      await navigator.clipboard.writeText(this.webhookUrl());
+      await copyText(this.webhookUrl());
       this.copied.set(true);
       setTimeout(() => this.copied.set(false), 2000);
     } catch {

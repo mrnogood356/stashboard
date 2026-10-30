@@ -161,6 +161,8 @@ describe('SettingsAboutPageComponent', () => {
 
   it('copies version, health and errors as plain text', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
+    // The clipboard API is only offered on secure pages.
+    Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText },
       configurable: true,
