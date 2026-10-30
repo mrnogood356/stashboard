@@ -488,6 +488,12 @@ export class StashdbAdapter extends StashdbPeopleApi {
     const scenes = this.normalizeSceneFeedItems(
       rawScenes as Parameters<typeof this.normalizeSceneFeedItems>[0],
     );
+    if (rawScenes.length > 0 && scenes.length === 0) {
+      // The catalog sent scenes in a shape this can't read: say what it was.
+      this.logger.warn(
+        `None of the ${rawScenes.length} scenes from ${config.baseUrl} could be read; the first looked like: ${JSON.stringify(rawScenes[0]).slice(0, 400)}`,
+      );
+    }
     const total =
       typeof count === 'number'
         ? count

@@ -64,6 +64,29 @@ export function quoteArguments(
   return quoted;
 }
 
+/**
+ * Every `id` that came back as a number, as text. stash-box sends ids as
+ * strings (UUIDs); ThePornDB's endpoint sends numbers, which everything
+ * reading an answer would otherwise skip as missing.
+ */
+export function idsAsStrings<T>(value: T): T {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      idsAsStrings(item);
+    }
+  } else if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    for (const [key, field] of Object.entries(record)) {
+      if (key === 'id' && typeof field === 'number' && Number.isFinite(field)) {
+        record[key] = String(field);
+      } else if (field && typeof field === 'object') {
+        idsAsStrings(field);
+      }
+    }
+  }
+  return value;
+}
+
 /** True when the catalog answered, but its own database failed the query. */
 export function isServerSideError(error: unknown): boolean {
   return error instanceof Error && SERVER_SIDE_ERROR.test(error.message);
@@ -223,6 +246,7 @@ export abstract class StashdbGraphqlClient {
         trackRuntimeHealth,
       );
     }
+    idsAsStrings(payload.data);
     return payload;
   }
 
