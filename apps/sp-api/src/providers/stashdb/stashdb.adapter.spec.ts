@@ -164,6 +164,43 @@ describe('StashdbAdapter', () => {
     expect(queries.at(-1)).toContain('direction: "DESC"');
   });
 
+  it('reads scenes whose ids come back as numbers (ThePornDB)', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            queryScenes: {
+              count: 1,
+              scenes: [
+                {
+                  id: 1234,
+                  title: 'A scene',
+                  date: '2026-10-01',
+                  images: [{ id: 9, url: 'https://cdn.example/a.jpg' }],
+                  studio: { id: 77, name: 'A studio', images: [] },
+                },
+              ],
+            },
+          },
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      ),
+    );
+
+    const result = await adapter.getScenesSortedByDate({
+      baseUrl: 'https://theporndb.net/graphql',
+      page: 1,
+      perPage: 24,
+    });
+
+    expect(result.scenes).toHaveLength(1);
+    expect(result.scenes[0]).toMatchObject({
+      id: '1234',
+      studioId: '77',
+      imageUrl: 'https://cdn.example/a.jpg',
+    });
+  });
+
   it('leaves enum values alone for StashDB', async () => {
     fetchMock.mockResolvedValue(
       new Response(
@@ -1218,7 +1255,14 @@ describe('StashdbAdapter', () => {
                   aliases: ['Nat', 42],
                 },
                 {
+                  // ThePornDB sends ids as numbers: read as text.
                   id: 12,
+                  name: 'Numbered',
+                  description: null,
+                  aliases: [],
+                },
+                {
+                  id: null,
                   name: 'Invalid',
                   description: null,
                   aliases: [],
@@ -1241,6 +1285,7 @@ describe('StashdbAdapter', () => {
         description: 'Natural scenes',
         aliases: ['Nat'],
       },
+      { id: '12', name: 'Numbered', description: null, aliases: [] },
     ]);
 
     const requestBody = JSON.parse(
