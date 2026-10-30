@@ -83,6 +83,20 @@ describe('AutomationService', () => {
 
   afterEach(() => jest.useRealTimers());
 
+  it('makes a new webhook token when the saved one can’t be unlocked', async () => {
+    settings = { ...settings, webhookToken: null };
+
+    await expect(service.verifyToken('secret-token')).resolves.toBe(false);
+
+    expect(prisma.libraryAutomationSettings.update).toHaveBeenCalledWith({
+      where: { key: 'GLOBAL' },
+      data: { webhookToken: expect.stringMatching(/^[0-9a-f]{48}$/) },
+    });
+    await expect(
+      service.verifyToken(String(settings.webhookToken)),
+    ).resolves.toBe(true);
+  });
+
   it('scans, identifies and generates previews for the new scenes, then refreshes Stashboard', async () => {
     await service.run('detected', ['stashdb-1']);
 

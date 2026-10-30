@@ -131,6 +131,17 @@ export class AutomationService
     const existing = await this.prisma.libraryAutomationSettings.findUnique({
       where: { key: KEY },
     });
+    // A token saved under a secret key that's since been lost reads as null:
+    // make a new one (Whisparr needs the new link).
+    if (existing && !existing.webhookToken) {
+      this.logger.warn(
+        'Made a new Whisparr webhook link, because the saved one couldn’t be unlocked. Copy it from Settings → Automation into Whisparr.',
+      );
+      return this.prisma.libraryAutomationSettings.update({
+        where: { key: KEY },
+        data: { webhookToken: newToken() },
+      });
+    }
     if (existing) {
       return existing;
     }
