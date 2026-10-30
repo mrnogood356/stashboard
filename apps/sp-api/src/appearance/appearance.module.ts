@@ -6,5 +6,6 @@ import { AppearanceService } from './appearance.service';
 @Module({
   controllers: [AppearanceController],
   providers: [AppearanceService],
+  exports: [AppearanceService],
 })
 export class AppearanceModule {}

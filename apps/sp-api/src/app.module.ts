@@ -7,6 +7,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AboutModule } from './about/about.module';
+import { BackupModule } from './backup/backup.module';
 import { AppearanceModule } from './appearance/appearance.module';
 import { AcquisitionModule } from './acquisition/acquisition.module';
 import { AuthModule } from './auth/auth.module';
@@ -65,6 +66,7 @@ import { StudiosModule } from './studios/studios.module';
     AboutModule,
     LogsModule,
     AppearanceModule,
+    BackupModule,
   ],
 })
 export class AppModule {}

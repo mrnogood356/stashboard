@@ -689,6 +689,6 @@ const INTEGRATION_LABELS: Record<IntegrationType, string> = {
 };
 
 /** "Whisparr", not "WHISPARR", for log lines. */
-function integrationLabel(type: IntegrationType): string {
+export function integrationLabel(type: IntegrationType): string {
   return INTEGRATION_LABELS[type] ?? type;
 }

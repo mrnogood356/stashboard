@@ -38,7 +38,7 @@ describe('groupSettingsNav', () => {
       ['setup', ['Integrations', 'Indexing', 'Setup check']],
       ['behaviour', ['Notifications', 'Automation', 'Hidden']],
       ['look', ['Appearance', 'Playback', 'Privacy']],
-      ['system', ['Account', 'About & health', 'Logs']],
+      ['system', ['Account & backup', 'About & health', 'Logs']],
     ]);
   });
 });

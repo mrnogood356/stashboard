@@ -91,11 +91,11 @@ export const SETTINGS_SECTIONS: readonly SettingsNavItem[] = [
     detail: 'PIN or Face ID lock for the home-screen app',
   },
   {
-    label: 'Account',
+    label: 'Account & backup',
     group: 'system',
     route: '/settings/account',
     icon: 'pi-user',
-    detail: 'Change your password',
+    detail: 'Your password, and a copy of every setting',
   },
   {
     label: 'About & health',
