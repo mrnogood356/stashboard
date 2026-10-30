@@ -1,7 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { Subject, of } from 'rxjs';
+import { NEVER, Subject, of } from 'rxjs';
+import { AboutApiService } from './about.service';
 import { AcquisitionService } from './acquisition.service';
 import { DownloadHandoffApiService } from './download-handoff.service';
 import { RuntimeHealthResponse } from './runtime-health.types';
@@ -230,6 +231,8 @@ describe('RuntimeHealthService', () => {
           provide: HttpClient,
           useValue: httpClient,
         },
+        // The shell's "What's new" note; not what this test is about.
+        { provide: AboutApiService, useValue: { changes: () => NEVER } },
         {
           provide: SetupService,
           useValue: setupService,
