@@ -14,12 +14,12 @@ fi
 export APP_DATA_DIR
 SESSION_SECRET_FILE="${SESSION_SECRET_FILE:-${APP_DATA_DIR%/}/session-secret}"
 
-# What Stashboard itself keeps in its folders: the session secret, the log
-# files, the media cache folder and its <sha256>.bin/.json files (and .tmp
+# What Stashboard itself keeps in its folders: the session secret, the key
+# that locks saved API keys (secret-key), the log files, the media cache folder and its <sha256>.bin/.json files (and .tmp
 # ones mid-write).
 is_stashboard_entry() {
   case "$1" in
-    .stashboard | .stasharr | session-secret | session-secret.tmp | media-cache | logs) return 0 ;;
+    .stashboard | .stasharr | session-secret | session-secret.tmp | secret-key | media-cache | logs) return 0 ;;
     *.bin | *.json | *.tmp) return 0 ;;
   esac
   return 1
@@ -40,7 +40,7 @@ take_ownership() {
         echo "Warning: $dir also holds files Stashboard didn't create ($(basename "$entry")), so their owners are left alone. Give Stashboard a folder of its own." >&2
         chown "$PUID:$PGID" "$dir" 2>/dev/null || true
         # Its own entries still have to be readable by it.
-        for own in "$dir/session-secret" "$dir/media-cache" "$dir/logs"; do
+        for own in "$dir/session-secret" "$dir/secret-key" "$dir/media-cache" "$dir/logs"; do
           [ -e "$own" ] && find "$own" \( ! -user "$PUID" -o ! -group "$PGID" \) -exec chown "$PUID:$PGID" {} +
         done
         return 0

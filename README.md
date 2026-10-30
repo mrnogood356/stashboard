@@ -146,6 +146,7 @@ Tag guidance:
 | `MEDIA_CACHE_DISABLED` | unset | Set to `true` to turn the image cache off. |
 | `PUID` / `PGID` | `99` / `100` | The user and group Stashboard runs as (it starts as root only to hand its data folder to them). Folder cleanup and renames only work on media this user may change, so match your media's owner: `99`/`100` on Unraid, usually `1000`/`1000` elsewhere. `PUID=0` keeps running as root. |
 | `CONTENT_SECURITY_POLICY` | `enforce` | Browser Content-Security-Policy. By default the browser blocks anything the policy doesn't allow; set to `report-only` to only report violations in the browser console, or `off` to send no policy. |
+| `STASHBOARD_SECRET_KEY` | unset | The key that encrypts saved API keys and tokens in the database. Without it, Stashboard makes one on first start and keeps it in the app data volume (`secret-key`). Set it only if you want to manage the key yourself; changing it later means entering your API keys again. |
 | `ALLOW_EMBEDDING` | unset | Set to `true` to let dashboards such as Organizr or Homarr show Stashboard in an iframe. By default other sites can't frame it. |
 
 The image cache lives in the app data volume (`/var/lib/stashboard/media-cache`).
@@ -176,7 +177,7 @@ Rolling back the app image does not automatically roll back database schema chan
 
 ## Backups
 
-Persistent PostgreSQL data lives in the named Docker volume from your compose file. The standalone example uses `stashboard_postgres_data`, and the repo-managed compose file uses `sp_postgres_data`. The app container also uses a small data volume for the generated session secret: `stashboard_app_data` in the standalone example and `sp_app_data` in the repo-managed compose file. Back up the database volume or take a logical database dump before upgrades. For a full restore, preserve:
+Persistent PostgreSQL data lives in the named Docker volume from your compose file. The standalone example uses `stashboard_postgres_data`, and the repo-managed compose file uses `sp_postgres_data`. The app container also uses a small data volume for the generated session secret and the key that encrypts saved API keys (`secret-key`): `stashboard_app_data` in the standalone example and `sp_app_data` in the repo-managed compose file. Keep the two together: a database restored without its `secret-key` still works, but you'll have to enter your API keys and tokens again. Settings → Account & backup can also save every setting, keys included, to one file. Back up the database volume or take a logical database dump before upgrades. For a full restore, preserve:
 
 - the `stashboard_postgres_data` Docker volume
 - the `stashboard_app_data` Docker volume
