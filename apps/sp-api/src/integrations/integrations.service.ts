@@ -31,6 +31,8 @@ import {
   configuredCatalogProviderTypeFromIntegrations,
   getCatalogProviderLabel,
   instanceCatalogProviderTypeFromIntegrations,
+  INSTANCE_CATALOG_PROVIDER_KEYS,
+  isBrowseOnlyCatalogKey,
   isCatalogProviderIntegrationType,
 } from '../providers/catalog/catalog-provider.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -102,10 +104,12 @@ export class IntegrationsService {
     // The first catalog provider saved becomes this instance's provider. Once one
     // is chosen, the other can be added as an optional browse-only provider: it is
     // not marked as the instance provider and saving it never resets anything.
+    // A browse-only catalog (ThePornDB) never becomes the instance's own.
+    const canClaimInstance = isCatalogProvider && !isBrowseOnlyCatalogKey(type);
     const claimsInstance =
-      isCatalogProvider &&
+      canClaimInstance &&
       (!instanceProviderType || instanceProviderType === type);
-    const resetsOtherProviders = isCatalogProvider && !instanceProviderType;
+    const resetsOtherProviders = canClaimInstance && !instanceProviderType;
 
     const healthState = this.resolveSavedHealthState(
       existing,
@@ -191,10 +195,12 @@ export class IntegrationsService {
     const instanceProviderType = isCatalogProvider
       ? await this.getInstanceCatalogProviderType()
       : null;
+    // A browse-only catalog (ThePornDB) never becomes the instance's own.
+    const canClaimInstance = isCatalogProvider && !isBrowseOnlyCatalogKey(type);
     const claimsInstance =
-      isCatalogProvider &&
+      canClaimInstance &&
       (!instanceProviderType || instanceProviderType === type);
-    const resetsOtherProviders = isCatalogProvider && !instanceProviderType;
+    const resetsOtherProviders = canClaimInstance && !instanceProviderType;
 
     const existing = await this.prisma.integrationConfig.findUnique({
       where: { type },
@@ -219,6 +225,7 @@ export class IntegrationsService {
           break;
         case IntegrationType.STASHDB:
         case IntegrationType.FANSDB:
+        case IntegrationType.THEPORNDB:
           await this.stashdbAdapter.testConnection(config);
           break;
         case IntegrationType.WHISPARR:
@@ -287,12 +294,15 @@ export class IntegrationsService {
       : null;
     // Resetting the instance provider clears the whole catalog choice; resetting
     // an optional browse-only provider only removes that provider.
+    // ThePornDB is always browse-only, so resetting it never touches the rest,
+    // and resetting the instance provider leaves it set up.
     if (
       isCatalogProviderIntegrationType(type) &&
+      !isBrowseOnlyCatalogKey(type) &&
       (!instanceProviderType || instanceProviderType === type)
     ) {
       const resetRecords = await this.prisma.$transaction(
-        CATALOG_PROVIDER_KEYS.map((providerType) =>
+        INSTANCE_CATALOG_PROVIDER_KEYS.map((providerType) =>
           this.prisma.integrationConfig.upsert({
             where: { type: providerType },
             update: this.resetPayload(),
@@ -412,7 +422,8 @@ export class IntegrationsService {
   private otherCatalogProviderTypes(
     type: CatalogProviderIntegrationType,
   ): CatalogProviderIntegrationType[] {
-    return CATALOG_PROVIDER_KEYS.filter(
+    // Browse-only catalogs are left alone when the instance picks its own.
+    return INSTANCE_CATALOG_PROVIDER_KEYS.filter(
       (providerType) => providerType !== type,
     );
   }
@@ -596,6 +607,7 @@ export class IntegrationsService {
         return;
       case IntegrationType.STASHDB:
       case IntegrationType.FANSDB:
+      case IntegrationType.THEPORNDB:
         await this.stashdbAdapter.probeConnection(config);
         return;
       case IntegrationType.WHISPARR:
@@ -683,6 +695,7 @@ const INTEGRATION_LABELS: Record<IntegrationType, string> = {
   STASH: 'Stash',
   STASHDB: 'StashDB',
   FANSDB: 'FansDB',
+  THEPORNDB: 'ThePornDB',
   WHISPARR: 'Whisparr',
   PROWLARR: 'Prowlarr',
   SABNZBD: 'SABnzbd',

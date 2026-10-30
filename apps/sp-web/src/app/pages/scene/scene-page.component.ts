@@ -301,12 +301,12 @@ export class ScenePageComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Whisparr only knows StashDB scenes, so FansDB scenes (and any scene this
+   * Whisparr only knows StashDB scenes, so FansDB and ThePornDB scenes (and any scene this
    * instance can't request) can only be downloaded through Prowlarr.
    */
   protected needsProwlarr(scene: SceneDetails): boolean {
     return (
-      (scene.source === 'FANSDB' || scene.requestable === false) &&
+      (scene.source !== 'STASHDB' || scene.requestable === false) &&
       !this.hasStashCopy(scene) &&
       !this.canPickRelease(scene) &&
       scene.status.state !== 'AVAILABLE' &&

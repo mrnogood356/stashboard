@@ -91,6 +91,7 @@ export class SettingsIntegrationsPageComponent implements OnInit {
     'WHISPARR',
     'STASHDB',
     'FANSDB',
+    'THEPORNDB',
     'PROWLARR',
     'SABNZBD',
   ];
@@ -100,9 +101,19 @@ export class SettingsIntegrationsPageComponent implements OnInit {
     if (!catalogProvider) {
       return ['STASH', 'WHISPARR', 'PROWLARR', 'SABNZBD'];
     }
-    // Once a provider is chosen, the other one can be added for browsing only.
+    // Once a provider is chosen, the other one and ThePornDB can be added for
+    // browsing only. ThePornDB is never the instance's own: Whisparr finds
+    // scenes by StashDB id.
     const browseProvider: IntegrationType = catalogProvider === 'STASHDB' ? 'FANSDB' : 'STASHDB';
-    return ['STASH', 'WHISPARR', catalogProvider, browseProvider, 'PROWLARR', 'SABNZBD'];
+    return [
+      'STASH',
+      'WHISPARR',
+      catalogProvider,
+      browseProvider,
+      'THEPORNDB',
+      'PROWLARR',
+      'SABNZBD',
+    ];
   });
   protected readonly serviceTabs = this.serviceTypes;
 
@@ -131,6 +142,7 @@ export class SettingsIntegrationsPageComponent implements OnInit {
     SABNZBD: createIntegrationForm(),
     STASHDB: createIntegrationForm(),
     FANSDB: createIntegrationForm(),
+    THEPORNDB: createIntegrationForm(),
   };
 
   protected readonly integrations = signal<Record<IntegrationType, IntegrationResponse | null>>(
@@ -310,6 +322,9 @@ export class SettingsIntegrationsPageComponent implements OnInit {
 
     const catalogProvider = this.catalogProvider();
     if (this.isBrowseProvider(type) && catalogProvider) {
+      if (type === 'THEPORNDB') {
+        return `Optional. Browse ThePornDB next to ${this.labelFor(catalogProvider)} on the Scenes, Performers and Studios pages. Use https://theporndb.net/graphql and the API token from your ThePornDB profile (API Tokens). Its scenes show library status and can be found through Prowlarr, but not requested in Whisparr.`;
+      }
       return `Optional. Add ${this.labelFor(type)} to browse it next to ${this.labelFor(catalogProvider)} on the Scenes, Performers and Studios pages. Requests keep using ${this.labelFor(catalogProvider)}, and ${this.labelFor(type)} scenes show library status but can't be requested.`;
     }
 

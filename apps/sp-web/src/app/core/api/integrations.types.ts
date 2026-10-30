@@ -1,17 +1,19 @@
-export type CatalogProviderType = 'STASHDB' | 'FANSDB';
+export type CatalogProviderType = 'STASHDB' | 'FANSDB' | 'THEPORNDB';
 export type IntegrationType = 'STASH' | 'WHISPARR' | 'PROWLARR' | 'SABNZBD' | CatalogProviderType;
 export type IntegrationStatus = 'NOT_CONFIGURED' | 'CONFIGURED' | 'ERROR';
 export type IntegrationTestStatus = 'CONFIGURED' | 'ERROR';
 export type ReadinessState = 'NOT_SAVED' | 'SAVED' | 'TEST_FAILED' | 'READY';
 
 export function isCatalogProviderType(type: IntegrationType): type is CatalogProviderType {
-  return type === 'STASHDB' || type === 'FANSDB';
+  return type === 'STASHDB' || type === 'FANSDB' || type === 'THEPORNDB';
 }
 
 export function integrationLabel(type: IntegrationType): string {
   switch (type) {
     case 'FANSDB':
       return 'FansDB';
+    case 'THEPORNDB':
+      return 'ThePornDB';
     case 'STASHDB':
       return 'StashDB';
     case 'STASH':

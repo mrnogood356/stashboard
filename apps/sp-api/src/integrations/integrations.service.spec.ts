@@ -361,6 +361,34 @@ describe('IntegrationsService', () => {
     expect(args.update).not.toHaveProperty('config');
   });
 
+  it('never makes ThePornDB the instance catalog, even when it is the first one saved', async () => {
+    findMany.mockResolvedValue([]);
+    findUnique.mockResolvedValue(null);
+    upsert.mockResolvedValue({
+      type: IntegrationType.THEPORNDB,
+      enabled: true,
+    });
+
+    await service.upsert(IntegrationType.THEPORNDB, {
+      baseUrl: 'https://theporndb.net/graphql',
+      apiKey: 'tpdb-key',
+    });
+
+    expect(transaction).not.toHaveBeenCalled();
+    const args = upsert.mock.calls[0][0] as { update: Record<string, unknown> };
+    expect(args.update).not.toHaveProperty('config');
+  });
+
+  it('resets only ThePornDB when it is reset with no instance catalog yet', async () => {
+    findMany.mockResolvedValue([]);
+    upsert.mockResolvedValue({ type: IntegrationType.THEPORNDB });
+
+    await service.reset(IntegrationType.THEPORNDB);
+
+    expect(transaction).not.toHaveBeenCalled();
+    expect(upsert).toHaveBeenCalledTimes(1);
+  });
+
   it('only removes a browse-only provider when it is reset', async () => {
     findMany.mockResolvedValue([
       {

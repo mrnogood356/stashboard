@@ -259,6 +259,7 @@ enum HomeRailContentType {
 enum IntegrationType {
   STASHDB
   FANSDB
+  THEPORNDB
   STASH
   WHISPARR
   PROWLARR

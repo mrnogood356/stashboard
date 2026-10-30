@@ -983,7 +983,7 @@ export class HomePageComponent implements OnInit, OnDestroy {
   }
 
   protected isInternalSceneRoute(item: HomeRailItem): boolean {
-    return item.source === 'STASHDB' || item.source === 'FANSDB';
+    return item.source === 'STASHDB' || item.source === 'FANSDB' || item.source === 'THEPORNDB';
   }
 
   private loadRailContent(rails: HomeRailConfig[]) {
