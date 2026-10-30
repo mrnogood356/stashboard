@@ -21,8 +21,17 @@
         ></i>
         {{ copied() ? 'Copied' : 'Copy for support' }}
       </button>
+      <button type="button" class="pill report" data-testid="report-problem" (click)="report()">
+        <i class="pi pi-github" aria-hidden="true"></i>
+        Report a problem
+      </button>
     </div>
   </header>
+
+  <p class="muted small share-note">
+    Copy for support and Report a problem leave out web addresses, IP addresses and keys, so the
+    details are safe to post.
+  </p>
 
   @if (copyFailed()) {
     <p class="error" role="alert">Couldn’t copy. Your browser may not allow it here.</p>

@@ -1,0 +1,124 @@
+<section class="card backup-card" aria-labelledby="backup-title">
+  <div class="card-head">
+    <h3 id="backup-title">Back up settings</h3>
+    <p class="summary">
+      Every setting in one file: services, notifications, automation, match &amp; rename, finished
+      downloads, hidden, appearance, playback and logs. Your library, requests and password aren’t
+      in it; they come back from Stash and Whisparr, or belong to this install.
+    </p>
+  </div>
+
+  <div class="switch-row">
+    <span>
+      Include API keys and tokens
+      <span class="muted small">Without them you’ll type the keys in again after restoring.</span>
+    </span>
+    <input
+      type="checkbox"
+      class="app-switch"
+      role="switch"
+      aria-label="Include API keys and tokens"
+      [checked]="includeSecrets()"
+      (change)="includeSecrets.set($any($event.target).checked)"
+    />
+  </div>
+  @if (includeSecrets()) {
+    <p class="muted small warn-line">
+      <i class="pi pi-lock" aria-hidden="true"></i>
+      Keep the file somewhere private: anyone with it has your keys.
+    </p>
+  }
+  @if (downloadError(); as error) {
+    <p class="error" role="alert">{{ error }}</p>
+  }
+  <div class="actions">
+    <button
+      type="button"
+      class="button"
+      data-testid="download-backup"
+      [disabled]="downloading()"
+      (click)="download()"
+    >
+      <i class="pi pi-download" aria-hidden="true"></i>
+      {{ downloading() ? 'Preparing…' : 'Download backup' }}
+    </button>
+  </div>
+</section>
+
+<section class="card backup-card" aria-labelledby="restore-title">
+  <div class="card-head">
+    <h3 id="restore-title">Restore from a backup</h3>
+    <p class="summary">
+      Puts every setting in the file back, replacing what’s set here. Services are tested as they go
+      in, like Save &amp; test.
+    </p>
+  </div>
+
+  @if (summary(); as info) {
+    @if (file()) {
+      <div class="picked" data-testid="backup-summary">
+        <i class="pi pi-file" aria-hidden="true"></i>
+        <div>
+          <strong>{{ fileName() }}</strong>
+          <p class="muted small">
+            Made by Stashboard {{ info.appVersion ?? '(unknown version)' }} on
+            {{ when(info.exportedAt) }} ·
+            {{ info.includesSecrets ? 'with API keys' : 'without API keys' }}
+          </p>
+        </div>
+      </div>
+      @if (restoreError(); as error) {
+        <p class="error" role="alert">{{ error }}</p>
+      }
+      <div class="actions">
+        <button type="button" class="button secondary" (click)="cancel()">Cancel</button>
+        <button
+          type="button"
+          class="button"
+          data-testid="restore-backup"
+          [disabled]="restoring()"
+          (click)="restore()"
+        >
+          {{ restoring() ? 'Restoring…' : 'Restore these settings' }}
+        </button>
+      </div>
+    }
+  }
+
+  @if (results(); as results) {
+    <ul class="results" data-testid="restore-results">
+      @for (result of results; track result.id) {
+        <li [attr.data-status]="result.status">
+          <i [class]="statusIcon(result.status)" aria-hidden="true"></i>
+          <div>
+            <strong>{{ result.label }}</strong>
+            @if (result.message) {
+              <p class="muted small">{{ result.message }}</p>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+    <div class="actions">
+      <button type="button" class="button" (click)="reload()">Reload Stashboard</button>
+    </div>
+  }
+
+  @if (fileError(); as error) {
+    <p class="error" role="alert">{{ error }}</p>
+  }
+
+  @if (!file()) {
+    <label class="button secondary file-button">
+      <i class="pi pi-upload" aria-hidden="true"></i>
+      Choose a backup file
+      <input
+        type="file"
+        accept="application/json,.json"
+        class="file-input"
+        data-testid="backup-file"
+        (change)="choose($event)"
+      />
+    </label>
+  }
+</section>

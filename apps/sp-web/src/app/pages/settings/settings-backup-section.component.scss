@@ -1,0 +1,148 @@
+:host {
+  display: grid;
+  gap: 1rem;
+}
+
+h3,
+p {
+  margin: 0;
+}
+
+.card {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.card-head {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.summary,
+.muted {
+  color: var(--text-muted);
+}
+
+.small {
+  font-size: 0.84rem;
+}
+
+.switch-row .muted {
+  display: block;
+  margin-top: 0.15rem;
+  font-weight: 400;
+}
+
+.warn-line {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: -0.4rem;
+}
+
+.error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  height: 2.5rem;
+  padding: 0 1.1rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--focus-ring) 70%, transparent);
+  background: var(--focus-ring);
+  color: var(--accent-contrast, #fff);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button.secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--border-strong) 60%, transparent);
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* The file picker looks like a button; the input itself is hidden but still focusable. */
+.file-button {
+  position: relative;
+  justify-self: start;
+}
+
+.file-button:focus-within {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.picked {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+
+.picked > i {
+  margin-top: 0.2rem;
+  color: var(--text-muted);
+}
+
+.results {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.results li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.6rem 0;
+}
+
+.results li + li {
+  border-top: 1px solid var(--separator, var(--border-subtle));
+}
+
+.results li > i {
+  margin-top: 0.2rem;
+}
+
+.results [data-status='restored'] > i {
+  color: var(--success);
+}
+
+.results [data-status='warning'] > i {
+  color: var(--warning);
+}
+
+.results [data-status='failed'] > i {
+  color: var(--danger);
+}

@@ -184,6 +184,38 @@ describe('SettingsAboutPageComponent', () => {
     expect(root.textContent).toContain('Copied');
   });
 
+  it('opens the bug report form with the version and details, minus addresses', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const { root } = await render({
+      about: vi.fn().mockReturnValue(
+        of({
+          ...about,
+          recentErrors: [
+            {
+              at: '2026-10-30T10:00:00.000Z',
+              level: 'error',
+              source: 'server',
+              context: 'WhisparrAdapter',
+              message: 'connect ECONNREFUSED 192.168.1.20:6969',
+            },
+          ],
+        }),
+      ),
+      health: vi.fn().mockReturnValue(of(health)),
+      update: vi.fn().mockReturnValue(of(behind)),
+    });
+
+    root.querySelector<HTMLButtonElement>('[data-testid="report-problem"]')!.click();
+
+    const url = new URL(open.mock.calls[0][0] as string);
+    expect(url.pathname).toMatch(/\/issues\/new$/);
+    expect(url.searchParams.get('version')).toBe('edge-abc1234');
+    const details = url.searchParams.get('details') ?? '';
+    expect(details).toContain('connect ECONNREFUSED [ip]');
+    expect(details).not.toContain('192.168.1.20');
+    open.mockRestore();
+  });
+
   it('links to the setup check', async () => {
     const { root } = await render({
       about: vi.fn().mockReturnValue(of(about)),

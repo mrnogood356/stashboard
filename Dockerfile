@@ -46,6 +46,8 @@ COPY --from=prod-deps /app/apps/sp-api/node_modules ./apps/sp-api/node_modules
 COPY --from=build /app/apps/sp-api/dist ./apps/sp-api/dist
 COPY --from=build /app/apps/sp-web/dist ./apps/sp-web/dist
 COPY --from=build /app/prisma ./prisma
+# "What's new" after an update reads the release notes from here.
+COPY --from=build /app/CHANGELOG.md ./CHANGELOG.md
 COPY infrastructure/docker/healthcheck.mjs /usr/local/bin/healthcheck.mjs
 COPY infrastructure/docker/start-app.sh /usr/local/bin/start-app
 RUN chmod +x /usr/local/bin/start-app

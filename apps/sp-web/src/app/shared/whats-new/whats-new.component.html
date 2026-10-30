@@ -1,0 +1,45 @@
+<dialog
+  class="whats-new"
+  aria-labelledby="whats-new-title"
+  data-testid="whats-new"
+  (cancel)="$event.preventDefault(); close()"
+>
+  <header class="head">
+    <p class="eyebrow"><i class="pi pi-sparkles" aria-hidden="true"></i> Updated</p>
+    <h2 id="whats-new-title">{{ title() }}</h2>
+  </header>
+
+  <div class="body">
+    @for (release of releases(); track release.version) {
+      <section class="release">
+        @if (releases().length > 1 || release.version !== current()) {
+          <h3>
+            {{ release.version }}
+            @if (release.date) {
+              <span class="date">{{ when(release.date) }}</span>
+            }
+          </h3>
+        }
+        @if (release.features.length > 0) {
+          <ul class="changes">
+            @for (line of release.features; track line) {
+              <li><i class="pi pi-plus-circle" aria-hidden="true"></i>{{ line }}</li>
+            }
+          </ul>
+        }
+        @if (release.fixes.length > 0) {
+          <p class="kind">Fixed</p>
+          <ul class="changes fixes">
+            @for (line of release.fixes; track line) {
+              <li><i class="pi pi-wrench" aria-hidden="true"></i>{{ line }}</li>
+            }
+          </ul>
+        }
+      </section>
+    }
+  </div>
+
+  <footer class="foot">
+    <button type="button" class="ok" data-testid="whats-new-close" (click)="close()">Got it</button>
+  </footer>
+</dialog>

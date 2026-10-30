@@ -311,6 +311,10 @@ model NotificationSettings {
   enabled           Boolean             @default(false)
   channel           NotificationChannel @default(DISCORD)
   url               String?
+  /// Pushover's application token, or an ntfy access token for a protected topic.
+  token             String?
+  /// Pushover's user (or group) key.
+  userKey           String?
   notifyDownloading Boolean             @default(false)
   notifyAvailable   Boolean             @default(true)
   notifyFailed      Boolean             @default(true)
@@ -322,6 +326,7 @@ enum NotificationChannel {
   DISCORD
   NTFY
   WEBHOOK
+  PUSHOVER
 }
 
 /// What happens when Whisparr imports a new scene: scan Stash, identify it, generate previews.

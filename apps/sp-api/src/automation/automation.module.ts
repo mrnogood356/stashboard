@@ -12,5 +12,6 @@ import { AutomationService } from './automation.service';
   imports: [StashModule, IndexingModule, OrganizerModule],
   controllers: [AutomationController, AutomationWebhookController],
   providers: [AutomationService],
+  exports: [AutomationService],
 })
 export class AutomationModule {}

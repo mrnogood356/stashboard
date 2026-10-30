@@ -9,6 +9,7 @@ import {
   UpdateCheckResponse,
 } from '../../core/api/about.service';
 import { AppUpdatesService } from '../../core/pwa/app-updates.service';
+import { redactForSharing, reportUrl } from './support-report';
 
 type RowStatus = 'ok' | 'warn' | 'fail' | 'skip';
 
@@ -125,7 +126,7 @@ export class SettingsAboutPageComponent implements OnInit, OnDestroy {
 
   protected async copy(): Promise<void> {
     try {
-      await navigator.clipboard.writeText(supportText(this.about(), this.update(), this.health()));
+      await navigator.clipboard.writeText(this.shareableText());
       this.copyFailed.set(false);
       this.copied.set(true);
       if (this.copiedTimer) {
@@ -135,6 +136,24 @@ export class SettingsAboutPageComponent implements OnInit, OnDestroy {
     } catch {
       this.copyFailed.set(true);
     }
+  }
+
+  /** Opens GitHub's bug form with the version and these details filled in. */
+  protected report(): void {
+    window.open(
+      reportUrl(
+        this.about()?.build.repository ?? null,
+        this.about()?.build.version ?? null,
+        this.shareableText(),
+      ),
+      '_blank',
+      'noopener',
+    );
+  }
+
+  /** Version, health and recent errors, with addresses and keys taken out. */
+  private shareableText(): string {
+    return redactForSharing(supportText(this.about(), this.update(), this.health()));
   }
 
   protected statusIcon(status: RowStatus): string {

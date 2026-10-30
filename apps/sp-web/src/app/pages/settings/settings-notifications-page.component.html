@@ -42,19 +42,61 @@
         </div>
       </fieldset>
 
-      <label class="field">
-        <span class="field-label">URL</span>
-        <input
-          class="text-input"
-          type="url"
-          name="url"
-          autocomplete="off"
-          [placeholder]="help().placeholder"
-          [ngModel]="form().url ?? ''"
-          (ngModelChange)="update('url', $event)"
-        />
-        <span class="muted">{{ help().help }}</span>
-      </label>
+      @if (form().channel === 'PUSHOVER') {
+        <label class="field">
+          <span class="field-label">User key</span>
+          <input
+            class="text-input"
+            type="text"
+            name="userKey"
+            autocomplete="off"
+            spellcheck="false"
+            [ngModel]="form().userKey ?? ''"
+            (ngModelChange)="update('userKey', $event)"
+          />
+        </label>
+        <label class="field">
+          <span class="field-label">Application token</span>
+          <input
+            class="text-input"
+            type="password"
+            name="token"
+            autocomplete="off"
+            [ngModel]="form().token ?? ''"
+            (ngModelChange)="update('token', $event)"
+          />
+          <span class="muted">{{ help().help }}</span>
+        </label>
+      } @else {
+        <label class="field">
+          <span class="field-label">URL</span>
+          <input
+            class="text-input"
+            type="url"
+            name="url"
+            autocomplete="off"
+            [placeholder]="help().placeholder"
+            [ngModel]="form().url ?? ''"
+            (ngModelChange)="update('url', $event)"
+          />
+          <span class="muted">{{ help().help }}</span>
+        </label>
+        @if (form().channel === 'NTFY') {
+          <label class="field">
+            <span class="field-label">Access token <span class="muted">(optional)</span></span>
+            <input
+              class="text-input"
+              type="password"
+              name="token"
+              autocomplete="off"
+              placeholder="tk_…"
+              [ngModel]="form().token ?? ''"
+              (ngModelChange)="update('token', $event)"
+            />
+            <span class="muted">Only for a topic that needs a login on your ntfy server.</span>
+          </label>
+        }
+      }
 
       <fieldset class="field events">
         <legend>Tell me when a requested scene…</legend>
@@ -106,7 +148,7 @@
         <button
           type="button"
           class="button secondary"
-          [disabled]="testing() || !form().url"
+          [disabled]="testing() || !canSend()"
           (click)="sendTest()"
         >
           {{ testing() ? 'Sending…' : 'Send test' }}

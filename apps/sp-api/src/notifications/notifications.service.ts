@@ -10,6 +10,10 @@ import {
 const SETTINGS_KEY = 'GLOBAL';
 const MAX_LISTED_TITLES = 5;
 const SEND_TIMEOUT_MS = 10_000;
+const PUSHOVER_URL = 'https://api.pushover.net/1/messages.json';
+/** Pushover refuses a whole message over these. */
+const PUSHOVER_TITLE_MAX = 250;
+const PUSHOVER_MESSAGE_MAX = 1024;
 
 export type SceneNotificationEvent = 'DOWNLOADING' | 'AVAILABLE' | 'FAILED';
 
@@ -54,8 +58,16 @@ const EVENT_COPY: Record<
   },
 };
 
+/** Where a message goes: the URL, plus Pushover's or ntfy's keys. */
+interface Destination {
+  channel: NotificationChannelValue;
+  url: string | null;
+  token: string | null;
+  userKey: string | null;
+}
+
 /**
- * Sends a message to Discord, ntfy or a generic webhook when requested scenes
+ * Sends a message to Discord, ntfy, Pushover or a generic webhook when requested scenes
  * change state. Events from one sync batch are grouped per type so a big sync
  * produces a few summary messages instead of a flood.
  */
@@ -74,6 +86,8 @@ export class NotificationsService {
       enabled: row?.enabled ?? false,
       channel: row?.channel ?? 'DISCORD',
       url: row?.url ?? null,
+      token: row?.token ?? null,
+      userKey: row?.userKey ?? null,
       notifyDownloading: row?.notifyDownloading ?? false,
       notifyAvailable: row?.notifyAvailable ?? true,
       notifyFailed: row?.notifyFailed ?? true,
@@ -83,20 +97,17 @@ export class NotificationsService {
   async updateSettings(
     dto: UpdateNotificationSettingsDto,
   ): Promise<NotificationSettingsDto> {
-    const url = dto.url?.trim() || null;
-    if (url) {
-      assertHttpUrl(url);
-    }
-    if (dto.enabled && !url) {
-      throw new BadRequestException(
-        'Add a URL before turning notifications on.',
-      );
+    const destination = toDestination(dto);
+    if (dto.enabled) {
+      assertComplete(destination, 'before turning notifications on');
     }
 
     const data = {
       enabled: dto.enabled,
       channel: dto.channel,
-      url,
+      url: destination.url,
+      token: destination.token,
+      userKey: destination.userKey,
       notifyDownloading: dto.notifyDownloading,
       notifyAvailable: dto.notifyAvailable,
       notifyFailed: dto.notifyFailed,
@@ -115,14 +126,11 @@ export class NotificationsService {
 
   /** Sends a test message using the given (possibly unsaved) settings. */
   async sendTest(dto: UpdateNotificationSettingsDto): Promise<void> {
-    const url = dto.url?.trim();
-    if (!url) {
-      throw new BadRequestException('Add a URL to send a test notification.');
-    }
-    assertHttpUrl(url);
+    const destination = toDestination(dto);
+    assertComplete(destination, 'to send a test notification');
 
     try {
-      await this.post(dto.channel, url, {
+      await this.post(destination, {
         title: 'Stashboard test notification',
         body: 'Notifications are working. You will hear from Stashboard when requests change.',
         color: 0x74b8ed,
@@ -151,7 +159,7 @@ export class NotificationsService {
 
     try {
       const settings = await this.getSettings();
-      if (!settings.enabled || !settings.url) {
+      if (!settings.enabled || !isComplete(settings)) {
         return;
       }
 
@@ -166,7 +174,7 @@ export class NotificationsService {
       let sent = 0;
       for (const message of messages) {
         try {
-          await this.post(settings.channel, settings.url, message);
+          await this.post(settings, message);
           sent += 1;
         } catch (error) {
           this.logger.warn(
@@ -189,13 +197,13 @@ export class NotificationsService {
   }
 
   private async post(
-    channel: NotificationChannelValue,
-    url: string,
+    destination: Destination,
     message: OutgoingMessage,
   ): Promise<void> {
     let init: RequestInit;
+    let url = destination.url ?? '';
 
-    switch (channel) {
+    switch (destination.channel) {
       case 'DISCORD':
         init = {
           method: 'POST',
@@ -215,8 +223,27 @@ export class NotificationsService {
       case 'NTFY':
         init = {
           method: 'POST',
-          headers: { Title: asciiHeader(message.title), Tags: 'stashboard' },
+          headers: {
+            Title: asciiHeader(message.title),
+            Tags: 'stashboard',
+            ...(destination.token
+              ? { Authorization: `Bearer ${destination.token}` }
+              : {}),
+          },
           body: message.body,
+        };
+        break;
+      case 'PUSHOVER':
+        url = PUSHOVER_URL;
+        init = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: destination.token,
+            user: destination.userKey,
+            title: clip(message.title, PUSHOVER_TITLE_MAX),
+            message: clip(message.body, PUSHOVER_MESSAGE_MAX),
+          }),
         };
         break;
       default:
@@ -268,6 +295,37 @@ function buildMessages(changes: SceneNotification[]): OutgoingMessage[] {
   return messages;
 }
 
+function toDestination(dto: UpdateNotificationSettingsDto): Destination {
+  const url = dto.url?.trim() || null;
+  if (url) {
+    assertHttpUrl(url);
+  }
+  return {
+    channel: dto.channel,
+    url,
+    token: dto.token?.trim() || null,
+    userKey: dto.userKey?.trim() || null,
+  };
+}
+
+/** Pushover needs its two keys; every other channel needs a URL. */
+function isComplete(destination: Destination): boolean {
+  return destination.channel === 'PUSHOVER'
+    ? Boolean(destination.token && destination.userKey)
+    : Boolean(destination.url);
+}
+
+function assertComplete(destination: Destination, purpose: string): void {
+  if (isComplete(destination)) {
+    return;
+  }
+  throw new BadRequestException(
+    destination.channel === 'PUSHOVER'
+      ? `Add your Pushover user key and application token ${purpose}.`
+      : `Add a URL ${purpose}.`,
+  );
+}
+
 function assertHttpUrl(value: string): void {
   let parsed: URL;
   try {
@@ -282,6 +340,10 @@ function assertHttpUrl(value: string): void {
       'Enter a full URL starting with http:// or https://.',
     );
   }
+}
+
+function clip(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
 /** HTTP headers must be ASCII; ntfy titles fall back to plain text. */

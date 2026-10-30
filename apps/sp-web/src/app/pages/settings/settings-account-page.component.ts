@@ -1,9 +1,10 @@
 import { Component } from '@angular/core';
 import { AccountSettingsSectionComponent } from '../../features/auth/account-settings-section.component';
+import { SettingsBackupSectionComponent } from './settings-backup-section.component';
 
 @Component({
   selector: 'app-settings-account-page',
-  imports: [AccountSettingsSectionComponent],
+  imports: [AccountSettingsSectionComponent, SettingsBackupSectionComponent],
   templateUrl: './settings-account-page.component.html',
   styleUrls: ['./settings-account-page.component.scss', './settings-shared.scss'],
 })

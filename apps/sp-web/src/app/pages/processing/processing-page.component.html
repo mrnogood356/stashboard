@@ -117,7 +117,11 @@
                       </button>
                     }
                     @if (entry.sceneId) {
-                      <a class="btn small" [routerLink]="['/scene', entry.sceneId]">
+                      <a
+                        class="btn small"
+                        [routerLink]="['/scene', entry.sceneId]"
+                        [queryParams]="{ returnTo: '/processing' }"
+                      >
                         Scene details
                       </a>
                     }

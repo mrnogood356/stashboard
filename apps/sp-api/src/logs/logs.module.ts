@@ -11,5 +11,6 @@ import { LogsService } from './logs.service';
     LogsService,
     { provide: APP_FILTER, useClass: ExceptionLoggingFilter },
   ],
+  exports: [LogsService],
 })
 export class LogsModule {}

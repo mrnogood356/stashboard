@@ -2,7 +2,8 @@ import { AcquisitionService } from '../../core/api/acquisition.service';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { NEVER, of } from 'rxjs';
+import { AboutApiService } from '../../core/api/about.service';
 import { AuthService } from '../../core/api/auth.service';
 import { RuntimeHealthService } from '../../core/api/runtime-health.service';
 import { RuntimeHealthResponse } from '../../core/api/runtime-health.types';
@@ -197,6 +198,8 @@ describe('AppShellLayoutComponent', () => {
           useValue: playbackSettings,
         },
         { provide: AcquisitionService, useValue: acquisitionService },
+        // The shell's "What's new" note; not what these tests are about.
+        { provide: AboutApiService, useValue: { changes: () => NEVER } },
       ],
     }).compileComponents();
 
