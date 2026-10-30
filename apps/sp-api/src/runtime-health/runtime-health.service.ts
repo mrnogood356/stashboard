@@ -287,7 +287,7 @@ export class RuntimeHealthService {
 function serviceLabel(service: RuntimeHealthServiceKey): string {
   switch (service) {
     case RuntimeHealthServiceKey.CATALOG:
-      return 'The catalog (StashDB/FansDB)';
+      return 'The catalog';
     case RuntimeHealthServiceKey.STASH:
       return 'Stash';
     case RuntimeHealthServiceKey.WHISPARR:

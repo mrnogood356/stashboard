@@ -10,6 +10,7 @@ const INTEGRATION_RUNTIME_HEALTH_SERVICE_MAP: Record<
   [IntegrationType.WHISPARR]: RuntimeHealthServiceKey.WHISPARR,
   [IntegrationType.STASHDB]: RuntimeHealthServiceKey.CATALOG,
   [IntegrationType.FANSDB]: RuntimeHealthServiceKey.CATALOG,
+  [IntegrationType.THEPORNDB]: RuntimeHealthServiceKey.CATALOG,
   [IntegrationType.PROWLARR]: null,
   [IntegrationType.SABNZBD]: null,
 };

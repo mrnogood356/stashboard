@@ -9,6 +9,7 @@ import { PlaybackModule } from '../playback/playback.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { StashModule } from '../providers/stash/stash.module';
 import { SceneStatusModule } from '../scene-status/scene-status.module';
+import { ScenesModule } from '../scenes/scenes.module';
 import { HomeController } from './home.controller';
 import { HomeAttentionService } from './home-attention.service';
 import { HomeService } from './home.service';
@@ -25,6 +26,7 @@ import { HomeService } from './home.service';
     StashModule,
     OrganizerModule,
     PlaybackModule,
+    ScenesModule,
   ],
   controllers: [HomeController],
   providers: [HomeService, HomeAttentionService],

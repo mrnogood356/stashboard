@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -15,6 +16,12 @@ import {
 } from './dto/create-home-rail.dto';
 import { HomeRailContentDto } from './dto/home-rail-content.dto';
 import { HomeRailDto } from './dto/home-rail.dto';
+import {
+  HOME_ROW_GALLERY_IDS,
+  type HomeRowGalleryId,
+  HomeRowGalleryItemDto,
+  UpdateHomeRowDisplayDto,
+} from './dto/home-row-display.dto';
 import { UpdateHomeRailsDto } from './dto/update-home-rails.dto';
 import { HomeAttentionDto } from './dto/home-attention.dto';
 import { HomeAttentionService } from './home-attention.service';
@@ -57,6 +64,29 @@ export class HomeController {
   @Get('rails/:id/items')
   getRailContent(@Param('id') id: string): Promise<HomeRailContentDto> {
     return this.homeService.getRailContent(id);
+  }
+
+  /** The ready-made rows "Add a row" offers. */
+  @Get('rails/gallery')
+  getRowGallery(): Promise<HomeRowGalleryItemDto[]> {
+    return this.homeService.getRowGallery();
+  }
+
+  @Post('rails/gallery/:presetId')
+  addGalleryRow(@Param('presetId') presetId: string): Promise<HomeRailDto> {
+    if (!(HOME_ROW_GALLERY_IDS as readonly string[]).includes(presetId)) {
+      throw new BadRequestException('There’s no such ready-made row.');
+    }
+    return this.homeService.addGalleryRow(presetId as HomeRowGalleryId);
+  }
+
+  /** How one row looks: its name, card size and style, details, devices. */
+  @Patch('rails/:id/display')
+  updateRowDisplay(
+    @Param('id') id: string,
+    @Body() payload: UpdateHomeRowDisplayDto,
+  ): Promise<HomeRailDto> {
+    return this.homeService.updateRowDisplay(id, payload);
   }
 
   @Put('rails')

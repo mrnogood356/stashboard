@@ -188,6 +188,9 @@ model HomeRail {
   enabled     Boolean             @default(true)
   sortOrder   Int
   config      Json?
+  /// How the row looks: its own name, card size and style, which details
+  /// cards show, where it shows and its length. Null keeps the defaults.
+  display     Json?
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
@@ -231,6 +234,11 @@ enum HomeRailKey {
   UNWATCHED_LIBRARY
   MOST_PLAYED_LIBRARY
   CONTINUE_WATCHING
+  REDISCOVER
+  TOP_RATED
+  QUICK_PICKS
+  LIBRARY_4K
+  COMING_SOON
 }
 
 enum HomeRailKind {
@@ -251,6 +259,7 @@ enum HomeRailContentType {
 enum IntegrationType {
   STASHDB
   FANSDB
+  THEPORNDB
   STASH
   WHISPARR
   PROWLARR

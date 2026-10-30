@@ -10,6 +10,7 @@ import {
 } from '../../core/api/about.service';
 import { AppUpdatesService } from '../../core/pwa/app-updates.service';
 import { redactForSharing, reportUrl } from './support-report';
+import { copyText } from '../../core/clipboard/copy-text';
 
 type RowStatus = 'ok' | 'warn' | 'fail' | 'skip';
 
@@ -126,7 +127,7 @@ export class SettingsAboutPageComponent implements OnInit, OnDestroy {
 
   protected async copy(): Promise<void> {
     try {
-      await navigator.clipboard.writeText(this.shareableText());
+      await copyText(this.shareableText());
       this.copyFailed.set(false);
       this.copied.set(true);
       if (this.copiedTimer) {

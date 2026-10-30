@@ -6,7 +6,7 @@ import {
 } from '../../core/catalog/catalog-browse.service';
 
 /**
- * StashDB / FansDB switch for browse pages. Only shows up when a second
+ * Catalog switch (StashDB, FansDB, ThePornDB) for browse pages. Only shows up when a second
  * provider is configured. Switching reloads the page, keeping tags (looked up
  * by name in the other catalog), sort and words; studios belong to one
  * catalog, so they're dropped.

@@ -16,6 +16,8 @@ import { PlaybackSettingsService } from '../../core/playback/playback-settings.s
 export interface SceneCardItem extends SceneCardShellItem {
   id: string;
   releaseDate: string | null;
+  /** Seconds; shown when a Home row asks for it. */
+  duration?: number | null;
   status?: SceneStatus | null;
 }
 
@@ -76,6 +78,12 @@ export class SceneCardComponent implements OnInit {
   @Input() playSceneId: string | null = null;
   @Input() playQueryParams: Params | null = null;
   @Input() progress: number | null = null;
+  /** Which details the card shows under its title (Home rows can turn them off). */
+  @Input() showStudio = true;
+  @Input() showDate = true;
+  @Input() showDuration = false;
+  /** Request, Find and status on the card. */
+  @Input() showActions = true;
   /** Extra actions in a ⋯ menu on the picture (e.g. Continue Watching). */
   @Input() menuActions: readonly SceneCardMenuAction[] = [];
   @Output() menuAction = new EventEmitter<string>();
@@ -134,6 +142,23 @@ export class SceneCardComponent implements OnInit {
   @Output() request = new EventEmitter<SceneRequestContext>();
 
   /** "Aug 14, 2025" for full dates; anything else is shown as given. */
+  protected shownStudio(): string | null {
+    return this.showStudio ? (this.item.studio ?? null) : null;
+  }
+
+  /** The date and length, as they're turned on and known. */
+  protected metaParts(): Array<{ text: string; date?: string }> {
+    const parts: Array<{ text: string; date?: string }> = [];
+    if (this.showDate && this.item.releaseDate) {
+      parts.push({ text: this.formatDate(this.item.releaseDate), date: this.item.releaseDate });
+    }
+    const duration = this.item.duration;
+    if (this.showDuration && duration && duration > 0) {
+      parts.push({ text: `${Math.max(1, Math.round(duration / 60))} min` });
+    }
+    return parts;
+  }
+
   protected formatDate(value: string): string {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
     if (!match) {

@@ -148,7 +148,11 @@ describe('ScenesService.getCalendar with Whisparr', () => {
           .mockResolvedValue(new Map([['w2', 'local-2']])),
       },
       catalogProviderService: {
+        // Browsing ThePornDB doesn't change where Whisparr's scenes are from.
         getConfiguredCatalogProvider: jest
+          .fn()
+          .mockResolvedValue({ integrationType: 'THEPORNDB' }),
+        getInstanceCatalogProvider: jest
           .fn()
           .mockResolvedValue({ integrationType: 'STASHDB' }),
       },
@@ -182,6 +186,11 @@ describe('ScenesService.getCalendar with Whisparr', () => {
       '2026-11-30',
     );
     expect(result.whisparr).toBe('ok');
+    expect(
+      result.items
+        .filter((item) => item.id.startsWith('w'))
+        .every((item) => item.source === 'STASHDB'),
+    ).toBe(true);
     expect(result.items.map((item) => item.id)).toEqual([
       'starred',
       'shared',

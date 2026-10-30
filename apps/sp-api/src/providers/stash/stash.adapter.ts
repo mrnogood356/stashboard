@@ -38,6 +38,13 @@ import {
   type StashTagRecord,
 } from './stash.types';
 import { StashLibraryToolsApi } from './stash-library-tools.api';
+
+/** Which library scenes a Home row shows: a Stash scene filter and sort. */
+export interface LibraryScenePick {
+  sort: 'random' | 'rating' | 'created_at' | 'play_count';
+  filter: Record<string, unknown>;
+}
+
 export * from './stash.types';
 
 @Injectable()
@@ -260,6 +267,27 @@ export class StashAdapter extends StashLibraryToolsApi {
     mode: 'UNWATCHED' | 'MOST_PLAYED',
     limit: number,
   ): Promise<StashLocalSceneFeedItem[]> {
+    return this.getLocalScenesMatching(
+      config,
+      {
+        sort: mode === 'MOST_PLAYED' ? 'play_count' : 'created_at',
+        filter: {
+          play_count:
+            mode === 'MOST_PLAYED'
+              ? { value: 0, modifier: 'GREATER_THAN' }
+              : { value: 0, modifier: 'EQUALS' },
+        },
+      },
+      limit,
+    );
+  }
+
+  /** Library scenes matching a Stash scene filter, in a Stash sort order (descending). */
+  async getLocalScenesMatching(
+    config: StashAdapterBaseConfig,
+    pick: LibraryScenePick,
+    limit: number,
+  ): Promise<StashLocalSceneFeedItem[]> {
     const perPage = this.normalizePositiveInteger(limit, 16);
     const query = `
       query FindScenesByPlayback($filter: FindFilterType, $sceneFilter: SceneFilterType) {
@@ -291,15 +319,14 @@ export class StashAdapter extends StashLibraryToolsApi {
       filter: {
         page: 1,
         per_page: perPage,
-        sort: mode === 'MOST_PLAYED' ? 'play_count' : 'created_at',
+        // A random order changes once a day, not on every visit.
+        sort:
+          pick.sort === 'random'
+            ? `random_${new Date().toISOString().slice(0, 10).replaceAll('-', '')}`
+            : pick.sort,
         direction: 'DESC',
       },
-      sceneFilter: {
-        play_count:
-          mode === 'MOST_PLAYED'
-            ? { value: 0, modifier: 'GREATER_THAN' }
-            : { value: 0, modifier: 'EQUALS' },
-      },
+      sceneFilter: pick.filter,
     });
 
     const scenes = payload.data?.findScenes?.scenes ?? [];

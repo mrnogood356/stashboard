@@ -14,6 +14,7 @@ import {
   SceneEvidence,
   evidenceText,
 } from '../../core/api/diagnostics.service';
+import { copyText } from '../../core/clipboard/copy-text';
 
 /** How long "Copied" shows after a copy. */
 const COPIED_MS = 2000;
@@ -112,7 +113,7 @@ export class SceneEvidenceComponent implements OnChanges, OnDestroy {
       return;
     }
     try {
-      await navigator.clipboard.writeText(evidenceText(evidence));
+      await copyText(evidenceText(evidence));
       this.copyFailed.set(false);
       this.copied.set(true);
       if (this.copiedTimer) {

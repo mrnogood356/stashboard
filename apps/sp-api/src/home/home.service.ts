@@ -23,6 +23,7 @@ import { stashImageVersion } from '../providers/stash/stash-image-version.util';
 import { CatalogProviderService } from '../providers/catalog/catalog-provider.service';
 import {
   StashAdapter,
+  type LibraryScenePick,
   type StashLocalSceneFeedItem,
 } from '../providers/stash/stash.adapter';
 import { type StashdbScene } from '../providers/stashdb/stashdb.adapter';
@@ -45,13 +46,24 @@ import {
   HOME_RAIL_STASH_SCENE_SORT_VALUES,
   HOME_RAIL_STASHDB_SCENE_SORT_VALUES,
   HOME_RAIL_TAG_MODE_VALUES,
+  DEFAULT_HOME_ROW_DISPLAY,
+  HOME_ROW_DEVICE_VALUES,
+  HOME_ROW_SIZE_VALUES,
+  HOME_ROW_STYLE_VALUES,
   HomeRailDto,
+  type HomeRowDisplayDto,
   type HomeRailSceneConfigDto,
   type HomeRailSource as HomeRailDtoSource,
   type HomeRailStashSceneConfigDto,
   type HomeRailStashdbSceneConfigDto,
 } from './dto/home-rail.dto';
 import { UpdateHomeRailsDto } from './dto/update-home-rails.dto';
+import {
+  HOME_ROW_GALLERY_IDS,
+  type HomeRowGalleryId,
+  HomeRowGalleryItemDto,
+  UpdateHomeRowDisplayDto,
+} from './dto/home-row-display.dto';
 import {
   CreateHomeRailDto,
   UpdateHomeRailDto,
@@ -62,6 +74,7 @@ import {
 } from './dto/home-rail-content.dto';
 import { HybridScenesService } from '../hybrid-scenes/hybrid-scenes.service';
 import { HiddenContentService } from '../hidden-content/hidden-content.service';
+import { ScenesService } from '../scenes/scenes.service';
 import { exceptRequested } from '../scenes/scene-exclude-terms.util';
 import {
   LEGACY_HOME_RAIL_LIBRARY_AVAILABILITY_VALUES,
@@ -76,6 +89,71 @@ type HomeRailStoredSceneConfig =
 const CONTINUE_WATCHING_FINISHED = 0.95;
 const CONTINUE_WATCHING_SPARE = 8;
 
+/** A library row's config when its scenes are picked by the row itself. */
+const LIBRARY_ROW_CONFIG: HomeRailStashSceneConfigDto = {
+  sort: 'CREATED_AT',
+  direction: 'DESC',
+  titleQuery: null,
+  tagIds: [],
+  tagNames: [],
+  tagMode: null,
+  studioIds: [],
+  studioNames: [],
+  favoritePerformersOnly: false,
+  favoriteStudiosOnly: false,
+  favoriteTagsOnly: false,
+  limit: HOME_RAIL_SCENE_LIMIT_DEFAULT,
+};
+
+/**
+ * Ready-made rows that are only on Home once added from "Add a row" (and can
+ * be removed again), unlike the built-in rows every install starts with.
+ */
+const STOCK_HOME_ROWS: Array<{
+  key: HomeRailKey;
+  title: string;
+  subtitle: string;
+  from: HomeRowGalleryItemDto['from'];
+}> = [
+  {
+    key: HomeRailKey.REDISCOVER,
+    title: 'Rediscover',
+    subtitle: 'Scenes you watched a while ago.',
+    from: 'library',
+  },
+  {
+    key: HomeRailKey.TOP_RATED,
+    title: 'Top Rated',
+    subtitle: 'Your highest-rated scenes in Stash.',
+    from: 'library',
+  },
+  {
+    key: HomeRailKey.QUICK_PICKS,
+    title: 'Quick Picks',
+    subtitle: 'Scenes under 20 minutes.',
+    from: 'library',
+  },
+  {
+    key: HomeRailKey.LIBRARY_4K,
+    title: 'In 4K',
+    subtitle: 'The newest 4K scenes in your library.',
+    from: 'library',
+  },
+  {
+    key: HomeRailKey.COMING_SOON,
+    title: 'Coming Soon',
+    subtitle: 'Scenes Whisparr is waiting for, by release date.',
+    from: 'whisparr',
+  },
+];
+
+/** Not watched again for this long counts as "a while ago". */
+const REDISCOVER_AFTER_DAYS = 60;
+/** "Quick" scenes are shorter than this. */
+const QUICK_PICK_SECONDS = 20 * 60;
+/** How far ahead Coming Soon looks. */
+const COMING_SOON_DAYS = 60;
+
 const DEFAULT_HOME_RAILS: Array<{
   key: HomeRailKey;
   title: string;
@@ -89,7 +167,7 @@ const DEFAULT_HOME_RAILS: Array<{
   {
     key: HomeRailKey.FAVORITE_STUDIOS,
     title: 'Latest From Favorite Studios',
-    subtitle: 'Recent scenes pulled from the studios you have starred.',
+    subtitle: 'The newest scenes from studios you’ve starred.',
     enabled: true,
     sortOrder: 0,
     source: HomeRailSource.STASHDB,
@@ -109,7 +187,7 @@ const DEFAULT_HOME_RAILS: Array<{
   {
     key: HomeRailKey.FAVORITE_PERFORMERS,
     title: 'Latest From Favorite Performers',
-    subtitle: 'A rolling lineup from performers you are actively tracking.',
+    subtitle: 'The newest scenes from performers you’ve starred.',
     enabled: true,
     sortOrder: 1,
     source: HomeRailSource.STASHDB,
@@ -129,7 +207,7 @@ const DEFAULT_HOME_RAILS: Array<{
   {
     key: HomeRailKey.RECENTLY_ADDED_LIBRARY,
     title: 'Recently Added to Library',
-    subtitle: 'Fresh scenes from the indexed local-library projection.',
+    subtitle: 'The newest scenes in your library.',
     enabled: true,
     sortOrder: 2,
     source: HomeRailSource.STASH,
@@ -175,7 +253,7 @@ const DEFAULT_HOME_RAILS: Array<{
   {
     key: HomeRailKey.UNWATCHED_LIBRARY,
     title: 'Unwatched in Your Library',
-    subtitle: 'Scenes you have never played in Stash, newest first.',
+    subtitle: 'Scenes you haven’t played yet, newest first.',
     enabled: true,
     sortOrder: 4,
     source: HomeRailSource.STASH,
@@ -257,6 +335,7 @@ export class HomeService {
     private readonly acquisitionService: AcquisitionService,
     @Optional() private readonly stashAdapter?: StashAdapter,
     @Optional() private readonly hiddenContent?: HiddenContentService,
+    @Optional() private readonly scenes?: ScenesService,
   ) {}
 
   async getRails(): Promise<HomeRailDto[]> {
@@ -353,10 +432,106 @@ export class HomeService {
 
   async deleteRail(id: string): Promise<void> {
     await this.ensureUserFacingRailsReady();
-    const rail = await this.requireCustomRail(id);
+    const rail = await this.requireRemovableRail(id);
     await this.prisma.homeRail.delete({ where: { id } });
     await this.reindexSortOrders();
     this.logger.log(`Removed the Home rail “${rail.title}”.`);
+  }
+
+  /** Changes how one row looks; anything left out keeps its value. */
+  async updateRowDisplay(
+    id: string,
+    change: UpdateHomeRowDisplayDto,
+  ): Promise<HomeRailDto> {
+    await this.ensureUserFacingRailsReady();
+    const rail = await this.prisma.homeRail.findUnique({ where: { id } });
+    if (!rail) {
+      throw new NotFoundException('Home row not found.');
+    }
+    const current = readRowDisplay(rail.display);
+    const next: HomeRowDisplayDto = { ...current };
+    for (const field of Object.keys(DEFAULT_HOME_ROW_DISPLAY) as Array<
+      keyof HomeRowDisplayDto
+    >) {
+      if (change[field] !== undefined) {
+        (next as unknown as Record<string, unknown>)[field] = change[field];
+      }
+    }
+    // An empty name, or the row's own name, means "use the row's own name".
+    const title = next.title?.trim() ?? '';
+    next.title = title && title !== rail.title ? title : null;
+    const updated = await this.prisma.homeRail.update({
+      where: { id },
+      data: { display: next as unknown as Prisma.InputJsonValue },
+    });
+    this.logger.log(`Changed how the Home row “${rail.title}” looks.`);
+    return this.toDto(updated);
+  }
+
+  /** Every ready-made row, and whether it's on Home already. */
+  async getRowGallery(): Promise<HomeRowGalleryItemDto[]> {
+    await this.ensureUserFacingRailsReady();
+    const rails = await this.listRails();
+    const shownKeys = new Set(
+      rails.filter((rail) => rail.enabled && rail.key).map((rail) => rail.key),
+    );
+    return HOME_ROW_GALLERY_IDS.map((id) => {
+      const preset = describeGalleryRow(id);
+      return {
+        id,
+        ...preset,
+        added: !preset.repeatable && shownKeys.has(id as HomeRailKey),
+      };
+    });
+  }
+
+  /**
+   * Puts a ready-made row on Home, at the end: turns a built-in one back on,
+   * adds a stock one, or starts a row of your own from a preset.
+   */
+  async addGalleryRow(id: HomeRowGalleryId): Promise<HomeRailDto> {
+    await this.ensureUserFacingRailsReady();
+    const last = await this.prisma.homeRail.findFirst({
+      orderBy: { sortOrder: 'desc' },
+    });
+    const sortOrder = (last?.sortOrder ?? -1) + 1;
+
+    const builtIn = DEFAULT_HOME_RAILS.find((rail) => rail.key === id);
+    if (builtIn) {
+      const updated = await this.prisma.homeRail.update({
+        where: { key: builtIn.key },
+        data: { enabled: true, sortOrder },
+      });
+      this.logger.log(`Turned the Home row “${updated.title}” back on.`);
+      return this.toDto(updated);
+    }
+
+    const stock = STOCK_HOME_ROWS.find((row) => row.key === id);
+    if (stock) {
+      const saved = await this.prisma.homeRail.upsert({
+        where: { key: stock.key },
+        update: { enabled: true, sortOrder },
+        create: {
+          key: stock.key,
+          kind: HomeRailKind.BUILTIN,
+          source: HomeRailSource.STASH,
+          contentType: HomeRailContentType.SCENES,
+          title: stock.title,
+          subtitle: stock.subtitle,
+          enabled: true,
+          sortOrder,
+          config: LIBRARY_ROW_CONFIG as unknown as Prisma.InputJsonValue,
+        },
+      });
+      this.logger.log(`Added the Home row “${saved.title}”.`);
+      return this.toDto(saved);
+    }
+
+    const preset = presetRow(id);
+    if (!preset) {
+      throw new BadRequestException('There’s no such ready-made row.');
+    }
+    return this.createRail({ ...preset, enabled: true });
   }
 
   async getRailContent(id: string): Promise<HomeRailContentDto> {
@@ -383,6 +558,13 @@ export class HomeService {
         return this.getPlaybackRailContent(rail, 'MOST_PLAYED');
       case HomeRailKey.CONTINUE_WATCHING:
         return this.getContinueWatchingRailContent(rail);
+      case HomeRailKey.REDISCOVER:
+      case HomeRailKey.TOP_RATED:
+      case HomeRailKey.QUICK_PICKS:
+      case HomeRailKey.LIBRARY_4K:
+        return this.getPickedLibraryRowContent(rail, rail.key);
+      case HomeRailKey.COMING_SOON:
+        return this.getComingSoonRowContent(rail);
       default:
         break;
     }
@@ -492,12 +674,121 @@ export class HomeService {
   }
 
   private railLimit(rail: HomeRail): number {
+    const display = readRowDisplay(rail.display);
+    if (display.limit !== null) {
+      return display.limit;
+    }
     return this.normalizeSceneRailConfig(
       'STASH',
       rail.config,
       DEFAULT_HOME_RAILS.find((defaultRail) => defaultRail.key === rail.key)
         ?.config ?? null,
     ).limit;
+  }
+
+  /** Library scenes a stock row picks: rediscover, top rated, quick, 4K. */
+  private async getPickedLibraryRowContent(
+    rail: HomeRail,
+    key: HomeRailKey,
+  ): Promise<HomeRailContentDto> {
+    if (!this.stashAdapter) {
+      return { items: [], message: 'Stash is not available for this row.' };
+    }
+    let stashConfig: { baseUrl: string; apiKey?: string | null };
+    try {
+      stashConfig = await this.getRequiredStashConfig();
+    } catch {
+      return {
+        items: [],
+        message: 'Set up Stash in Settings → Integrations to fill this row.',
+      };
+    }
+    try {
+      const scenes = await this.stashAdapter.getLocalScenesMatching(
+        stashConfig,
+        libraryPick(key),
+        this.railLimit(rail),
+      );
+      return {
+        items: scenes.map((scene) => this.toPlaybackRailItem(scene)),
+        message: scenes.length === 0 ? emptyPickMessage(key) : null,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Failed to load the Home row “${rail.title}”. ${(error as Error)?.message ?? 'Unknown error.'}`,
+      );
+      return {
+        items: [],
+        message: 'Unable to load scenes from Stash right now.',
+      };
+    }
+  }
+
+  /** What Whisparr is waiting for over the next weeks, soonest first. */
+  private async getComingSoonRowContent(
+    rail: HomeRail,
+  ): Promise<HomeRailContentDto> {
+    if (!this.scenes) {
+      return { items: [], message: 'The calendar is not available.' };
+    }
+    const today = new Date();
+    const from = today.toISOString().slice(0, 10);
+    const to = new Date(today.getTime() + COMING_SOON_DAYS * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    try {
+      const calendar = await this.scenes.getCalendar(
+        from,
+        to,
+        'ALL',
+        'WHISPARR',
+      );
+      if (calendar.whisparr === 'off') {
+        return {
+          items: [],
+          message:
+            'Set up Whisparr in Settings → Integrations to fill this row.',
+        };
+      }
+      const items = calendar.items
+        .filter((item) => (item.releaseDate ?? '') >= from)
+        .sort((a, b) =>
+          (a.releaseDate ?? '').localeCompare(b.releaseDate ?? ''),
+        )
+        .slice(0, this.railLimit(rail))
+        .map((item): HomeRailItemDto => ({
+          id: item.id,
+          title: item.title,
+          description: item.description,
+          imageUrl: item.imageUrl,
+          cardImageUrl: item.cardImageUrl,
+          studioId: item.studioId,
+          studio: item.studio,
+          studioImageUrl: item.studioImageUrl,
+          releaseDate: item.releaseDate,
+          duration: item.duration,
+          type: 'SCENE',
+          source: item.source,
+          status: item.status,
+          requestable: false,
+          viewUrl: null,
+        }));
+      return {
+        items,
+        message:
+          items.length === 0
+            ? 'Nothing Whisparr is waiting for comes out soon.'
+            : null,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Failed to load the Home row “${rail.title}”. ${(error as Error)?.message ?? 'Unknown error.'}`,
+      );
+      return {
+        items: [],
+        message: 'Unable to load upcoming scenes right now.',
+      };
+    }
   }
 
   /**
@@ -690,7 +981,7 @@ export class HomeService {
 
     try {
       const items = await this.libraryService.getScenesPreview(
-        config.limit,
+        this.railLimit(rail),
         config.sort,
         config.direction,
         config.titleQuery ?? undefined,
@@ -843,6 +1134,20 @@ export class HomeService {
     }
   }
 
+  /** A row you made, or a ready-made one added from the gallery. */
+  private async requireRemovableRail(id: string): Promise<HomeRail> {
+    const rail = await this.prisma.homeRail.findUnique({ where: { id } });
+    if (!rail) {
+      throw new NotFoundException('Home row not found.');
+    }
+    if (rail.kind !== HomeRailKind.CUSTOM && !isStockRow(rail.key)) {
+      throw new BadRequestException(
+        'Built-in Home rows can be turned off, not removed.',
+      );
+    }
+    return rail;
+  }
+
   private async requireCustomRail(id: string): Promise<HomeRail> {
     const rail = await this.prisma.homeRail.findUnique({ where: { id } });
     if (!rail) {
@@ -879,6 +1184,7 @@ export class HomeService {
       ? DEFAULT_HOME_RAILS.find((defaultRail) => defaultRail.key === rail.key)
       : null;
     const source = this.ensureInSet(rail.source, HOME_RAIL_SOURCE_VALUES);
+    const display = readRowDisplay(rail.display);
 
     return {
       id: rail.id,
@@ -889,17 +1195,18 @@ export class HomeService {
         rail.contentType,
         HOME_RAIL_CONTENT_TYPE_VALUES,
       ),
-      title: rail.title,
+      title: display.title ?? rail.title,
       subtitle: rail.subtitle,
       enabled: rail.enabled,
       sortOrder: rail.sortOrder,
       editable: rail.kind === HomeRailKind.CUSTOM,
-      deletable: rail.kind === HomeRailKind.CUSTOM,
+      deletable: rail.kind === HomeRailKind.CUSTOM || isStockRow(rail.key),
       config: this.normalizeSceneRailConfig(
         source,
         rail.config,
         defaults?.config ?? null,
       ),
+      display,
     };
   }
 
@@ -1551,5 +1858,187 @@ export class HomeService {
       baseUrl: catalogProvider.baseUrl,
       apiKey: catalogProvider.apiKey,
     };
+  }
+}
+
+function isStockRow(key: HomeRailKey | null): boolean {
+  return STOCK_HOME_ROWS.some((row) => row.key === key);
+}
+
+/** The saved look of a row, with defaults for anything missing or unknown. */
+export function readRowDisplay(value: unknown): HomeRowDisplayDto {
+  const saved =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const bool = (key: keyof HomeRowDisplayDto): boolean =>
+    typeof saved[key] === 'boolean'
+      ? saved[key]
+      : (DEFAULT_HOME_ROW_DISPLAY[key] as boolean);
+  const oneOf = <T extends string>(
+    key: keyof HomeRowDisplayDto,
+    values: readonly T[],
+  ): T =>
+    values.includes(saved[key] as T)
+      ? (saved[key] as T)
+      : (DEFAULT_HOME_ROW_DISPLAY[key] as T);
+  const title =
+    typeof saved.title === 'string' && saved.title.trim()
+      ? saved.title.trim()
+      : null;
+  const limit =
+    typeof saved.limit === 'number' &&
+    Number.isInteger(saved.limit) &&
+    saved.limit >= HOME_RAIL_SCENE_LIMIT_MIN &&
+    saved.limit <= HOME_RAIL_SCENE_LIMIT_MAX
+      ? saved.limit
+      : null;
+  return {
+    title,
+    size: oneOf('size', HOME_ROW_SIZE_VALUES),
+    style: oneOf('style', HOME_ROW_STYLE_VALUES),
+    showStudio: bool('showStudio'),
+    showDate: bool('showDate'),
+    showDuration: bool('showDuration'),
+    showActions: bool('showActions'),
+    devices: oneOf('devices', HOME_ROW_DEVICE_VALUES),
+    seeAll: bool('seeAll'),
+    limit,
+  };
+}
+
+/** What a stock row picks from the library. */
+function libraryPick(key: HomeRailKey): LibraryScenePick {
+  switch (key) {
+    case HomeRailKey.REDISCOVER:
+      return {
+        sort: 'random',
+        filter: {
+          play_count: { value: 0, modifier: 'GREATER_THAN' },
+          last_played_at: {
+            // Stash reads times without milliseconds.
+            value: new Date(Date.now() - REDISCOVER_AFTER_DAYS * 86_400_000)
+              .toISOString()
+              .replace(/\.\d{3}Z$/, 'Z'),
+            modifier: 'LESS_THAN',
+          },
+        },
+      };
+    case HomeRailKey.TOP_RATED:
+      return {
+        sort: 'rating',
+        filter: { rating100: { value: 0, modifier: 'GREATER_THAN' } },
+      };
+    case HomeRailKey.QUICK_PICKS:
+      return {
+        sort: 'random',
+        filter: {
+          duration: { value: QUICK_PICK_SECONDS, modifier: 'LESS_THAN' },
+        },
+      };
+    default:
+      // 4K and up: taller than the 1920-line VR size.
+      return {
+        sort: 'created_at',
+        filter: { resolution: { value: 'VR_HD', modifier: 'GREATER_THAN' } },
+      };
+  }
+}
+
+function emptyPickMessage(key: HomeRailKey): string {
+  switch (key) {
+    case HomeRailKey.REDISCOVER:
+      return `Nothing you watched more than ${REDISCOVER_AFTER_DAYS} days ago yet.`;
+    case HomeRailKey.TOP_RATED:
+      return 'Rate scenes in Stash and the best show up here.';
+    case HomeRailKey.QUICK_PICKS:
+      return 'No scenes under 20 minutes in your library.';
+    default:
+      return 'No 4K scenes in your library yet.';
+  }
+}
+
+function describeGalleryRow(id: HomeRowGalleryId): {
+  title: string;
+  description: string;
+  from: HomeRowGalleryItemDto['from'];
+  repeatable: boolean;
+} {
+  const builtIn = DEFAULT_HOME_RAILS.find((rail) => rail.key === id);
+  if (builtIn) {
+    return {
+      title: builtIn.title,
+      description: builtIn.subtitle,
+      from:
+        builtIn.key === HomeRailKey.STILL_WAITING
+          ? 'requests'
+          : builtIn.source === HomeRailSource.STASHDB
+            ? 'catalog'
+            : 'library',
+      repeatable: false,
+    };
+  }
+  const stock = STOCK_HOME_ROWS.find((row) => row.key === id);
+  if (stock) {
+    return {
+      title: stock.title,
+      description: stock.subtitle,
+      from: stock.from,
+      repeatable: false,
+    };
+  }
+  const preset = presetRow(id);
+  return {
+    title: preset?.title ?? id,
+    description: preset?.subtitle ?? '',
+    from: preset?.source === 'STASHDB' ? 'catalog' : 'library',
+    repeatable: true,
+  };
+}
+
+/** Starting points for rows of your own, edited like any other. */
+function presetRow(
+  id: HomeRowGalleryId,
+): Omit<CreateHomeRailDto, 'enabled'> | null {
+  switch (id) {
+    case 'NEW_FROM_FAVORITE_PERFORMERS':
+      return {
+        source: 'STASH',
+        title: 'New From Your Favorites',
+        subtitle: 'The newest library scenes with performers you’ve starred.',
+        config: { ...LIBRARY_ROW_CONFIG, favoritePerformersOnly: true },
+      };
+    case 'NEW_RELEASES':
+      return {
+        source: 'STASHDB',
+        title: 'New Releases',
+        subtitle: 'The latest scenes in the catalog.',
+        config: {
+          sort: 'DATE',
+          direction: 'DESC',
+          tagIds: [],
+          tagNames: [],
+          studioIds: [],
+          studioNames: [],
+          limit: HOME_RAIL_SCENE_LIMIT_DEFAULT,
+        },
+      };
+    case 'TRENDING':
+      return {
+        source: 'STASHDB',
+        title: 'Trending',
+        subtitle: 'What’s popular in the catalog right now.',
+        config: {
+          sort: 'TRENDING',
+          direction: 'DESC',
+          tagIds: [],
+          tagNames: [],
+          studioIds: [],
+          studioNames: [],
+          limit: HOME_RAIL_SCENE_LIMIT_DEFAULT,
+        },
+      };
+    default:
+      return null;
   }
 }

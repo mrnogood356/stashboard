@@ -144,6 +144,8 @@ describe('SettingsLogsPageComponent', () => {
 
   it('expands an entry to show its stack, and copies it', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
+    // The clipboard API is only offered on secure pages.
+    Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     const { fixture, root } = await render();
 

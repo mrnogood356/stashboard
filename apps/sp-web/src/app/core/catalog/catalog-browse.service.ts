@@ -3,7 +3,11 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { NavigationEnd, NavigationStart, Router } from '@angular/router';
 import { filter } from 'rxjs';
 
-export type CatalogProviderKey = 'STASHDB' | 'FANSDB';
+export type CatalogProviderKey = 'STASHDB' | 'FANSDB' | 'THEPORNDB';
+
+function isProviderKey(value: string | null | undefined): value is CatalogProviderKey {
+  return value === 'STASHDB' || value === 'FANSDB' || value === 'THEPORNDB';
+}
 
 export interface CatalogBrowseProviders {
   instance: CatalogProviderKey | null;
@@ -87,7 +91,7 @@ export class CatalogBrowseService {
   ): CatalogProviderKey | null {
     const [path, query = ''] = url.split('?', 2);
     const explicit = new URLSearchParams(query).get('provider')?.toUpperCase();
-    if (explicit === 'STASHDB' || explicit === 'FANSDB') {
+    if (isProviderKey(explicit)) {
       return explicit;
     }
     if (LIST_ROUTE.test(path)) {
@@ -127,7 +131,7 @@ export class CatalogBrowseService {
 function readStored(): CatalogProviderKey | null {
   try {
     const value = localStorage.getItem(STORAGE_KEY);
-    return value === 'STASHDB' || value === 'FANSDB' ? value : null;
+    return isProviderKey(value) ? value : null;
   } catch {
     return null;
   }

@@ -15,7 +15,25 @@ export type HomeRailKey =
   | 'STILL_WAITING'
   | 'UNWATCHED_LIBRARY'
   | 'MOST_PLAYED_LIBRARY'
-  | 'CONTINUE_WATCHING';
+  | 'CONTINUE_WATCHING'
+  | 'REDISCOVER'
+  | 'TOP_RATED'
+  | 'QUICK_PICKS'
+  | 'LIBRARY_4K'
+  | 'COMING_SOON';
+/**
+ * Rows with no "See all" page: picked by play history, rating, length or
+ * resolution, which the Library page can't filter by.
+ */
+export const NO_SEE_ALL_ROW_KEYS: readonly HomeRailKey[] = [
+  'UNWATCHED_LIBRARY',
+  'MOST_PLAYED_LIBRARY',
+  'CONTINUE_WATCHING',
+  'REDISCOVER',
+  'TOP_RATED',
+  'QUICK_PICKS',
+  'LIBRARY_4K',
+];
 export type HomeRailKind = 'BUILTIN' | 'CUSTOM';
 export type HomeRailSource = 'STASHDB' | 'STASH';
 export type HomeRailItemSource = 'STASH' | CatalogProviderType;
@@ -49,6 +67,56 @@ export interface HomeStashSceneRailConfig {
   limit: number;
 }
 
+export type HomeRowSize = 'small' | 'regular' | 'large';
+/** wide: 16:9 thumbnails; poster: tall cards; spotlight: the first one big. */
+export type HomeRowStyle = 'wide' | 'poster' | 'spotlight';
+export type HomeRowDevices = 'all' | 'phone' | 'desktop';
+
+/** How a Home row looks. */
+export interface HomeRowDisplay {
+  /** The row's own name instead of its built-in one; null keeps that. */
+  title: string | null;
+  size: HomeRowSize;
+  style: HomeRowStyle;
+  showStudio: boolean;
+  showDate: boolean;
+  showDuration: boolean;
+  /** Request, Find and status on each card. */
+  showActions: boolean;
+  devices: HomeRowDevices;
+  seeAll: boolean;
+  /** How many scenes; null keeps the row's own count. */
+  limit: number | null;
+}
+
+export const DEFAULT_HOME_ROW_DISPLAY: HomeRowDisplay = {
+  title: null,
+  size: 'regular',
+  style: 'wide',
+  showStudio: true,
+  showDate: true,
+  showDuration: false,
+  showActions: true,
+  devices: 'all',
+  seeAll: true,
+  limit: null,
+};
+
+export type HomeRowGalleryId =
+  HomeRailKey | 'NEW_FROM_FAVORITE_PERFORMERS' | 'NEW_RELEASES' | 'TRENDING';
+
+/** A ready-made row "Add a row" offers. */
+export interface HomeRowGalleryItem {
+  id: HomeRowGalleryId;
+  title: string;
+  description: string;
+  from: 'library' | 'catalog' | 'whisparr' | 'requests';
+  /** On Home already (a one-of-a-kind row that's shown). */
+  added: boolean;
+  /** A starting point for a row of your own; can be added again. */
+  repeatable: boolean;
+}
+
 interface BaseHomeRailConfig<TSource extends HomeRailSource, TConfig> {
   id: string;
   key: HomeRailKey | null;
@@ -62,6 +130,8 @@ interface BaseHomeRailConfig<TSource extends HomeRailSource, TConfig> {
   editable: boolean;
   deletable: boolean;
   config: TConfig;
+  /** Missing from rows cached before row settings existed. */
+  display?: HomeRowDisplay;
 }
 
 export type HomeRailConfig =

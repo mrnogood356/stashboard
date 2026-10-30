@@ -54,7 +54,8 @@
 
 .media {
   position: relative;
-  aspect-ratio: 16 / 9;
+  /* Home rows with tall poster cards set this. */
+  aspect-ratio: var(--scene-card-aspect, 16 / 9);
   border-radius: var(--scene-card-media-radius);
   overflow: hidden;
   background: var(--surface-2);

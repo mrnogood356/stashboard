@@ -364,8 +364,10 @@ export class ScenesService {
       const localSceneIds = await this.sceneStatusService.resolveLocalSceneIds(
         ids.filter((id) => statuses.get(id)?.state === 'AVAILABLE'),
       );
+      // Whisparr's scenes are always from the instance's own catalog, even
+      // while the page is browsing another one.
       const provider = await this.catalogProviderService
-        .getConfiguredCatalogProvider()
+        .getInstanceCatalogProvider()
         .then((catalog) => catalog.integrationType)
         .catch(() => 'STASHDB' as const);
       return {
@@ -385,7 +387,7 @@ export class ScenesService {
               date: scene.date,
               duration: null,
             },
-            provider === 'FANSDB' ? 'FANSDB' : 'STASHDB',
+            provider,
             statuses.get(scene.stashId) ?? { state: 'REQUESTED' },
             // Already in Whisparr, so there's nothing to request.
             false,
@@ -554,7 +556,7 @@ export class ScenesService {
       date: string | null;
       duration: number | null;
     },
-    source: 'STASHDB' | 'FANSDB',
+    source: CatalogProviderKey,
     status: SceneStatusDto,
     requestable: boolean,
   ) {

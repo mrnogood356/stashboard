@@ -85,6 +85,7 @@ export class SetupPageComponent implements OnInit {
     SABNZBD: createIntegrationForm(),
     STASHDB: createIntegrationForm(),
     FANSDB: createIntegrationForm(),
+    THEPORNDB: createIntegrationForm(),
   };
 
   protected readonly integrations = signal<Record<IntegrationType, IntegrationResponse | null>>(
