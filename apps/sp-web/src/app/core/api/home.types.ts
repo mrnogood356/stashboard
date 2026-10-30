@@ -21,6 +21,19 @@ export type HomeRailKey =
   | 'QUICK_PICKS'
   | 'LIBRARY_4K'
   | 'COMING_SOON';
+/**
+ * Rows with no "See all" page: picked by play history, rating, length or
+ * resolution, which the Library page can't filter by.
+ */
+export const NO_SEE_ALL_ROW_KEYS: readonly HomeRailKey[] = [
+  'UNWATCHED_LIBRARY',
+  'MOST_PLAYED_LIBRARY',
+  'CONTINUE_WATCHING',
+  'REDISCOVER',
+  'TOP_RATED',
+  'QUICK_PICKS',
+  'LIBRARY_4K',
+];
 export type HomeRailKind = 'BUILTIN' | 'CUSTOM';
 export type HomeRailSource = 'STASHDB' | 'STASH';
 export type HomeRailItemSource = 'STASH' | CatalogProviderType;

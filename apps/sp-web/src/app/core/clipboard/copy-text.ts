@@ -31,6 +31,7 @@ function copyWithSelection(text: string): boolean {
   box.style.fontSize = '16px';
   const focused = document.activeElement as HTMLElement | null;
   document.body.appendChild(box);
+  box.focus();
   box.select();
   box.setSelectionRange(0, text.length);
   let copied = false;

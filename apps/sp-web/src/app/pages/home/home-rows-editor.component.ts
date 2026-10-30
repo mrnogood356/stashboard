@@ -5,18 +5,21 @@ import {
   CdkDropList,
   moveItemInArray,
 } from '@angular/cdk/drag-drop';
+import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   Component,
   EventEmitter,
   Input,
   OnChanges,
+  OnDestroy,
   Output,
+  SimpleChanges,
   computed,
   inject,
   signal,
 } from '@angular/core';
-import { finalize, switchMap } from 'rxjs';
+import { EMPTY, Subject, Subscription, catchError, concatMap, finalize, switchMap } from 'rxjs';
 import { HomeService } from '../../core/api/home.service';
 import {
   DEFAULT_HOME_ROW_DISPLAY,
@@ -24,6 +27,7 @@ import {
   HomeRailItem,
   HomeRowDisplay,
   HomeRowGalleryItem,
+  NO_SEE_ALL_ROW_KEYS,
 } from '../../core/api/home.types';
 
 const COUNT_OPTIONS = [6, 8, 10, 12, 16, 20, 24, 30];
@@ -52,11 +56,11 @@ const SORT_LABEL: Record<string, string> = {
  */
 @Component({
   selector: 'app-home-rows-editor',
-  imports: [CdkDropList, CdkDrag, CdkDragHandle],
+  imports: [CdkDropList, CdkDrag, CdkDragHandle, CdkTrapFocus],
   templateUrl: './home-rows-editor.component.html',
   styleUrl: './home-rows-editor.component.scss',
 })
-export class HomeRowsEditorComponent implements OnChanges {
+export class HomeRowsEditorComponent implements OnChanges, OnDestroy {
   private readonly homeService = inject(HomeService);
 
   /** Every row, shown or not, in Home order. */
@@ -91,8 +95,21 @@ export class HomeRowsEditorComponent implements OnChanges {
       .filter((group) => group.items.length > 0);
   });
 
-  ngOnChanges(): void {
-    this.order.set([...this.rows]);
+  /** Look changes per row, sent one after another so a quick second change isn't lost. */
+  private readonly displayQueues = new Map<string, Subject<Partial<HomeRowDisplay>>>();
+  private readonly displaySubscriptions = new Subscription();
+  /** Changes sent but not answered yet, and the row as last saved, per row. */
+  private readonly pendingDisplay = new Map<string, number>();
+  private readonly savedRows = new Map<string, HomeRailConfig>();
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['rows']) {
+      this.order.set([...this.rows]);
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.displaySubscriptions.unsubscribe();
   }
 
   protected display(row: HomeRailConfig): HomeRowDisplay {
@@ -119,6 +136,10 @@ export class HomeRowsEditorComponent implements OnChanges {
     }
     parts.push(`${this.display(row).limit ?? row.config.limit} scenes`);
     return parts.join(' · ');
+  }
+
+  protected hasSeeAll(row: HomeRailConfig): boolean {
+    return !row.key || !NO_SEE_ALL_ROW_KEYS.includes(row.key);
   }
 
   protected preview(row: HomeRailConfig): HomeRailItem[] {
@@ -175,19 +196,56 @@ export class HomeRowsEditorComponent implements OnChanges {
   }
 
   protected setDisplay(row: HomeRailConfig, change: Partial<HomeRowDisplay>): void {
-    // Shown at once; the server's answer replaces it.
+    // Shown at once; the server's answer replaces it once nothing else is on its way.
     const optimistic = { ...row, display: { ...this.display(row), ...change } };
+    if (!this.savedRows.has(row.id)) {
+      this.savedRows.set(row.id, row);
+    }
     this.order.update((rows) => rows.map((r) => (r.id === row.id ? optimistic : r)));
-    this.homeService.updateRowDisplay(row.id, change).subscribe({
-      next: (saved) => {
-        this.order.update((rows) => rows.map((r) => (r.id === saved.id ? saved : r)));
-        this.rowChanged.emit(saved);
-      },
-      error: () => {
-        this.order.update((rows) => rows.map((r) => (r.id === row.id ? row : r)));
-        this.error.set('Couldn’t save that change. Try again.');
-      },
-    });
+    this.pendingDisplay.set(row.id, (this.pendingDisplay.get(row.id) ?? 0) + 1);
+    this.displayQueue(row.id).next(change);
+  }
+
+  private displayQueue(id: string): Subject<Partial<HomeRowDisplay>> {
+    let queue = this.displayQueues.get(id);
+    if (!queue) {
+      queue = new Subject<Partial<HomeRowDisplay>>();
+      this.displayQueues.set(id, queue);
+      this.displaySubscriptions.add(
+        queue
+          .pipe(
+            concatMap((change) =>
+              this.homeService.updateRowDisplay(id, change).pipe(
+                catchError(() => {
+                  this.error.set('Couldn’t save that change. Try again.');
+                  this.displayAnswered(id, null);
+                  return EMPTY;
+                }),
+              ),
+            ),
+          )
+          .subscribe((saved) => this.displayAnswered(id, saved)),
+      );
+    }
+    return queue;
+  }
+
+  /** One change answered: saved, or null when it failed. */
+  private displayAnswered(id: string, saved: HomeRailConfig | null): void {
+    if (saved) {
+      this.savedRows.set(id, saved);
+      this.rowChanged.emit(saved);
+    }
+    const left = (this.pendingDisplay.get(id) ?? 1) - 1;
+    this.pendingDisplay.set(id, left);
+    if (left > 0) {
+      return;
+    }
+    const settled = this.savedRows.get(id);
+    this.savedRows.delete(id);
+    if (settled) {
+      this.order.update((rows) => rows.map((r) => (r.id === id ? settled : r)));
+    }
   }
 
   protected rename(row: HomeRailConfig, value: string): void {

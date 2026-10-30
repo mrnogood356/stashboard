@@ -5,6 +5,8 @@
   aria-modal="true"
   aria-labelledby="rows-editor-title"
   data-testid="rows-editor"
+  cdkTrapFocus
+  [cdkTrapFocusAutoCapture]="true"
   (keydown.escape)="closed.emit()"
 >
   <header class="sheet-head">
@@ -304,17 +306,19 @@
                   </label>
                 </div>
 
-                <div class="switch-line">
-                  <span>“See all” link</span>
-                  <input
-                    type="checkbox"
-                    class="app-switch"
-                    role="switch"
-                    aria-label="Show a See all link"
-                    [checked]="look.seeAll"
-                    (change)="setDisplay(row, { seeAll: $any($event.target).checked })"
-                  />
-                </div>
+                @if (hasSeeAll(row)) {
+                  <div class="switch-line">
+                    <span>“See all” link</span>
+                    <input
+                      type="checkbox"
+                      class="app-switch"
+                      role="switch"
+                      aria-label="Show a See all link"
+                      [checked]="look.seeAll"
+                      (change)="setDisplay(row, { seeAll: $any($event.target).checked })"
+                    />
+                  </div>
+                }
 
                 @if (row.editable || row.deletable) {
                   <div class="row-actions">

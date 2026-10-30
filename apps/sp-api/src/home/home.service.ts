@@ -981,7 +981,7 @@ export class HomeService {
 
     try {
       const items = await this.libraryService.getScenesPreview(
-        config.limit,
+        this.railLimit(rail),
         config.sort,
         config.direction,
         config.titleQuery ?? undefined,

@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HomeService } from '../../core/api/home.service';
 import { HomeRailConfig } from '../../core/api/home.types';
@@ -126,6 +126,35 @@ describe('HomeRowsEditorComponent', () => {
     expect(updateRowDisplay).toHaveBeenCalledWith('a', { showDuration: true });
     expect(updateRowDisplay).toHaveBeenCalledWith('a', { title: 'Fresh' });
     expect(changed).toHaveBeenCalledTimes(3);
+  });
+
+  it('sends quick changes to one row one after another, keeping the newest on screen', async () => {
+    const answers = [new Subject<HomeRailConfig>(), new Subject<HomeRailConfig>()];
+    let call = 0;
+    const updateRowDisplay = vi.fn(() => answers[call++]);
+    const { fixture } = await render({ updateRowDisplay });
+    const editor = fixture.componentInstance as unknown as {
+      setDisplay(row: HomeRailConfig, change: object): void;
+      order(): HomeRailConfig[];
+    };
+    const look = () => editor.order().find((r) => r.id === 'a')?.display;
+
+    editor.setDisplay(row('a'), { style: 'poster' });
+    editor.setDisplay(editor.order()[0], { size: 'large' });
+    // The second waits for the first to be answered.
+    expect(updateRowDisplay).toHaveBeenCalledTimes(1);
+
+    answers[0].next(row('a', { display: { style: 'poster' } as HomeRailConfig['display'] }));
+    answers[0].complete();
+    expect(updateRowDisplay).toHaveBeenCalledTimes(2);
+    // The first answer doesn't undo the second change while it's on its way.
+    expect(look()).toMatchObject({ style: 'poster', size: 'large' });
+
+    answers[1].next(
+      row('a', { display: { style: 'poster', size: 'large' } as HomeRailConfig['display'] }),
+    );
+    answers[1].complete();
+    expect(look()).toMatchObject({ style: 'poster', size: 'large' });
   });
 
   it('adds a ready-made row from the gallery', async () => {

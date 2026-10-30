@@ -53,6 +53,7 @@ import {
   HomeStashdbSceneRailConfig,
   HomeRailViewSummary,
   DEFAULT_HOME_ROW_DISPLAY,
+  NO_SEE_ALL_ROW_KEYS,
   HomeRowDisplay,
   SaveHomeRailPayload,
 } from '../../core/api/home.types';
@@ -83,7 +84,7 @@ type HomeRailView = HomeRailConfig & {
   items: HomeRailItem[];
   error: string | null;
   seeAllLink: {
-    path: '/library' | '/scenes' | '/acquisition';
+    path: '/library' | '/scenes' | '/acquisition' | '/calendar';
     queryParams: Record<string, string>;
   } | null;
   summary: HomeRailViewSummary;
@@ -1093,19 +1094,18 @@ export class HomePageComponent implements OnInit, OnDestroy {
   }
 
   private buildSeeAllLink(rail: HomeRailConfig): {
-    path: '/library' | '/scenes' | '/acquisition';
+    path: '/library' | '/scenes' | '/acquisition' | '/calendar';
     queryParams: Record<string, string>;
   } | null {
     if (rail.key === 'STILL_WAITING') {
       return { path: '/acquisition', queryParams: {} };
     }
 
-    // Playback rails come straight from Stash; the Library page has no play-count filter.
-    if (
-      rail.key === 'UNWATCHED_LIBRARY' ||
-      rail.key === 'MOST_PLAYED_LIBRARY' ||
-      rail.key === 'CONTINUE_WATCHING'
-    ) {
+    if (rail.key === 'COMING_SOON') {
+      return { path: '/calendar', queryParams: {} };
+    }
+
+    if (rail.key && NO_SEE_ALL_ROW_KEYS.includes(rail.key)) {
       return null;
     }
 

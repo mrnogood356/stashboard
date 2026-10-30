@@ -22,6 +22,9 @@ describe('ScenesService', () => {
   const isBrowseOnlyRequestMock = jest.fn();
   const catalogProviderService = {
     getConfiguredCatalogProvider: jest.fn(),
+    getInstanceCatalogProvider: jest
+      .fn()
+      .mockResolvedValue({ integrationType: 'STASHDB' }),
     isBrowseOnlyRequest: isBrowseOnlyRequestMock,
   } as unknown as CatalogProviderService;
 
