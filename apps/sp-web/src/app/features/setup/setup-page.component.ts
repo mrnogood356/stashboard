@@ -186,7 +186,7 @@ export class SetupPageComponent implements OnInit {
     }
 
     if (!catalogProvider) {
-      return 'Choose the catalog provider for this Stashboard instance, then continue through the remaining required services.';
+      return 'Start with the catalog: StashDB or FansDB.';
     }
 
     if (!this.catalogProviderReady()) {
