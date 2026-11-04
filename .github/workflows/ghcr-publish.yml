@@ -78,5 +78,8 @@ jobs:
             STASHBOARD_COMMIT=${{ github.sha }}
             STASHBOARD_BUILT_AT=${{ steps.app-version.outputs.built-at }}
             STASHBOARD_REPOSITORY=${{ github.repository }}
+          # No attestation manifests: each one is an extra untagged entry in the package.
+          provenance: false
+          sbom: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
