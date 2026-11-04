@@ -274,14 +274,7 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
     this.api.whisparrImports().subscribe({
       next: (imports) => {
         this.whisparr.set(imports);
-        if (this.scrollToWhisparr && imports.items.length > 0) {
-          this.scrollToWhisparr = false;
-          setTimeout(() =>
-            this.document
-              .getElementById('processing-whisparr')
-              ?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }),
-          );
-        }
+        this.tryScrollToWhisparr();
       },
       error: () => undefined,
     });
@@ -301,6 +294,24 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
     this.data.set(data);
     this.loadError.set(false);
     this.now.set(Date.now());
+    this.tryScrollToWhisparr();
+  }
+
+  /**
+   * The Waiting in Whisparr list only renders once both answers are in, so
+   * each one tries; the first that finds the list on screen scrolls to it.
+   */
+  private tryScrollToWhisparr(): void {
+    if (!this.scrollToWhisparr) {
+      return;
+    }
+    setTimeout(() => {
+      const target = this.document.getElementById('processing-whisparr');
+      if (this.scrollToWhisparr && target) {
+        this.scrollToWhisparr = false;
+        target.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      }
+    });
   }
 
   private schedule(): void {

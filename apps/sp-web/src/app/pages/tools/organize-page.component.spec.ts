@@ -1117,6 +1117,45 @@ describe('OrganizePageComponent', () => {
     ) as HTMLAnchorElement;
     expect(link.getAttribute('href')).toBe('/processing#processing-whisparr');
   });
+  it('counts only skips there is something to do about, and never says all is well over an error', async () => {
+    const none = {
+      ready: 0,
+      same: 0,
+      missing: 0,
+      whisparr: 0,
+      outside: 0,
+      'no-file': 0,
+      gone: 0,
+      taken: 0,
+      copy: 0,
+    };
+    const api = {
+      ...renameApiForStuck(),
+      preview: vi.fn().mockReturnValue(
+        of({
+          pattern: settings.renamePattern,
+          scanned: 12,
+          counts: { ...none, whisparr: 9, outside: 3 },
+          changes: [],
+          skipped: [],
+        }),
+      ),
+    };
+    const { root } = await render(api, 'overview');
+    // Whisparr's files and files outside the library are listed, but aren't a to-do.
+    expect(row(root, 'Can’t be renamed')).toContain('12');
+    expect(root.querySelector('[role="tab"]')?.textContent).not.toMatch(/\d/);
+    expect(row(root, 'All in order')).toBeTruthy();
+    TestBed.resetTestingModule();
+
+    const failing = {
+      ...renameApiForStuck(),
+      preview: vi.fn().mockReturnValue(throwError(() => ({ error: { message: 'Stash is down' } }))),
+    };
+    const second = await render(failing, 'overview');
+    expect(second.root.textContent).toContain('Stash is down');
+    expect(row(second.root, 'All in order')).toBe('');
+  });
 });
 
 function renameApiForStuck() {

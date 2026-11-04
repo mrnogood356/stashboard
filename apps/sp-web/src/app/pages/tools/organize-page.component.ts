@@ -267,7 +267,7 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
       this.repair()?.count ?? 0,
       this.relocation()?.count ?? 0,
       preview?.counts.ready ?? 0,
-      preview ? this.skippedTotal(preview) : 0,
+      preview ? this.actionableSkips(preview) : 0,
       settings?.folderAccess ? (this.empty()?.count ?? 0) : 0,
     ].filter((count) => count > 0).length;
   });
@@ -293,6 +293,18 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
       next: (list) => this.waiting.set(list.length),
       error: () => undefined,
     });
+  }
+
+  /**
+   * Skips with a fix on the Overview (extra copies, taken names, files gone).
+   * Whisparr's own files, files outside the library and unmatched scenes are
+   * shown there too but aren't something to do.
+   */
+  private actionableSkips(preview: RenamePreview): number {
+    return (['copy', 'taken', 'gone'] as RenameState[]).reduce(
+      (sum, state) => sum + (preview.counts[state] ?? 0),
+      0,
+    );
   }
 
   protected skippedTotal(preview: RenamePreview): number {

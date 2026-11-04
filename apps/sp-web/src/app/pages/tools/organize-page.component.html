@@ -643,7 +643,7 @@
           }
         </li>
       }
-      @if (todoCount() === 0) {
+      @if (todoCount() === 0 && !previewError()) {
         <li class="todo-row all-good">
           <span class="todo-count tone-good"><i class="pi pi-check" aria-hidden="true"></i></span>
           <span class="todo-copy">

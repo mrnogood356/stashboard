@@ -517,9 +517,14 @@ ul {
     gap: 0.45rem;
   }
 
+  /* At least 44 px tall, so each name is easy to tap. */
   .child-card {
     position: relative;
-    padding: 0.4rem 0.8rem;
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+    padding: 0.4rem 0.9rem;
     border-radius: 999px;
     background: var(--chip-bg);
   }
@@ -544,4 +549,12 @@ ul {
   .filter-body:not(.open) {
     display: none;
   }
+}
+
+/* Taps on a child studio's name and aliases reach the link stretched under them. */
+.child-card .child-image,
+.child-card .child-meta,
+.child-card .child-name,
+.child-card .child-aliases {
+  pointer-events: none;
 }

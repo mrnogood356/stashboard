@@ -89,7 +89,11 @@ p {
   }
 
   .segmented button {
+    flex-wrap: wrap;
+    min-width: 0;
     justify-content: center;
+    column-gap: 0.3rem;
+    row-gap: 0.1rem;
     height: auto;
     min-height: 2.1rem;
     padding: 0.3rem 0.45rem;
