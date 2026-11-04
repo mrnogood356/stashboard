@@ -1141,12 +1141,19 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     const isDoubleTap = now - this.lastTap < 300;
     this.lastTap = now;
 
+    // A click on the picture never pauses (that was too easy to do by
+    // accident): it closes an open menu, else brings the controls up. Pause
+    // with the button, Space or K. A double-click goes fullscreen.
     if (event.pointerType === 'mouse') {
       if (isDoubleTap) {
         void this.toggleFullscreen();
-      } else {
-        this.togglePlay();
+      } else if (!this.closeMenus()) {
+        this.showControls();
       }
+      return;
+    }
+
+    if (this.closeMenus()) {
       return;
     }
 
@@ -1164,6 +1171,15 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     } else {
       this.showControls();
     }
+  }
+
+  /** Closes whichever menu is open; true when one was. */
+  private closeMenus(): boolean {
+    const open = this.speedMenuOpen() || this.qualityMenuOpen() || this.chaptersMenuOpen();
+    this.speedMenuOpen.set(false);
+    this.qualityMenuOpen.set(false);
+    this.chaptersMenuOpen.set(false);
+    return open;
   }
 
   protected showControls(): void {

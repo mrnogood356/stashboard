@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlaybackInfo, PlaybackService } from '../../core/api/playback.service';
 import { LocalLibraryService } from '../../core/api/local-library.service';
 import { AppLockService } from '../../core/app-lock/app-lock.service';
-import { signal } from '@angular/core';
+import { signal, type WritableSignal } from '@angular/core';
 import { WatchPageComponent } from './watch-page.component';
 
 const baseInfo: PlaybackInfo = {
@@ -421,6 +421,31 @@ describe('WatchPageComponent', () => {
     fixture.detectChanges();
     expect(shortcuts()).toBeNull();
     expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
+
+  it('never pauses on a click on the picture: it closes a menu, else shows the controls', async () => {
+    const fixture = await render();
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    Object.defineProperty(video, 'paused', { configurable: true, get: () => false });
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    const component = fixture.componentInstance as unknown as {
+      speedMenuOpen: WritableSignal<boolean>;
+      controlsVisible: WritableSignal<boolean>;
+    };
+    const surface = fixture.nativeElement.querySelector('.surface') as HTMLElement;
+
+    component.speedMenuOpen.set(true);
+    surface.dispatchEvent(new PointerEvent('click', { pointerType: 'mouse', bubbles: true }));
+    expect(component.speedMenuOpen()).toBe(false);
+
+    component.controlsVisible.set(false);
+    // Past the double-click window.
+    await new Promise((resolve) => setTimeout(resolve, 320));
+    surface.dispatchEvent(new PointerEvent('click', { pointerType: 'mouse', bubbles: true }));
+    expect(component.controlsVisible()).toBe(true);
+    expect(pause).not.toHaveBeenCalled();
+    pause.mockRestore();
+    fixture.destroy();
   });
 
   it('plays at 2× while you hold the picture, then goes back to your speed', async () => {
