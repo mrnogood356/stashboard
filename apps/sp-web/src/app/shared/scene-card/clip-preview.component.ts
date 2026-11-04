@@ -122,7 +122,13 @@ export class ClipPreviewComponent implements AfterViewInit, OnDestroy {
   protected start(event: Event): void {
     const video = event.target as HTMLVideoElement;
     video.muted = true;
-    video.play?.()?.catch(() => undefined);
+    video.play?.()?.catch((error: unknown) => {
+      // AbortError: it was stopped before it started, which is fine. Anything
+      // else (autoplay blocked, say) won't get better by asking again.
+      if ((error as { name?: string } | null)?.name !== 'AbortError') {
+        this.failed();
+      }
+    });
   }
 
   protected failed(): void {

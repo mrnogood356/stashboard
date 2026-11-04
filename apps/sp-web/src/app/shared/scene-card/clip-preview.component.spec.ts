@@ -76,6 +76,32 @@ describe('ClipPreviewComponent', () => {
     expect(none.video()).toBeNull();
   });
 
+  it('gives up on a clip the browser won’t play, but not on one stopped early', async () => {
+    const { fixture, host, video } = render();
+    const hover = () => {
+      host.dispatchEvent(pointer('pointerenter', 'mouse'));
+      vi.advanceTimersByTime(350);
+      fixture.detectChanges();
+    };
+    const refuse = async (name: string) => {
+      const element = video() as HTMLVideoElement;
+      element.play = () => Promise.reject(Object.assign(new Error(name), { name }));
+      element.dispatchEvent(new Event('loadedmetadata'));
+      await Promise.resolve();
+      await Promise.resolve();
+      fixture.detectChanges();
+    };
+
+    hover();
+    await refuse('AbortError');
+    expect(video()).toBeTruthy();
+
+    await refuse('NotAllowedError');
+    expect(video()).toBeNull();
+    hover();
+    expect(video()).toBeNull();
+  });
+
   it('plays on a touch screen while in view', () => {
     let callback!: IntersectionObserverCallback;
     vi.stubGlobal(
