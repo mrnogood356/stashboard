@@ -669,8 +669,9 @@ describe('AcquisitionPageComponent', () => {
     expect(lifecycleHeadings).toEqual(['Failed', 'Downloading', 'Requested']);
     expect(text).toContain('Whisparr reported: The download is stalled with no connections');
     expect(
-      fixture.nativeElement.querySelector('a[href="http://whisparr.local/movie/failed"]')
-        ?.textContent,
+      fixture.nativeElement
+        .querySelector('a[href="http://whisparr.local/movie/failed"]')
+        ?.getAttribute('aria-label'),
     ).toContain('View in Whisparr');
     expect(
       fixture.nativeElement.querySelector('.card-actions a[href*="/scene/scene-failed"]'),

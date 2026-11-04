@@ -512,4 +512,30 @@ app-stage-track {
     grid-column: 2;
     justify-content: flex-start;
   }
+
+  /* Both buttons fit on one line beside the picture. */
+  .actions {
+    gap: 0.35rem;
+  }
+
+  .actions .btn.small {
+    padding: 0 0.6rem;
+  }
+
+  .actions .btn.quiet {
+    padding-inline: 0.4rem;
+  }
+}
+
+/* The buttons sit under the details, and run the full width of the card on a phone. */
+.card > .actions {
+  grid-column: 2;
+  margin-top: -0.35rem;
+}
+
+@media (max-width: 640px) {
+  .card > .actions {
+    grid-column: 1 / -1;
+    margin-top: 0;
+  }
 }

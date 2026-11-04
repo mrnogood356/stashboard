@@ -736,3 +736,14 @@ a {
   align-self: flex-start;
   width: auto;
 }
+
+/* The buttons sit under the details, and run the full width of the card on a phone. */
+.acquisition-card > .card-actions {
+  grid-column: -2 / -1;
+}
+
+@media (max-width: 640px) {
+  .acquisition-card > .card-actions {
+    grid-column: 1 / -1;
+  }
+}

@@ -116,40 +116,40 @@
                 @if (entry.detail) {
                   <p class="detail" [class.bad]="entry.stage === 'failed'">{{ entry.detail }}</p>
                 }
-                @if (entry.sceneId || entry.canRetry || entry.canIgnore) {
-                  <div class="actions">
-                    @if (entry.canRetry) {
-                      <button
-                        type="button"
-                        class="btn small primary"
-                        [disabled]="busy() === entry.id"
-                        (click)="retryHandoff(entry)"
-                      >
-                        Try again
-                      </button>
-                    }
-                    @if (entry.sceneId) {
-                      <a
-                        class="btn small"
-                        [routerLink]="['/scene', entry.sceneId]"
-                        [queryParams]="{ returnTo: '/processing' }"
-                      >
-                        Scene details
-                      </a>
-                    }
-                    @if (entry.canIgnore) {
-                      <button
-                        type="button"
-                        class="btn small quiet"
-                        [disabled]="busy() === entry.id"
-                        (click)="ignore(entry)"
-                      >
-                        Stop watching
-                      </button>
-                    }
-                  </div>
-                }
               </div>
+              @if (entry.sceneId || entry.canRetry || entry.canIgnore) {
+                <div class="actions">
+                  @if (entry.canRetry) {
+                    <button
+                      type="button"
+                      class="btn small primary"
+                      [disabled]="busy() === entry.id"
+                      (click)="retryHandoff(entry)"
+                    >
+                      Try again
+                    </button>
+                  }
+                  @if (entry.sceneId) {
+                    <a
+                      class="btn small"
+                      [routerLink]="['/scene', entry.sceneId]"
+                      [queryParams]="{ returnTo: '/processing' }"
+                    >
+                      Scene details
+                    </a>
+                  }
+                  @if (entry.canIgnore) {
+                    <button
+                      type="button"
+                      class="btn small quiet"
+                      [disabled]="busy() === entry.id"
+                      (click)="ignore(entry)"
+                    >
+                      Stop watching
+                    </button>
+                  }
+                </div>
+              }
             </article>
           }
         </div>
