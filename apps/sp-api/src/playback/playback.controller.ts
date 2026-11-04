@@ -144,6 +144,26 @@ export class PlaybackController {
     await this.proxyToStash(`${sceneId}/preview`, undefined, request, response);
   }
 
+  /** Stash's short clip of one marker, as on its Markers page. */
+  @RequiresPlayback('preview')
+  @Get('scenes/:sceneId/markers/:markerId/preview')
+  async markerPreview(
+    @Param('sceneId') sceneId: string,
+    @Param('markerId') markerId: string,
+    @Req() request: Request,
+    @Res() response: Response,
+  ): Promise<void> {
+    if (!/^\d+$/.test(sceneId) || !/^\d+$/.test(markerId)) {
+      throw new NotFoundException();
+    }
+    await this.proxyToStash(
+      `${sceneId}/scene_marker/${markerId}/stream`,
+      undefined,
+      request,
+      response,
+    );
+  }
+
   private async proxyToStash(
     rest: string,
     forwardedPrefix: string | undefined,

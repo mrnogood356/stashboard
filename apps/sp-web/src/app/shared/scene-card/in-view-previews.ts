@@ -83,6 +83,17 @@ class InViewPreviews {
     }
   }
 
+  /** For tests: forget every card and the observer. */
+  reset(): void {
+    this.observer?.disconnect();
+    this.observer = null;
+    this.cards.clear();
+    this.visible.clear();
+    this.active = null;
+    this.picking = false;
+    this.updateListening();
+  }
+
   /** Looks again, e.g. after a card's clip failed. */
   refresh(): void {
     this.schedulePick();

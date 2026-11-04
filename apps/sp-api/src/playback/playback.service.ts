@@ -49,6 +49,8 @@ export interface SceneMarkerDto {
   title: string;
   seconds: number;
   imageUrl: string;
+  /** Stash's short clip of the marker, as on its Markers page. */
+  previewUrl: string;
 }
 
 export interface LocalSceneFileDto {
@@ -272,5 +274,6 @@ function toMarkerDtos(
     title: marker.title,
     seconds: marker.seconds,
     imageUrl: `/api/media/stash/scenes/${encodeURIComponent(sceneId)}/markers/${encodeURIComponent(marker.id)}/screenshot`,
+    previewUrl: `/api/playback/scenes/${encodeURIComponent(sceneId)}/markers/${encodeURIComponent(marker.id)}/preview`,
   }));
 }

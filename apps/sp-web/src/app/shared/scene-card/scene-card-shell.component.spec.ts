@@ -1,3 +1,4 @@
+import { inViewPreviews } from './in-view-previews';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -234,6 +235,7 @@ describe('SceneCardShellComponent on a touch screen', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     resetUnavailablePreviews();
+    inViewPreviews.reset();
     observed = [];
     vi.stubGlobal(
       'matchMedia',
