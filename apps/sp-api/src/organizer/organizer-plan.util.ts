@@ -77,6 +77,15 @@ export function planRename(
     return { ...base, state: 'outside' };
   }
   const current = splitPath(file.path);
+  // Moved to Unmatched as there's nothing to name it by: it stays there,
+  // or the next move to Unmatched would only put it back.
+  if (
+    isUnmatched(scene) &&
+    lastFolderName(current.folder)?.toLowerCase() ===
+      UNMATCHED_FOLDER.toLowerCase()
+  ) {
+    return { ...base, to: file.path, state: 'same' };
+  }
   const values = {
     title: scene.title,
     studio: scene.studio?.name ?? null,
@@ -442,6 +451,15 @@ export function fingerprintGroup(
       return [{ hash: print.value, algorithm }];
     }),
   );
+}
+
+/**
+ * Nothing to name the file by: no stash-box link, and no title or no studio.
+ * Moving to Unmatched takes these, and renaming leaves them there. A
+ * scraper-filled scene (title and studio) is the rename's, not Unmatched's.
+ */
+export function isUnmatched(scene: StashOrganizerScene): boolean {
+  return scene.stashIds.length === 0 && (!scene.title || !scene.studio);
 }
 
 export function lastFolderName(folder: string): string | null {

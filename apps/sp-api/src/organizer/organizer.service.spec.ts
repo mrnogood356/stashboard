@@ -994,6 +994,39 @@ describe('OrganizerService', () => {
     expect(service.status().message).toBe('Sent 1 to Whisparr.');
   });
 
+  it('leaves scenes the rename can name out of Unmatched, so the two don’t undo each other', async () => {
+    const file = (id: string, path: string) => ({
+      ...localScene().files[0],
+      id,
+      path,
+      basename: path.split('/').pop()!,
+    });
+    stash.findOrganizerScenes.mockResolvedValue({
+      total: 3,
+      items: [
+        // A scraper gave it a title and studio, but no stash-box link.
+        localScene({
+          id: '1',
+          title: 'Scraped',
+          studio: { id: 's', name: 'Studio' },
+          date: '2022-01-02',
+          files: [file('f1', '/data/Studio/2022-01-02 - Scraped.mp4')],
+        }),
+        // A title but no studio: nothing to name it by.
+        localScene({
+          id: '2',
+          title: 'Half',
+          files: [file('f2', '/data/inbox/half.mp4')],
+        }),
+        localScene({ id: '3', files: [file('f3', '/data/inbox/junk.mp4')] }),
+      ],
+    });
+    service.startMoveUnmatched();
+    await waitUntilIdle(service);
+    const moved = stash.moveFile.mock.calls.map((call) => call[1]);
+    expect(moved.sort()).toEqual(['f2', 'f3']);
+  });
+
   it('moves unmatched files into the Unmatched folder through Stash, with undo', async () => {
     stash.getOrganizerScene.mockResolvedValue(
       localScene({
