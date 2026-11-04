@@ -456,7 +456,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
         {
           lifecycle: 'ANY',
           label: 'All tracked',
-          description: `Sorted by ${this.sortLabel(this.selectedSort()).toLowerCase()}.`,
+          description: '',
           tone: 'overview',
           totalCount: this.total(),
           items,
@@ -566,10 +566,6 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       clearTimeout(this.searchTimer);
       this.searchTimer = null;
     }
-  }
-
-  private sortLabel(sort: AcquisitionSort): string {
-    return this.sortOptions.find((option) => option.value === sort)?.label ?? 'By status';
   }
 
   private feedOptions(): AcquisitionFeedOptions {
@@ -908,7 +904,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       case 'IMPORT_PENDING':
         return 'Downloaded, and waiting to show up in Stash.';
       case 'DOWNLOADING':
-        return 'Downloading now.';
+        return '';
       case 'REQUESTED':
       default:
         return 'Waiting for Whisparr to start them.';

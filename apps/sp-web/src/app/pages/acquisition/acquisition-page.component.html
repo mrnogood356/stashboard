@@ -114,10 +114,9 @@
         <div class="lifecycle-section-head app-section-head">
           <div class="app-section-head__copy">
             <div class="section-title-row">
-              <h3>Downloads you started</h3>
+              <h3>Your downloads</h3>
               <span class="section-count">{{ countLabel(handoffs().length, 'download') }}</span>
             </div>
-            <p>Sent to SABnzbd from Find downloads or Prowlarr.</p>
           </div>
           <a class="secondary-action compact" routerLink="/processing">Downloads</a>
         </div>
@@ -266,7 +265,9 @@
                     <span class="section-priority">Needs attention</span>
                   }
                 </div>
-                <p>{{ section.description }}</p>
+                @if (section.description) {
+                  <p>{{ section.description }}</p>
+                }
               </div>
 
               @if (section.lifecycle === 'IMPORT_PENDING') {

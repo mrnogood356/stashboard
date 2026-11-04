@@ -569,7 +569,7 @@ describe('AcquisitionPageComponent', () => {
     const root = fixture.nativeElement as HTMLElement;
 
     const section = root.querySelector('[data-testid="handoff-section"]');
-    expect(section?.textContent).toContain('Downloads you started');
+    expect(section?.textContent).toContain('Your downloads');
     const card = root.querySelector('[data-testid="handoff-h1"]');
     expect(card?.textContent).toContain('Golden Hour');
     expect(card?.textContent).toContain('Golden.Hour.1080p');
@@ -1012,7 +1012,8 @@ describe('AcquisitionPageComponent', () => {
     const sections = fixture.nativeElement.querySelectorAll('.lifecycle-section');
     expect(sections).toHaveLength(1);
     expect(sections[0]?.querySelector('h3')?.textContent).toContain('All tracked');
-    expect(sections[0]?.textContent).toContain('Sorted by newest requested');
+    // The sort menu already says how it's sorted.
+    expect(sections[0]?.textContent).not.toContain('Sorted by');
   });
 
   it('reads the sort from the address', async () => {
