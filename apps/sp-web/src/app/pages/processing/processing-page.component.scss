@@ -24,6 +24,19 @@
   text-decoration: none;
 }
 
+button.head-action {
+  border: 0;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.head-action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .block {
   --app-section-radius: 18px;
   --app-section-padding: 0.95rem;

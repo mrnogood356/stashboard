@@ -3,7 +3,10 @@ import type { PrismaService } from '../prisma/prisma.service';
 import type { SabnzbdAdapter } from '../providers/sabnzbd/sabnzbd.adapter';
 import type { DownloadDropInService } from './download-drop-in.service';
 import type { DownloadHandoffService } from './download-handoff.service';
-import type { DropInWatchStatusDto } from './download-handoff.model';
+import {
+  OPEN_HANDOFF_STATUSES,
+  type DropInWatchStatusDto,
+} from './download-handoff.model';
 import {
   DownloadProcessingService,
   handoffItem,
@@ -26,6 +29,7 @@ function handoff(overrides: Partial<DownloadHandoff> = {}): DownloadHandoff {
     error: null,
     attempts: 0,
     finishedAt: null,
+    clearedAt: null,
     createdAt: at,
     updatedAt: at,
     ...overrides,
@@ -43,6 +47,7 @@ function dropIn(overrides: Partial<DownloadDropIn> = {}): DownloadDropIn {
     error: null,
     attempts: 0,
     finishedAt: null,
+    clearedAt: null,
     createdAt: at,
     updatedAt: at,
     ...overrides,
@@ -379,5 +384,67 @@ describe('DownloadProcessingService', () => {
     expect(snapshot.handoff.sabnzbdUnreachable).toBe(true);
     expect(snapshot.handoffs[0].stage).toBe('queued');
     expect(snapshot.problemCount).toBe(1);
+  });
+});
+
+describe('DownloadProcessingService clearing', () => {
+  function setup() {
+    const prisma = {
+      downloadHandoff: {
+        updateMany: jest.fn().mockResolvedValue({ count: 2 }),
+      },
+      downloadDropIn: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const service = new DownloadProcessingService(
+      prisma as unknown as PrismaService,
+      {} as DownloadHandoffService,
+      {} as DownloadDropInService,
+      {} as SabnzbdAdapter,
+    );
+    return { service, prisma };
+  }
+
+  it('clears one finished download, never one still on its way', async () => {
+    const { service, prisma } = setup();
+
+    await service.clearHandoffs('h1');
+
+    expect(prisma.downloadHandoff.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'h1',
+        status: { notIn: OPEN_HANDOFF_STATUSES },
+        clearedAt: null,
+      },
+      data: { clearedAt: expect.any(Date) },
+    });
+  });
+
+  it('clears the whole history: downloads and drop-ins', async () => {
+    const { service, prisma } = setup();
+
+    await service.clearHistory();
+
+    expect(prisma.downloadHandoff.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: { notIn: OPEN_HANDOFF_STATUSES }, clearedAt: null },
+      }),
+    );
+    expect(prisma.downloadDropIn.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: { in: ['imported', 'failed'] }, clearedAt: null },
+      }),
+    );
+  });
+
+  it('marks finished and failed downloads as clearable', () => {
+    expect(handoffItem(handoff({ status: 'failed' }), null).canClear).toBe(
+      true,
+    );
+    expect(handoffItem(handoff({ status: 'imported' }), null).canClear).toBe(
+      true,
+    );
+    expect(handoffItem(handoff({ status: 'sent' }), null).canClear).toBe(false);
   });
 });

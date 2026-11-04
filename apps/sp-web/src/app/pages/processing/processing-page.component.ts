@@ -123,6 +123,36 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  protected clearHandoff(entry: ProcessingHandoff): void {
+    this.busy.set(entry.id);
+    this.run(this.api.clearHandoff(entry.id), {
+      done: () => this.busy.set(null),
+      failed: 'Couldn’t clear it',
+    });
+  }
+
+  protected clearDropIn(entry: ProcessingDropIn): void {
+    this.busy.set(entry.id);
+    this.run(this.api.clearDropIn(entry.id), {
+      done: () => this.busy.set(null),
+      failed: 'Couldn’t clear it',
+    });
+  }
+
+  /** Clears every finished and failed download; ones on their way stay. */
+  protected clearHistory(): void {
+    this.busy.set('history');
+    this.run(this.api.clearHistory(), {
+      done: () => this.busy.set(null),
+      failed: 'Couldn’t clear the history',
+      success: 'History cleared',
+    });
+  }
+
+  protected readonly hasHistory = computed(
+    () => (this.data()?.recentHandoffs.length ?? 0) + (this.data()?.dropIns.recent.length ?? 0) > 0,
+  );
+
   /** Stops watching one download; nothing in SABnzbd or on disk changes. */
   protected ignore(entry: ProcessingHandoff): void {
     this.busy.set(entry.id);

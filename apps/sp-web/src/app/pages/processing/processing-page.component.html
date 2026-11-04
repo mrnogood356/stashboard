@@ -5,10 +5,24 @@
       <h1>Downloads</h1>
       <p>On their way into your library. Updates every few seconds.</p>
     </div>
-    <a class="head-action" routerLink="/settings/integrations">
-      <i class="pi pi-cog" aria-hidden="true"></i>
-      <span>Settings</span>
-    </a>
+    <div class="head-actions">
+      @if (hasHistory()) {
+        <button
+          type="button"
+          class="head-action"
+          data-testid="clear-history"
+          [disabled]="busy() === 'history'"
+          (click)="clearHistory()"
+        >
+          <i class="pi pi-trash" aria-hidden="true"></i>
+          <span>Clear history</span>
+        </button>
+      }
+      <a class="head-action" routerLink="/settings/integrations">
+        <i class="pi pi-cog" aria-hidden="true"></i>
+        <span>Settings</span>
+      </a>
+    </div>
   </header>
 
   @if (loadError() && !data()) {
@@ -183,6 +197,18 @@
                     Try again
                   </button>
                 }
+                @if (entry.canClear) {
+                  <button
+                    type="button"
+                    class="btn small quiet"
+                    data-testid="clear-handoff"
+                    [disabled]="busy() === entry.id"
+                    [attr.aria-label]="'Clear ' + (entry.scene?.title ?? entry.releaseTitle)"
+                    (click)="clearHandoff(entry)"
+                  >
+                    Clear
+                  </button>
+                }
               </div>
             </li>
           }
@@ -336,6 +362,18 @@
                       Try again
                     </button>
                   }
+                  @if (entry.canClear) {
+                    <button
+                      type="button"
+                      class="btn small quiet"
+                      data-testid="clear-drop-in"
+                      [disabled]="busy() === entry.id"
+                      [attr.aria-label]="'Clear ' + entry.name"
+                      (click)="clearDropIn(entry)"
+                    >
+                      Clear
+                    </button>
+                  }
                 </div>
               </li>
             }
@@ -353,6 +391,17 @@
                 </div>
                 <div class="row-end">
                   <span class="pill" data-stage="done">In your library</span>
+                  @if (entry.canClear) {
+                    <button
+                      type="button"
+                      class="btn small quiet"
+                      [disabled]="busy() === entry.id"
+                      [attr.aria-label]="'Clear ' + entry.name"
+                      (click)="clearDropIn(entry)"
+                    >
+                      Clear
+                    </button>
+                  }
                 </div>
               </li>
             }

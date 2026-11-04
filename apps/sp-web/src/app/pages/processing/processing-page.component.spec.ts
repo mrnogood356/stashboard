@@ -102,6 +102,9 @@ async function render(data: Processing) {
     checkDropIns: vi.fn().mockReturnValue(of(data)),
     retryHandoff: vi.fn().mockReturnValue(of(data)),
     retryDropIn: vi.fn().mockReturnValue(of(data)),
+    clearHandoff: vi.fn().mockReturnValue(of(processing())),
+    clearDropIn: vi.fn().mockReturnValue(of(processing())),
+    clearHistory: vi.fn().mockReturnValue(of(processing())),
     ignore: vi.fn().mockReturnValue(of({})),
   };
   const notifications = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
@@ -124,6 +127,36 @@ describe('ProcessingPageComponent', () => {
   afterEach(() => {
     TestBed.resetTestingModule();
     vi.useRealTimers();
+  });
+
+  it('clears one finished download, or the whole history', async () => {
+    const { root, api, fixture } = await render(
+      processing({
+        recentHandoffs: [
+          handoff({ id: 'h2', status: 'failed', stage: 'failed', canRetry: true, canClear: true }),
+        ],
+        dropIns: {
+          watch: watch(),
+          active: [],
+          recent: [dropIn({ canClear: true })],
+        },
+      }),
+    );
+
+    (root.querySelector('[data-testid="clear-handoff"]') as HTMLButtonElement).click();
+    expect(api.clearHandoff).toHaveBeenCalledWith('h2');
+    fixture.detectChanges();
+    // The answer has nothing left, so neither the row nor Clear history shows.
+    expect(root.querySelector('[data-testid="recent-handoff"]')).toBeNull();
+    expect(root.querySelector('[data-testid="clear-history"]')).toBeNull();
+  });
+
+  it('offers Clear history while there is any', async () => {
+    const { root, api } = await render(
+      processing({ recentHandoffs: [handoff({ id: 'h2', status: 'imported', stage: 'done' })] }),
+    );
+    (root.querySelector('[data-testid="clear-history"]') as HTMLButtonElement).click();
+    expect(api.clearHistory).toHaveBeenCalled();
   });
 
   it('shows downloads in SABnzbd with their stage and progress', async () => {

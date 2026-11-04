@@ -63,7 +63,7 @@ export class DownloadProcessingService {
           take: OPEN_LIMIT,
         }),
         this.prisma.downloadHandoff.findMany({
-          where: { status: { notIn: OPEN_HANDOFF_STATUSES } },
+          where: { status: { notIn: OPEN_HANDOFF_STATUSES }, clearedAt: null },
           orderBy: { updatedAt: 'desc' },
           take: RECENT_LIMIT,
         }),
@@ -73,7 +73,7 @@ export class DownloadProcessingService {
           take: OPEN_LIMIT,
         }),
         this.prisma.downloadDropIn.findMany({
-          where: { status: { in: ['imported', 'failed'] } },
+          where: { status: { in: ['imported', 'failed'] }, clearedAt: null },
           orderBy: { updatedAt: 'desc' },
           take: RECENT_LIMIT,
         }),
@@ -119,6 +119,48 @@ export class DownloadProcessingService {
       activeCount: handoffs.length + watch.settling.length + placed.length,
       problemCount: recentFailures + (watch.state === 'problem' ? 1 : 0),
     };
+  }
+
+  /**
+   * Takes finished, failed or ignored downloads off the list: one, or every
+   * one when no id is given. They stay recorded, so a finished SABnzbd job
+   * or a dropped-in file is never brought in twice. Downloads still on
+   * their way are left alone.
+   */
+  async clearHandoffs(id?: string): Promise<number> {
+    const { count } = await this.prisma.downloadHandoff.updateMany({
+      where: {
+        ...(id ? { id } : {}),
+        status: { notIn: OPEN_HANDOFF_STATUSES },
+        clearedAt: null,
+      },
+      data: { clearedAt: new Date() },
+    });
+    return count;
+  }
+
+  /** The same for files brought in from the drop-in folder. */
+  async clearDropIns(id?: string): Promise<number> {
+    const { count } = await this.prisma.downloadDropIn.updateMany({
+      where: {
+        ...(id ? { id } : {}),
+        status: { in: ['imported', 'failed'] },
+        clearedAt: null,
+      },
+      data: { clearedAt: new Date() },
+    });
+    return count;
+  }
+
+  /** Clears the whole history: finished and failed downloads and drop-ins. */
+  async clearHistory(): Promise<void> {
+    const [handoffs, dropIns] = await Promise.all([
+      this.clearHandoffs(),
+      this.clearDropIns(),
+    ]);
+    this.logger.log(
+      `Cleared ${handoffs + dropIns} finished download${handoffs + dropIns === 1 ? '' : 's'} from the list.`,
+    );
   }
 
   /** What Stashboard knows of the scenes these downloads are for, by id. */
@@ -216,6 +258,7 @@ export function handoffItem(
     timeLeft,
     canRetry: row.status === 'failed',
     canIgnore: OPEN_HANDOFF_STATUSES.includes(row.status as HandoffStatus),
+    canClear: !OPEN_HANDOFF_STATUSES.includes(row.status as HandoffStatus),
   });
   switch (row.status as HandoffStatus) {
     case 'imported':
@@ -279,5 +322,6 @@ function dropInItem(row: DownloadDropIn): ProcessingDropInDto {
     ...toDropInDto(row),
     name: path.basename(row.sourcePath),
     canRetry: row.status === 'failed',
+    canClear: row.status === 'imported' || row.status === 'failed',
   };
 }

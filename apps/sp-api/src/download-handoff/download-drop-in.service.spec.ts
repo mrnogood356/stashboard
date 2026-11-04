@@ -161,6 +161,7 @@ describe('DownloadDropInService', () => {
               error: null,
               attempts: 0,
               finishedAt: null,
+              clearedAt: null,
               createdAt: new Date(),
               updatedAt: new Date(),
               ...create,
@@ -526,6 +527,7 @@ describe('DownloadDropInService', () => {
       error: null,
       attempts: 0,
       finishedAt: new Date(),
+      clearedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -549,6 +551,7 @@ describe('DownloadDropInService', () => {
       error: null,
       attempts: 0,
       finishedAt: new Date(),
+      clearedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -849,6 +852,7 @@ describe('DownloadDropInService', () => {
         error: 'Stash hasn’t picked it up.',
         attempts: 5,
         finishedAt: new Date(),
+        clearedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       });

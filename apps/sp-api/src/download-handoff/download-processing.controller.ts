@@ -36,6 +36,29 @@ export class DownloadProcessingController {
     return this.processing.snapshot();
   }
 
+  /** Takes one finished or failed download off the list. */
+  @Post('handoffs/:id/clear')
+  @HttpCode(200)
+  async clearHandoff(@Param('id') id: string) {
+    await this.processing.clearHandoffs(id);
+    return this.processing.snapshot();
+  }
+
+  @Post('drop-ins/:id/clear')
+  @HttpCode(200)
+  async clearDropIn(@Param('id') id: string) {
+    await this.processing.clearDropIns(id);
+    return this.processing.snapshot();
+  }
+
+  /** Clears every finished and failed download from the list. */
+  @Post('clear-history')
+  @HttpCode(200)
+  async clearHistory() {
+    await this.processing.clearHistory();
+    return this.processing.snapshot();
+  }
+
   @Post('handoffs/:id/retry')
   @HttpCode(200)
   async retryHandoff(@Param('id') id: string) {

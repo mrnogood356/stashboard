@@ -535,6 +535,8 @@ model DownloadHandoff {
   /// Tries at linking it once moved; gives up after a few.
   attempts     Int       @default(0)
   finishedAt   DateTime?
+  /// Cleared from Downloads by you. Kept, so it's never brought in twice.
+  clearedAt    DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -561,6 +563,8 @@ model DownloadDropIn {
   /// Tries at having Stash pick it up; gives up after a few.
   attempts     Int       @default(0)
   finishedAt   DateTime?
+  /// Cleared from Downloads by you. Kept, so it's never brought in twice.
+  clearedAt    DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

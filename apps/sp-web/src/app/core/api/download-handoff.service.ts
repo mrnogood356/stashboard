@@ -144,11 +144,15 @@ export interface ProcessingHandoff extends DownloadHandoff {
   detail: string | null;
   canRetry: boolean;
   canIgnore: boolean;
+  /** Finished, failed or ignored: can be cleared from the list. Older APIs: missing. */
+  canClear?: boolean;
 }
 
 export interface ProcessingDropIn extends DownloadDropIn {
   name: string;
   canRetry: boolean;
+  /** Brought in or failed: can be cleared from the list. Older APIs: missing. */
+  canClear?: boolean;
 }
 
 /** Everything moving through the download pipeline, in one place. */
@@ -188,6 +192,26 @@ export class DownloadHandoffApiService {
       `/api/downloads/processing/handoffs/${encodeURIComponent(id)}/retry`,
       {},
     );
+  }
+
+  /** Takes one finished or failed download off the list; it stays recorded. */
+  clearHandoff(id: string): Observable<Processing> {
+    return this.http.post<Processing>(
+      `/api/downloads/processing/handoffs/${encodeURIComponent(id)}/clear`,
+      {},
+    );
+  }
+
+  clearDropIn(id: string): Observable<Processing> {
+    return this.http.post<Processing>(
+      `/api/downloads/processing/drop-ins/${encodeURIComponent(id)}/clear`,
+      {},
+    );
+  }
+
+  /** Clears every finished and failed download and drop-in from the list. */
+  clearHistory(): Observable<Processing> {
+    return this.http.post<Processing>('/api/downloads/processing/clear-history', {});
   }
 
   retryDropIn(id: string): Observable<Processing> {
