@@ -554,6 +554,35 @@ describe('OrganizerService', () => {
     });
   });
 
+  describe('sendMissingDaily', () => {
+    it('sends scenes you have that Whisparr added since, when Send matches is on', async () => {
+      settings.sendToWhisparr = true;
+      handoff.missingInWhisparr.mockResolvedValue(['a', 'b']);
+      const start = jest
+        .spyOn(service, 'startSendAll')
+        .mockReturnValue(service.status());
+
+      await service.sendMissingDaily();
+
+      expect(start).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing when it is off or nothing is missing', async () => {
+      const start = jest
+        .spyOn(service, 'startSendAll')
+        .mockReturnValue(service.status());
+      settings.sendToWhisparr = false;
+      handoff.missingInWhisparr.mockResolvedValue(['a']);
+      await service.sendMissingDaily();
+
+      settings.sendToWhisparr = true;
+      handoff.missingInWhisparr.mockResolvedValue([]);
+      await service.sendMissingDaily();
+
+      expect(start).not.toHaveBeenCalled();
+    });
+  });
+
   it('finds a fingerprint match first', async () => {
     const [result] = await service.lookup(['7']);
     expect(stashdb.findScenesByFingerprints).toHaveBeenCalledWith(
