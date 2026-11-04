@@ -30,6 +30,7 @@ import {
   WhisparrRepairScene,
 } from '../../core/api/organizer.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
+import { DownloadHandoffApiService } from '../../core/api/download-handoff.service';
 
 type Tab = 'overview' | 'review' | 'settings';
 
@@ -92,6 +93,9 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
   private readonly notifications = inject(AppNotificationsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly downloads = inject(DownloadHandoffApiService);
+  /** Downloads stuck at Whisparr's import step (Downloads → Waiting in Whisparr). */
+  protected readonly stuckInWhisparr = signal(0);
   @ViewChild('folderInput') private folderInput?: ElementRef<HTMLInputElement>;
   @ViewChild('fileInput') private fileInput?: ElementRef<HTMLInputElement>;
   /** Where a placeholder button adds to: the field last typed in. */
@@ -258,6 +262,7 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
     return [
       this.waiting(),
       this.total() ?? 0,
+      this.stuckInWhisparr(),
       settings?.whisparrAvailable ? settings.missingInWhisparr : 0,
       this.repair()?.count ?? 0,
       this.relocation()?.count ?? 0,
@@ -271,6 +276,16 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
   protected readonly checking = computed(
     () => !this.settings() || (this.previewing() && !this.preview()) || this.total() === null,
   );
+
+  private loadStuckInWhisparr(): void {
+    this.downloads.whisparrImports?.().subscribe({
+      next: (imports) =>
+        this.stuckInWhisparr.set(
+          imports.configured && !imports.unreachable ? imports.items.length : 0,
+        ),
+      error: () => this.stuckInWhisparr.set(0),
+    });
+  }
 
   /** Matches waiting on Review; the list there keeps it current. */
   protected loadWaiting(): void {
@@ -970,6 +985,7 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
   /** Works out names for the pattern now, and reloads what follows the saved settings. */
   protected loadPreview(): void {
     this.renameStale = false;
+    this.loadStuckInWhisparr();
     this.loadRelocation();
     this.previewNames();
   }

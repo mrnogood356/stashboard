@@ -4,7 +4,11 @@ import { Subject, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OrganizerApiService } from '../../core/api/organizer.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
+import { DownloadHandoffApiService } from '../../core/api/download-handoff.service';
 import { OrganizePageComponent } from './organize-page.component';
+
+/** What Whisparr's import queue holds in a test; empty unless one sets it. */
+let stuckImports: unknown[] = [];
 
 const idle = {
   running: false,
@@ -77,6 +81,19 @@ async function render(api: Record<string, unknown>, tab?: string) {
         useValue: { proposals: vi.fn().mockReturnValue(of([])), ...api },
       },
       { provide: AppNotificationsService, useValue: notifications },
+      {
+        provide: DownloadHandoffApiService,
+        useValue: {
+          whisparrImports: vi.fn().mockReturnValue(
+            of({
+              configured: true,
+              unreachable: false,
+              whisparrQueueUrl: null,
+              items: stuckImports,
+            }),
+          ),
+        },
+      },
     ],
   }).compileComponents();
   // The scene list used to be the first tab; it's on Review now.
@@ -134,6 +151,7 @@ function button(root: HTMLElement, text: string): HTMLButtonElement {
 
 describe('OrganizePageComponent', () => {
   afterEach(() => {
+    stuckImports = [];
     vi.restoreAllMocks();
     TestBed.resetTestingModule();
   });
@@ -855,7 +873,7 @@ describe('OrganizePageComponent', () => {
 
   it('offers to move only unmatched files that aren’t in the Unmatched folder yet', async () => {
     const api = {
-      settings: vi.fn().mockReturnValue(of(settings)),
+      ...renameApiForStuck(),
       unmatched: vi
         .fn()
         .mockReturnValue(of({ total: 533, toMove: 0, page: 1, hasMore: false, items: [scene] })),
@@ -1088,4 +1106,42 @@ describe('OrganizePageComponent', () => {
     expect(component.settings().hasTpdbKey).toBe(true);
     expect(notifications.error).toHaveBeenCalledWith('Couldn’t save', expect.any(String));
   });
+
+  it('counts downloads stuck in Whisparr’s import and links to them', async () => {
+    stuckImports = [{ queueId: 1 }, { queueId: 2 }];
+    const { root } = await render(renameApiForStuck(), 'overview');
+
+    expect(row(root, 'Stuck in Whisparr’s import')).toContain('2');
+    const link = [...root.querySelectorAll('.todo-row a')].find((entry) =>
+      entry.textContent?.includes('Open'),
+    ) as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/processing#processing-whisparr');
+  });
 });
+
+function renameApiForStuck() {
+  const none = {
+    ready: 0,
+    same: 0,
+    missing: 0,
+    whisparr: 0,
+    outside: 0,
+    'no-file': 0,
+    gone: 0,
+    taken: 0,
+    copy: 0,
+  };
+  return {
+    settings: vi.fn().mockReturnValue(of(settings)),
+    unmatched: vi.fn().mockReturnValue(of({ total: 0, page: 1, hasMore: false, items: [] })),
+    preview: vi
+      .fn()
+      .mockReturnValue(
+        of({ pattern: settings.renamePattern, scanned: 0, counts: none, changes: [], skipped: [] }),
+      ),
+    whisparrRelocation: vi.fn().mockReturnValue(of({ destination: null, count: 0, examples: [] })),
+    emptyFolders: vi.fn().mockReturnValue(of({ available: true, count: 0, folders: [] })),
+    whisparrRepair: vi.fn().mockReturnValue(of({ count: 0, destination: null })),
+    status: vi.fn().mockReturnValue(of(idle)),
+  };
+}

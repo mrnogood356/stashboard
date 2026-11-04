@@ -157,6 +157,16 @@
           </li>
         }
       }
+      @if (stuckInWhisparr() > 0) {
+        <li class="todo-row">
+          <span class="todo-count tone-bad">{{ stuckInWhisparr() }}</span>
+          <span class="todo-copy">
+            <strong>Stuck in Whisparr’s import</strong>
+            <small>Downloaded; Whisparr needs you to import these by hand</small>
+          </span>
+          <a class="btn" routerLink="/processing" fragment="processing-whisparr">Open</a>
+        </li>
+      }
       @if (repair(); as fix) {
         @if (fix.count > 0) {
           <li class="todo-row" [class.open]="isOpen('repair')">
