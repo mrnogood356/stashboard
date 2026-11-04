@@ -227,23 +227,28 @@ export function scoreByName(
   const titleWords = tokenize(candidate.title ?? '').filter(
     (word) => !STOP.has(word),
   );
+  let titleFound = 0;
   if (titleWords.length > 0) {
-    const found =
+    titleFound =
       titleWords.filter((word) => fileWords.has(word)).length /
       titleWords.length;
-    score += 0.35 * found;
-    if (found >= 0.6) {
+    score += 0.35 * titleFound;
+    if (titleFound >= 0.6) {
       reasons.push('Title in file name');
     }
   }
 
   const studio = candidate.studio ? compact(candidate.studio.name) : '';
-  if (studio.length >= 3 && parsed.compact.includes(studio)) {
+  const studioFound = studio.length >= 3 && parsed.compact.includes(studio);
+  if (studioFound) {
     score += 0.15;
     reasons.push('Studio in file name');
   }
 
-  if (parsed.date && candidate.date && candidate.date.startsWith(parsed.date)) {
+  const sameDate = Boolean(
+    parsed.date && candidate.date && candidate.date.startsWith(parsed.date),
+  );
+  if (sameDate) {
     score += 0.2;
     reasons.push('Same date');
   }
@@ -262,9 +267,21 @@ export function scoreByName(
   }
 
   const clamped = Math.max(0, Math.min(1, Math.round(score * 100) / 100));
+  // Length, studio and performers support a match but don't make one: a
+  // performer has many scenes at a studio, about as long as each other. A
+  // sure match (picked without asking) needs the title or the date to agree;
+  // a likely one at least part of the title, the date, or performer and studio.
+  const identifies = titleFound >= 0.6 || sameDate;
+  const hints =
+    identifies || titleFound >= 0.34 || (performersFound > 0 && studioFound);
   return {
     score: clamped,
-    confidence: clamped >= 0.7 ? 'strong' : clamped >= 0.45 ? 'likely' : 'weak',
+    confidence:
+      clamped >= 0.7 && identifies
+        ? 'strong'
+        : clamped >= 0.45 && hints
+          ? 'likely'
+          : 'weak',
     reasons,
   };
 }

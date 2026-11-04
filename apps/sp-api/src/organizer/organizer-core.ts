@@ -240,6 +240,23 @@ export abstract class OrganizerCore {
   // ---------- matching ----------
 
   /** True when Stash's library folders are mounted into Stashboard's container too. */
+  private lastNoAccessNote = 0;
+
+  /**
+   * Clean-up is on but Stashboard can't see the media folders: say so in the
+   * log (once a day), instead of quietly doing nothing.
+   */
+  protected noteNoFolderAccess(folder: string | null): void {
+    const now = Date.now();
+    if (now - this.lastNoAccessNote < 24 * 3600_000) {
+      return;
+    }
+    this.lastNoAccessNote = now;
+    this.logger.warn(
+      `Empty folders weren't cleaned up: Stashboard can't see ${folder ?? 'your Stash library folders'}. Map the same media folder into Stashboard's container at the same path as Stash has it (on Unraid: Edit → Add another Path).`,
+    );
+  }
+
   protected async folderAccess(): Promise<boolean> {
     const config = await this.stashConfig();
     const roots = await this.stash.getLibraryRoots(config);
@@ -305,7 +322,11 @@ export abstract class OrganizerCore {
       const candidates = new Set<string>();
       for (const from of fromPaths) {
         const root = findRoot(from, roots);
-        if (!root || !(await canSee(root))) {
+        if (!root) {
+          continue;
+        }
+        if (!(await canSee(root))) {
+          this.noteNoFolderAccess(root);
           continue;
         }
         foldersLeftBehind(from, root)

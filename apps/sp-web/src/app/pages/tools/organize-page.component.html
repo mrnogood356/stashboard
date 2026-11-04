@@ -983,6 +983,12 @@
                   >Removes the folders a rename, Unmatched move or Whisparr move leaves without a
                   video.</small
                 >
+                @if (settings.cleanEmptyFolders && !settings.folderAccess) {
+                  <small class="warn" data-testid="cleanup-no-access"
+                    >Not working yet: Stashboard can’t see your media folders. Map them in, as Empty
+                    folders above explains.</small
+                  >
+                }
               </span>
               <button
                 type="button"

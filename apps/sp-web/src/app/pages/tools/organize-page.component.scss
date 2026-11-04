@@ -164,6 +164,11 @@
   gap: 0.15rem;
 }
 
+.row-copy small.warn {
+  color: var(--warning-text, var(--warning, #b7791f));
+  font-weight: 600;
+}
+
 .row-copy small {
   color: var(--text-muted);
   line-height: 1.4;
