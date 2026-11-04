@@ -146,6 +146,10 @@ export const appConfig: ApplicationConfig = {
     ),
     provideAnimationsAsync(),
     providePrimeNG({
+      // Dropdown menus open at the page's top level. Inside a panel they're
+      // placed against it, and with Glass (backdrop-filter) that put them in
+      // the wrong spot for a moment before they jumped into place.
+      overlayAppendTo: 'body',
       theme: {
         preset: StashboardPreset,
         options: {

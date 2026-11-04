@@ -596,8 +596,9 @@
             <span class="row-copy">
               <strong>Send matches to Whisparr</strong>
               <small
-                >Right after a scene is matched to {{ settings.sources[0]?.name ?? 'StashDB' }}.
-                Scenes Whisparr already has are left alone.</small
+                >Right after a scene is matched to {{ settings.sources[0]?.name ?? 'StashDB' }}, and
+                once a day for scenes Whisparr added that you already have. Scenes Whisparr already
+                has a file for are left alone.</small
               >
             </span>
             <button
@@ -934,6 +935,11 @@
                   <strong>Add another Path</strong>, container path <code>/data</code>, host path
                   <code>/mnt/user/data</code> (the same as Stash), then Apply.
                 </p>
+                @if (settings.cleanEmptyFolders) {
+                  <p class="muted warn" data-testid="cleanup-no-access">
+                    Clean up after every move is on, but can’t run until then.
+                  </p>
+                }
               }
             </div>
           </div>

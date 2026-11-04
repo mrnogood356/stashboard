@@ -144,11 +144,17 @@ export interface ProcessingHandoff extends DownloadHandoff {
   detail: string | null;
   canRetry: boolean;
   canIgnore: boolean;
+  /** Finished, failed or ignored: can be cleared from the list. Older APIs: missing. */
+  canClear?: boolean;
 }
 
 export interface ProcessingDropIn extends DownloadDropIn {
   name: string;
+  /** Stash's screenshot once it's in the library. Older APIs: missing. */
+  imageUrl?: string | null;
   canRetry: boolean;
+  /** Brought in or failed: can be cleared from the list. Older APIs: missing. */
+  canClear?: boolean;
 }
 
 /** Everything moving through the download pipeline, in one place. */
@@ -170,6 +176,29 @@ export interface Processing {
   problemCount: number;
 }
 
+/** A finished Whisparr download it couldn't bring in on its own. */
+export interface WhisparrImportItem {
+  queueId: number;
+  downloadId: string | null;
+  title: string;
+  movieId: number | null;
+  movieTitle: string | null;
+  state: string | null;
+  status: string | null;
+  messages: string[];
+  outputPath: string | null;
+  added: string | null;
+  /** Whisparr knows the scene, so Import can bring it in. */
+  canImport: boolean;
+}
+
+export interface WhisparrImports {
+  configured: boolean;
+  whisparrQueueUrl: string | null;
+  items: WhisparrImportItem[];
+  unreachable: boolean;
+}
+
 /** Finished downloads: SABnzbd's downloads moved into your library. */
 @Injectable({ providedIn: 'root' })
 export class DownloadHandoffApiService {
@@ -188,6 +217,46 @@ export class DownloadHandoffApiService {
       `/api/downloads/processing/handoffs/${encodeURIComponent(id)}/retry`,
       {},
     );
+  }
+
+  /** Takes one finished or failed download off the list; it stays recorded. */
+  clearHandoff(id: string): Observable<Processing> {
+    return this.http.post<Processing>(
+      `/api/downloads/processing/handoffs/${encodeURIComponent(id)}/clear`,
+      {},
+    );
+  }
+
+  clearDropIn(id: string): Observable<Processing> {
+    return this.http.post<Processing>(
+      `/api/downloads/processing/drop-ins/${encodeURIComponent(id)}/clear`,
+      {},
+    );
+  }
+
+  /** Clears every finished and failed download and drop-in from the list. */
+  clearHistory(): Observable<Processing> {
+    return this.http.post<Processing>('/api/downloads/processing/clear-history', {});
+  }
+
+  /** Whisparr downloads waiting on you (import blocked or by hand). */
+  whisparrImports(): Observable<WhisparrImports> {
+    return this.http.get<WhisparrImports>('/api/acquisition/whisparr-imports');
+  }
+
+  importFromWhisparr(
+    queueId: number,
+  ): Observable<WhisparrImports & { importState?: 'done' | 'importing' }> {
+    return this.http.post<WhisparrImports & { importState?: 'done' | 'importing' }>(
+      `/api/acquisition/whisparr-imports/${queueId}/import`,
+      {},
+    );
+  }
+
+  removeFromWhisparr(queueId: number, removeFromClient: boolean): Observable<WhisparrImports> {
+    return this.http.delete<WhisparrImports>(`/api/acquisition/whisparr-imports/${queueId}`, {
+      params: { removeFromClient: String(removeFromClient) },
+    });
   }
 
   retryDropIn(id: string): Observable<Processing> {

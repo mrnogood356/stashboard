@@ -148,10 +148,10 @@ describe('ScenesService.getCalendar with Whisparr', () => {
           .mockResolvedValue(new Map([['w2', 'local-2']])),
       },
       catalogProviderService: {
-        // Browsing ThePornDB doesn't change where Whisparr's scenes are from.
+        // Browsing FansDB doesn't change where Whisparr's scenes are from.
         getConfiguredCatalogProvider: jest
           .fn()
-          .mockResolvedValue({ integrationType: 'THEPORNDB' }),
+          .mockResolvedValue({ integrationType: 'FANSDB' }),
         getInstanceCatalogProvider: jest
           .fn()
           .mockResolvedValue({ integrationType: 'STASHDB' }),

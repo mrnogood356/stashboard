@@ -1,25 +1,6 @@
 import { IntegrationStatus } from '@prisma/client';
 
-export const CATALOG_PROVIDER_KEYS = [
-  'STASHDB',
-  'FANSDB',
-  'THEPORNDB',
-] as const;
-/**
- * Catalogs that can only be browsed, never be this instance's catalog:
- * Whisparr finds scenes by their StashDB id, which ThePornDB's don't have.
- */
-export const BROWSE_ONLY_CATALOG_KEYS: readonly CatalogProviderKey[] = [
-  'THEPORNDB',
-];
-/** The catalogs that can be this instance's own (requests go through it). */
-export const INSTANCE_CATALOG_PROVIDER_KEYS = CATALOG_PROVIDER_KEYS.filter(
-  (key) => !BROWSE_ONLY_CATALOG_KEYS.includes(key),
-);
-
-export function isBrowseOnlyCatalogKey(key: string): boolean {
-  return (BROWSE_ONLY_CATALOG_KEYS as readonly string[]).includes(key);
-}
+export const CATALOG_PROVIDER_KEYS = ['STASHDB', 'FANSDB'] as const;
 const CATALOG_PROVIDER_SELECTION_KEY = 'selectedForInstanceCatalogProvider';
 
 export type CatalogProviderKey = (typeof CATALOG_PROVIDER_KEYS)[number];
@@ -28,7 +9,6 @@ export type CatalogProviderIntegrationType = CatalogProviderKey;
 const PROVIDER_PATTERNS: Record<CatalogProviderKey, readonly string[]> = {
   STASHDB: ['stashdb.org', 'stashdb'],
   FANSDB: ['fansdb.cc', 'fansdb'],
-  THEPORNDB: ['theporndb.net', 'theporndb', 'metadataapi.net'],
 };
 
 const CATALOG_REF_SEPARATOR = '|';
@@ -83,8 +63,6 @@ export function getCatalogProviderLabel(
   switch (providerKey) {
     case 'FANSDB':
       return 'FansDB';
-    case 'THEPORNDB':
-      return 'ThePornDB';
     case 'STASHDB':
     default:
       return 'StashDB';
@@ -103,17 +81,15 @@ export function configuredCatalogProviderTypeFromIntegrations(
   const integrationsByType = new Map(
     integrations.map((integration) => [integration.type, integration]),
   );
-  const configuredTypes = INSTANCE_CATALOG_PROVIDER_KEYS.filter(
-    (providerType) => {
-      const integration = integrationsByType.get(providerType);
-      return (
-        integration?.enabled === true &&
-        integration?.status === IntegrationStatus.CONFIGURED &&
-        !!integration.baseUrl?.trim() &&
-        !!integration.lastHealthyAt
-      );
-    },
-  );
+  const configuredTypes = CATALOG_PROVIDER_KEYS.filter((providerType) => {
+    const integration = integrationsByType.get(providerType);
+    return (
+      integration?.enabled === true &&
+      integration?.status === IntegrationStatus.CONFIGURED &&
+      !!integration.baseUrl?.trim() &&
+      !!integration.lastHealthyAt
+    );
+  });
 
   if (configuredTypes.length === 0) {
     return null;
@@ -143,7 +119,7 @@ export function instanceCatalogProviderTypeFromIntegrations(
   const integrationsByType = new Map(
     integrations.map((integration) => [integration.type, integration]),
   );
-  const selectedTypes = INSTANCE_CATALOG_PROVIDER_KEYS.filter((providerType) =>
+  const selectedTypes = CATALOG_PROVIDER_KEYS.filter((providerType) =>
     isCatalogProviderSelected(integrationsByType.get(providerType)?.config),
   );
   const explicitlySelectedType = pickCatalogProviderType(
@@ -155,12 +131,10 @@ export function instanceCatalogProviderTypeFromIntegrations(
     return explicitlySelectedType;
   }
 
-  const legacySelectedTypes = INSTANCE_CATALOG_PROVIDER_KEYS.filter(
-    (providerType) => {
-      const integration = integrationsByType.get(providerType);
-      return !!integration?.baseUrl?.trim();
-    },
-  );
+  const legacySelectedTypes = CATALOG_PROVIDER_KEYS.filter((providerType) => {
+    const integration = integrationsByType.get(providerType);
+    return !!integration?.baseUrl?.trim();
+  });
 
   return pickCatalogProviderType(legacySelectedTypes, integrationsByType);
 }

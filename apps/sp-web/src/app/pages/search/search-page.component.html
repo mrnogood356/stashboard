@@ -89,114 +89,33 @@
     }
 
     @if (results(); as result) {
-      @if (result.library.length > 0) {
-        <section class="block">
-          <div class="block-head">
-            <h2 id="search-library-title">In your library</h2>
-            @if (result.libraryTotal > result.library.length || libraryRail.overflowing()) {
-              <a
-                class="link-button see-all"
-                data-testid="search-see-all-library"
-                aria-describedby="search-library-title"
-                [routerLink]="['/library']"
-                [queryParams]="libraryParams()"
-                (click)="remember()"
-              >
-                {{ seeAll(result.libraryTotal, result.library.length) }}
-                <i class="pi pi-chevron-right" aria-hidden="true"></i>
-              </a>
-            }
-          </div>
-          <div class="rail" appOverflowX #libraryRail="overflowX">
-            @for (item of result.library; track item.id) {
-              <app-scene-card
-                class="rail-card"
-                [item]="item"
-                variant="rail"
-                primaryLinkMode="local"
-                [sceneQueryParams]="{ returnTo: currentUrl() }"
-                [playSceneId]="item.id"
-                [playQueryParams]="{ returnTo: currentUrl() }"
-                (click)="remember()"
-              />
-            }
-          </div>
-        </section>
-      }
-
-      @if (result.local.performers.length > 0 || result.local.studios.length > 0) {
-        <section class="block">
-          <div class="block-head">
-            <h2 id="search-local-people-title">Performers and studios you have</h2>
-            @if (peopleExpanded() || localPeople.overflowing()) {
-              <button
-                type="button"
-                class="link-button see-all"
-                data-testid="search-see-all-local-people"
-                aria-controls="search-local-people"
-                aria-describedby="search-local-people-title"
-                [attr.aria-expanded]="peopleExpanded()"
-                (click)="peopleExpanded.set(!peopleExpanded())"
-              >
-                @if (peopleExpanded()) {
-                  Show less
-                } @else {
-                  Show all {{ result.local.performers.length + result.local.studios.length }}
-                }
-                <i
-                  class="pi"
-                  [class.pi-chevron-down]="!peopleExpanded()"
-                  [class.pi-chevron-up]="peopleExpanded()"
-                  aria-hidden="true"
-                ></i>
-              </button>
-            }
-          </div>
-          <div
-            id="search-local-people"
-            class="people"
-            [class.expanded]="peopleExpanded()"
-            appOverflowX
-            #localPeople="overflowX"
-          >
-            @for (performer of result.local.performers; track performer.id) {
-              <a
-                class="person"
-                [routerLink]="['/library/performer', performer.id]"
-                [queryParams]="{ returnTo: currentUrl() }"
-                (click)="remember()"
-              >
-                <span class="avatar">
-                  @if (performer.imageUrl) {
-                    <img [src]="performer.imageUrl" alt="" loading="lazy" />
-                  } @else {
-                    <span>{{ initial(performer.name) }}</span>
-                  }
-                </span>
-                <span class="person-name">{{ performer.name }}</span>
-                <span class="person-meta">{{ performer.sceneCount }} scenes</span>
-              </a>
-            }
-            @for (studio of result.local.studios; track studio.id) {
-              <a
-                class="person studio"
-                [routerLink]="['/library/studio', studio.id]"
-                [queryParams]="{ returnTo: currentUrl() }"
-                (click)="remember()"
-              >
-                <span class="avatar" [class.has-image]="!!studio.imageUrl">
-                  @if (studio.imageUrl) {
-                    <img [src]="studio.imageUrl" alt="" loading="lazy" />
-                  } @else {
-                    <span>{{ initial(studio.name) }}</span>
-                  }
-                </span>
-                <span class="person-name">{{ studio.name }}</span>
-                <span class="person-meta">Studio · {{ studio.sceneCount }} scenes</span>
-              </a>
-            }
-          </div>
-        </section>
+      @if (!nothingFound() && !searching()) {
+        <nav class="filters" aria-label="Show">
+          @for (
+            option of [
+              { id: 'all', label: 'All', count: null },
+              { id: 'scenes', label: 'Scenes', count: counts().scenes },
+              { id: 'performers', label: 'Performers', count: counts().performers },
+              { id: 'studios', label: 'Studios', count: counts().studios },
+            ];
+            track option.id
+          ) {
+            <button
+              type="button"
+              class="filter-chip"
+              [class.on]="filter() === option.id"
+              [attr.aria-pressed]="filter() === option.id"
+              [attr.data-testid]="'search-filter-' + option.id"
+              [disabled]="option.count === 0"
+              (click)="filter.set($any(option.id))"
+            >
+              {{ option.label }}
+              @if (option.count !== null) {
+                <span class="filter-count">{{ option.count }}</span>
+              }
+            </button>
+          }
+        </nav>
       }
 
       @if (catalogFailed(result)) {
@@ -207,25 +126,163 @@
         </p>
       }
 
-      @if (result.catalogScenes.length > 0 || result.catalogHidden > 0 || showHidden()) {
+      @if (filter() === 'all') {
+        @if (topResult(); as top) {
+          <a
+            class="top-result"
+            data-testid="search-top-result"
+            [routerLink]="top.link"
+            [queryParams]="{ returnTo: currentUrl() }"
+            (click)="remember()"
+          >
+            <span class="top-art" [class.studio]="top.kind === 'studio'">
+              @if (top.imageUrl) {
+                <img [src]="top.imageUrl" alt="" loading="lazy" />
+              } @else {
+                <span>{{ initial(top.name) }}</span>
+              }
+            </span>
+            <span class="top-copy">
+              <span class="top-kind">{{ top.kind === 'studio' ? 'Studio' : 'Performer' }}</span>
+              <strong>{{ top.name }}</strong>
+              <span class="top-meta">{{ personMeta(top) }}</span>
+            </span>
+            @if (top.libraryScenes !== null) {
+              <span class="in-library">In library</span>
+            }
+            <i class="pi pi-chevron-right" aria-hidden="true"></i>
+          </a>
+        }
+      }
+
+      @if (showing('performers') && performers().length > 0) {
         <section class="block">
           <div class="block-head">
-            <h2 id="search-catalog-title">On the catalog</h2>
-            @if (
-              result.catalogScenesTotal > result.catalogScenes.length || catalogRail.overflowing()
-            ) {
+            <h2 id="search-performers-title">Performers</h2>
+            @if (result.catalogPerformersTotal > result.catalogPerformers.length) {
               <a
                 class="link-button see-all"
-                data-testid="search-see-all-catalog"
-                aria-describedby="search-catalog-title"
-                [routerLink]="['/scenes']"
-                [queryParams]="catalogParams()"
+                data-testid="search-see-all-performers"
+                aria-describedby="search-performers-title"
+                [routerLink]="['/performers']"
+                [queryParams]="nameParams()"
                 (click)="remember()"
               >
-                {{ seeAll(result.catalogScenesTotal, result.catalogScenes.length) }}
+                {{ seeAll(result.catalogPerformersTotal, result.catalogPerformers.length) }}
                 <i class="pi pi-chevron-right" aria-hidden="true"></i>
               </a>
             }
+          </div>
+          <div class="people" [class.expanded]="filter() === 'performers'" appOverflowX>
+            @for (person of performers(); track person.key) {
+              <a
+                class="person"
+                data-testid="search-performer"
+                [routerLink]="person.link"
+                [queryParams]="{ returnTo: currentUrl() }"
+                (click)="remember()"
+              >
+                <span class="avatar">
+                  @if (person.imageUrl) {
+                    <img [src]="person.imageUrl" alt="" loading="lazy" />
+                  } @else {
+                    <span>{{ initial(person.name) }}</span>
+                  }
+                  @if (person.libraryScenes !== null) {
+                    <span class="owned-dot" title="In your library" aria-hidden="true"
+                      ><i class="pi pi-check"></i
+                    ></span>
+                  }
+                </span>
+                <span class="person-name">{{ person.name }}</span>
+                <span class="person-meta">{{ personMeta(person) }}</span>
+              </a>
+            }
+          </div>
+        </section>
+      }
+
+      @if (showing('studios') && studios().length > 0) {
+        <section class="block">
+          <div class="block-head">
+            <h2 id="search-studios-title">Studios</h2>
+            @if (result.catalogStudiosTotal > result.catalogStudios.length) {
+              <a
+                class="link-button see-all"
+                data-testid="search-see-all-studios"
+                aria-describedby="search-studios-title"
+                [routerLink]="['/studios']"
+                [queryParams]="nameParams()"
+                (click)="remember()"
+              >
+                {{ seeAll(result.catalogStudiosTotal, result.catalogStudios.length) }}
+                <i class="pi pi-chevron-right" aria-hidden="true"></i>
+              </a>
+            }
+          </div>
+          <div class="people" [class.expanded]="filter() === 'studios'" appOverflowX>
+            @for (studio of studios(); track studio.key) {
+              <a
+                class="person studio"
+                data-testid="search-studio"
+                [routerLink]="studio.link"
+                [queryParams]="{ returnTo: currentUrl() }"
+                (click)="remember()"
+              >
+                <span class="avatar" [class.has-image]="!!studio.imageUrl">
+                  @if (studio.imageUrl) {
+                    <img [src]="studio.imageUrl" alt="" loading="lazy" />
+                  } @else {
+                    <span>{{ initial(studio.name) }}</span>
+                  }
+                  @if (studio.libraryScenes !== null) {
+                    <span class="owned-dot" title="In your library" aria-hidden="true"
+                      ><i class="pi pi-check"></i
+                    ></span>
+                  }
+                </span>
+                <span class="person-name">{{ studio.name }}</span>
+                <span class="person-meta">{{ personMeta(studio) }}</span>
+              </a>
+            }
+          </div>
+        </section>
+      }
+
+      @if (showing('scenes') && (scenes().length > 0 || result.catalogHidden > 0 || showHidden())) {
+        <section class="block">
+          <div class="block-head">
+            <h2 id="search-scenes-title">Scenes</h2>
+            <div class="see-all-links">
+              @if (result.catalogScenesTotal > result.catalogScenes.length) {
+                <a
+                  class="link-button see-all"
+                  data-testid="search-see-all-catalog"
+                  aria-describedby="search-scenes-title"
+                  [routerLink]="['/scenes']"
+                  [queryParams]="catalogParams()"
+                  (click)="remember()"
+                >
+                  {{
+                    seeAll(result.catalogScenesTotal, result.catalogScenes.length, 'catalog scene')
+                  }}
+                  <i class="pi pi-chevron-right" aria-hidden="true"></i>
+                </a>
+              }
+              @if (result.libraryTotal > result.library.length) {
+                <a
+                  class="link-button see-all"
+                  data-testid="search-see-all-library"
+                  aria-describedby="search-scenes-title"
+                  [routerLink]="['/library']"
+                  [queryParams]="libraryParams()"
+                  (click)="remember()"
+                >
+                  All {{ result.libraryTotal.toLocaleString('en-US') }} in your library
+                  <i class="pi pi-chevron-right" aria-hidden="true"></i>
+                </a>
+              }
+            </div>
           </div>
           <app-hidden-count
             [count]="result.catalogHidden"
@@ -236,104 +293,33 @@
             [total]="result.catalogScenes.length"
             [owned]="ownedIn(result.catalogScenes)"
           />
-          <div class="rail" appOverflowX #catalogRail="overflowX">
-            @for (item of shownCatalog(result.catalogScenes); track item.id) {
-              <app-scene-card
-                class="rail-card"
-                [item]="item"
-                studioBadgeRoute="studio"
-                variant="rail"
-                [requestable]="item.requestable"
-                [sceneQueryParams]="{ returnTo: currentUrl() }"
-                (request)="openRequest($event)"
-                (click)="remember()"
-              />
-            }
-          </div>
-        </section>
-      }
-
-      @if (result.catalogPerformers.length > 0 || result.catalogStudios.length > 0) {
-        <section class="block">
-          <div class="block-head">
-            <h2>Catalog performers and studios</h2>
-            <div class="see-all-links">
-              @if (
-                result.catalogPerformers.length > 0 &&
-                (result.catalogPerformersTotal > result.catalogPerformers.length ||
-                  catalogPeople.overflowing())
-              ) {
-                <a
-                  class="link-button see-all"
-                  data-testid="search-see-all-performers"
-                  [routerLink]="['/performers']"
-                  [queryParams]="nameParams()"
+          <div [class.rail]="filter() === 'all'" [class.grid]="filter() === 'scenes'" appOverflowX>
+            @for (scene of scenes(); track scene.from + scene.item.id) {
+              @if (scene.from === 'catalog') {
+                <app-scene-card
+                  class="rail-card"
+                  data-testid="search-scene"
+                  [item]="scene.item"
+                  studioBadgeRoute="studio"
+                  [variant]="filter() === 'all' ? 'rail' : 'default'"
+                  [requestable]="scene.item.requestable"
+                  [sceneQueryParams]="{ returnTo: currentUrl() }"
+                  (request)="openRequest($event)"
                   (click)="remember()"
-                >
-                  {{
-                    seeAll(
-                      result.catalogPerformersTotal,
-                      result.catalogPerformers.length,
-                      'performer'
-                    )
-                  }}
-                  <i class="pi pi-chevron-right" aria-hidden="true"></i>
-                </a>
-              }
-              @if (
-                result.catalogStudios.length > 0 &&
-                (result.catalogStudiosTotal > result.catalogStudios.length ||
-                  catalogPeople.overflowing())
-              ) {
-                <a
-                  class="link-button see-all"
-                  data-testid="search-see-all-studios"
-                  [routerLink]="['/studios']"
-                  [queryParams]="nameParams()"
+                />
+              } @else {
+                <app-scene-card
+                  class="rail-card"
+                  data-testid="search-scene"
+                  [item]="scene.item"
+                  [variant]="filter() === 'all' ? 'rail' : 'default'"
+                  primaryLinkMode="local"
+                  [sceneQueryParams]="{ returnTo: currentUrl() }"
+                  [playSceneId]="scene.item.id"
+                  [playQueryParams]="{ returnTo: currentUrl() }"
                   (click)="remember()"
-                >
-                  {{ seeAll(result.catalogStudiosTotal, result.catalogStudios.length, 'studio') }}
-                  <i class="pi pi-chevron-right" aria-hidden="true"></i>
-                </a>
+                />
               }
-            </div>
-          </div>
-          <div class="people" appOverflowX #catalogPeople="overflowX">
-            @for (performer of result.catalogPerformers; track performer.id) {
-              <a
-                class="person"
-                [routerLink]="['/performer', performer.id]"
-                [queryParams]="{ returnTo: currentUrl() }"
-                (click)="remember()"
-              >
-                <span class="avatar">
-                  @if (performer.cardImageUrl ?? performer.imageUrl; as image) {
-                    <img [src]="image" alt="" loading="lazy" />
-                  } @else {
-                    <span>{{ initial(performer.name) }}</span>
-                  }
-                </span>
-                <span class="person-name">{{ performer.name }}</span>
-                <span class="person-meta">{{ performer.sceneCount }} scenes</span>
-              </a>
-            }
-            @for (studio of result.catalogStudios; track studio.id) {
-              <a
-                class="person studio"
-                [routerLink]="['/studio', studio.id]"
-                [queryParams]="{ returnTo: currentUrl() }"
-                (click)="remember()"
-              >
-                <span class="avatar" [class.has-image]="!!studio.imageUrl">
-                  @if (studio.cardImageUrl ?? studio.imageUrl; as image) {
-                    <img [src]="image" alt="" loading="lazy" />
-                  } @else {
-                    <span>{{ initial(studio.name) }}</span>
-                  }
-                </span>
-                <span class="person-name">{{ studio.name }}</span>
-                <span class="person-meta">Studio</span>
-              </a>
             }
           </div>
         </section>

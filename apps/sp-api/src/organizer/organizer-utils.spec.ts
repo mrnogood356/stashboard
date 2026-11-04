@@ -1,5 +1,6 @@
 import type { StashdbMatchScene } from '../providers/stashdb/stashdb.adapter';
 import { parseFileName, scoreByName } from './match-scoring.util';
+import { fingerprintGroup } from './organizer-plan.util';
 import {
   dedupeTargets,
   inSceneFolder,
@@ -473,5 +474,33 @@ describe('inSceneFolder', () => {
     expect(isUnderFolder('/data/dl', '/data/dl')).toBe(false);
     expect(isUnderFolder('/data/dl/../x/b.mp4', '/data/dl')).toBe(false);
     expect(isUnderFolder('/data/dlx/b.mp4', '/data/dl')).toBe(false);
+  });
+});
+
+describe('fingerprintGroup', () => {
+  it('sends every file’s fingerprints once, as Stash’s Tagger does', () => {
+    const file = (prints: Array<[string, string]>) =>
+      ({
+        fingerprints: prints.map(([type, value]) => ({ type, value })),
+      }) as unknown as Parameters<typeof fingerprintGroup>[0][number];
+
+    expect(
+      fingerprintGroup([
+        file([
+          ['phash', 'aaa'],
+          ['oshash', 'o1'],
+        ]),
+        file([
+          ['phash', 'aaa'],
+          ['md5', 'm2'],
+          ['other', 'x'],
+        ]),
+      ]),
+    ).toEqual([
+      { hash: 'aaa', algorithm: 'PHASH' },
+      { hash: 'o1', algorithm: 'OSHASH' },
+      { hash: 'm2', algorithm: 'MD5' },
+    ]);
+    expect(fingerprintGroup([])).toEqual([]);
   });
 });

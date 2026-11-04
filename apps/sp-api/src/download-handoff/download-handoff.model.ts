@@ -207,11 +207,17 @@ export interface ProcessingHandoffDto extends DownloadHandoffDto {
   detail: string | null;
   canRetry: boolean;
   canIgnore: boolean;
+  /** Finished, failed or ignored: can be cleared from the list. */
+  canClear: boolean;
 }
 
 export interface ProcessingDropInDto extends DownloadDropInDto {
   name: string;
+  /** Stash's screenshot once it's in the library; null before. */
+  imageUrl: string | null;
   canRetry: boolean;
+  /** Brought in or failed: can be cleared from the list. */
+  canClear: boolean;
 }
 
 /** Everything moving through Stashboard's download pipeline, in one place. */

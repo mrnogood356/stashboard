@@ -260,7 +260,11 @@ describe('AcquisitionService', () => {
 
     await expect(service.getAttention()).resolves.toEqual({ failed: 3 });
     expect(downloadHandoffCountMock).toHaveBeenCalledWith({
-      where: { status: 'failed', updatedAt: { gte: expect.any(Date) } },
+      where: {
+        status: 'failed',
+        updatedAt: { gte: expect.any(Date) },
+        clearedAt: null,
+      },
     });
   });
 

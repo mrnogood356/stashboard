@@ -161,6 +161,7 @@ describe('DownloadDropInService', () => {
               error: null,
               attempts: 0,
               finishedAt: null,
+              clearedAt: null,
               createdAt: new Date(),
               updatedAt: new Date(),
               ...create,
@@ -416,6 +417,22 @@ describe('DownloadDropInService', () => {
     ]);
   });
 
+  it('shows a new file at a cleared one’s path again', async () => {
+    const source = path.join(sabFolder, 'Taken.mp4');
+    await write(source, 5_000);
+    await write(path.join(destination, 'Taken.mp4'), 3);
+    await twoChecks();
+    expect(dropIns[0]).toMatchObject({ status: 'failed' });
+    dropIns[0].clearedAt = new Date();
+
+    // A different file under the same name.
+    await fs.rm(path.join(destination, 'Taken.mp4'));
+    await write(source, 6_000);
+    await twoChecks();
+
+    expect(dropIns[0]).toMatchObject({ status: 'imported', clearedAt: null });
+  });
+
   it('keeps a drop-in folder that still has other videos, without a word', async () => {
     const first = path.join(sabFolder, 'Pack', 'One.mp4');
     const second = path.join(sabFolder, 'Pack', 'Two.mp4');
@@ -526,6 +543,7 @@ describe('DownloadDropInService', () => {
       error: null,
       attempts: 0,
       finishedAt: new Date(),
+      clearedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -549,6 +567,7 @@ describe('DownloadDropInService', () => {
       error: null,
       attempts: 0,
       finishedAt: new Date(),
+      clearedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -849,6 +868,7 @@ describe('DownloadDropInService', () => {
         error: 'Stash hasn’t picked it up.',
         attempts: 5,
         finishedAt: new Date(),
+        clearedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       });

@@ -57,6 +57,7 @@ describe('DownloadHandoffService', () => {
     error: null,
     attempts: 0,
     finishedAt: null,
+    clearedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

@@ -43,7 +43,6 @@ export function createEmptyIntegrationsRecord(): Record<
     SABNZBD: null,
     STASHDB: null,
     FANSDB: null,
-    THEPORNDB: null,
   };
 }
 
@@ -75,7 +74,6 @@ export function createActionStateRecord(): Record<IntegrationType, IntegrationAc
     SABNZBD: createActionState(),
     STASHDB: createActionState(),
     FANSDB: createActionState(),
-    THEPORNDB: createActionState(),
   };
 }
 

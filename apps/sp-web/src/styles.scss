@@ -1740,6 +1740,30 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
   background-color: var(--glass-fill-strong);
 }
 
+/*
+ * Dropdown menus: tinted like glass but no live blur. They open with a
+ * grow-and-fade animation, and backdrop-filter under that animation draws
+ * the blur at full size for a moment (Safari above all) before it settles:
+ * the flash on opening. A near-solid fill also reads better over content.
+ */
+// .p-component.p-component-overlay: outweighs the panel list above, whose
+// .app-overlay-panel these menus also carry.
+:root[data-material='glass']
+  :is(
+    .p-select-overlay,
+    .p-multiselect-overlay,
+    .p-autocomplete-overlay
+  ).p-component.p-component-overlay {
+  background-color: color-mix(in srgb, var(--surface-1) 94%, transparent);
+  background-image: var(--glass-shine);
+  border-color: var(--glass-edge-soft);
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    var(--glass-shadow);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
 :root[data-material='glass'] .sidebar {
   border-right-color: var(--glass-edge-soft);
   box-shadow: inset -1px 0 0 var(--glass-edge-soft);
@@ -1766,6 +1790,9 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
       .app-overlay-panel,
       .p-dialog,
       .p-popover,
+      .p-select-overlay,
+      .p-multiselect-overlay,
+      .p-autocomplete-overlay,
       .p-toast-message,
       .quick-search-panel,
       .content .app-section-panel:not(.section-shell),

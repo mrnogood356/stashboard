@@ -984,7 +984,7 @@ export class HomePageComponent implements OnInit, OnDestroy {
   }
 
   protected isInternalSceneRoute(item: HomeRailItem): boolean {
-    return item.source === 'STASHDB' || item.source === 'FANSDB' || item.source === 'THEPORNDB';
+    return item.source === 'STASHDB' || item.source === 'FANSDB';
   }
 
   private loadRailContent(rails: HomeRailConfig[]) {

@@ -1,4 +1,3 @@
-import { type CatalogProviderKey } from '../providers/catalog/catalog-provider.util';
 import {
   BadRequestException,
   ConflictException,
@@ -167,7 +166,8 @@ export class AcquisitionService {
     const [summary, failedDownloads] = await Promise.all([
       this.indexingService.getSceneIndexSummary(),
       this.prisma.downloadHandoff.count({
-        where: { status: 'failed', updatedAt: { gte: since } },
+        // Ones you cleared from Downloads no longer need you.
+        where: { status: 'failed', updatedAt: { gte: since }, clearedAt: null },
       }),
     ]);
     return { failed: summary.failedCount + failedDownloads };
@@ -645,7 +645,7 @@ export class AcquisitionService {
   private toAcquisitionItem(
     row: SceneIndex,
     whisparrBaseUrl: string | null,
-    source: CatalogProviderKey,
+    source: 'STASHDB' | 'FANSDB',
     extras: Partial<
       Pick<AcquisitionSceneItemDto, 'download' | 'addedAt' | 'stashViewUrl'>
     > = {},

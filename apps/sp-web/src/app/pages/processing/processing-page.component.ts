@@ -8,6 +8,8 @@ import {
   Processing,
   ProcessingDropIn,
   ProcessingHandoff,
+  WhisparrImportItem,
+  WhisparrImports,
 } from '../../core/api/download-handoff.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { HANDOFF_STEPS, fileSize, relativeTime, stageLabel, stepIndex } from './processing.format';
@@ -57,6 +59,9 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
   protected readonly checking = signal(false);
   protected readonly busy = signal<string | null>(null);
   protected readonly now = signal(Date.now());
+  protected readonly whisparr = signal<WhisparrImports | null>(null);
+  /** The queue entry whose Remove is waiting for a second tap. */
+  protected readonly confirmRemove = signal<number | null>(null);
 
   protected readonly watch = computed(() => this.data()?.dropIns.watch ?? null);
   /** "47% · 8 min left", in the same words as Requests. */
@@ -122,6 +127,79 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
       success: `Trying “${entry.name}” again`,
     });
   }
+
+  /** Has Whisparr import it the way its own Manual Import does. */
+  protected importFromWhisparr(item: WhisparrImportItem): void {
+    const key = `whisparr-${item.queueId}`;
+    this.busy.set(key);
+    this.api.importFromWhisparr(item.queueId).subscribe({
+      next: (imports) => {
+        this.busy.set(null);
+        this.whisparr.set(imports);
+        const name = item.movieTitle ?? item.title;
+        this.notifications.success(
+          imports.importState === 'done'
+            ? `Whisparr imported “${name}”`
+            : `Whisparr is importing “${name}”`,
+        );
+      },
+      error: (error: { error?: { message?: string } }) => {
+        this.busy.set(null);
+        this.notifications.error('Couldn’t import it', error?.error?.message ?? 'Try again.');
+      },
+    });
+  }
+
+  /** First tap asks, second removes it from Whisparr's queue and the download client. */
+  protected removeFromWhisparr(item: WhisparrImportItem): void {
+    if (this.confirmRemove() !== item.queueId) {
+      this.confirmRemove.set(item.queueId);
+      return;
+    }
+    this.confirmRemove.set(null);
+    const key = `whisparr-${item.queueId}`;
+    this.busy.set(key);
+    this.api.removeFromWhisparr(item.queueId, true).subscribe({
+      next: (imports) => {
+        this.busy.set(null);
+        this.whisparr.set(imports);
+      },
+      error: (error: { error?: { message?: string } }) => {
+        this.busy.set(null);
+        this.notifications.error('Couldn’t remove it', error?.error?.message ?? 'Try again.');
+      },
+    });
+  }
+
+  protected clearHandoff(entry: ProcessingHandoff): void {
+    this.busy.set(entry.id);
+    this.run(this.api.clearHandoff(entry.id), {
+      done: () => this.busy.set(null),
+      failed: 'Couldn’t clear it',
+    });
+  }
+
+  protected clearDropIn(entry: ProcessingDropIn): void {
+    this.busy.set(entry.id);
+    this.run(this.api.clearDropIn(entry.id), {
+      done: () => this.busy.set(null),
+      failed: 'Couldn’t clear it',
+    });
+  }
+
+  /** Clears every finished and failed download; ones on their way stay. */
+  protected clearHistory(): void {
+    this.busy.set('history');
+    this.run(this.api.clearHistory(), {
+      done: () => this.busy.set(null),
+      failed: 'Couldn’t clear the history',
+      success: 'History cleared',
+    });
+  }
+
+  protected readonly hasHistory = computed(
+    () => (this.data()?.recentHandoffs.length ?? 0) + (this.data()?.dropIns.recent.length ?? 0) > 0,
+  );
 
   /** Stops watching one download; nothing in SABnzbd or on disk changes. */
   protected ignore(entry: ProcessingHandoff): void {
@@ -189,6 +267,11 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
 
   private refresh(): void {
     this.stop();
+    // Whisparr is asked at most every 20 s by the server; errors keep what's shown.
+    this.api.whisparrImports().subscribe({
+      next: (imports) => this.whisparr.set(imports),
+      error: () => undefined,
+    });
     this.request = this.api.processing().subscribe({
       next: (data) => {
         this.apply(data);

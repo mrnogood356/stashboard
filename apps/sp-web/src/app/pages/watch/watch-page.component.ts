@@ -172,6 +172,8 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   /** Set once the page is gone: late answers and timers must not start playback. */
   private destroyed = false;
   private lastTap = 0;
+  /** From the press: iOS Safari can report a tap's click as a mouse. */
+  private pressPointer: string | null = null;
   private hudTimer: ReturnType<typeof setTimeout> | null = null;
   private holdTimer: ReturnType<typeof setTimeout> | null = null;
   private speedBeforeHold = 1;
@@ -1101,6 +1103,7 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
    * Touch: tap shows/hides controls, double-tap on the left or right third skips.
    */
   protected onSurfaceDown(event: PointerEvent): void {
+    this.pressPointer = event.pointerType || null;
     if (event.pointerType === 'mouse' && event.button !== 0) {
       return;
     }
@@ -1137,15 +1140,25 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       this.suppressTap = false;
       return;
     }
+    // A tap that only closes a menu doesn't count towards a double tap.
+    if (this.closeMenus()) {
+      this.lastTap = 0;
+      return;
+    }
     const now = Date.now();
     const isDoubleTap = now - this.lastTap < 300;
     this.lastTap = now;
+    const pointer = this.pressPointer ?? event.pointerType;
+    this.pressPointer = null;
 
-    if (event.pointerType === 'mouse') {
+    // A click on the picture never pauses (that was too easy to do by
+    // accident): it closes an open menu, else brings the controls up. Pause
+    // with the button, Space or K. A double-click goes fullscreen.
+    if (pointer === 'mouse') {
       if (isDoubleTap) {
         void this.toggleFullscreen();
       } else {
-        this.togglePlay();
+        this.showControls();
       }
       return;
     }
@@ -1164,6 +1177,19 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     } else {
       this.showControls();
     }
+  }
+
+  /** Closes whichever menu is open; true when one was. */
+  private closeMenus(): boolean {
+    const open = this.speedMenuOpen() || this.qualityMenuOpen() || this.chaptersMenuOpen();
+    this.speedMenuOpen.set(false);
+    this.qualityMenuOpen.set(false);
+    this.chaptersMenuOpen.set(false);
+    if (open) {
+      // The hide timer may have run out while the menu was open.
+      this.scheduleHideControls();
+    }
+    return open;
   }
 
   protected showControls(): void {

@@ -1075,6 +1075,8 @@ export class DownloadDropInService {
       stashSceneId: null,
       finalPath: null,
       finishedAt: null,
+      // A new file at an old path isn't hidden by the old one's Clear.
+      clearedAt: null,
       ...data,
     };
     return this.prisma.downloadDropIn.upsert({

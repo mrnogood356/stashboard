@@ -286,6 +286,42 @@ export class OrganizerService
     }
   }
 
+  /**
+   * Whisparr adds scenes by itself (a monitored performer or studio, a list,
+   * a request), some of which you already have in Stash. "Send matches to
+   * Whisparr" only acted right after matching, so those piled up as "in
+   * Stash but missing in Whisparr". Once a day, after the nightly match, they
+   * are sent too.
+   */
+  @Cron('30 5 * * *')
+  async sendMissingDaily(): Promise<void> {
+    try {
+      const settings = await this.getSettings();
+      if (!settings.sendToWhisparr) {
+        return;
+      }
+      const missing = await this.handoff.missingInWhisparr();
+      if (missing.length === 0) {
+        return;
+      }
+      if (this.runState.running) {
+        this.logger.warn(
+          `Sending ${missing.length} scenes Whisparr is missing skipped: the organizer is busy. They're sent tomorrow, or with Send them now.`,
+        );
+        return;
+      }
+      this.logger.log(
+        `Sending ${missing.length} ${missing.length === 1 ? 'scene' : 'scenes'} you have that Whisparr shows as missing.`,
+      );
+      // Missing ones only: "add new ones" stays a choice you make on the page.
+      this.startSendAll(true);
+    } catch (error) {
+      this.logger.warn(
+        `Sending scenes Whisparr is missing skipped: ${messageOf(error)}`,
+      );
+    }
+  }
+
   /** Matches found by "Match all", waiting for you to check them. */
   async matchProposals(): Promise<MatchProposalDto[]> {
     return [...(await this.proposalStore()).values()]
@@ -843,12 +879,16 @@ export class OrganizerService
           }
         }
       }
-      // Best first; on a tie, the earlier source (your main catalog) first.
+      // Surest first, then best score: a likely match isn't hidden behind a
+      // weak one that scored a little higher. On a tie, the earlier source
+      // (your main catalog) first.
       const order = new Map(
         context.sources.map((source, position) => [source.name, position]),
       );
       candidates.sort(
         (left, right) =>
+          CONFIDENCE_ORDER[left.confidence] -
+            CONFIDENCE_ORDER[right.confidence] ||
           right.score - left.score ||
           (order.get(left.source) ?? 0) - (order.get(right.source) ?? 0),
       );

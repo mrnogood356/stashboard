@@ -28,6 +28,35 @@ export interface WhisparrQueueSnapshotItem {
   errorMessage: string | null;
 }
 
+/**
+ * A finished download Whisparr couldn't bring in on its own: no scene
+ * matched, the files were rejected, or it's waiting to be imported by hand.
+ */
+export interface WhisparrImportProblem {
+  /** The queue entry's id, for removing it. */
+  queueId: number;
+  /** The download client's id for it, for Whisparr's manual import. */
+  downloadId: string | null;
+  title: string;
+  /** The scene Whisparr thinks it is; null when it couldn't tell. */
+  movieId: number | null;
+  movieTitle: string | null;
+  state: string | null;
+  status: string | null;
+  /** What Whisparr says is wrong, in its own words. */
+  messages: string[];
+  outputPath: string | null;
+  added: string | null;
+}
+
+/** One file Whisparr's manual import found in a download. */
+export interface WhisparrManualImportFile extends WhisparrManualImportItem {
+  name: string;
+  size: number | null;
+  movieId: number | null;
+  movieTitle: string | null;
+}
+
 export interface WhisparrRootFolderOption {
   id: number;
   path: string;
@@ -522,6 +551,60 @@ export class WhisparrAdapter {
             : [];
         },
       );
+    });
+  }
+
+  /**
+   * Finished downloads waiting on you: import blocked or failed, or marked
+   * for manual import, including ones Whisparr couldn't match to any scene
+   * (which its plain queue leaves out).
+   */
+  async getImportProblems(
+    config: WhisparrAdapterBaseConfig,
+  ): Promise<WhisparrImportProblem[]> {
+    return this.trackRuntimeHealth(async () => {
+      const records = await this.fetchAllQueueRecords(config, true);
+      return records.flatMap((entry) => {
+        const problem = this.parseImportProblem(entry);
+        return problem ? [problem] : [];
+      });
+    });
+  }
+
+  /** The files in one download, as Whisparr's manual import sees them. */
+  async getManualImportFiles(
+    config: WhisparrAdapterBaseConfig,
+    downloadId: string,
+  ): Promise<WhisparrManualImportFile[]> {
+    const parsed = new URL(config.baseUrl);
+    parsed.pathname = `${parsed.pathname.replace(/\/+$/, '')}/api/v3/manualimport`;
+    parsed.search = '';
+    parsed.searchParams.set('downloadId', downloadId);
+    parsed.searchParams.set('filterExistingFiles', 'true');
+    const payload = await this.fetchJsonPayload(parsed.toString(), config, {
+      timeoutMs: 60_000,
+    });
+    return (Array.isArray(payload) ? payload : []).flatMap((entry) => {
+      const file = this.parseManualImportFile(entry);
+      return file ? [file] : [];
+    });
+  }
+
+  /** Takes one download off Whisparr's queue; optionally out of the download client too. */
+  async removeQueueItem(
+    config: WhisparrAdapterBaseConfig,
+    queueId: number,
+    removeFromClient: boolean,
+  ): Promise<void> {
+    await this.trackRuntimeHealth(async () => {
+      const parsed = new URL(config.baseUrl);
+      parsed.pathname = `${parsed.pathname.replace(/\/+$/, '')}/api/v3/queue/${queueId}`;
+      parsed.search = '';
+      parsed.searchParams.set('removeFromClient', String(removeFromClient));
+      parsed.searchParams.set('blocklist', 'false');
+      await this.fetchJsonPayload(parsed.toString(), config, {
+        method: 'DELETE',
+      });
     });
   }
 
@@ -1086,8 +1169,13 @@ export class WhisparrAdapter {
   /** Imports files into scenes (Whisparr's Manual Import). Returns the command id. */
   async startManualImport(
     config: WhisparrAdapterBaseConfig,
-    files: Array<{ item: WhisparrManualImportItem; movieId: number }>,
-    importMode: 'move' | 'copy',
+    files: Array<{
+      item: WhisparrManualImportItem;
+      movieId: number;
+      /** For a download in Whisparr's queue: ties the import to it. */
+      downloadId?: string;
+    }>,
+    importMode: 'move' | 'copy' | 'auto',
   ): Promise<number | null> {
     return this.trackRuntimeHealth(async () => {
       const parsed = new URL(config.baseUrl);
@@ -1098,9 +1186,10 @@ export class WhisparrAdapter {
         body: {
           name: 'ManualImport',
           importMode,
-          files: files.map(({ item, movieId }) => ({
+          files: files.map(({ item, movieId, downloadId }) => ({
             path: item.path,
             movieId,
+            ...(downloadId ? { downloadId } : {}),
             quality: item.quality,
             languages: item.languages,
             releaseGroup: item.releaseGroup ?? undefined,
@@ -1240,6 +1329,7 @@ export class WhisparrAdapter {
 
   private async fetchAllQueueRecords(
     config: WhisparrAdapterBaseConfig,
+    includeUnknownMovies = false,
   ): Promise<unknown[]> {
     const allRecords: unknown[] = [];
     let page = 1;
@@ -1251,6 +1341,7 @@ export class WhisparrAdapter {
           config.baseUrl,
           page,
           WhisparrAdapter.DEFAULT_QUEUE_PAGE_SIZE,
+          includeUnknownMovies,
         ),
         config,
       );
@@ -1499,6 +1590,90 @@ export class WhisparrAdapter {
     };
   }
 
+  private parseImportProblem(entry: unknown): WhisparrImportProblem | null {
+    if (!entry || typeof entry !== 'object') {
+      return null;
+    }
+    const row = entry as Record<string, unknown>;
+    const queueId = this.readNumber(row.id);
+    if (queueId === null) {
+      return null;
+    }
+    const state = this.readString(row.trackedDownloadState);
+    const status = this.readString(row.status);
+    const health = this.readString(row.trackedDownloadStatus);
+    const normalizedState = state?.toLowerCase() ?? '';
+    const stuck =
+      normalizedState === 'importblocked' ||
+      normalizedState === 'importfailed' ||
+      (normalizedState === 'importpending' &&
+        (health?.toLowerCase() === 'warning' ||
+          health?.toLowerCase() === 'error'));
+    if (!stuck) {
+      return null;
+    }
+    const movie = (row.movie ?? null) as Record<string, unknown> | null;
+    const messages = Array.isArray(row.statusMessages)
+      ? row.statusMessages.flatMap((group) => {
+          const list = (group as { messages?: unknown } | null)?.messages;
+          return Array.isArray(list)
+            ? list.flatMap((text) => {
+                const value = this.readString(text);
+                return value ? [value] : [];
+              })
+            : [];
+        })
+      : [];
+    const errorMessage = this.readString(row.errorMessage);
+    return {
+      queueId,
+      downloadId: this.readString(row.downloadId),
+      title: this.readString(row.title) ?? `Download ${queueId}`,
+      movieId: this.readNumber(row.movieId) ?? this.readNumber(movie?.id),
+      movieTitle: this.readString(movie?.title),
+      state,
+      status,
+      messages: [
+        ...new Set([...(errorMessage ? [errorMessage] : []), ...messages]),
+      ],
+      outputPath: this.readString(row.outputPath),
+      added: this.readString(row.added),
+    };
+  }
+
+  private parseManualImportFile(
+    entry: unknown,
+  ): WhisparrManualImportFile | null {
+    if (!entry || typeof entry !== 'object') {
+      return null;
+    }
+    const row = entry as Record<string, unknown>;
+    const path = this.readString(row.path);
+    if (!path) {
+      return null;
+    }
+    const movie = (row.movie ?? null) as Record<string, unknown> | null;
+    return {
+      path,
+      name:
+        this.readString(row.name) ?? this.readString(row.relativePath) ?? path,
+      size: this.readNumber(row.size),
+      movieId: this.readNumber(movie?.id),
+      movieTitle: this.readString(movie?.title),
+      quality: row.quality ?? null,
+      languages: Array.isArray(row.languages) ? row.languages : [],
+      releaseGroup: this.readString(row.releaseGroup),
+      rejections: Array.isArray(row.rejections)
+        ? row.rejections.flatMap((rejection) => {
+            const reason = this.readString(
+              (rejection as { reason?: unknown } | null)?.reason,
+            );
+            return reason ? [reason] : [];
+          })
+        : [],
+    };
+  }
+
   private parseQueueEntry(entry: unknown): WhisparrQueueSnapshotItem | null {
     if (!entry || typeof entry !== 'object') {
       return null;
@@ -1626,6 +1801,7 @@ export class WhisparrAdapter {
     baseUrl: string,
     page: number,
     pageSize: number,
+    includeUnknownMovies = false,
   ): string {
     const parsed = new URL(baseUrl);
     const cleanPath = parsed.pathname.replace(/\/+$/, '');
@@ -1633,6 +1809,9 @@ export class WhisparrAdapter {
     parsed.pathname = `${cleanPath}/api/v3/queue`;
     parsed.searchParams.set('page', String(page));
     parsed.searchParams.set('pageSize', String(pageSize));
+    if (includeUnknownMovies) {
+      parsed.searchParams.set('includeUnknownMovieItems', 'true');
+    }
 
     return parsed.toString();
   }

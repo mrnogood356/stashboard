@@ -38,6 +38,9 @@ import { SceneRequestModalComponent } from '../../shared/scene-request-modal/sce
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
 import { OverflowXDirective } from '../../shared/overflow-x/overflow-x.directive';
 import { SectionBackComponent } from '../../shared/section-back/section-back.component';
+import { mergePerformers, mergeScenes, mergeStudios } from './search-merge';
+
+export type SearchFilter = 'all' | 'scenes' | 'performers' | 'studios';
 
 interface SearchResults {
   library: LibrarySceneItem[];
@@ -118,8 +121,34 @@ export class SearchPageComponent implements OnInit, OnDestroy {
   protected readonly requestContext = signal<SceneRequestContext | null>(null);
   /** Show catalog scenes Settings → Hidden content leaves out, for this search. */
   protected readonly showHidden = signal(false);
-  /** "Show all" on your performers and studios: wraps the row instead of scrolling it. */
-  protected readonly peopleExpanded = signal(false);
+  /** All, or just scenes, performers or studios. */
+  protected readonly filter = signal<SearchFilter>('all');
+  /** Each performer and studio once, whether in your library, the catalog or both. */
+  protected readonly performers = computed(() => {
+    const result = this.results();
+    return mergePerformers(result.local.performers, result.catalogPerformers, this.query());
+  });
+  protected readonly studios = computed(() => {
+    const result = this.results();
+    return mergeStudios(result.local.studios, result.catalogStudios, this.query());
+  });
+  /** Catalog scenes (owned ones marked), then your library's the catalog didn't find. */
+  protected readonly scenes = computed(() => {
+    const result = this.results();
+    return mergeScenes(this.hideOwned.filter(result.catalogScenes), result.library);
+  });
+  /** A performer or studio named exactly what you typed: shown first, larger. */
+  protected readonly topResult = computed(
+    () =>
+      this.performers().find((entry) => entry.exact) ??
+      this.studios().find((entry) => entry.exact) ??
+      null,
+  );
+  protected readonly counts = computed(() => ({
+    scenes: this.scenes().length,
+    performers: this.performers().length,
+    studios: this.studios().length,
+  }));
   /** Query params for the full results pages "See all" opens. */
   protected readonly libraryParams = computed(() => ({ query: this.query().trim() }));
   protected readonly catalogParams = computed(() => ({
@@ -163,8 +192,12 @@ export class SearchPageComponent implements OnInit, OnDestroy {
       )
       .subscribe((results) => {
         this.results.set(results);
-        this.peopleExpanded.set(false);
         this.searching.set(false);
+        // A kind with nothing for these words would leave the page empty.
+        const selected = this.filter();
+        if (selected !== 'all' && this.counts()[selected] === 0) {
+          this.filter.set('all');
+        }
       });
 
     const initial = this.route.snapshot.queryParamMap.get('q') ?? '';
@@ -269,6 +302,26 @@ export class SearchPageComponent implements OnInit, OnDestroy {
     const count = Math.max(total, shown);
     const formatted = count.toLocaleString('en-US');
     return kind ? `All ${formatted} ${kind}${count === 1 ? '' : 's'}` : `See all ${formatted}`;
+  }
+
+  protected showing(kind: Exclude<SearchFilter, 'all'>): boolean {
+    return this.filter() === 'all' || this.filter() === kind;
+  }
+
+  /** "12 scenes in your library · 340 on the catalog", as far as it's known. */
+  protected personMeta(person: {
+    kind: 'performer' | 'studio';
+    libraryScenes: number | null;
+    catalogScenes: number | null;
+  }): string {
+    const parts: string[] = [];
+    if (person.libraryScenes !== null) {
+      parts.push(`${person.libraryScenes} in your library`);
+    }
+    if (person.catalogScenes !== null) {
+      parts.push(`${person.catalogScenes} on the catalog`);
+    }
+    return parts.join(' · ') || (person.kind === 'studio' ? 'Studio' : 'Performer');
   }
 
   protected initial(name: string): string {

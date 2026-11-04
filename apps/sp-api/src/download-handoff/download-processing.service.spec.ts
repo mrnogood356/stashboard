@@ -1,9 +1,14 @@
 import type { DownloadDropIn, DownloadHandoff } from '@prisma/client';
+import type { CatalogProviderService } from '../providers/catalog/catalog-provider.service';
+import type { StashdbAdapter } from '../providers/stashdb/stashdb.adapter';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { SabnzbdAdapter } from '../providers/sabnzbd/sabnzbd.adapter';
 import type { DownloadDropInService } from './download-drop-in.service';
 import type { DownloadHandoffService } from './download-handoff.service';
-import type { DropInWatchStatusDto } from './download-handoff.model';
+import {
+  OPEN_HANDOFF_STATUSES,
+  type DropInWatchStatusDto,
+} from './download-handoff.model';
 import {
   DownloadProcessingService,
   handoffItem,
@@ -26,6 +31,7 @@ function handoff(overrides: Partial<DownloadHandoff> = {}): DownloadHandoff {
     error: null,
     attempts: 0,
     finishedAt: null,
+    clearedAt: null,
     createdAt: at,
     updatedAt: at,
     ...overrides,
@@ -43,6 +49,7 @@ function dropIn(overrides: Partial<DownloadDropIn> = {}): DownloadDropIn {
     error: null,
     attempts: 0,
     finishedAt: null,
+    clearedAt: null,
     createdAt: at,
     updatedAt: at,
     ...overrides,
@@ -379,5 +386,139 @@ describe('DownloadProcessingService', () => {
     expect(snapshot.handoff.sabnzbdUnreachable).toBe(true);
     expect(snapshot.handoffs[0].stage).toBe('queued');
     expect(snapshot.problemCount).toBe(1);
+  });
+});
+
+describe('DownloadProcessingService clearing', () => {
+  function setup() {
+    const prisma = {
+      downloadHandoff: {
+        updateMany: jest.fn().mockResolvedValue({ count: 2 }),
+      },
+      downloadDropIn: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const service = new DownloadProcessingService(
+      prisma as unknown as PrismaService,
+      {} as DownloadHandoffService,
+      {} as DownloadDropInService,
+      {} as SabnzbdAdapter,
+    );
+    return { service, prisma };
+  }
+
+  it('clears one finished download, never one still on its way', async () => {
+    const { service, prisma } = setup();
+
+    await service.clearHandoffs('h1');
+
+    expect(prisma.downloadHandoff.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'h1',
+        status: { notIn: OPEN_HANDOFF_STATUSES },
+        clearedAt: null,
+      },
+      data: { clearedAt: expect.any(Date) },
+    });
+  });
+
+  it('clears the whole history: downloads and drop-ins', async () => {
+    const { service, prisma } = setup();
+
+    await service.clearHistory();
+
+    expect(prisma.downloadHandoff.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: { notIn: OPEN_HANDOFF_STATUSES }, clearedAt: null },
+      }),
+    );
+    expect(prisma.downloadDropIn.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: { in: ['imported', 'failed'] }, clearedAt: null },
+      }),
+    );
+  });
+
+  it('marks finished and failed downloads as clearable', () => {
+    expect(handoffItem(handoff({ status: 'failed' }), null).canClear).toBe(
+      true,
+    );
+    expect(handoffItem(handoff({ status: 'imported' }), null).canClear).toBe(
+      true,
+    );
+    expect(handoffItem(handoff({ status: 'sent' }), null).canClear).toBe(false);
+  });
+});
+
+describe('DownloadProcessingService pictures', () => {
+  it('looks up scenes the index lacks in the catalog once, and uses Stash’s screenshot for library copies', async () => {
+    const rows = [
+      handoff({ id: 'h1', sceneId: 'fansdb-1', provider: 'FANSDB' }),
+      handoff({
+        id: 'h2',
+        nzoId: 'n2',
+        sceneId: null,
+        provider: null,
+        source: 'sabnzbd-manual',
+        status: 'imported',
+        releaseTitle: 'Manual.Release',
+        stashSceneId: '88',
+      }),
+    ];
+    const prisma = {
+      sceneIndex: { findMany: jest.fn().mockResolvedValue([]) },
+      downloadHandoff: {
+        findMany: jest.fn(({ where }: { where: { status: object } }) =>
+          Promise.resolve('in' in where.status ? [rows[0]] : [rows[1]]),
+        ),
+      },
+      downloadDropIn: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const catalog = {
+      getProvider: jest.fn().mockResolvedValue({
+        baseUrl: 'https://fansdb.cc/graphql',
+        apiKey: 'k',
+      }),
+    };
+    const stashdb = {
+      getSceneById: jest.fn().mockResolvedValue({
+        title: 'Beach Day',
+        imageUrl: 'https://cdn.fansdb.cc/images/a.jpg',
+        studioName: 'Studio',
+      }),
+    };
+    const service = new DownloadProcessingService(
+      prisma as unknown as PrismaService,
+      {
+        getSettings: jest
+          .fn()
+          .mockResolvedValue({ enabled: true, category: 'stashboard' }),
+        sabConfig: jest.fn().mockResolvedValue(null),
+      } as unknown as DownloadHandoffService,
+      {
+        status: jest.fn().mockReturnValue(watching),
+      } as unknown as DownloadDropInService,
+      {} as SabnzbdAdapter,
+      catalog as unknown as CatalogProviderService,
+      stashdb as unknown as StashdbAdapter,
+    );
+
+    // Two overlapping loads share one lookup; a later one uses the cache.
+    const [first] = await Promise.all([service.snapshot(), service.snapshot()]);
+    await service.snapshot();
+
+    expect(catalog.getProvider).toHaveBeenCalledWith('FANSDB');
+    expect(stashdb.getSceneById).toHaveBeenCalledTimes(1);
+    expect(first.handoffs[0].scene).toMatchObject({
+      title: 'Beach Day',
+      studio: 'Studio',
+    });
+    expect(first.handoffs[0].scene?.imageUrl).toContain('cdn.fansdb.cc');
+    expect(first.recentHandoffs[0].scene).toEqual({
+      title: 'Manual.Release',
+      imageUrl: '/api/media/stash/scenes/88/screenshot?w=480',
+      studio: null,
+    });
   });
 });

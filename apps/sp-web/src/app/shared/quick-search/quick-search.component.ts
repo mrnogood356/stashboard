@@ -25,6 +25,7 @@ import { LocalLibraryService } from '../../core/api/local-library.service';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
 import { HideOwnedService } from '../../core/preferences/hide-owned.service';
 import { QuickItem, isEditable, matchPages, startPages } from './quick-search.model';
+import { PersonResult, mergePerformers, mergeStudios } from '../../pages/search/search-merge';
 
 const MIN_QUERY = 2;
 /** Shared with the Search page, so both remember the same searches. */
@@ -288,6 +289,8 @@ export class QuickSearchComponent implements OnInit {
       library: safe(this.library.getScenesFeed(1, 4, { query: value }), null),
       local: safe(this.local.search(value), { performers: [], studios: [] }),
       catalog: safe(this.discover.searchScenes(value, 1, 4), null),
+      catalogPerformers: safe(this.discover.getPerformersFeed(1, 6, { name: value }), null),
+      catalogStudios: safe(this.discover.getStudiosFeed(1, 6, { name: value }), null),
     }).pipe(
       map((result): Found => ({
         library: (result.library?.items ?? []).map((scene) => ({
@@ -301,24 +304,17 @@ export class QuickSearchComponent implements OnInit {
           icon: 'pi-video',
           url: `/library/scene/${encodeURIComponent(scene.id)}`,
         })),
-        performers: result.local.performers.slice(0, 3).map((performer) => ({
-          id: `performer:${performer.id}`,
-          kind: 'performer',
-          label: performer.name,
-          detail: sceneCount(performer.sceneCount),
-          imageUrl: performer.imageUrl,
-          icon: 'pi-user',
-          url: `/library/performer/${encodeURIComponent(performer.id)}`,
-        })),
-        studios: result.local.studios.slice(0, 3).map((studio) => ({
-          id: `studio:${studio.id}`,
-          kind: 'studio',
-          label: studio.name,
-          detail: sceneCount(studio.sceneCount),
-          imageUrl: studio.imageUrl,
-          icon: 'pi-building',
-          url: `/library/studio/${encodeURIComponent(studio.id)}`,
-        })),
+        // Library and catalog together, each once (as on Search).
+        performers: mergePerformers(
+          result.local.performers,
+          result.catalogPerformers?.items ?? [],
+          value,
+        )
+          .slice(0, 4)
+          .map((person) => peopleItem(person, 'performer', 'pi-user')),
+        studios: mergeStudios(result.local.studios, result.catalogStudios?.items ?? [], value)
+          .slice(0, 4)
+          .map((studio) => peopleItem(studio, 'studio', 'pi-building')),
         // "Hide ones I have" applies here too, as on Scenes and Search.
         catalog: this.hideOwned.filter(result.catalog?.items ?? []).map((scene) => ({
           id: `catalog:${scene.id}`,
@@ -332,6 +328,23 @@ export class QuickSearchComponent implements OnInit {
       })),
     );
   }
+}
+
+function peopleItem(person: PersonResult, kind: 'performer' | 'studio', icon: string): QuickItem {
+  return {
+    id: `${kind}:${person.key}`,
+    kind,
+    label: person.name,
+    detail:
+      person.libraryScenes !== null
+        ? `In your library · ${sceneCount(person.libraryScenes)}`
+        : person.catalogScenes !== null
+          ? `On the catalog · ${sceneCount(person.catalogScenes)}`
+          : 'On the catalog',
+    imageUrl: person.imageUrl,
+    icon,
+    url: person.link.map((part) => encodeURIComponent(part).replace(/%2F/g, '/')).join('/'),
+  };
 }
 
 function sceneCount(count: number): string {

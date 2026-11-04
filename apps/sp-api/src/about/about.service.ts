@@ -34,7 +34,6 @@ const LABELS: Record<IntegrationType, string> = {
   STASH: 'Stash',
   STASHDB: 'StashDB',
   FANSDB: 'FansDB',
-  THEPORNDB: 'ThePornDB',
   WHISPARR: 'Whisparr',
   PROWLARR: 'Prowlarr',
   SABNZBD: 'SABnzbd',
@@ -43,7 +42,6 @@ const ORDER: IntegrationType[] = [
   'STASH',
   'STASHDB',
   'FANSDB',
-  'THEPORNDB',
   'WHISPARR',
   'PROWLARR',
   'SABNZBD',
@@ -175,7 +173,6 @@ export class AboutService {
         return this.stash.testConnection(config);
       case 'STASHDB':
       case 'FANSDB':
-      case 'THEPORNDB':
         return this.stashdb.testConnection(config);
       case 'WHISPARR':
         return this.whisparr.testConnection(config);

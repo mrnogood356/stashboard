@@ -150,6 +150,17 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     return !this.hasSearch() && (lifecycle === 'ANY' || lifecycle === 'DOWNLOADING');
   }
 
+  /** Takes a failed download off the list; it stays recorded. */
+  protected clearHandoff(handoff: ProcessingHandoff): void {
+    this.handoffs.update((list) => list.filter((entry) => entry.id !== handoff.id));
+    this.downloadsApi.clearHandoff(handoff.id).subscribe({
+      error: () => {
+        this.notifications.error('Couldn’t clear it', 'Try again.');
+        this.loadHandoffs();
+      },
+    });
+  }
+
   private loadHandoffs(): void {
     // A newer view wins over a request still in flight.
     this.handoffsRequest?.unsubscribe();

@@ -65,8 +65,16 @@ export interface LocalSearchResults {
     imageUrl: string | null;
     sceneCount: number;
     favorite: boolean;
+    /** Their StashDB/FansDB ids. Older APIs: missing. */
+    catalogIds?: string[];
   }>;
-  studios: Array<{ id: string; name: string; imageUrl: string | null; sceneCount: number }>;
+  studios: Array<{
+    id: string;
+    name: string;
+    imageUrl: string | null;
+    sceneCount: number;
+    catalogIds?: string[];
+  }>;
 }
 
 export type FixKind = 'unmatched' | 'untagged' | 'unorganized';

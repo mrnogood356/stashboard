@@ -275,7 +275,11 @@ export abstract class OrganizerFiles extends OrganizerCore {
   protected async tidyAfterWhisparr(): Promise<string> {
     try {
       const settings = await this.getSettings();
-      if (!settings.cleanEmptyFolders || !(await this.folderAccess())) {
+      if (!settings.cleanEmptyFolders) {
+        return '';
+      }
+      if (!(await this.folderAccess())) {
+        this.noteNoFolderAccess(null);
         return '';
       }
       const { removed } = await this.cleanEmptyFolders();
@@ -369,7 +373,10 @@ export abstract class OrganizerFiles extends OrganizerCore {
    * Sends every scene Stash has that Whisparr still shows as missing (and,
    * if that's switched on, scenes Whisparr doesn't know yet).
    */
-  startSendAll(): OrganizerRunDto {
+  startSendAll(
+    /** Only scenes Whisparr shows as missing, even with "add new ones" on. */
+    missingOnly = false,
+  ): OrganizerRunDto {
     this.assertIdle();
     this.runState = {
       ...IDLE_RUN,
@@ -407,7 +414,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
             .catch(() => ({ total: 0, items: [] as StashOrganizerScene[] }));
           found.items.forEach((scene) => scenes.set(scene.id, scene));
         }
-        if (settings.addToWhisparr) {
+        if (settings.addToWhisparr && !missingOnly) {
           for (let page = 1; page <= MAX_BACKLOG / 100; page += 1) {
             const result = await this.stash.findOrganizerScenes(config, {
               page,
@@ -1269,6 +1276,8 @@ export abstract class OrganizerFiles extends OrganizerCore {
   ): Promise<{
     moved: Array<{ sceneId: string; from: string; to: string }>;
     failed: Array<{ sceneId: string; reason: string }>;
+    /** Files left as they are, by why (already named right, Whisparr's, …). */
+    skipped: Partial<Record<RenameState, number>>;
   }> {
     const settings = await this.getSettings();
     const config = await this.stashConfig();
@@ -1287,6 +1296,12 @@ export abstract class OrganizerFiles extends OrganizerCore {
     const ready = plans.filter(
       (plan) => plan.state === 'ready' && plan.fileId && plan.from && plan.to,
     );
+    const skipped: Partial<Record<RenameState, number>> = {};
+    for (const plan of plans) {
+      if (!ready.includes(plan)) {
+        skipped[plan.state] = (skipped[plan.state] ?? 0) + 1;
+      }
+    }
     if (this.runState.running && this.runState.kind === 'rename') {
       this.runState.total = ready.length;
     }
@@ -1333,7 +1348,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
           .map((plan) => plan.from!),
       );
     }
-    return { moved, failed };
+    return { moved, failed, skipped };
   }
 
   /**
@@ -1479,6 +1494,12 @@ export abstract class OrganizerFiles extends OrganizerCore {
       return 0;
     }
     const result = await this.renameAndNote(sceneIds, ' after import');
+    if (result.moved.length === 0 && result.failed.length === 0) {
+      // Nothing to do is a result too: say why, so it doesn't look broken.
+      this.logger.log(
+        `Rename after import: nothing to rename for ${sceneIds.length} new ${sceneIds.length === 1 ? 'scene' : 'scenes'} (${describeSkipped(result.skipped)}).`,
+      );
+    }
     return result.moved.length;
   }
 
@@ -1841,4 +1862,29 @@ function movedActivity(
     status: failed ? (moved ? 'partial' : 'failed') : 'done',
     undo: moved > 0 ? { type: 'rename-batch', batchId } : null,
   };
+}
+
+const SKIP_REASONS: Partial<Record<RenameState, string>> = {
+  same: 'already named right',
+  whisparr: 'Whisparr’s files, which Whisparr names',
+  missing:
+    'not matched yet, or missing something your pattern uses (like the date or studio)',
+  outside: 'outside your Stash library folders',
+  'no-file': 'no file',
+  gone: 'not on disk where Stash says',
+  taken: 'another file already has the name',
+  copy: 'extra copies',
+};
+
+/** "3 already named right, 2 Whisparr's files…" for the log. */
+export function describeSkipped(
+  skipped: Partial<Record<RenameState, number>>,
+): string {
+  const parts = Object.entries(skipped)
+    .filter(([, count]) => (count ?? 0) > 0)
+    .map(
+      ([state, count]) =>
+        `${count} ${SKIP_REASONS[state as RenameState] ?? state}`,
+    );
+  return parts.length ? parts.join(', ') : 'none of them had a file to rename';
 }
