@@ -8,6 +8,7 @@ import {
   Processing,
   ProcessingDropIn,
   ProcessingHandoff,
+  WhisparrImports,
 } from '../../core/api/download-handoff.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { ProcessingPageComponent } from './processing-page.component';
@@ -96,7 +97,15 @@ function text(element: Element | null | undefined): string {
   return element?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 }
 
-async function render(data: Processing) {
+async function render(
+  data: Processing,
+  whisparrImports: WhisparrImports = {
+    configured: true,
+    whisparrQueueUrl: 'http://whisparr/activity/queue',
+    items: [],
+    unreachable: false,
+  },
+) {
   const api = {
     processing: vi.fn().mockReturnValue(of(data)),
     checkDropIns: vi.fn().mockReturnValue(of(data)),
@@ -105,6 +114,9 @@ async function render(data: Processing) {
     clearHandoff: vi.fn().mockReturnValue(of(processing())),
     clearDropIn: vi.fn().mockReturnValue(of(processing())),
     clearHistory: vi.fn().mockReturnValue(of(processing())),
+    whisparrImports: vi.fn().mockReturnValue(of(whisparrImports)),
+    importFromWhisparr: vi.fn().mockReturnValue(of({ ...whisparrImports, items: [] })),
+    removeFromWhisparr: vi.fn().mockReturnValue(of({ ...whisparrImports, items: [] })),
     ignore: vi.fn().mockReturnValue(of({})),
   };
   const notifications = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
@@ -149,6 +161,70 @@ describe('ProcessingPageComponent', () => {
     // The answer has nothing left, so neither the row nor Clear history shows.
     expect(root.querySelector('[data-testid="recent-handoff"]')).toBeNull();
     expect(root.querySelector('[data-testid="clear-history"]')).toBeNull();
+  });
+
+  it('lists downloads waiting in Whisparr, imports one and removes another after asking', async () => {
+    const item = {
+      queueId: 7,
+      downloadId: 'nzo_1',
+      title: 'Beach.Day.1080p',
+      movieId: 42,
+      movieTitle: 'Beach Day',
+      state: 'importBlocked',
+      status: 'completed',
+      messages: ['Not an upgrade'],
+      outputPath: null,
+      added: NOW,
+      canImport: true,
+    };
+    const { root, api, fixture } = await render(processing(), {
+      configured: true,
+      whisparrQueueUrl: 'http://whisparr/activity/queue',
+      unreachable: false,
+      items: [item, { ...item, queueId: 8, movieId: null, movieTitle: null, canImport: false }],
+    });
+
+    const rows = root.querySelectorAll('[data-testid="whisparr-import"]');
+    expect(rows.length).toBe(2);
+    expect(text(rows[0])).toContain('Not an upgrade');
+    expect(rows[1].querySelector('[data-testid="whisparr-import-button"]')).toBeNull();
+    expect(text(rows[1])).toContain('Manual');
+
+    (rows[0].querySelector('[data-testid="whisparr-import-button"]') as HTMLButtonElement).click();
+    expect(api.importFromWhisparr).toHaveBeenCalledWith(7);
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="whisparr-imports"]')).toBeNull();
+  });
+
+  it('asks before removing a download from Whisparr', async () => {
+    const item = {
+      queueId: 8,
+      downloadId: 'nzo_2',
+      title: 'Unknown.Release',
+      movieId: null,
+      movieTitle: null,
+      state: 'importPending',
+      status: 'completed',
+      messages: [],
+      outputPath: null,
+      added: NOW,
+      canImport: false,
+    };
+    const { root, api, fixture } = await render(processing(), {
+      configured: true,
+      whisparrQueueUrl: null,
+      unreachable: false,
+      items: [item],
+    });
+    const remove = root.querySelector(
+      '[data-testid="whisparr-remove-button"]',
+    ) as HTMLButtonElement;
+    remove.click();
+    fixture.detectChanges();
+    expect(api.removeFromWhisparr).not.toHaveBeenCalled();
+    expect(text(remove)).toContain('Tap again');
+    remove.click();
+    expect(api.removeFromWhisparr).toHaveBeenCalledWith(8, true);
   });
 
   it('offers Clear history while there is any', async () => {

@@ -8,6 +8,8 @@ import {
   Processing,
   ProcessingDropIn,
   ProcessingHandoff,
+  WhisparrImportItem,
+  WhisparrImports,
 } from '../../core/api/download-handoff.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { HANDOFF_STEPS, fileSize, relativeTime, stageLabel, stepIndex } from './processing.format';
@@ -57,6 +59,9 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
   protected readonly checking = signal(false);
   protected readonly busy = signal<string | null>(null);
   protected readonly now = signal(Date.now());
+  protected readonly whisparr = signal<WhisparrImports | null>(null);
+  /** The queue entry whose Remove is waiting for a second tap. */
+  protected readonly confirmRemove = signal<number | null>(null);
 
   protected readonly watch = computed(() => this.data()?.dropIns.watch ?? null);
   /** "47% · 8 min left", in the same words as Requests. */
@@ -120,6 +125,44 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
       done: () => this.busy.set(null),
       failed: 'Couldn’t try it again',
       success: `Trying “${entry.name}” again`,
+    });
+  }
+
+  /** Has Whisparr import it the way its own Manual Import does. */
+  protected importFromWhisparr(item: WhisparrImportItem): void {
+    const key = `whisparr-${item.queueId}`;
+    this.busy.set(key);
+    this.api.importFromWhisparr(item.queueId).subscribe({
+      next: (imports) => {
+        this.busy.set(null);
+        this.whisparr.set(imports);
+        this.notifications.success(`Whisparr is importing “${item.movieTitle ?? item.title}”`);
+      },
+      error: (error: { error?: { message?: string } }) => {
+        this.busy.set(null);
+        this.notifications.error('Couldn’t import it', error?.error?.message ?? 'Try again.');
+      },
+    });
+  }
+
+  /** First tap asks, second removes it from Whisparr's queue and the download client. */
+  protected removeFromWhisparr(item: WhisparrImportItem): void {
+    if (this.confirmRemove() !== item.queueId) {
+      this.confirmRemove.set(item.queueId);
+      return;
+    }
+    this.confirmRemove.set(null);
+    const key = `whisparr-${item.queueId}`;
+    this.busy.set(key);
+    this.api.removeFromWhisparr(item.queueId, true).subscribe({
+      next: (imports) => {
+        this.busy.set(null);
+        this.whisparr.set(imports);
+      },
+      error: (error: { error?: { message?: string } }) => {
+        this.busy.set(null);
+        this.notifications.error('Couldn’t remove it', error?.error?.message ?? 'Try again.');
+      },
     });
   }
 
@@ -219,6 +262,11 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
 
   private refresh(): void {
     this.stop();
+    // Whisparr is asked at most every 20 s by the server; errors keep what's shown.
+    this.api.whisparrImports().subscribe({
+      next: (imports) => this.whisparr.set(imports),
+      error: () => undefined,
+    });
     this.request = this.api.processing().subscribe({
       next: (data) => {
         this.apply(data);

@@ -31,6 +31,69 @@ describe('WhisparrAdapter', () => {
     );
   });
 
+  it('finds stuck imports, including ones matched to no scene', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          totalRecords: 3,
+          records: [
+            {
+              id: 1,
+              movieId: 42,
+              movie: { id: 42, title: 'Beach Day' },
+              title: 'Beach.Day.1080p',
+              downloadId: 'nzo_1',
+              status: 'completed',
+              trackedDownloadStatus: 'warning',
+              trackedDownloadState: 'importBlocked',
+              statusMessages: [{ messages: ['Not an upgrade'] }],
+            },
+            {
+              id: 2,
+              title: 'Unknown.Release',
+              downloadId: 'nzo_2',
+              status: 'completed',
+              trackedDownloadStatus: 'warning',
+              trackedDownloadState: 'importPending',
+              statusMessages: [
+                { messages: ['Unknown Movie. Manual Import required.'] },
+              ],
+            },
+            {
+              id: 3,
+              movieId: 5,
+              title: 'Still.Downloading',
+              status: 'downloading',
+              trackedDownloadStatus: 'ok',
+              trackedDownloadState: 'downloading',
+            },
+          ],
+        }),
+    });
+
+    const problems = await adapter.getImportProblems({
+      baseUrl: 'http://whisparr.local',
+    });
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      'includeUnknownMovieItems=true',
+    );
+    expect(problems).toEqual([
+      expect.objectContaining({
+        queueId: 1,
+        movieId: 42,
+        movieTitle: 'Beach Day',
+        messages: ['Not an upgrade'],
+      }),
+      expect.objectContaining({
+        queueId: 2,
+        movieId: null,
+        messages: ['Unknown Movie. Manual Import required.'],
+      }),
+    ]);
+  });
+
   it('reads the calendar for the days asked, with each scene’s StashDB id and picture', async () => {
     fetchMock.mockResolvedValue({
       ok: true,

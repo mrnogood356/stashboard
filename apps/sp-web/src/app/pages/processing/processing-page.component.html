@@ -212,6 +212,93 @@
       }
     </section>
 
+    <!-- Whisparr downloads waiting on you -->
+    @if (whisparr(); as wh) {
+      @if (wh.items.length || wh.unreachable) {
+        <section
+          class="block app-section-panel"
+          data-tone="attention"
+          aria-labelledby="processing-whisparr"
+          data-testid="whisparr-imports"
+        >
+          <div class="app-section-head">
+            <div class="app-section-head__copy">
+              <div class="title-row">
+                <h2 id="processing-whisparr">Waiting in Whisparr</h2>
+                @if (wh.items.length) {
+                  <span class="count">{{ wh.items.length }}</span>
+                }
+              </div>
+              <p>Finished downloads Whisparr couldn’t bring in on its own.</p>
+            </div>
+            @if (wh.whisparrQueueUrl) {
+              <a
+                class="btn small"
+                [href]="wh.whisparrQueueUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Open Whisparr’s queue</a
+              >
+            }
+          </div>
+          @if (wh.unreachable) {
+            <div class="notice" role="status">
+              <i class="pi pi-info-circle" aria-hidden="true"></i>
+              <span>Couldn’t reach Whisparr just now.</span>
+            </div>
+          }
+          <ul class="rows">
+            @for (item of wh.items; track item.queueId) {
+              <li class="row" data-stage="failed" data-testid="whisparr-import">
+                <div class="row-art">
+                  <i class="pi pi-inbox" aria-hidden="true"></i>
+                </div>
+                <div class="row-copy">
+                  <p class="row-title app-break-anywhere">{{ item.movieTitle ?? item.title }}</p>
+                  @if (item.movieTitle) {
+                    <p class="row-meta app-break-anywhere">{{ item.title }}</p>
+                  }
+                  @for (message of item.messages; track message) {
+                    <p class="detail bad">{{ message }}</p>
+                  }
+                  @if (!item.canImport) {
+                    <p class="row-meta">
+                      Whisparr can’t tell which scene this is. Pick it in Whisparr’s queue (Manual
+                      Import).
+                    </p>
+                  }
+                </div>
+                <div class="row-end">
+                  @if (item.canImport) {
+                    <button
+                      type="button"
+                      class="btn small primary"
+                      data-testid="whisparr-import-button"
+                      [disabled]="busy() === 'whisparr-' + item.queueId"
+                      (click)="importFromWhisparr(item)"
+                    >
+                      Import
+                    </button>
+                  }
+                  <button
+                    type="button"
+                    class="btn small quiet"
+                    data-testid="whisparr-remove-button"
+                    [disabled]="busy() === 'whisparr-' + item.queueId"
+                    (click)="removeFromWhisparr(item)"
+                  >
+                    {{
+                      confirmRemove() === item.queueId ? 'Tap again: delete the download' : 'Remove'
+                    }}
+                  </button>
+                </div>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+    }
+
     <!-- Drop-ins -->
     @if (watch(); as w) {
       <section
