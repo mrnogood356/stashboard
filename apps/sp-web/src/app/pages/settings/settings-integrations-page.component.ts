@@ -1,6 +1,6 @@
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Observable, finalize, forkJoin, map, switchMap, tap } from 'rxjs';
 import { ConfirmationService } from 'primeng/api';
 import { ButtonDirective } from 'primeng/button';
@@ -46,6 +46,7 @@ import {
 @Component({
   selector: 'app-settings-integrations-page',
   imports: [
+    RouterLink,
     SkeletonComponent,
     ButtonDirective,
     Message,

@@ -300,3 +300,9 @@ p {
     align-self: flex-start;
   }
 }
+
+.health-line {
+  margin: 0.4rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
