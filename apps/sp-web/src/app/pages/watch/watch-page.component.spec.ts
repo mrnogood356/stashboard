@@ -195,7 +195,7 @@ describe('WatchPageComponent', () => {
         ...baseInfo,
         markers: [
           { id: 'm1', title: 'Intro', seconds: 0, imageUrl: '/m1' },
-          { id: 'm2', title: 'Beach', seconds: 900, imageUrl: '/m2' },
+          { id: 'm2', title: 'Beach', seconds: 900, imageUrl: '/m2', previewUrl: '/m2.mp4' },
         ],
       }),
     );
@@ -220,6 +220,10 @@ describe('WatchPageComponent', () => {
       '0:00Intro',
       '15:00Beach',
     ]);
+    // Each chapter shows its picture, ready to play Stash's marker clip.
+    expect(
+      items.map((item) => item.querySelector('.chapter-thumb img')?.getAttribute('src')),
+    ).toEqual(['/m1', '/m2']);
     items[1].click();
     expect(video.currentTime).toBe(900);
   });

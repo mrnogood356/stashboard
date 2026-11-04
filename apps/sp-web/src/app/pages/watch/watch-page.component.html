@@ -318,6 +318,20 @@
                       [class.active]="marker.id === currentChapter()?.id"
                       (click)="jumpToChapter(marker)"
                     >
+                      <span class="chapter-thumb">
+                        <app-clip-preview
+                          [clip]="previewsOn() ? (marker.previewUrl ?? null) : null"
+                        >
+                          <img
+                            [src]="marker.imageUrl"
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            draggable="false"
+                            (error)="$any($event.target).classList.add('is-failed')"
+                          />
+                        </app-clip-preview>
+                      </span>
                       <span class="chapter-time">{{ formatTime(marker.seconds) }}</span>
                       <span class="chapter-name">{{ marker.title }}</span>
                     </button>
