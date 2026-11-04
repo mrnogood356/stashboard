@@ -50,6 +50,8 @@ export interface LocalStudio {
   sceneCount: number;
   parent: { id: string; name: string } | null;
   children: Array<{ id: string; name: string }>;
+  /** Its StashDB/FansDB ids. Older APIs: missing. */
+  catalogIds?: string[];
 }
 
 export interface LocalSceneUpdate {

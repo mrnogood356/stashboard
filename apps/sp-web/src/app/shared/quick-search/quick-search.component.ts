@@ -25,7 +25,13 @@ import { LocalLibraryService } from '../../core/api/local-library.service';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
 import { HideOwnedService } from '../../core/preferences/hide-owned.service';
 import { QuickItem, isEditable, matchPages, startPages } from './quick-search.model';
-import { PersonResult, mergePerformers, mergeStudios } from '../../pages/search/search-merge';
+import {
+  PersonResult,
+  addFound,
+  mergePerformers,
+  mergeStudios,
+  missedNames,
+} from '../../pages/search/search-merge';
 
 const MIN_QUERY = 2;
 /** Shared with the Search page, so both remember the same searches. */
@@ -292,6 +298,53 @@ export class QuickSearchComponent implements OnInit {
       catalogPerformers: safe(this.discover.getPerformersFeed(1, 6, { name: value }), null),
       catalogStudios: safe(this.discover.getStudiosFeed(1, 6, { name: value }), null),
     }).pipe(
+      // As on Search: ask the catalog by the library's own name for ones it missed.
+      switchMap((result) => {
+        const studio = missedNames(
+          result.local.studios,
+          result.catalogStudios?.items ?? [],
+          value,
+          1,
+        )[0];
+        const performer = missedNames(
+          result.local.performers,
+          result.catalogPerformers?.items ?? [],
+          value,
+          1,
+        )[0];
+        if (!result.catalogStudios || !result.catalogPerformers || (!studio && !performer)) {
+          return of(result);
+        }
+        const ask = <T>(request: import('rxjs').Observable<{ items: T[] }> | null) =>
+          request
+            ? request.pipe(
+                map((page) => page.items),
+                catchError(() => of([] as T[])),
+              )
+            : of([] as T[]);
+        return forkJoin({
+          studios: ask(studio ? this.discover.getStudiosFeed(1, 3, { name: studio }) : null),
+          performers: ask(
+            performer ? this.discover.getPerformersFeed(1, 3, { name: performer }) : null,
+          ),
+        }).pipe(
+          map((found) => ({
+            ...result,
+            catalogStudios: {
+              ...result.catalogStudios!,
+              items: addFound(result.catalogStudios!.items, found.studios, result.local.studios),
+            },
+            catalogPerformers: {
+              ...result.catalogPerformers!,
+              items: addFound(
+                result.catalogPerformers!.items,
+                found.performers,
+                result.local.performers,
+              ),
+            },
+          })),
+        );
+      }),
       map((result): Found => ({
         library: (result.library?.items ?? []).map((scene) => ({
           id: `library:${scene.id}`,

@@ -346,6 +346,27 @@ describe('rename plans', () => {
   }
   const pattern = '{studio}/{date} - {title}';
 
+  it('leaves an unmatched file in Unmatched, so the move there isn’t undone', () => {
+    const noStudio = {
+      ...sceneAt('/data/Unmatched/half.mp4', 'Half'),
+      studio: null,
+    };
+    expect(planRename(noStudio, ['/data'], pattern, new Set()).state).toBe(
+      'same',
+    );
+    // Elsewhere it's renamed as before.
+    const loose = { ...sceneAt('/data/inbox/half.mp4', 'Half'), studio: null };
+    expect(planRename(loose, ['/data'], pattern, new Set()).state).toBe(
+      'ready',
+    );
+    // A scraper filled in its title and studio: the rename takes it out.
+    const scraped = sceneAt('/data/Unmatched/scraped.mp4', 'Scraped');
+    expect(planRename(scraped, ['/data'], pattern, new Set())).toMatchObject({
+      state: 'ready',
+      to: '/data/Studio/2020-01-02 - Scraped.mp4',
+    });
+  });
+
   it('keeps the file’s own extension case', () => {
     const plan = planRename(
       sceneAt('/data/Studio/2020-01-02 - Title.MP4', 'Title'),

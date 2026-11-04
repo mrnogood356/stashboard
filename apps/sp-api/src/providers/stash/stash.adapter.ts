@@ -790,7 +790,7 @@ export class StashAdapter extends StashLibraryToolsApi {
     if (!id) {
       return null;
     }
-    const full = `id name favorite image_path scene_count parent_studio { id name } child_studios { id name }`;
+    const full = `id name favorite image_path scene_count stash_ids { stash_id } parent_studio { id name } child_studios { id name }`;
     const basic = `id name image_path scene_count parent_studio { id name } child_studios { id name }`;
     const studio = await this.queryWithFallback(
       config,
@@ -824,6 +824,14 @@ export class StashAdapter extends StashLibraryToolsApi {
         ? studio.child_studios.flatMap((child) => {
             const entry = ref(child);
             return entry ? [entry] : [];
+          })
+        : [],
+      catalogIds: Array.isArray(studio.stash_ids)
+        ? studio.stash_ids.flatMap((entry) => {
+            const stashId = this.normalizeOptionalString(
+              (entry as { stash_id?: unknown } | null)?.stash_id,
+            );
+            return stashId ? [stashId] : [];
           })
         : [],
     };

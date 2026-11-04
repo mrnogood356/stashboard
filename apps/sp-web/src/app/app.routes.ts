@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { libraryStudioRedirectGuard } from './core/guards/library-studio-redirect.guard';
 import {
   bootstrapOnlyWhenRequiredGuard,
   loginOnlyWhenLoggedOutGuard,
@@ -145,6 +146,12 @@ export const routes: Routes = [
           import('./pages/local-collection/local-collection-page.component').then(
             (m) => m.LocalCollectionPageComponent,
           ),
+      },
+      {
+        // From a library scene's studio: its catalog page when it's linked, else its library page.
+        path: 'library/studio/:id/all',
+        canActivate: [libraryStudioRedirectGuard],
+        children: [],
       },
       {
         path: 'library/studio/:id',

@@ -66,7 +66,7 @@
           @if (scene.studio; as studio) {
             <a
               class="studio-line"
-              [routerLink]="['/library/studio', studio.id]"
+              [routerLink]="['/library/studio', studio.id, 'all']"
               [queryParams]="{ returnTo: currentUrl() }"
               [attr.aria-label]="'More from ' + studio.name"
             >
@@ -411,6 +411,7 @@
                 [item]="item"
                 variant="rail"
                 primaryLinkMode="local"
+                studioBadgeRoute="library"
                 [sceneQueryParams]="{ returnTo: currentUrl() }"
                 [playSceneId]="item.id"
                 [playQueryParams]="{ returnTo: currentUrl() }"

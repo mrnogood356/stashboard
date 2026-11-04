@@ -50,6 +50,7 @@ import {
   looksTheSame,
   messageOf,
   pickTargetRoot,
+  isUnmatched,
   planRename,
   planUnmatchedMove,
   samePath,
@@ -199,8 +200,11 @@ export abstract class OrganizerFiles extends OrganizerCore {
           ).map((file) => file.filePath.normalize('NFC').toLowerCase()),
         )
       : new Set<string>();
+    // A scraper-filled scene is the rename's: moving it here would only
+    // have the rename move it straight back out, and this move it in again.
+    const unnamed = scenes.filter(isUnmatched);
     return dedupeTargets(
-      scenes.map((scene) => planUnmatchedMove(scene, roots, target)),
+      unnamed.map((scene) => planUnmatchedMove(scene, roots, target)),
     ).filter(
       (plan) =>
         plan.state === 'ready' &&
@@ -1791,14 +1795,6 @@ export abstract class OrganizerFiles extends OrganizerCore {
         ),
       );
   }
-}
-
-/**
- * Nothing to name the file by: no stash-box link, and no title or no studio.
- * A scraper-filled scene keeps its folder, as renaming would move it out again.
- */
-function isUnmatched(scene: StashOrganizerScene): boolean {
-  return scene.stashIds.length === 0 && (!scene.title || !scene.studio);
 }
 
 /** The extra copies the rename preview found ("copy" plans). */
