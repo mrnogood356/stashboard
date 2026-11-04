@@ -429,11 +429,34 @@
     font-size: 0.7rem;
   }
 
+  /* Picture, title and a small Request button on one line. */
   .release {
-    grid-template-columns: 5.2rem minmax(0, 1fr);
+    grid-template-columns: 4.6rem minmax(0, 1fr) auto;
+    gap: 0.65rem;
   }
 
-  .release-action {
-    grid-column: 2;
+  .request-button {
+    min-height: 1.9rem;
+    padding: 0 0.75rem;
+    font-size: 0.82rem;
+  }
+
+  /* The four choices stay on one line and scroll if they must. */
+  .whose {
+    display: flex;
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .whose::-webkit-scrollbar {
+    display: none;
+  }
+
+  .whose button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 0 0.75rem;
   }
 }
