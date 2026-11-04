@@ -44,6 +44,7 @@ describe('app routes', () => {
       'processing',
       'library/scene/:sceneId',
       'library/performer/:id',
+      'library/studio/:id/all',
       'library/studio/:id',
       'library',
       'performers',

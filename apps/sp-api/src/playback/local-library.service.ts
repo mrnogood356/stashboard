@@ -127,6 +127,8 @@ export interface LocalStudioDto {
   sceneCount: number;
   parent: { id: string; name: string } | null;
   children: Array<{ id: string; name: string }>;
+  /** Its StashDB/FansDB ids, for its catalog page. */
+  catalogIds: string[];
 }
 
 export interface LocalBulkResultDto {

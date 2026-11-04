@@ -240,9 +240,18 @@ export class SceneCardComponent implements OnInit {
       };
     }
 
+    if (this.studioBadgeRoute === 'library') {
+      // Everything from the studio, the catalog's and yours, not just your library.
+      return {
+        kind: 'router',
+        commands: ['/library/studio', this.item.studioId, 'all'],
+        ariaLabel: `View scenes from ${this.item.studio}`,
+      };
+    }
+
     return {
       kind: 'router',
-      commands: [this.studioBadgeRoute === 'library' ? '/library' : '/scenes'],
+      commands: ['/scenes'],
       queryParams: {
         studios: this.item.studioId,
         studioNames: this.item.studio,

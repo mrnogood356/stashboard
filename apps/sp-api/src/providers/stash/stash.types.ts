@@ -189,6 +189,8 @@ export interface StashLocalStudio {
   sceneCount: number;
   parent: { id: string; name: string } | null;
   children: Array<{ id: string; name: string }>;
+  /** Its StashDB/FansDB ids (stash_ids). */
+  catalogIds: string[];
 }
 
 export interface StashLocalSceneUpdate {

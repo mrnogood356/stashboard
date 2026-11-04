@@ -38,7 +38,7 @@ import { SceneRequestModalComponent } from '../../shared/scene-request-modal/sce
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
 import { OverflowXDirective } from '../../shared/overflow-x/overflow-x.directive';
 import { SectionBackComponent } from '../../shared/section-back/section-back.component';
-import { mergePerformers, mergeScenes, mergeStudios } from './search-merge';
+import { addFound, mergePerformers, mergeScenes, mergeStudios, missedNames } from './search-merge';
 
 export type SearchFilter = 'all' | 'scenes' | 'performers' | 'studios';
 
@@ -377,6 +377,76 @@ export class SearchPageComponent implements OnInit, OnDestroy {
         catalogScenesFailed: result.catalogScenes === null,
         catalogPeopleFailed: result.catalogPerformers === null || result.catalogStudios === null,
       })),
+      switchMap((results) => this.askByLibraryNames(results, value)),
+    );
+  }
+
+  /**
+   * Your library can find a studio or performer the catalog's search
+   * doesn't ("blackedraw" for Blacked Raw): ask the catalog again by the
+   * library's own name, so it's listed with its catalog page and scenes.
+   */
+  private askByLibraryNames(results: SearchResults, value: string) {
+    if (results.catalogPeopleFailed) {
+      return of(results);
+    }
+    const studios = missedNames(results.local.studios, results.catalogStudios, value);
+    const performers = missedNames(results.local.performers, results.catalogPerformers, value);
+    if (studios.length === 0 && performers.length === 0) {
+      return of(results);
+    }
+    const quiet = <T>(request: import('rxjs').Observable<{ items: T[] }>) =>
+      request.pipe(
+        map((page) => page.items),
+        catchError(() => of([] as T[])),
+      );
+    const sceneName = results.catalogScenes.length === 0 ? (studios[0] ?? performers[0]) : null;
+    return forkJoin({
+      studios: forkJoin([
+        of([] as StudioFeedItem[]),
+        ...studios.map((name) => quiet(this.discover.getStudiosFeed(1, 5, { name }))),
+      ]),
+      performers: forkJoin([
+        of([] as PerformerFeedItem[]),
+        ...performers.map((name) => quiet(this.discover.getPerformersFeed(1, 5, { name }))),
+      ]),
+      scenes:
+        sceneName && !results.catalogScenesFailed
+          ? this.discover
+              .searchScenes(sceneName, 1, 12, this.showHidden())
+              .pipe(catchError(() => of(null)))
+          : of(null),
+    }).pipe(
+      map((found): SearchResults => {
+        const catalogStudios = addFound(
+          results.catalogStudios,
+          found.studios.flat(),
+          results.local.studios,
+        );
+        const catalogPerformers = addFound(
+          results.catalogPerformers,
+          found.performers.flat(),
+          results.local.performers,
+        );
+        return {
+          ...results,
+          catalogStudios,
+          catalogStudiosTotal:
+            results.catalogStudiosTotal + catalogStudios.length - results.catalogStudios.length,
+          catalogPerformers,
+          catalogPerformersTotal:
+            results.catalogPerformersTotal +
+            catalogPerformers.length -
+            results.catalogPerformers.length,
+          ...(found.scenes && found.scenes.items.length > 0
+            ? {
+                catalogScenes: found.scenes.items,
+                catalogScenesTotal: found.scenes.total,
+                catalogHidden: found.scenes.hidden ?? 0,
+              }
+            : {}),
+        };
+      }),
     );
   }
 }

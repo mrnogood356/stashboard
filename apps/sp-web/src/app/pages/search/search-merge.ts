@@ -197,3 +197,43 @@ function ranked(results: PersonResult[], query: string): PersonResult[] {
     )
     .map((entry) => entry.result);
 }
+
+/**
+ * Names in your library the catalog search didn't find, to ask it for by
+ * their own name: "blackedraw" finds Blacked Raw in your library, but the
+ * catalog only finds it as "Blacked Raw". At most `limit`, ones you have
+ * the most of first.
+ */
+export function missedNames<
+  T extends { id: string; name: string; sceneCount: number; catalogIds?: string[] },
+>(local: T[], catalog: Array<{ id: string; name: string }>, query: string, limit = 2): string[] {
+  const { used } = matchLocal(local, catalog);
+  const asked = query.trim().toLowerCase();
+  const names = local
+    .filter((entry) => !used.has(entry.id) && entry.name.trim().toLowerCase() !== asked)
+    .sort((left, right) => right.sceneCount - left.sceneCount)
+    .map((entry) => entry.name.trim());
+  return [...new Set(names)].slice(0, limit);
+}
+
+/**
+ * Catalog entries from asking by a library name, kept when they're the
+ * same one (linked by id, or the same name) and not already listed.
+ */
+export function addFound<T extends { id: string; name: string }>(
+  listed: T[],
+  found: T[],
+  local: Array<{ name: string; catalogIds?: string[] }>,
+): T[] {
+  const ids = new Set(listed.map((entry) => entry.id));
+  const linked = new Set(local.flatMap((entry) => entry.catalogIds ?? []));
+  const names = new Set(local.map((entry) => nameKey(entry.name)));
+  const extra = found.filter((entry) => {
+    if (ids.has(entry.id) || !(linked.has(entry.id) || names.has(nameKey(entry.name)))) {
+      return false;
+    }
+    ids.add(entry.id);
+    return true;
+  });
+  return [...listed, ...extra];
+}

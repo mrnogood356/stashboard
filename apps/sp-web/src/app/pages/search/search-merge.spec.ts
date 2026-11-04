@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PerformerFeedItem, SceneExplorerItem } from '../../core/api/discover.types';
 import { LibrarySceneItem } from '../../core/api/library.types';
-import { mergePerformers, mergeScenes, nameKey } from './search-merge';
+import { addFound, mergePerformers, mergeScenes, missedNames, nameKey } from './search-merge';
 
 const catalogPerformer = (id: string, name: string): PerformerFeedItem => ({
   id,
@@ -77,6 +77,38 @@ describe('search merge', () => {
       'catalog:c1',
       'catalog:c2',
       'library:l3',
+    ]);
+  });
+});
+
+describe('asking the catalog by library names', () => {
+  const studio = (id: string, name: string, sceneCount = 1, catalogIds: string[] = []) => ({
+    id,
+    name,
+    imageUrl: null,
+    sceneCount,
+    catalogIds,
+  });
+
+  it('names library entries the catalog search missed', () => {
+    const local = [studio('1', 'Blacked Raw', 2, ['c1']), studio('2', 'Blacked', 9)];
+    expect(missedNames(local, [{ id: 'c2', name: 'Blacked' }], 'blackedraw')).toEqual([
+      'Blacked Raw',
+    ]);
+    // Already asked by that name: nothing new to ask.
+    expect(missedNames([studio('1', 'Blacked Raw')], [], 'blacked raw')).toEqual([]);
+  });
+
+  it('keeps only the same studio from the answer, once', () => {
+    const local = [studio('1', 'Blacked Raw', 2, ['c1'])];
+    const found = [
+      { id: 'c1', name: 'Blacked Raw (StashDB)' },
+      { id: 'c3', name: 'Blacked' },
+      { id: 'c4', name: 'blacked raw' },
+    ];
+    expect(addFound([{ id: 'c4', name: 'Blacked Raw' }], found, local).map((s) => s.id)).toEqual([
+      'c4',
+      'c1',
     ]);
   });
 });
