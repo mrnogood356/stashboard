@@ -43,15 +43,13 @@
   <p class="calendar-lead">
     @switch (whose()) {
       @case ('WHISPARR') {
-        The scenes Whisparr has dated this month, downloaded or still to come.
+        What Whisparr has dated this month, downloaded or still to come.
       }
       @case ('ALL') {
-        New and upcoming scenes from the studios and performers you starred, and the scenes in
-        Whisparr.
+        Releases from the studios and performers you starred, and Whisparr’s.
       }
       @default {
-        New and upcoming scenes from the {{ whose() === 'STUDIO' ? 'studios' : 'performers' }} you
-        starred. Star more on their pages to see them here.
+        Releases from the {{ whose() === 'STUDIO' ? 'studios' : 'performers' }} you starred.
       }
     }
   </p>

@@ -114,10 +114,9 @@
         <div class="lifecycle-section-head app-section-head">
           <div class="app-section-head__copy">
             <div class="section-title-row">
-              <h3>Downloads you started</h3>
+              <h3>Your downloads</h3>
               <span class="section-count">{{ countLabel(handoffs().length, 'download') }}</span>
             </div>
-            <p>Sent to SABnzbd from Find downloads or Prowlarr.</p>
           </div>
           <a class="secondary-action compact" routerLink="/processing">Downloads</a>
         </div>
@@ -181,31 +180,31 @@
                     </p>
                   }
                 </div>
-                <div class="card-actions app-action-row">
-                  @if (handoff.sceneId) {
-                    <a
-                      class="primary-link small"
-                      [routerLink]="['/scene', handoff.sceneId]"
-                      [queryParams]="{ returnTo: currentRouteUrl() }"
+              </div>
+              <div class="card-actions app-action-row">
+                @if (handoff.sceneId) {
+                  <a
+                    class="primary-link small"
+                    [routerLink]="['/scene', handoff.sceneId]"
+                    [queryParams]="{ returnTo: currentRouteUrl() }"
+                  >
+                    Scene details
+                  </a>
+                }
+                @if (handoff.stage === 'failed') {
+                  <a class="secondary-link small" routerLink="/processing">Retry in Downloads</a>
+                  <!-- Only once it's recorded as failed: before that there's nothing to clear. -->
+                  @if (handoff.canClear) {
+                    <button
+                      type="button"
+                      class="secondary-action small"
+                      [attr.data-testid]="'clear-handoff-' + handoff.id"
+                      (click)="clearHandoff(handoff)"
                     >
-                      Scene details
-                    </a>
+                      Clear
+                    </button>
                   }
-                  @if (handoff.stage === 'failed') {
-                    <a class="secondary-link small" routerLink="/processing">Retry in Downloads</a>
-                    <!-- Only once it's recorded as failed: before that there's nothing to clear. -->
-                    @if (handoff.canClear) {
-                      <button
-                        type="button"
-                        class="secondary-action small"
-                        [attr.data-testid]="'clear-handoff-' + handoff.id"
-                        (click)="clearHandoff(handoff)"
-                      >
-                        Clear
-                      </button>
-                    }
-                  }
-                </div>
+                }
               </div>
             </article>
           }
@@ -266,7 +265,9 @@
                     <span class="section-priority">Needs attention</span>
                   }
                 </div>
-                <p>{{ section.description }}</p>
+                @if (section.description) {
+                  <p>{{ section.description }}</p>
+                }
               </div>
 
               @if (section.lifecycle === 'IMPORT_PENDING') {
@@ -506,60 +507,57 @@
                         }
                       }
                     </div>
+                  </div>
+                  <div class="card-actions app-action-row">
+                    <a
+                      class="primary-link small details-link"
+                      [routerLink]="['/scene', item.id]"
+                      [queryParams]="{ returnTo: currentRouteUrl() }"
+                    >
+                      Scene details
+                    </a>
 
-                    <div class="card-actions app-action-row">
+                    @if (item.stashViewUrl) {
                       <a
-                        class="primary-link small details-link"
-                        [routerLink]="['/scene', item.id]"
-                        [queryParams]="{ returnTo: currentRouteUrl() }"
+                        class="secondary-link small"
+                        [href]="item.stashViewUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        [attr.data-testid]="'open-in-stash-' + item.id"
                       >
-                        Scene details
+                        Open in Stash
                       </a>
+                    }
 
-                      @if (item.stashViewUrl) {
-                        <a
-                          class="secondary-link small"
-                          [href]="item.stashViewUrl"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          [attr.data-testid]="'open-in-stash-' + item.id"
-                        >
-                          Open in Stash
-                        </a>
-                      }
+                    @if (
+                      item.status.state === 'REQUESTED' ||
+                      item.status.state === 'DOWNLOADING' ||
+                      item.status.state === 'FAILED'
+                    ) {
+                      <button
+                        type="button"
+                        class="secondary-action small"
+                        [attr.data-testid]="'pick-release-' + item.id"
+                        (click)="pickRelease(item)"
+                      >
+                        {{
+                          item.status.state === 'FAILED' ? 'Pick another release' : 'Pick a release'
+                        }}
+                      </button>
+                    }
 
-                      @if (
-                        item.status.state === 'REQUESTED' ||
-                        item.status.state === 'DOWNLOADING' ||
-                        item.status.state === 'FAILED'
-                      ) {
-                        <button
-                          type="button"
-                          class="secondary-action small"
-                          [attr.data-testid]="'pick-release-' + item.id"
-                          (click)="pickRelease(item)"
-                        >
-                          {{
-                            item.status.state === 'FAILED'
-                              ? 'Pick another release'
-                              : 'Pick a release'
-                          }}
-                        </button>
-                      }
-
-                      @if (item.whisparrViewUrl) {
-                        <a
-                          class="secondary-link small"
-                          [href]="item.whisparrViewUrl"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          aria-label="View in Whisparr in a new tab"
-                          title="View in Whisparr in a new tab"
-                        >
-                          View in Whisparr
-                        </a>
-                      }
-                    </div>
+                    @if (item.whisparrViewUrl) {
+                      <a
+                        class="secondary-link small"
+                        [href]="item.whisparrViewUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="View in Whisparr in a new tab"
+                        title="View in Whisparr in a new tab"
+                      >
+                        <i class="pi pi-external-link" aria-hidden="true"></i> Whisparr
+                      </a>
+                    }
                   </div>
                 </article>
               }

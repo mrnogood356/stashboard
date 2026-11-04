@@ -78,15 +78,35 @@ p {
 }
 
 @media (max-width: 560px) {
-  /* Wrap instead of hiding tabs behind an invisible horizontal scroll. */
+  /* Even columns across the width, never a lone tab on a second row; long
+     labels wrap inside their own tab instead. */
   .segmented {
-    flex-wrap: wrap;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    width: 100%;
     overflow-x: visible;
   }
 
   .segmented button {
-    flex: 1 1 auto;
+    flex-wrap: wrap;
+    min-width: 0;
     justify-content: center;
+    column-gap: 0.3rem;
+    row-gap: 0.1rem;
+    height: auto;
+    min-height: 2.1rem;
+    padding: 0.3rem 0.45rem;
+    font-size: 0.84rem;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+
+  /* The count never breaks into a column of digits. */
+  .segmented .count-badge {
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 }
 

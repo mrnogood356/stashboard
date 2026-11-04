@@ -127,7 +127,10 @@
           <div class="studio-meta">
             <p class="studio-name">{{ item.name }}</p>
             @if (item.childStudios.length > 0) {
-              <p class="child-summary">Child studios: {{ item.childStudios.length }}</p>
+              <p class="child-summary">
+                {{ item.childStudios.length }}
+                {{ item.childStudios.length === 1 ? 'studio' : 'studios' }} in this network
+              </p>
               <div class="child-chips">
                 @for (childName of childStudiosPreview(item); track childName) {
                   <span class="child-chip">{{ childName }}</span>
@@ -137,9 +140,7 @@
                 }
               </div>
             } @else if (item.parentStudio) {
-              <p class="child-summary">Parent studio: {{ item.parentStudio.name }}</p>
-            } @else {
-              <p class="child-summary muted">No child studios</p>
+              <p class="child-summary">Part of {{ item.parentStudio.name }}</p>
             }
           </div>
         </article>

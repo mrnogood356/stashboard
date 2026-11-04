@@ -461,7 +461,7 @@ a {
 
   /* A thumbnail beside the details, so a phone screen shows a few at once. */
   .acquisition-card {
-    grid-template-columns: 6.5rem minmax(0, 1fr);
+    grid-template-columns: 7.5rem minmax(0, 1fr);
     gap: 0.7rem;
     padding: 0.6rem;
   }
@@ -470,8 +470,21 @@ a {
     align-self: start;
   }
 
+  /* Landscape, like the scene itself, so a card isn't taller than it needs. */
   .card-art {
-    aspect-ratio: 3 / 4;
+    aspect-ratio: 16 / 10;
+  }
+
+  /* The section's button stays beside its title instead of on a line of its own. */
+  .lifecycle-section-head {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .lifecycle-section-head .app-section-head__copy {
+    flex: 1 1 12rem;
+    min-width: 0;
   }
 
   .card-title {
@@ -553,9 +566,19 @@ a {
   min-width: 0;
 }
 
+/* The placeholder and the chosen sort say what each one is. */
+.list-toolbar .app-control-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 @media (max-width: 560px) {
   .list-toolbar {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 9rem);
   }
 }
 
@@ -712,4 +735,20 @@ a {
 .lifecycle-section-head > .secondary-action {
   align-self: flex-start;
   width: auto;
+}
+
+/* The buttons sit under the details, and run the full width of the card on a phone. */
+.acquisition-card > .card-actions {
+  grid-column: -2 / -1;
+}
+
+@media (max-width: 640px) {
+  .acquisition-card > .card-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+.card-actions .secondary-link .pi {
+  margin-right: 0.3rem;
+  font-size: 0.72rem;
 }

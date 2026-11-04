@@ -1,6 +1,6 @@
 import { DOCUMENT } from '@angular/common';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Observable, Subscription } from 'rxjs';
 import {
   DownloadHandoffApiService,
@@ -42,6 +42,9 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
   private readonly api = inject(DownloadHandoffApiService);
   private readonly notifications = inject(AppNotificationsService);
   private readonly document = inject(DOCUMENT);
+  /** Arriving from the Organizer's "Stuck in Whisparr's import": go to that list once it's there. */
+  private scrollToWhisparr =
+    inject(ActivatedRoute, { optional: true })?.snapshot.fragment === 'processing-whisparr';
   private timer: ReturnType<typeof setTimeout> | null = null;
   private request: Subscription | null = null;
   private destroyed = false;
@@ -269,7 +272,10 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
     this.stop();
     // Whisparr is asked at most every 20 s by the server; errors keep what's shown.
     this.api.whisparrImports().subscribe({
-      next: (imports) => this.whisparr.set(imports),
+      next: (imports) => {
+        this.whisparr.set(imports);
+        this.tryScrollToWhisparr();
+      },
       error: () => undefined,
     });
     this.request = this.api.processing().subscribe({
@@ -288,6 +294,24 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
     this.data.set(data);
     this.loadError.set(false);
     this.now.set(Date.now());
+    this.tryScrollToWhisparr();
+  }
+
+  /**
+   * The Waiting in Whisparr list only renders once both answers are in, so
+   * each one tries; the first that finds the list on screen scrolls to it.
+   */
+  private tryScrollToWhisparr(): void {
+    if (!this.scrollToWhisparr) {
+      return;
+    }
+    setTimeout(() => {
+      const target = this.document.getElementById('processing-whisparr');
+      if (this.scrollToWhisparr && target) {
+        this.scrollToWhisparr = false;
+        target.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      }
+    });
   }
 
   private schedule(): void {

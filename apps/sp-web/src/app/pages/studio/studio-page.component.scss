@@ -465,3 +465,96 @@ ul {
   min-width: 0;
   margin-top: 0.6rem;
 }
+
+/* The Filters button only shows on phones, where the filters fold away. */
+.scenes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.filters-toggle {
+  display: none;
+  align-items: center;
+  gap: 0.4rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  background: var(--chip-bg);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.filters-count {
+  min-width: 1.2rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+.filter-body {
+  display: grid;
+  gap: 0.6rem;
+}
+
+@media (max-width: 640px) {
+  /* A logo, not a screen-wide box. */
+  .media-column {
+    justify-self: start;
+    width: min(42vw, 11rem);
+  }
+
+  /* Child studios as a row of names, not a card each. */
+  .child-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  /* At least 44 px tall, so each name is easy to tap. */
+  .child-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+    padding: 0.4rem 0.9rem;
+    border-radius: 999px;
+    background: var(--chip-bg);
+  }
+
+  .child-card .child-image {
+    display: none;
+  }
+
+  .child-card .child-meta {
+    padding: 0;
+  }
+
+  .child-card .child-name {
+    margin: 0;
+    font-size: 0.85rem;
+  }
+
+  .filters-toggle {
+    display: inline-flex;
+  }
+
+  .filter-body:not(.open) {
+    display: none;
+  }
+}
+
+/* Taps on a child studio's name and aliases reach the link stretched under them. */
+.child-card .child-image,
+.child-card .child-meta,
+.child-card .child-name,
+.child-card .child-aliases {
+  pointer-events: none;
+}

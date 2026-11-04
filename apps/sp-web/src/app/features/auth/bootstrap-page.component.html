@@ -7,13 +7,7 @@
     </header>
 
     <section class="auth-card" aria-label="Create the admin account">
-      <ul class="auth-note">
-        <li>This account signs into the app, unlocks setup, and can change its password later.</li>
-        <li>
-          After this, Stashboard opens required integration setup for catalog, Stash, and Whisparr.
-        </li>
-        <li>Use a strong password now even if this is a private home network install.</li>
-      </ul>
+      <p class="auth-note">You’ll sign in with it, then connect your services.</p>
 
       <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
         @if (setupCodeRequired()) {

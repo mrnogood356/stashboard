@@ -212,8 +212,7 @@
       <article class="global-health">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Runtime</p>
-            <h3>Service health</h3>
+            <h3>Stashboard</h3>
           </div>
           <button pButton type="button" [disabled]="refreshingHealth()" (click)="refreshHealth()">
             {{ refreshingHealth() ? 'Refreshing...' : 'Refresh health' }}
@@ -221,20 +220,11 @@
         </div>
 
         @if (health(); as health) {
-          <div class="health-grid">
-            <p>
-              Service: <strong>{{ health.service }}</strong>
-            </p>
-            <p>
-              API: <strong>{{ health.status }}</strong>
-            </p>
-            <p>
-              Database: <strong>{{ health.database }}</strong>
-            </p>
-            <p>
-              Version: <strong>{{ health.version }}</strong>
-            </p>
-          </div>
+          <p class="health-line">
+            {{ health.status === 'ok' ? 'Running' : 'Status: ' + health.status }}, database
+            {{ health.database }}, version {{ health.version }}.
+            <a routerLink="/settings/about">About &amp; health</a>
+          </p>
         }
 
         @if (healthError()) {

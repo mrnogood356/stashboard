@@ -2,8 +2,8 @@
   <header class="section-head">
     <h2>Indexing</h2>
     <p class="lede">
-      Stashboard keeps its own copy of Whisparr’s queue and your Stash library so pages load fast.
-      It refreshes on its own; Sync now catches everything up straight away.
+      Stashboard keeps its own copy of Whisparr and your library so pages load fast. Sync now
+      catches up straight away.
     </p>
   </header>
 
@@ -115,7 +115,6 @@
             {{ formatStatus(job.status) }}
           </span>
         </div>
-        <p class="muted">{{ job.purpose }}</p>
         <p class="job-when">
           {{ job.cadence }} · last ran {{ formatDateTime(job.finishedAt ?? job.lastSuccessAt) }}
         </p>
@@ -139,6 +138,7 @@
 
     <details class="job-details">
       <summary>Details</summary>
+      <p class="muted job-purpose">{{ job.purpose }}</p>
       <dl>
         <div>
           <dt>Last OK</dt>

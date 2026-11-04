@@ -402,3 +402,18 @@ h1 {
     animation: none;
   }
 }
+
+/* Phones: a smaller picture, so the name and buttons sit higher. */
+@media (max-width: 600px) {
+  .avatar,
+  .avatar-skeleton {
+    width: 7rem;
+    height: 7rem;
+  }
+
+  .avatar.studio,
+  .avatar-skeleton.studio {
+    width: 10rem;
+    height: 5.6rem;
+  }
+}

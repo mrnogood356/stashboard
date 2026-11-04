@@ -30,8 +30,12 @@ import {
   WhisparrRepairScene,
 } from '../../core/api/organizer.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
+import { DownloadHandoffApiService } from '../../core/api/download-handoff.service';
 
-type Tab = 'match' | 'rename' | 'settings';
+type Tab = 'overview' | 'review' | 'settings';
+
+/** Rows on the Overview that open to show their details. */
+type Detail = 'repair' | 'relocate' | 'rename' | 'skipped' | 'empty';
 
 const CONFIDENCE: Record<MatchConfidence, string> = {
   exact: 'Same video',
@@ -89,6 +93,9 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
   private readonly notifications = inject(AppNotificationsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly downloads = inject(DownloadHandoffApiService);
+  /** Downloads stuck at Whisparr's import step (Downloads → Waiting in Whisparr). */
+  protected readonly stuckInWhisparr = signal(0);
   @ViewChild('folderInput') private folderInput?: ElementRef<HTMLInputElement>;
   @ViewChild('fileInput') private fileInput?: ElementRef<HTMLInputElement>;
   /** Where a placeholder button adds to: the field last typed in. */
@@ -98,7 +105,11 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
   protected readonly skipReason = SKIP_REASON;
   protected readonly tokenHelp = TOKEN_HELP;
 
-  protected readonly tab = signal<Tab>('match');
+  protected readonly tab = signal<Tab>('overview');
+  /** Matches found by name that wait for you on Review. */
+  protected readonly waiting = signal(0);
+  /** The Overview row that's open. */
+  private readonly opened = signal<Detail | null>(null);
   protected readonly settings = signal<OrganizerSettings | null>(null);
   protected readonly run = signal<OrganizerRun | null>(null);
   protected readonly error = signal<string | null>(null);
@@ -161,7 +172,7 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
   /** A preview waits for a pause in typing. */
   private previewTimer: ReturnType<typeof setTimeout> | null = null;
   protected readonly previewQueued = signal(false);
-  /** Scenes were matched or files moved while the Rename tab wasn't open. */
+  /** Scenes were matched or files moved while the Overview wasn't open. */
   private renameStale = false;
   private relocationRequest = 0;
   private emptyRequest = 0;
@@ -171,7 +182,18 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     const requested = this.route.snapshot.queryParamMap.get('tab');
-    this.tab.set(requested === 'rename' || requested === 'settings' ? requested : 'match');
+    // Old links: ?tab=match opened the scene list, ?tab=rename the renames.
+    this.tab.set(
+      requested === 'settings'
+        ? 'settings'
+        : requested === 'review' || requested === 'match'
+          ? 'review'
+          : 'overview',
+    );
+    if (requested === 'rename') {
+      this.opened.set('rename');
+    }
+    this.loadWaiting();
     this.api.settings().subscribe({
       next: (settings) => {
         this.settings.set(settings);
@@ -180,7 +202,8 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
         if (settings.run.running) {
           this.startPolling();
         }
-        if (this.tab() === 'rename') {
+        // The Overview counts what needs renaming, repairing and cleaning.
+        if (this.tab() === 'overview') {
           this.loadPreview();
         }
       },
@@ -213,9 +236,87 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
       queryParams: { tab },
       replaceUrl: true,
     });
-    if (tab === 'rename' && (!this.preview() || this.renameStale)) {
+    if (tab === 'overview' && (!this.preview() || this.renameStale)) {
       this.loadPreview();
     }
+  }
+
+  protected isOpen(detail: Detail): boolean {
+    return this.opened() === detail;
+  }
+
+  /** From Settings: the renames, open on the Overview. */
+  protected openRename(): void {
+    this.opened.set('rename');
+    this.select('overview');
+  }
+
+  protected toggleOpen(detail: Detail): void {
+    this.opened.set(this.opened() === detail ? null : detail);
+  }
+
+  /** How many Overview rows need you. */
+  protected readonly todoCount = computed(() => {
+    const settings = this.settings();
+    const preview = this.preview();
+    return [
+      this.waiting(),
+      this.total() ?? 0,
+      this.stuckInWhisparr(),
+      settings?.whisparrAvailable ? settings.missingInWhisparr : 0,
+      this.repair()?.count ?? 0,
+      this.relocation()?.count ?? 0,
+      preview?.counts.ready ?? 0,
+      preview ? this.actionableSkips(preview) : 0,
+      settings?.folderAccess ? (this.empty()?.count ?? 0) : 0,
+    ].filter((count) => count > 0).length;
+  });
+
+  /** Still finding out what needs doing. */
+  protected readonly checking = computed(
+    () => !this.settings() || (this.previewing() && !this.preview()) || this.total() === null,
+  );
+
+  private loadStuckInWhisparr(): void {
+    this.downloads.whisparrImports?.().subscribe({
+      next: (imports) =>
+        this.stuckInWhisparr.set(
+          imports.configured && !imports.unreachable ? imports.items.length : 0,
+        ),
+      error: () => this.stuckInWhisparr.set(0),
+    });
+  }
+
+  /** Matches waiting on Review; the list there keeps it current. */
+  protected loadWaiting(): void {
+    this.api.proposals?.().subscribe({
+      next: (list) => this.waiting.set(list.length),
+      error: () => undefined,
+    });
+  }
+
+  /**
+   * Skips with a fix on the Overview (extra copies, taken names, files gone).
+   * Whisparr's own files, files outside the library and unmatched scenes are
+   * shown there too but aren't something to do.
+   */
+  private actionableSkips(preview: RenamePreview): number {
+    return (['copy', 'taken', 'gone'] as RenameState[]).reduce(
+      (sum, state) => sum + (preview.counts[state] ?? 0),
+      0,
+    );
+  }
+
+  protected skippedTotal(preview: RenamePreview): number {
+    return this.skipBreakdown(preview).reduce((sum, entry) => sum + entry.count, 0);
+  }
+
+  /** The biggest reasons, in a few words. */
+  protected skipSummary(preview: RenamePreview): string {
+    return this.skipBreakdown(preview)
+      .slice(0, 2)
+      .map((entry) => `${entry.label} (${entry.count})`)
+      .join(' · ');
   }
 
   protected currentUrl(): string {
@@ -647,7 +748,7 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
         target.set(value);
       }
     };
-    this.api.whisparrRelocation().subscribe({
+    this.api.whisparrRelocation?.().subscribe({
       next: (plan) => set(this.relocation, plan),
       error: () => set(this.relocation, null),
     });
@@ -780,7 +881,7 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ---------- picking scenes in the Match list ----------
+  // ---------- picking scenes in the list on Review ----------
 
   protected readonly selecting = signal(false);
   protected readonly picked = signal<ReadonlySet<string>>(new Set());
@@ -896,6 +997,7 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
   /** Works out names for the pattern now, and reloads what follows the saved settings. */
   protected loadPreview(): void {
     this.renameStale = false;
+    this.loadStuckInWhisparr();
     this.loadRelocation();
     this.previewNames();
   }
@@ -1107,8 +1209,9 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
   ): Array<{ state: RenameState; count: number; label: string; hint: string | null }> {
     const hints: Partial<Record<RenameState, string>> = {
       whisparr:
-        'Whisparr names these itself. Turn off “Leave Whisparr’s files alone” above to include them.',
-      missing: 'Match them first (Match tab), then they can be named.',
+        'Whisparr names these itself. Turn off “Leave Whisparr’s files alone” in Settings to include them.',
+      missing:
+        'Not matched yet, or missing something the pattern uses. Match them on Review first.',
       outside: 'Not inside a folder Stash has as a library.',
       'no-file': 'The scene in Stash has no file.',
       copy: 'The scene already has a file with the new name (Whisparr’s copy, say), so this older file is a second copy of the same scene. Removing it deletes only that file; the scene keeps the correctly named one.',
@@ -1305,16 +1408,17 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
       .subscribe({ next: (settings) => this.settings.set(settings), error: () => undefined });
     if (run.kind === 'match') {
       this.reviewKey.update((key) => key + 1);
+      this.loadWaiting();
     }
     // Every run fills in scenes or moves files: reload the lists they change.
     if (run.kind !== 'rename' && run.kind !== 'whisparr') {
-      // Matching, moving unmatched files or putting files back change the Match list.
+      // Matching, moving unmatched files or putting files back change the list on Review.
       if (run.kind !== 'undo') {
         this.matches.set({});
       }
       this.loadScenes(1);
     }
-    if (this.tab() === 'rename' || this.preview()) {
+    if (this.tab() === 'overview' || this.preview()) {
       this.loadPreview();
     } else {
       this.renameStale = true;

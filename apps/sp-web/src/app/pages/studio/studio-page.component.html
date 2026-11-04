@@ -207,96 +207,111 @@
       class="section controls-shell app-section-panel app-control-shell"
       aria-label="Studio scene filters"
     >
-      <h2>Scenes</h2>
+      <div class="scenes-head">
+        <h2>Scenes</h2>
+        <button
+          type="button"
+          class="filters-toggle"
+          [attr.aria-expanded]="filtersOpen()"
+          (click)="filtersOpen.set(!filtersOpen())"
+        >
+          <i class="pi pi-sliders-h" aria-hidden="true"></i> Filters
+          @if (activeFilters() > 0) {
+            <span class="filters-count">{{ activeFilters() }}</span>
+          }
+        </button>
+      </div>
       <app-hidden-count
         [count]="hiddenCount()"
         [showing]="showHidden()"
         (toggled)="onShowHiddenChanged($event)"
       />
-      <div class="controls-row app-control-grid">
-        <div class="control-field app-control-field">
-          <span id="studio-scenes-sort-label" class="app-control-label">Sort</span>
-          <div class="sort-with-direction app-control-inline">
+      <div class="filter-body" [class.open]="filtersOpen()">
+        <div class="controls-row app-control-grid">
+          <div class="control-field app-control-field">
+            <span id="studio-scenes-sort-label" class="app-control-label">Sort</span>
+            <div class="sort-with-direction app-control-inline">
+              <p-select
+                inputId="studio-scenes-sort"
+                ariaLabelledBy="studio-scenes-sort-label"
+                [ngModel]="sceneSort()"
+                (ngModelChange)="onSceneSortChanged($event)"
+                [options]="sceneSortOptions"
+                optionLabel="label"
+                optionValue="value"
+                [appendTo]="'body'"
+                panelStyleClass="app-overlay-panel"
+              />
+              <button
+                type="button"
+                class="sort-direction-toggle app-sort-direction-toggle"
+                [attr.aria-label]="sceneSortDirectionToggleLabel()"
+                [attr.title]="sceneSortDirectionToggleLabel()"
+                (click)="toggleSceneSortDirection()"
+              >
+                <i [class]="sceneSortDirectionIconClass()" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="control-field app-control-field">
+            <span id="studio-scenes-favorites-label" class="app-control-label">Favorites</span>
             <p-select
-              inputId="studio-scenes-sort"
-              ariaLabelledBy="studio-scenes-sort-label"
-              [ngModel]="sceneSort()"
-              (ngModelChange)="onSceneSortChanged($event)"
-              [options]="sceneSortOptions"
+              inputId="studio-scenes-favorites"
+              ariaLabelledBy="studio-scenes-favorites-label"
+              [ngModel]="selectedFavorites()"
+              (ngModelChange)="onFavoritesChanged($event)"
+              [options]="favoritesOptions"
               optionLabel="label"
               optionValue="value"
               [appendTo]="'body'"
               panelStyleClass="app-overlay-panel"
             />
-            <button
-              type="button"
-              class="sort-direction-toggle app-sort-direction-toggle"
-              [attr.aria-label]="sceneSortDirectionToggleLabel()"
-              [attr.title]="sceneSortDirectionToggleLabel()"
-              (click)="toggleSceneSortDirection()"
-            >
-              <i [class]="sceneSortDirectionIconClass()" aria-hidden="true"></i>
-            </button>
           </div>
         </div>
 
-        <div class="control-field app-control-field">
-          <span id="studio-scenes-favorites-label" class="app-control-label">Favorites</span>
-          <p-select
-            inputId="studio-scenes-favorites"
-            ariaLabelledBy="studio-scenes-favorites-label"
-            [ngModel]="selectedFavorites()"
-            (ngModelChange)="onFavoritesChanged($event)"
-            [options]="favoritesOptions"
-            optionLabel="label"
-            optionValue="value"
-            [appendTo]="'body'"
-            panelStyleClass="app-overlay-panel"
-          />
-        </div>
-      </div>
-
-      <div class="filter-grid">
-        <div class="filter-panel">
-          <div class="control-field app-control-field">
-            <span id="studio-scenes-tags-label" class="app-control-label">Tags</span>
-            <div class="tag-input-row app-control-inline">
-              <p-multiselect
-                inputId="studio-scenes-tags"
-                ariaLabelledBy="studio-scenes-tags-label"
-                [ngModel]="tagSelectedIdsModel()"
-                (ngModelChange)="onTagSelectionChanged($event)"
-                (onFilter)="onTagFilterChanged($event.filter)"
-                (onPanelHide)="onTagFilterPanelHide()"
-                [filter]="true"
-                [filterValue]="tagSearchTerm()"
-                filterPlaceHolder="Search scene tags"
-                [loading]="tagSearchLoading()"
-                [options]="tagSelectOptions()"
-                optionLabel="label"
-                optionValue="value"
-                [showToggleAll]="false"
-                display="chip"
-                [emptyMessage]="tagSelectEmptyMessage()"
-                [emptyFilterMessage]="tagSelectEmptyMessage()"
-                [resetFilterOnHide]="true"
-                [appendTo]="'body'"
-                panelStyleClass="app-overlay-panel"
-                placeholder="Select tags"
-                scrollHeight="16rem"
-              />
-              <p-select
-                class="tag-mode-select"
-                inputId="studio-scenes-tag-mode"
-                ariaLabel="Tag match mode"
-                [ngModel]="selectedTagMode()"
-                (ngModelChange)="onTagMatchModeChanged($event)"
-                [options]="tagMatchOptions"
-                optionLabel="label"
-                optionValue="value"
-                [appendTo]="'body'"
-                panelStyleClass="app-overlay-panel"
-              />
+        <div class="filter-grid">
+          <div class="filter-panel">
+            <div class="control-field app-control-field">
+              <span id="studio-scenes-tags-label" class="app-control-label">Tags</span>
+              <div class="tag-input-row app-control-inline">
+                <p-multiselect
+                  inputId="studio-scenes-tags"
+                  ariaLabelledBy="studio-scenes-tags-label"
+                  [ngModel]="tagSelectedIdsModel()"
+                  (ngModelChange)="onTagSelectionChanged($event)"
+                  (onFilter)="onTagFilterChanged($event.filter)"
+                  (onPanelHide)="onTagFilterPanelHide()"
+                  [filter]="true"
+                  [filterValue]="tagSearchTerm()"
+                  filterPlaceHolder="Search scene tags"
+                  [loading]="tagSearchLoading()"
+                  [options]="tagSelectOptions()"
+                  optionLabel="label"
+                  optionValue="value"
+                  [showToggleAll]="false"
+                  display="chip"
+                  [emptyMessage]="tagSelectEmptyMessage()"
+                  [emptyFilterMessage]="tagSelectEmptyMessage()"
+                  [resetFilterOnHide]="true"
+                  [appendTo]="'body'"
+                  panelStyleClass="app-overlay-panel"
+                  placeholder="Select tags"
+                  scrollHeight="16rem"
+                />
+                <p-select
+                  class="tag-mode-select"
+                  inputId="studio-scenes-tag-mode"
+                  ariaLabel="Tag match mode"
+                  [ngModel]="selectedTagMode()"
+                  (ngModelChange)="onTagMatchModeChanged($event)"
+                  [options]="tagMatchOptions"
+                  optionLabel="label"
+                  optionValue="value"
+                  [appendTo]="'body'"
+                  panelStyleClass="app-overlay-panel"
+                />
+              </div>
             </div>
           </div>
         </div>

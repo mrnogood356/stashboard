@@ -186,7 +186,7 @@ export class SetupPageComponent implements OnInit {
     }
 
     if (!catalogProvider) {
-      return 'Choose the catalog provider for this Stashboard instance, then continue through the remaining required services.';
+      return 'Start with the catalog: StashDB or FansDB.';
     }
 
     if (!this.catalogProviderReady()) {
@@ -224,7 +224,7 @@ export class SetupPageComponent implements OnInit {
       return `${this.labelFor(type)} is locked in as this instance's catalog provider. Repair it here if it later becomes unhealthy. Reset catalog setup only if you need to switch providers.`;
     }
 
-    return `Choose ${this.labelFor(type)} for this Stashboard instance. Save & Test will lock it in. Changing provider type later requires resetting catalog setup and running setup again.`;
+    return `Choose ${this.labelFor(type)} for this Stashboard instance. Saving it locks it in. Changing provider type later requires resetting catalog setup and running setup again.`;
   }
 
   protected sectionLabel(type: IntegrationType): string {
@@ -245,7 +245,7 @@ export class SetupPageComponent implements OnInit {
     if (this.isCatalogProvider(type)) {
       switch (state) {
         case 'NOT_SAVED':
-          return `Choose ${label} if you want this instance to use it as the catalog provider. Save & Test will lock that choice.`;
+          return `Choose ${label} if you want this instance to use it as the catalog provider. Saving locks that choice.`;
         case 'SAVED':
           return `${label} is chosen and locked for this instance, but it still needs a successful test before setup can continue.`;
         case 'TEST_FAILED':

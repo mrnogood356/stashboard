@@ -3,7 +3,7 @@
   <header class="page-head-compact">
     <div class="page-head-compact__title">
       <h1>Match &amp; rename</h1>
-      <p>Link scenes to StashDB, then give their files tidy names.</p>
+      <p>Matches your scenes, keeps names tidy and keeps Stash and Whisparr in step.</p>
     </div>
   </header>
 
@@ -11,25 +11,25 @@
     <button
       type="button"
       role="tab"
-      [class.active]="tab() === 'match'"
-      [attr.aria-selected]="tab() === 'match'"
-      (click)="select('match')"
+      [class.active]="tab() === 'overview'"
+      [attr.aria-selected]="tab() === 'overview'"
+      (click)="select('overview')"
     >
-      <i class="pi pi-link" aria-hidden="true"></i> Match
-      @if (total() !== null) {
-        <span class="count-badge">{{ total() }}</span>
+      Overview
+      @if (todoCount() > 0) {
+        <span class="count-badge">{{ todoCount() }}</span>
       }
     </button>
     <button
       type="button"
       role="tab"
-      [class.active]="tab() === 'rename'"
-      [attr.aria-selected]="tab() === 'rename'"
-      (click)="select('rename')"
+      [class.active]="tab() === 'review'"
+      [attr.aria-selected]="tab() === 'review'"
+      (click)="select('review')"
     >
-      <i class="pi pi-folder" aria-hidden="true"></i> Rename
-      @if (preview(); as preview) {
-        <span class="count-badge">{{ preview.counts.ready }}</span>
+      Review
+      @if (waiting() > 0) {
+        <span class="count-badge">{{ waiting() }}</span>
       }
     </button>
     <button
@@ -39,7 +39,7 @@
       [attr.aria-selected]="tab() === 'settings'"
       (click)="select('settings')"
     >
-      <i class="pi pi-sliders-h" aria-hidden="true"></i> Settings
+      Settings
     </button>
   </div>
 
@@ -89,58 +89,646 @@
     }
   }
 
-  @if (tab() === 'match') {
-    <!-- ================= MATCH ================= -->
-    <section class="card panel find-card">
-      <div class="card-head">
-        <span class="card-icon" aria-hidden="true"><i class="pi pi-sparkles"></i></span>
-        <div class="card-copy">
-          <h2>Find matches</h2>
-          <p class="muted">
-            Looks up unmatched scenes by fingerprint and name. Nothing is saved until you confirm.
-          </p>
-        </div>
-        <button
-          type="button"
-          class="btn primary head-button"
-          [disabled]="run()?.running || total() === 0"
-          (click)="matchAll()"
-        >
-          <i class="pi pi-bolt" aria-hidden="true"></i>
-          {{ total() ? 'Match all ' + total() : 'Match all' }}
-        </button>
+  @if (tab() === 'overview') {
+    <!-- ================= OVERVIEW ================= -->
+    @if (previewError(); as message) {
+      <div class="notice error" role="alert">
+        <i class="pi pi-exclamation-circle" aria-hidden="true"></i><span>{{ message }}</span>
       </div>
+    }
+
+    <h2 class="group-label">To do</h2>
+    <ul class="todo panel" aria-label="To do">
+      @if (waiting() > 0) {
+        <li class="todo-row">
+          <span class="todo-count tone-warn">{{ waiting() }}</span>
+          <span class="todo-copy">
+            <strong>Matches waiting for you</strong>
+            <small>Found by name; nothing is saved until you check them</small>
+          </span>
+          <button type="button" class="btn primary" (click)="select('review')">Review</button>
+        </li>
+      }
+      @if (total()) {
+        <li class="todo-row">
+          <span class="todo-count">{{ total() }}</span>
+          <span class="todo-copy">
+            <strong>Not matched yet</strong>
+            <small>
+              @if (toMove()) {
+                <button
+                  type="button"
+                  class="link"
+                  [disabled]="run()?.running"
+                  (click)="moveUnmatchedNow()"
+                >
+                  Move {{ toMove() }} to Unmatched
+                </button>
+              } @else {
+                Looked up by fingerprint, then by name
+              }
+            </small>
+          </span>
+          <button type="button" class="btn" [disabled]="run()?.running" (click)="matchAll()">
+            Find matches
+          </button>
+        </li>
+      }
       @if (settings(); as settings) {
-        <div class="card-foot">
-          @if (toMove()) {
+        @if (settings.whisparrAvailable && settings.missingInWhisparr > 0) {
+          <li class="todo-row">
+            <span class="todo-count">{{ settings.missingInWhisparr }}</span>
+            <span class="todo-copy">
+              <strong>In Stash, not in Whisparr</strong>
+              <small>{{
+                settings.sendToWhisparr
+                  ? 'Sent every morning at 5:30'
+                  : 'Send matches to Whisparr is off'
+              }}</small>
+            </span>
             <button
               type="button"
-              class="link"
+              class="btn"
               [disabled]="run()?.running"
-              (click)="moveUnmatchedNow()"
+              (click)="sendAllToWhisparr()"
             >
-              Move the {{ toMove() }} unmatched {{ toMove() === 1 ? 'file' : 'files' }} now
+              Send now
             </button>
-          } @else if (total()) {
-            <p class="muted small">
-              All {{ total() }} unmatched {{ total() === 1 ? 'file is' : 'files are' }} in the
-              Unmatched folder.
-            </p>
-          }
-          @if (settings.lastRun.kind === 'match' && settings.lastRun.message && !run()?.running) {
-            <p class="muted small last-run">
-              Last run {{ when(settings.lastRun.at) }}: {{ settings.lastRun.message }}
-            </p>
-          }
-          <button type="button" class="link" (click)="select('settings')">Matching settings</button>
-        </div>
+          </li>
+        }
       }
-    </section>
+      @if (stuckInWhisparr() > 0) {
+        <li class="todo-row">
+          <span class="todo-count tone-bad">{{ stuckInWhisparr() }}</span>
+          <span class="todo-copy">
+            <strong>Stuck in Whisparr’s import</strong>
+            <small>Downloaded; Whisparr needs you to import these by hand</small>
+          </span>
+          <a class="btn" routerLink="/processing" fragment="processing-whisparr">Open</a>
+        </li>
+      }
+      @if (repair(); as fix) {
+        @if (fix.count > 0) {
+          <li class="todo-row" [class.open]="isOpen('repair')">
+            <span class="todo-count tone-bad">{{ fix.count }}</span>
+            <span class="todo-copy">
+              <strong>In the wrong folder</strong>
+              <small>Whisparr scenes outside their scene folder</small>
+            </span>
+            <button
+              type="button"
+              class="btn"
+              [attr.aria-expanded]="isOpen('repair')"
+              (click)="toggleOpen('repair')"
+            >
+              {{ isOpen('repair') ? 'Close' : 'Repair' }}
+            </button>
+            @if (isOpen('repair')) {
+              <div class="todo-detail">
+                <p class="muted small">
+                  @if (fix.usesWhisparrNaming) {
+                    Each one goes into its own folder from Whisparr’s Scene Folder Format,
+                    <code>{{ fix.folderFormat }}</code
+                    >.
+                  } @else {
+                    Each one goes into its own folder from your pattern, like
+                    <code>{{ fix.destination }}/Studio/2020-01-02 - Title</code>.
+                  }
+                  Whisparr moves the files, then rescans; Stash follows them.
+                </p>
+                @if (fix.scenes; as repairScenes) {
+                  @if (repairScenes.length) {
+                    <button
+                      type="button"
+                      class="link skipped-toggle"
+                      [attr.aria-expanded]="showRepairScenes()"
+                      (click)="showRepairScenes.set(!showRepairScenes())"
+                    >
+                      {{ showRepairScenes() ? 'Hide' : 'Show' }} the
+                      {{ fix.count === 1 ? 'scene' : fix.count + ' scenes' }}
+                    </button>
+                    @if (showRepairScenes()) {
+                      <ul
+                        class="changes panel repair-scenes"
+                        aria-label="Scenes the repair would change"
+                      >
+                        @for (scene of repairScenes; track $index) {
+                          <li class="change">
+                            <p class="change-title">{{ scene.title }}</p>
+                            @if (scene.from) {
+                              <!-- Struck through only when it moves somewhere else. -->
+                              <p class="path" [class.from]="!!scene.to">
+                                <span class="sr-only">{{ scene.to ? 'From ' : 'In ' }}</span
+                                >{{ scene.from }}
+                              </p>
+                            }
+                            @if (scene.to) {
+                              <p class="to">
+                                <i class="pi pi-arrow-right" aria-hidden="true"></i>
+                                <span><span class="sr-only">To </span>{{ scene.to }}</span>
+                              </p>
+                            }
+                            <p class="muted small">{{ repairAction[scene.action] }}</p>
+                          </li>
+                        }
+                      </ul>
+                      @if (fix.count > repairScenes.length) {
+                        <p class="muted small center">
+                          And {{ fix.count - repairScenes.length }} more.
+                        </p>
+                      }
+                    }
+                  }
+                }
+                @if (fix.count > 0) {
+                  <div class="card-actions">
+                    <button
+                      type="button"
+                      class="btn primary"
+                      [disabled]="run()?.running"
+                      (click)="repairWhisparr()"
+                    >
+                      <i class="pi pi-wrench" aria-hidden="true"></i> Repair Whisparr
+                    </button>
+                  </div>
+                }
+                @if (fix.rootFolder && fix.folderFormat) {
+                  <p class="muted small">
+                    So Whisparr puts new downloads in the same place: in Whisparr → Settings → Media
+                    Management, set
+                    <strong>Scene Folder Format</strong> to <code>{{ fix.folderFormat }}</code
+                    >, and under Root Folders keep <code>{{ fix.rootFolder }}</code> (add it if it’s
+                    missing). After the repair, remove the <code>{{ fix.destination }}</code> root
+                    folder there; removing a root folder doesn’t touch any files.
+                  </p>
+                }
+              </div>
+            }
+          </li>
+        }
+      }
+      @if (relocation(); as plan) {
+        @if (plan.count > 0) {
+          <li class="todo-row" [class.open]="isOpen('relocate')">
+            <span class="todo-count">{{ plan.count }}</span>
+            <span class="todo-copy">
+              <strong>Downloads not in their folder</strong>
+              <small
+                >Whisparr moves them into <code>{{ plan.destination }}</code></small
+              >
+            </span>
+            <button
+              type="button"
+              class="btn"
+              [attr.aria-expanded]="isOpen('relocate')"
+              (click)="toggleOpen('relocate')"
+            >
+              {{ isOpen('relocate') ? 'Close' : 'Show' }}
+            </button>
+            @if (isOpen('relocate')) {
+              <div class="todo-detail">
+                @if (plan.examples.length) {
+                  <ul class="examples">
+                    @for (example of plan.examples; track example) {
+                      <li>
+                        <code>{{ example }}</code>
+                      </li>
+                    }
+                  </ul>
+                }
+                <div class="card-actions">
+                  <button
+                    type="button"
+                    class="btn primary"
+                    [class.confirm]="confirmRelocate()"
+                    [disabled]="run()?.running"
+                    (click)="relocateWhisparr()"
+                  >
+                    <i
+                      class="pi"
+                      [class.pi-exclamation-triangle]="confirmRelocate()"
+                      [class.pi-arrow-right]="!confirmRelocate()"
+                      aria-hidden="true"
+                    ></i>
+                    {{
+                      confirmRelocate()
+                        ? 'Tap again to move ' + plan.count
+                        : 'Have Whisparr move them'
+                    }}
+                  </button>
+                </div>
+              </div>
+            }
+          </li>
+        }
+      }
+      @if (preview(); as preview) {
+        @if (preview.counts.ready > 0) {
+          <li class="todo-row" [class.open]="isOpen('rename')">
+            <span class="todo-count tone-warn">{{ preview.counts.ready }}</span>
+            <span class="todo-copy">
+              <strong>Need renaming</strong>
+              <small
+                >{{ preview.counts.same }} already follow <code>{{ pattern() }}</code></small
+              >
+            </span>
+            <button
+              type="button"
+              class="btn"
+              [attr.aria-expanded]="isOpen('rename')"
+              (click)="toggleOpen('rename')"
+            >
+              {{ isOpen('rename') ? 'Close' : 'Preview' }}
+            </button>
+            @if (isOpen('rename')) {
+              <div class="todo-detail">
+                @if (preview.counts.ready > 0) {
+                  <div class="list-head">
+                    <h2 class="list-title">Changes</h2>
+                    <button
+                      type="button"
+                      class="btn primary"
+                      [class.confirm]="confirmRename()"
+                      [disabled]="run()?.running || previewing() || previewOutdated()"
+                      (click)="renameAll()"
+                    >
+                      <i
+                        class="pi"
+                        [class.pi-exclamation-triangle]="confirmRename()"
+                        [class.pi-pencil]="!confirmRename()"
+                        aria-hidden="true"
+                      ></i>
+                      {{
+                        confirmRename()
+                          ? 'Tap again to rename ' + preview.counts.ready
+                          : 'Rename ' +
+                            preview.counts.ready +
+                            (preview.counts.ready === 1 ? ' file' : ' files')
+                      }}
+                    </button>
+                  </div>
+                  @if (previewOutdated()) {
+                    <p class="muted outdated-note" role="status">
+                      {{
+                        previewQueued() || previewing()
+                          ? 'Working out names for the new pattern…'
+                          : 'You changed the pattern. Preview it again before renaming.'
+                      }}
+                    </p>
+                  }
+                  <ul class="changes panel">
+                    @for (change of preview.changes; track change.sceneId) {
+                      <li class="change">
+                        <p class="change-title">{{ change.title }}</p>
+                        <p class="from">
+                          <span class="sr-only">From </span>{{ fileName(change.from) }}
+                        </p>
+                        <p class="to">
+                          <i class="pi pi-arrow-right" aria-hidden="true"></i>
+                          <span
+                            ><span class="sr-only">To </span>
+                            @if (folderOf(change).moved) {
+                              <span class="to-folder">{{ folderOf(change).to }}/</span>
+                            }
+                            @if (changeReasons().get(change.sceneId); as why) {
+                              @for (piece of why.name; track $index) {
+                                <span [class.added]="piece.added">{{ piece.text }}</span>
+                              }
+                            } @else {
+                              {{ fileName(change.to) }}
+                            }
+                          </span>
+                        </p>
+                        @if (change.renamedBefore) {
+                          <p class="notice small-notice renamed-before">
+                            <i class="pi pi-replay" aria-hidden="true"></i>
+                            <span
+                              >Renamed to this before, {{ when(change.renamedBefore) }}, and
+                              something gave it its old name back. If Whisparr manages this file,
+                              its own renaming is probably undoing this one: match the pattern to
+                              Whisparr’s naming, or turn on “Leave Whisparr’s files alone”.</span
+                            >
+                          </p>
+                        }
+                        @if (changeReasons().get(change.sceneId); as why) {
+                          <ul class="why" aria-label="Why it’s renamed">
+                            @for (reason of why.reasons; track reason) {
+                              <li>{{ reason }}</li>
+                            }
+                          </ul>
+                        }
+                        <button
+                          type="button"
+                          class="link rename-one"
+                          [disabled]="renamingOne() !== null || run()?.running || previewOutdated()"
+                          (click)="renameOne(change.sceneId)"
+                        >
+                          {{ renamingOne() === change.sceneId ? 'Renaming…' : 'Rename this one' }}
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                  @if (preview.counts.ready > preview.changes.length) {
+                    <p class="muted small center">
+                      And {{ preview.counts.ready - preview.changes.length }} more.
+                    </p>
+                  }
+                } @else if (!previewing()) {
+                  <div class="empty">
+                    <i class="pi pi-check-circle" aria-hidden="true"></i>
+                    <p>Every matched file already follows this pattern.</p>
+                  </div>
+                }
 
+                @if (preview.skipped.length > 0) {
+                  <button
+                    type="button"
+                    class="link skipped-toggle"
+                    [attr.aria-expanded]="showSkipped()"
+                    (click)="showSkipped.set(!showSkipped())"
+                  >
+                    {{ showSkipped() ? 'Hide' : 'Show' }} skipped files
+                  </button>
+                  @if (showSkipped()) {
+                    <ul class="changes panel">
+                      @for (plan of preview.skipped; track plan.sceneId) {
+                        <li class="change">
+                          <p class="change-title">{{ plan.title }}</p>
+                          <p class="from">{{ fileName(plan.from) }}</p>
+                          <p class="muted small">{{ skipReason[plan.state] }}</p>
+                        </li>
+                      }
+                    </ul>
+                  }
+                }
+              </div>
+            }
+          </li>
+        }
+        @if (skipBreakdown(preview).length > 0) {
+          <li class="todo-row" [class.open]="isOpen('skipped')">
+            <span class="todo-count">{{ skippedTotal(preview) }}</span>
+            <span class="todo-copy">
+              <strong>Can’t be renamed</strong>
+              <small>{{ skipSummary(preview) }}</small>
+            </span>
+            <button
+              type="button"
+              class="btn"
+              [attr.aria-expanded]="isOpen('skipped')"
+              (click)="toggleOpen('skipped')"
+            >
+              {{ isOpen('skipped') ? 'Close' : 'Why' }}
+            </button>
+            @if (isOpen('skipped')) {
+              <div class="todo-detail">
+                @if (skipBreakdown(preview).length > 0) {
+                  <ul class="skip-reasons" aria-label="Why files were skipped">
+                    @for (entry of skipBreakdown(preview); track entry.state) {
+                      <li>
+                        <strong>{{ entry.count }}</strong>
+                        <span>{{ entry.label }}</span>
+                        @if (entry.hint) {
+                          <small class="muted">{{ entry.hint }}</small>
+                        }
+                        <button
+                          type="button"
+                          class="link skip-files-toggle"
+                          [attr.aria-expanded]="openSkip() === entry.state"
+                          (click)="openSkip.set(openSkip() === entry.state ? null : entry.state)"
+                        >
+                          {{ openSkip() === entry.state ? 'Hide the files' : 'Show the files' }}
+                        </button>
+                        @if (openSkip() === entry.state) {
+                          <ul class="skip-files">
+                            @for (
+                              plan of skippedIn(preview, entry.state);
+                              track plan.sceneId + plan.from
+                            ) {
+                              <li>
+                                <span class="skip-file-title">{{ plan.title }}</span>
+                                @if (plan.from) {
+                                  <span class="muted small path"
+                                    >{{ entry.state === 'gone' ? 'Stash lists it at' : 'File' }}:
+                                    <code>{{ plan.from }}</code></span
+                                  >
+                                }
+                                @if (
+                                  plan.to && (entry.state === 'taken' || entry.state === 'copy')
+                                ) {
+                                  <span class="muted small path"
+                                    >Already there: <code>{{ plan.to }}</code></span
+                                  >
+                                }
+                                @if (plan.taken; as taken) {
+                                  <span class="taken-note small" [attr.data-fix]="taken.fix">{{
+                                    taken.note
+                                  }}</span>
+                                  @if (taken.fix !== 'none') {
+                                    <button
+                                      type="button"
+                                      class="btn small taken-fix"
+                                      [class.confirm]="confirmTaken() === plan.sceneId"
+                                      [disabled]="fixingTaken() || run()?.running"
+                                      (click)="fixTaken([plan.sceneId], taken.fix)"
+                                    >
+                                      {{
+                                        taken.fix === 'scan'
+                                          ? 'Scan that folder'
+                                          : confirmTaken() === plan.sceneId
+                                            ? 'Tap again to delete this copy'
+                                            : 'Keep the named file, delete this copy'
+                                      }}
+                                    </button>
+                                  }
+                                }
+                              </li>
+                            }
+                            @if (skippedIn(preview, entry.state).length < entry.count) {
+                              <li class="muted small">
+                                And {{ entry.count - skippedIn(preview, entry.state).length }} more.
+                              </li>
+                            }
+                          </ul>
+                        }
+                        @if (entry.state === 'copy') {
+                          <button
+                            type="button"
+                            class="btn small"
+                            [class.confirm]="confirmRemoveCopies()"
+                            [disabled]="removingCopies() || run()?.running || previewing()"
+                            (click)="removeExtraCopies()"
+                          >
+                            {{
+                              removingCopies()
+                                ? 'Removing…'
+                                : confirmRemoveCopies()
+                                  ? 'Tap again to delete ' + entry.count + ' files'
+                                  : 'Remove ' +
+                                    entry.count +
+                                    ' extra ' +
+                                    (entry.count === 1 ? 'copy' : 'copies')
+                            }}
+                          </button>
+                        }
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+            }
+          </li>
+        }
+      }
+      @if (settings()?.folderAccess && (empty()?.count ?? 0) > 0) {
+        <li class="todo-row" [class.open]="isOpen('empty')">
+          <span class="todo-count">{{ empty()?.count }}</span>
+          <span class="todo-copy">
+            <strong>Empty folders</strong>
+            <small>Only leftovers like .nfo, pictures or subtitles</small>
+          </span>
+          <button
+            type="button"
+            class="btn"
+            [attr.aria-expanded]="isOpen('empty')"
+            (click)="toggleOpen('empty')"
+          >
+            {{ isOpen('empty') ? 'Close' : 'Show' }}
+          </button>
+          @if (isOpen('empty')) {
+            <div class="todo-detail">
+              @if (empty(); as found) {
+                <ul class="examples">
+                  @for (folder of found.folders.slice(0, 5); track folder) {
+                    <li class="folder-row">
+                      <code>{{ folder }}</code>
+                      <button
+                        type="button"
+                        class="keep-btn"
+                        [attr.aria-label]="'Never remove ' + folder"
+                        [disabled]="saving() !== null"
+                        (click)="keepFolder(folder)"
+                      >
+                        Keep
+                      </button>
+                    </li>
+                  }
+                </ul>
+                @if (found.galleries) {
+                  <p class="muted small">
+                    {{ found.galleries }} more {{ found.galleries === 1 ? 'is' : 'are' }} kept
+                    because Stash has a gallery there.
+                  </p>
+                }
+                <div class="card-actions">
+                  <button
+                    type="button"
+                    class="btn primary"
+                    [class.confirm]="confirmClean()"
+                    [disabled]="cleaning() || run()?.running"
+                    (click)="cleanFolders()"
+                  >
+                    <i class="pi pi-trash" aria-hidden="true"></i>
+                    {{
+                      cleaning()
+                        ? 'Cleaning…'
+                        : confirmClean()
+                          ? 'Tap again to remove ' + found.count
+                          : 'Clean up ' + found.count + (found.count === 1 ? ' folder' : ' folders')
+                    }}
+                  </button>
+                </div>
+              }
+            </div>
+          }
+        </li>
+      }
+      @if (todoCount() === 0 && !previewError()) {
+        <li class="todo-row all-good">
+          <span class="todo-count tone-good"><i class="pi pi-check" aria-hidden="true"></i></span>
+          <span class="todo-copy">
+            <strong>{{ checking() ? 'Checking…' : 'All in order' }}</strong>
+            <small>{{
+              checking()
+                ? 'Looking at your library, names and Whisparr'
+                : 'Matched, named and in step with Whisparr'
+            }}</small>
+          </span>
+        </li>
+      }
+    </ul>
+
+    @if (settings(); as settings) {
+      <div class="group-head">
+        <h2 class="group-label">Automatic</h2>
+        <button type="button" class="link" (click)="select('settings')">Change</button>
+      </div>
+      <div class="auto-chips">
+        <span class="auto-chip" [class.on]="settings.autoMatchNightly">Match every night</span>
+        <span class="auto-chip" [class.on]="settings.renameAfterMatch">Rename after a match</span>
+        @if (settings.whisparrAvailable) {
+          <span class="auto-chip" [class.on]="settings.sendToWhisparr">Send to Whisparr daily</span>
+        }
+        <span class="auto-chip" [class.on]="settings.cleanEmptyFolders && settings.folderAccess">
+          Clean empty folders
+          @if (settings.cleanEmptyFolders && !settings.folderAccess) {
+            <span class="auto-note">· can’t see your media folders</span>
+          }
+        </span>
+        <span class="auto-chip" [class.on]="settings.moveUnmatched">Move unmatched files</span>
+      </div>
+
+      <h2 class="group-label">Tools</h2>
+      <ul class="todo panel" aria-label="Tools">
+        @if (settings.whisparrAvailable) {
+          <li class="todo-row">
+            <span class="todo-icon"><i class="pi pi-sync" aria-hidden="true"></i></span>
+            <span class="todo-copy">
+              <strong>Sync with Whisparr</strong>
+              <small>{{
+                settings.whisparrLeavesCopies
+                  ? 'Rescans Whisparr’s folders, removes the extra copies its imports leave and links waiting scenes'
+                  : 'Rescans Whisparr’s folders and links scenes waiting for import'
+              }}</small>
+            </span>
+            <button
+              type="button"
+              class="btn"
+              [disabled]="run()?.running"
+              (click)="syncWithWhisparr()"
+            >
+              <i
+                class="pi pi-sync"
+                [class.pi-spin]="run()?.running && run()?.kind === 'sync'"
+                aria-hidden="true"
+              ></i>
+              {{ run()?.running && run()?.kind === 'sync' ? 'Syncing…' : 'Sync now' }}
+            </button>
+          </li>
+        }
+        <li class="todo-row">
+          <span class="todo-icon"><i class="pi pi-history" aria-hidden="true"></i></span>
+          <span class="todo-copy">
+            <strong>Activity</strong>
+            <small>
+              @if (settings.lastRun.message && settings.lastRun.at) {
+                Last run {{ when(settings.lastRun.at) }}: {{ settings.lastRun.message }}
+              } @else {
+                Everything Stashboard did, with Undo for renames
+              }
+            </small>
+          </span>
+          <a class="btn" routerLink="/tools/activity">Open</a>
+        </li>
+      </ul>
+    }
+  } @else if (tab() === 'review') {
+    <!-- ================= REVIEW ================= -->
     <app-match-review
       [reloadKey]="reviewKey()"
       [busy]="run()?.running ?? false"
       (started)="followRun($event)"
+      (counted)="waiting.set($event)"
     />
 
     @if (withoutFingerprint() > 0) {
@@ -432,12 +1020,11 @@
         <button type="button" class="btn" (click)="loadMore()">Show more</button>
       </div>
     }
-  } @else if (tab() === 'settings') {
+  } @else {
     <!-- ================= SETTINGS ================= -->
     @if (settings(); as settings) {
       <section class="card panel">
         <div class="card-head">
-          <span class="card-icon" aria-hidden="true"><i class="pi pi-sparkles"></i></span>
           <div class="card-copy">
             <h2>Matching</h2>
             <p class="muted">When Stashboard looks for matches, and what happens to the rest.</p>
@@ -488,7 +1075,6 @@
     @if (settings(); as settings) {
       <section class="card panel sources">
         <div class="card-head">
-          <span class="card-icon" aria-hidden="true"><i class="pi pi-sitemap"></i></span>
           <div class="card-copy">
             <h2>Where matches come from</h2>
             <p class="muted">
@@ -579,7 +1165,6 @@
     @if (settings(); as settings) {
       <section class="card panel whisparr-card">
         <div class="card-head">
-          <span class="card-icon" aria-hidden="true"><i class="pi pi-download"></i></span>
           <div class="card-copy">
             <h2>Send to Whisparr</h2>
             <p class="muted">
@@ -612,24 +1197,6 @@
               (click)="toggle('sendToWhisparr')"
             ></button>
           </div>
-
-          @if (settings.missingInWhisparr > 0) {
-            <div class="missing-row">
-              <span
-                ><strong>{{ settings.missingInWhisparr }}</strong>
-                {{ settings.missingInWhisparr === 1 ? 'scene is' : 'scenes are' }} in Stash but
-                missing in Whisparr.</span
-              >
-              <button
-                type="button"
-                class="btn small primary"
-                [disabled]="run()?.running"
-                (click)="sendAllToWhisparr()"
-              >
-                Send them now
-              </button>
-            </div>
-          }
 
           <div class="mapping">
             <p class="field-title">Your media folder</p>
@@ -704,11 +1271,9 @@
         }
       </section>
     }
-  } @else {
-    <!-- ================= RENAME ================= -->
+
     <section class="card panel">
       <div class="card-head">
-        <span class="card-icon" aria-hidden="true"><i class="pi pi-folder-open"></i></span>
         <div class="card-copy">
           <h2>Naming pattern</h2>
           <p class="muted">
@@ -812,6 +1377,16 @@
           {{ loadingWhisparrNaming() ? 'Reading Whisparr…' : 'Use Whisparr’s naming' }}
         </button>
       </div>
+      @if (previewQueued() || (previewing() && previewOutdated())) {
+        <p class="muted small preview-note" role="status">Working out names for the new pattern…</p>
+      } @else if (preview(); as result) {
+        <p class="muted small preview-note">
+          {{ result.counts.ready }} to rename, {{ result.counts.same }} already tidy.
+          @if (result.counts.ready > 0) {
+            <button type="button" class="link" (click)="openRename()">See them</button>
+          }
+        </p>
+      }
       @if (example(); as sample) {
         <p class="example">
           <span class="muted small">Example</span><code>{{ sample }}</code>
@@ -871,589 +1446,106 @@
       }
     </section>
 
-    @if (previewError(); as message) {
-      <div class="notice error" role="alert">
-        <i class="pi pi-exclamation-circle" aria-hidden="true"></i><span>{{ message }}</span>
-      </div>
-    }
-
-    @if (previewing() && !preview()) {
-      <p class="muted loading" role="status">
-        <span class="spinner" aria-hidden="true"></span> Working out new names…
-      </p>
-    }
-
-    @if (preview(); as preview) {
-      <div class="summary" [class.dim]="previewing()">
-        <div class="stat">
-          <strong>{{ preview.counts.ready }}</strong
-          ><span>to rename</span>
-        </div>
-        <div class="stat">
-          <strong>{{ preview.counts.same }}</strong
-          ><span>already tidy</span>
-        </div>
-        <div class="stat">
-          <strong>{{ preview.scanned - preview.counts.ready - preview.counts.same }}</strong
-          ><span>skipped</span>
-        </div>
-      </div>
-      @if (settings(); as settings) {
-        <section class="card panel folders">
-          <div class="card-head">
-            <span class="card-icon" aria-hidden="true"><i class="pi pi-folder"></i></span>
-            <div class="card-copy">
-              <h2>Empty folders</h2>
-              @if (settings.folderAccess) {
-                <p class="muted">
-                  @if (empty(); as found) {
-                    {{
-                      found.count === 0
-                        ? 'None left in your library.'
-                        : found.count +
-                          (found.count === 1 ? ' folder' : ' folders') +
-                          ' with no video left in them.'
-                    }}
-                  } @else {
-                    Checking…
-                  }
-                  @if (empty()?.error; as problem) {
-                    <strong>{{ problem }}</strong>
-                  }
-                  @if (empty()?.galleries) {
-                    {{ empty()?.galleries }} more {{ empty()?.galleries === 1 ? 'is' : 'are' }} kept
-                    because Stash has a gallery there.
-                  }
-                  Removes folders that only hold leftovers like .nzb, .txt and .nfo files, pictures,
-                  artwork or subtitles. Folders with a video, an archive or a large file stay, as do
-                  galleries you added to Stash and your library and Whisparr’s root folders.
-                </p>
-              } @else {
-                <p class="muted">
-                  To remove empty folders, Stashboard needs to see your media too. On Unraid: Docker
-                  → Stashboard → Edit →
-                  <strong>Add another Path</strong>, container path <code>/data</code>, host path
-                  <code>/mnt/user/data</code> (the same as Stash), then Apply.
-                </p>
-                @if (settings.cleanEmptyFolders) {
-                  <p class="muted warn" data-testid="cleanup-no-access">
-                    Clean up after every move is on, but can’t run until then.
-                  </p>
-                }
-              }
-            </div>
-          </div>
-          @if (settings.folderAccess) {
-            @if (empty(); as found) {
-              @if (found.count > 0) {
-                <ul class="examples">
-                  @for (folder of found.folders.slice(0, 5); track folder) {
-                    <li class="folder-row">
-                      <code>{{ folder }}</code>
-                      <button
-                        type="button"
-                        class="keep-btn"
-                        [attr.aria-label]="'Never remove ' + folder"
-                        [disabled]="saving() !== null"
-                        (click)="keepFolder(folder)"
-                      >
-                        Keep
-                      </button>
-                    </li>
-                  }
-                </ul>
-                <div class="card-actions">
-                  <button
-                    type="button"
-                    class="btn primary"
-                    [class.confirm]="confirmClean()"
-                    [disabled]="cleaning() || run()?.running"
-                    (click)="cleanFolders()"
-                  >
-                    <i class="pi pi-trash" aria-hidden="true"></i>
-                    {{
-                      cleaning()
-                        ? 'Cleaning…'
-                        : confirmClean()
-                          ? 'Tap again to remove ' + found.count
-                          : 'Clean up ' + found.count + (found.count === 1 ? ' folder' : ' folders')
-                    }}
-                  </button>
-                </div>
-              }
-            }
-            <div class="switch-row">
-              <span class="row-copy">
-                <strong>Clean up after every move</strong>
-                <small
-                  >Removes the folders a rename, Unmatched move or Whisparr move leaves without a
-                  video.</small
-                >
-              </span>
-              <button
-                type="button"
-                class="switch"
-                [class.on]="settings.cleanEmptyFolders"
-                aria-label="Clean up after every move"
-                role="switch"
-                [attr.aria-checked]="settings.cleanEmptyFolders"
-                [disabled]="saving() !== null"
-                (click)="toggle('cleanEmptyFolders')"
-              ></button>
-            </div>
-            <div class="keep-folders">
-              <span class="row-copy">
-                <strong>Never remove</strong>
-                <small
-                  >These folders, and everything inside them, are always left alone. The Finished
-                  downloads destination is always kept too.</small
-                >
-              </span>
-              @if (settings.keepFolders.length > 0) {
-                <ul class="examples">
-                  @for (folder of settings.keepFolders; track folder) {
-                    <li class="folder-row">
-                      <code>{{ folder }}</code>
-                      <button
-                        type="button"
-                        class="keep-btn"
-                        [attr.aria-label]="'Stop keeping ' + folder"
-                        [disabled]="saving() !== null"
-                        (click)="unkeepFolder(folder)"
-                      >
-                        <i class="pi pi-times" aria-hidden="true"></i>
-                      </button>
-                    </li>
-                  }
-                </ul>
-              }
-              <form class="keep-add" (submit)="$event.preventDefault(); keepFolder()">
-                <label class="sr-only" for="keep-folder-input">Folder to keep</label>
-                <input
-                  id="keep-folder-input"
-                  type="text"
-                  inputmode="url"
-                  autocapitalize="off"
-                  spellcheck="false"
-                  placeholder="/data/stash content/fansdb"
-                  [value]="keepInput()"
-                  (input)="keepInput.set($any($event.target).value)"
-                />
-                <button
-                  type="submit"
-                  class="btn"
-                  [disabled]="!keepInput().trim() || saving() !== null"
-                >
-                  Add
-                </button>
-              </form>
-            </div>
-          }
-        </section>
-      }
-
-      @if (settings(); as settings) {
-        @if (settings.whisparrAvailable) {
-          <section class="card panel sync">
-            <div class="card-head">
-              <span class="card-icon" aria-hidden="true"><i class="pi pi-sync"></i></span>
-              <div class="card-copy">
-                <h2>Sync with Whisparr</h2>
-                <p class="muted">
-                  Has Stash rescan Whisparr’s folders, removes extra copies of scenes and links
-                  scenes waiting for import, all in one go. It also runs after each Whisparr import
-                  (Settings → Automation).
-                </p>
-                @if (settings.whisparrLeavesCopies; as copies) {
-                  <p class="note">
-                    {{
-                      copies.by === 'whisparr'
-                        ? 'Whisparr imports downloads by ' +
-                          (copies.hardlinks === false ? 'copying' : 'hardlinking') +
-                          ' them, so the original stays behind.'
-                        : 'Stashboard hands files to Whisparr with “Hardlink / copy”, so the original stays behind.'
-                    }}
-                    Syncing tidies up the extra copies this leaves in Stash.
-                  </p>
-                }
-              </div>
-            </div>
-            <div class="card-actions">
-              <button
-                type="button"
-                class="btn primary"
-                [disabled]="run()?.running"
-                (click)="syncWithWhisparr()"
-              >
-                <i
-                  class="pi pi-sync"
-                  [class.pi-spin]="run()?.running && run()?.kind === 'sync'"
-                  aria-hidden="true"
-                ></i>
-                {{ run()?.running && run()?.kind === 'sync' ? 'Syncing…' : 'Sync now' }}
-              </button>
-            </div>
-          </section>
-        }
-      }
-
-      @if (repair(); as fix) {
-        @if (fix.count > 0 || fix.folderFormat) {
-          <section class="card panel repair">
-            <div class="card-head">
-              <span class="card-icon" [class.danger-icon]="fix.count > 0" aria-hidden="true"
-                ><i class="pi pi-wrench"></i
-              ></span>
-              <div class="card-copy">
-                <h2>
-                  {{
-                    fix.count > 0
-                      ? fix.count +
-                        ' Whisparr ' +
-                        (fix.count === 1 ? 'scene is' : 'scenes are') +
-                        ' in the wrong folder'
-                      : 'Whisparr’s folders are right'
-                  }}
-                </h2>
-                <p class="muted">
-                  @if (fix.usesWhisparrNaming) {
-                    Repair puts each one in its own folder from Whisparr’s Scene Folder Format,
-                    <code>{{ fix.folderFormat }}</code
-                    >.
-                  } @else {
-                    Repair puts each one in its own folder from your pattern, like
-                    <code>{{ fix.destination }}/Studio/2020-01-02 - Title</code>.
-                  }
-                  Whisparr moves downloaded scenes with their files; missing ones just get the new
-                  path. Then Whisparr rescans, Stash follows the moved files, and any still missing
-                  are re-imported from where Stash has the file.
-                </p>
-              </div>
-            </div>
-            @if (fix.scenes; as repairScenes) {
-              @if (repairScenes.length) {
-                <button
-                  type="button"
-                  class="link skipped-toggle"
-                  [attr.aria-expanded]="showRepairScenes()"
-                  (click)="showRepairScenes.set(!showRepairScenes())"
-                >
-                  {{ showRepairScenes() ? 'Hide' : 'Show' }} the
-                  {{ fix.count === 1 ? 'scene' : fix.count + ' scenes' }}
-                </button>
-                @if (showRepairScenes()) {
-                  <ul
-                    class="changes panel repair-scenes"
-                    aria-label="Scenes the repair would change"
-                  >
-                    @for (scene of repairScenes; track $index) {
-                      <li class="change">
-                        <p class="change-title">{{ scene.title }}</p>
-                        @if (scene.from) {
-                          <!-- Struck through only when it moves somewhere else. -->
-                          <p class="path" [class.from]="!!scene.to">
-                            <span class="sr-only">{{ scene.to ? 'From ' : 'In ' }}</span
-                            >{{ scene.from }}
-                          </p>
-                        }
-                        @if (scene.to) {
-                          <p class="to">
-                            <i class="pi pi-arrow-right" aria-hidden="true"></i>
-                            <span><span class="sr-only">To </span>{{ scene.to }}</span>
-                          </p>
-                        }
-                        <p class="muted small">{{ repairAction[scene.action] }}</p>
-                      </li>
-                    }
-                  </ul>
-                  @if (fix.count > repairScenes.length) {
-                    <p class="muted small center">
-                      And {{ fix.count - repairScenes.length }} more.
-                    </p>
-                  }
-                }
-              }
-            }
-            @if (fix.count > 0) {
-              <div class="card-actions">
-                <button
-                  type="button"
-                  class="btn primary"
-                  [disabled]="run()?.running"
-                  (click)="repairWhisparr()"
-                >
-                  <i class="pi pi-wrench" aria-hidden="true"></i> Repair Whisparr
-                </button>
-              </div>
-            }
-            @if (fix.rootFolder && fix.folderFormat) {
-              <p class="muted small">
-                So Whisparr puts new downloads in the same place: in Whisparr → Settings → Media
-                Management, set
-                <strong>Scene Folder Format</strong> to <code>{{ fix.folderFormat }}</code
-                >, and under Root Folders keep <code>{{ fix.rootFolder }}</code> (add it if it’s
-                missing). After the repair, remove the <code>{{ fix.destination }}</code> root
-                folder there; removing a root folder doesn’t touch any files.
+    @if (settings(); as settings) {
+      <section class="card panel folders">
+        <div class="card-head">
+          <div class="card-copy">
+            <h2>Empty folders</h2>
+            @if (settings.folderAccess) {
+              <p class="muted">
+                Removes folders that only hold leftovers like .nzb, .txt and .nfo files, pictures,
+                artwork or subtitles. Folders with a video, an archive or a large file stay, as do
+                galleries you added to Stash and your library and Whisparr’s root folders.
               </p>
-            }
-          </section>
-        }
-      }
-
-      @if (relocation(); as plan) {
-        @if (plan.count > 0) {
-          <section class="card panel relocate">
-            <div class="card-head">
-              <span class="card-icon" aria-hidden="true"><i class="pi pi-download"></i></span>
-              <div class="card-copy">
-                <h2>Whisparr’s files</h2>
+              @if (empty()?.error; as problem) {
                 <p class="muted">
-                  <strong>{{ plan.count }}</strong> downloaded
-                  {{ plan.count === 1 ? 'scene isn’t' : 'scenes aren’t' }} in
-                  {{ plan.count === 1 ? 'its' : 'their' }} folder in
-                  <code>{{ plan.destination }}</code> yet. Whisparr moves them itself, so it keeps
-                  tracking them, and Stash follows them.
+                  <strong>{{ problem }}</strong>
                 </p>
-              </div>
-            </div>
-            @if (plan.examples.length) {
+              }
+            } @else {
+              <p class="muted">
+                To remove empty folders, Stashboard needs to see your media too. On Unraid: Docker →
+                Stashboard → Edit →
+                <strong>Add another Path</strong>, container path <code>/data</code>, host path
+                <code>/mnt/user/data</code> (the same as Stash), then Apply.
+              </p>
+              @if (settings.cleanEmptyFolders) {
+                <p class="muted warn" data-testid="cleanup-no-access">
+                  Clean up after every move is on, but can’t run until then.
+                </p>
+              }
+            }
+          </div>
+        </div>
+        @if (settings.folderAccess) {
+          <div class="switch-row">
+            <span class="row-copy">
+              <strong>Clean up after every move</strong>
+              <small
+                >Removes the folders a rename, Unmatched move or Whisparr move leaves without a
+                video.</small
+              >
+            </span>
+            <button
+              type="button"
+              class="switch"
+              [class.on]="settings.cleanEmptyFolders"
+              aria-label="Clean up after every move"
+              role="switch"
+              [attr.aria-checked]="settings.cleanEmptyFolders"
+              [disabled]="saving() !== null"
+              (click)="toggle('cleanEmptyFolders')"
+            ></button>
+          </div>
+          <div class="keep-folders">
+            <span class="row-copy">
+              <strong>Never remove</strong>
+              <small
+                >These folders, and everything inside them, are always left alone. The Finished
+                downloads destination is always kept too.</small
+              >
+            </span>
+            @if (settings.keepFolders.length > 0) {
               <ul class="examples">
-                @for (example of plan.examples; track example) {
-                  <li>
-                    <code>{{ example }}</code>
+                @for (folder of settings.keepFolders; track folder) {
+                  <li class="folder-row">
+                    <code>{{ folder }}</code>
+                    <button
+                      type="button"
+                      class="keep-btn"
+                      [attr.aria-label]="'Stop keeping ' + folder"
+                      [disabled]="saving() !== null"
+                      (click)="unkeepFolder(folder)"
+                    >
+                      <i class="pi pi-times" aria-hidden="true"></i>
+                    </button>
                   </li>
                 }
               </ul>
             }
-            <div class="card-actions">
+            <form class="keep-add" (submit)="$event.preventDefault(); keepFolder()">
+              <label class="sr-only" for="keep-folder-input">Folder to keep</label>
+              <input
+                id="keep-folder-input"
+                type="text"
+                inputmode="url"
+                autocapitalize="off"
+                spellcheck="false"
+                placeholder="/data/stash content/fansdb"
+                [value]="keepInput()"
+                (input)="keepInput.set($any($event.target).value)"
+              />
               <button
-                type="button"
-                class="btn primary"
-                [class.confirm]="confirmRelocate()"
-                [disabled]="run()?.running"
-                (click)="relocateWhisparr()"
+                type="submit"
+                class="btn"
+                [disabled]="!keepInput().trim() || saving() !== null"
               >
-                <i
-                  class="pi"
-                  [class.pi-exclamation-triangle]="confirmRelocate()"
-                  [class.pi-arrow-right]="!confirmRelocate()"
-                  aria-hidden="true"
-                ></i>
-                {{
-                  confirmRelocate() ? 'Tap again to move ' + plan.count : 'Have Whisparr move them'
-                }}
+                Add
               </button>
-            </div>
-          </section>
+            </form>
+          </div>
         }
-      }
-
-      @if (skipBreakdown(preview).length > 0) {
-        <ul class="skip-reasons" aria-label="Why files were skipped">
-          @for (entry of skipBreakdown(preview); track entry.state) {
-            <li>
-              <strong>{{ entry.count }}</strong>
-              <span>{{ entry.label }}</span>
-              @if (entry.hint) {
-                <small class="muted">{{ entry.hint }}</small>
-              }
-              <button
-                type="button"
-                class="link skip-files-toggle"
-                [attr.aria-expanded]="openSkip() === entry.state"
-                (click)="openSkip.set(openSkip() === entry.state ? null : entry.state)"
-              >
-                {{ openSkip() === entry.state ? 'Hide the files' : 'Show the files' }}
-              </button>
-              @if (openSkip() === entry.state) {
-                <ul class="skip-files">
-                  @for (plan of skippedIn(preview, entry.state); track plan.sceneId + plan.from) {
-                    <li>
-                      <span class="skip-file-title">{{ plan.title }}</span>
-                      @if (plan.from) {
-                        <span class="muted small path"
-                          >{{ entry.state === 'gone' ? 'Stash lists it at' : 'File' }}:
-                          <code>{{ plan.from }}</code></span
-                        >
-                      }
-                      @if (plan.to && (entry.state === 'taken' || entry.state === 'copy')) {
-                        <span class="muted small path"
-                          >Already there: <code>{{ plan.to }}</code></span
-                        >
-                      }
-                      @if (plan.taken; as taken) {
-                        <span class="taken-note small" [attr.data-fix]="taken.fix">{{
-                          taken.note
-                        }}</span>
-                        @if (taken.fix !== 'none') {
-                          <button
-                            type="button"
-                            class="btn small taken-fix"
-                            [class.confirm]="confirmTaken() === plan.sceneId"
-                            [disabled]="fixingTaken() || run()?.running"
-                            (click)="fixTaken([plan.sceneId], taken.fix)"
-                          >
-                            {{
-                              taken.fix === 'scan'
-                                ? 'Scan that folder'
-                                : confirmTaken() === plan.sceneId
-                                  ? 'Tap again to delete this copy'
-                                  : 'Keep the named file, delete this copy'
-                            }}
-                          </button>
-                        }
-                      }
-                    </li>
-                  }
-                  @if (skippedIn(preview, entry.state).length < entry.count) {
-                    <li class="muted small">
-                      And {{ entry.count - skippedIn(preview, entry.state).length }} more.
-                    </li>
-                  }
-                </ul>
-              }
-              @if (entry.state === 'copy') {
-                <button
-                  type="button"
-                  class="btn small"
-                  [class.confirm]="confirmRemoveCopies()"
-                  [disabled]="removingCopies() || run()?.running || previewing()"
-                  (click)="removeExtraCopies()"
-                >
-                  {{
-                    removingCopies()
-                      ? 'Removing…'
-                      : confirmRemoveCopies()
-                        ? 'Tap again to delete ' + entry.count + ' files'
-                        : 'Remove ' +
-                          entry.count +
-                          ' extra ' +
-                          (entry.count === 1 ? 'copy' : 'copies')
-                  }}
-                </button>
-              }
-            </li>
-          }
-        </ul>
-      }
-
-      @if (preview.counts.ready > 0) {
-        <div class="list-head">
-          <h2 class="list-title">Changes</h2>
-          <button
-            type="button"
-            class="btn primary"
-            [class.confirm]="confirmRename()"
-            [disabled]="run()?.running || previewing() || previewOutdated()"
-            (click)="renameAll()"
-          >
-            <i
-              class="pi"
-              [class.pi-exclamation-triangle]="confirmRename()"
-              [class.pi-pencil]="!confirmRename()"
-              aria-hidden="true"
-            ></i>
-            {{
-              confirmRename()
-                ? 'Tap again to rename ' + preview.counts.ready
-                : 'Rename ' +
-                  preview.counts.ready +
-                  (preview.counts.ready === 1 ? ' file' : ' files')
-            }}
-          </button>
-        </div>
-        @if (previewOutdated()) {
-          <p class="muted outdated-note" role="status">
-            {{
-              previewQueued() || previewing()
-                ? 'Working out names for the new pattern…'
-                : 'You changed the pattern. Preview it again before renaming.'
-            }}
-          </p>
-        }
-        <ul class="changes panel">
-          @for (change of preview.changes; track change.sceneId) {
-            <li class="change">
-              <p class="change-title">{{ change.title }}</p>
-              <p class="from"><span class="sr-only">From </span>{{ fileName(change.from) }}</p>
-              <p class="to">
-                <i class="pi pi-arrow-right" aria-hidden="true"></i>
-                <span
-                  ><span class="sr-only">To </span>
-                  @if (folderOf(change).moved) {
-                    <span class="to-folder">{{ folderOf(change).to }}/</span>
-                  }
-                  @if (changeReasons().get(change.sceneId); as why) {
-                    @for (piece of why.name; track $index) {
-                      <span [class.added]="piece.added">{{ piece.text }}</span>
-                    }
-                  } @else {
-                    {{ fileName(change.to) }}
-                  }
-                </span>
-              </p>
-              @if (change.renamedBefore) {
-                <p class="notice small-notice renamed-before">
-                  <i class="pi pi-replay" aria-hidden="true"></i>
-                  <span
-                    >Renamed to this before, {{ when(change.renamedBefore) }}, and something gave it
-                    its old name back. If Whisparr manages this file, its own renaming is probably
-                    undoing this one: match the pattern to Whisparr’s naming, or turn on “Leave
-                    Whisparr’s files alone”.</span
-                  >
-                </p>
-              }
-              @if (changeReasons().get(change.sceneId); as why) {
-                <ul class="why" aria-label="Why it’s renamed">
-                  @for (reason of why.reasons; track reason) {
-                    <li>{{ reason }}</li>
-                  }
-                </ul>
-              }
-              <button
-                type="button"
-                class="link rename-one"
-                [disabled]="renamingOne() !== null || run()?.running || previewOutdated()"
-                (click)="renameOne(change.sceneId)"
-              >
-                {{ renamingOne() === change.sceneId ? 'Renaming…' : 'Rename this one' }}
-              </button>
-            </li>
-          }
-        </ul>
-        @if (preview.counts.ready > preview.changes.length) {
-          <p class="muted small center">
-            And {{ preview.counts.ready - preview.changes.length }} more.
-          </p>
-        }
-      } @else if (!previewing()) {
-        <div class="empty">
-          <i class="pi pi-check-circle" aria-hidden="true"></i>
-          <p>Every matched file already follows this pattern.</p>
-        </div>
-      }
-
-      @if (preview.skipped.length > 0) {
-        <button
-          type="button"
-          class="link skipped-toggle"
-          [attr.aria-expanded]="showSkipped()"
-          (click)="showSkipped.set(!showSkipped())"
-        >
-          {{ showSkipped() ? 'Hide' : 'Show' }} skipped files
-        </button>
-        @if (showSkipped()) {
-          <ul class="changes panel">
-            @for (plan of preview.skipped; track plan.sceneId) {
-              <li class="change">
-                <p class="change-title">{{ plan.title }}</p>
-                <p class="from">{{ fileName(plan.from) }}</p>
-                <p class="muted small">{{ skipReason[plan.state] }}</p>
-              </li>
-            }
-          </ul>
-        }
-      }
+      </section>
     }
   }
 </main>

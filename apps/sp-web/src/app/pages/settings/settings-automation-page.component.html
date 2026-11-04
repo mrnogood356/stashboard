@@ -1,10 +1,7 @@
 <section class="automation-page">
   <header class="section-head">
     <h2>Automation</h2>
-    <p class="lede">
-      When Whisparr finishes a download, Stashboard can have Stash pick it up, look it up on StashDB
-      and make its previews, so it shows up ready to watch.
-    </p>
+    <p class="lede">What happens after Whisparr imports a scene, so it shows up ready to watch.</p>
   </header>
 
   @if (error(); as message) {
@@ -33,8 +30,7 @@
         <span class="row-copy">
           <strong>Watch the library folders too</strong>
           <small>
-            Scenes copied or moved straight into Stash’s library folders are scanned within a couple
-            of minutes of finishing.
+            Also picks up scenes copied straight into Stash’s library folders.
             @if (settings.watchFolders && settings.foldersVisible === false) {
               <span class="warn"
                 >Stashboard can’t see those folders. Mount them into Stashboard at the same paths as
@@ -57,10 +53,7 @@
       <div class="row">
         <span class="row-copy">
           <strong>Identify them on StashDB</strong>
-          <small
-            >Fills in the title, performers, studio and tags. Uses the StashDB source set up in
-            Stash.</small
-          >
+          <small>Fills in the title, performers, studio and tags from StashDB.</small>
         </span>
         <button
           type="button"
@@ -92,10 +85,7 @@
       <div class="row">
         <span class="row-copy">
           <strong>Delete sample clips</strong>
-          <small
-            >Files or folders called "sample" that come with a download, deleted from disk before
-            anything else is done with them.</small
-          >
+          <small>Removes the files or folders called “sample” that come with a download.</small>
         </span>
         <button
           type="button"
@@ -112,8 +102,8 @@
         <span class="row-copy">
           <strong>Tidy up after Whisparr imports</strong>
           <small
-            >Has Stash rescan, removes extra copies a hardlink or copy import leaves behind, and
-            links scenes waiting for import. The same as Sync with Whisparr in Tools.</small
+            >Rescans, removes the extra copies hardlink or copy imports leave, and links waiting
+            scenes. Same as Sync with Whisparr.</small
           >
         </span>
         <button
@@ -164,20 +154,14 @@
       <span class="link-icon" aria-hidden="true"><i class="pi pi-link"></i></span>
       <span class="row-copy">
         <strong>Match &amp; rename</strong>
-        <small
-          >Match scenes Stash couldn’t identify, and rename files automatically once they’re
-          matched.</small
-        >
+        <small>Matching, renaming and keeping Whisparr in step.</small>
       </span>
       <i class="pi pi-chevron-right chevron" aria-hidden="true"></i>
     </a>
 
     <header class="section-head sub">
       <h3>Make it instant (optional)</h3>
-      <p class="lede">
-        Without this, Stashboard notices new imports within about 15 minutes. With it, Whisparr
-        tells Stashboard right away.
-      </p>
+      <p class="lede">Without it, Stashboard notices new imports within about 15 minutes.</p>
     </header>
     <div class="group steps">
       <ol>
@@ -196,9 +180,8 @@
         </button>
       </div>
       <p class="faint note">
-        This uses the address you opened Stashboard with. If Whisparr reaches Stashboard a different
-        way (for example through a Docker network name), change the start of the address and keep
-        the rest.
+        If Whisparr reaches Stashboard by another address (a Docker network name, say), change the
+        start and keep the rest.
       </p>
       <button type="button" class="link-button" (click)="regenerate()">Make a new address</button>
     </div>

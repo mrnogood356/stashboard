@@ -54,9 +54,7 @@ describe('BootstrapPageComponent', () => {
       username: 'admin',
       password: 'long-password-123',
     });
-    expect(fixture.nativeElement.textContent).toContain(
-      'After this, Stashboard opens required integration setup',
-    );
+    expect(fixture.nativeElement.textContent).toContain('then connect your services');
     expect(fixture.nativeElement.textContent).toContain(
       'Admin account created. Opening required integration setup next.',
     );
