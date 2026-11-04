@@ -98,6 +98,12 @@ p {
     text-align: center;
     white-space: normal;
   }
+
+  /* The count never breaks into a column of digits. */
+  .segmented .count-badge {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
 }
 
 :host-context([data-theme='dark']) .segmented button.active {
