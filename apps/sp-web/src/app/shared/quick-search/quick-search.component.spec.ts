@@ -34,7 +34,26 @@ describe('QuickSearchComponent', () => {
       }),
     ),
   };
-  const discover = { searchScenes: vi.fn(() => throwError(() => new Error('catalog down'))) };
+  const discover = {
+    searchScenes: vi.fn(() => throwError(() => new Error('catalog down'))),
+    getPerformersFeed: vi.fn(() => of({ total: 0, items: [] })),
+    getStudiosFeed: vi.fn(() =>
+      of({
+        total: 1,
+        items: [
+          {
+            id: 'st1',
+            name: 'Gold Studio',
+            isFavorite: false,
+            imageUrl: null,
+            cardImageUrl: null,
+            parentStudio: null,
+            childStudios: [],
+          },
+        ],
+      }),
+    ),
+  };
 
   async function render() {
     vi.useFakeTimers();
@@ -108,7 +127,8 @@ describe('QuickSearchComponent', () => {
     const labels = [...fixture.nativeElement.querySelectorAll('.row .label')].map((row: Element) =>
       row.textContent?.trim(),
     );
-    expect(labels).toEqual(['Golden Hour', 'Goldie', 'See all results for “gold”']);
+    // A studio only the catalog has is found too.
+    expect(labels).toEqual(['Golden Hour', 'Goldie', 'Gold Studio', 'See all results for “gold”']);
   });
 
   it('opens the highlighted row with Enter, after moving with the arrows', async () => {

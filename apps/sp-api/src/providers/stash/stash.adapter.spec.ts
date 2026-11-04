@@ -1646,6 +1646,7 @@ describe('StashAdapter', () => {
                 image_path: 'http://s/performer/1/image?t=1',
                 scene_count: 9,
                 favorite: true,
+                stash_ids: [{ stash_id: 'sdb-ana' }],
               },
             ],
           },
@@ -1671,10 +1672,17 @@ describe('StashAdapter', () => {
               imageVersion: '1',
               sceneCount: 9,
               favorite: true,
+              catalogIds: ['sdb-ana'],
             },
           ],
           studios: [
-            { id: '2', name: 'Harbor', imageVersion: null, sceneCount: 4 },
+            {
+              id: '2',
+              name: 'Harbor',
+              imageVersion: null,
+              sceneCount: 4,
+              catalogIds: [],
+            },
           ],
         },
       );

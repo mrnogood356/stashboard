@@ -107,12 +107,15 @@ export interface LocalSearchDto {
     imageUrl: string | null;
     sceneCount: number;
     favorite: boolean;
+    /** Their ids on StashDB/FansDB, to show them once next to catalog results. */
+    catalogIds: string[];
   }>;
   studios: Array<{
     id: string;
     name: string;
     imageUrl: string | null;
     sceneCount: number;
+    catalogIds: string[];
   }>;
 }
 

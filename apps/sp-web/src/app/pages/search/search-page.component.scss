@@ -275,22 +275,24 @@ h1 {
 .people {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 6.5rem;
+  grid-auto-columns: 7.25rem;
   gap: 0.9rem;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
-/* "Show all" wraps the row so every result is on screen. */
+/* Performers or Studios on their own: every result on screen, wrapped. */
 .people.expanded {
   grid-auto-flow: row;
-  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(7.25rem, 1fr));
   row-gap: 1.1rem;
   overflow-x: visible;
 }
 
 .person {
   display: grid;
+  /* Names line up even when a caption wraps onto two lines. */
+  align-content: start;
   justify-items: center;
   gap: 0.35rem;
   color: inherit;
@@ -305,7 +307,6 @@ h1 {
   width: 5.5rem;
   height: 5.5rem;
   border-radius: 50%;
-  overflow: hidden;
   background: var(--surface-2);
   color: var(--text-muted);
   font-size: 1.6rem;
@@ -317,8 +318,170 @@ h1 {
   inset: 0;
   width: 100%;
   height: 100%;
+  border-radius: inherit;
   object-fit: cover;
   object-position: center 20%;
+}
+
+/* In your library: a tick on the picture, not a second card. */
+.owned-dot {
+  position: absolute;
+  right: 0.1rem;
+  bottom: 0.1rem;
+  display: grid;
+  place-items: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 50%;
+  border: 2px solid var(--surface-elevated, var(--surface-1));
+  background: var(--success, #2f9e5b);
+  color: #fff;
+  font-size: 0.62rem;
+}
+
+.person.studio .owned-dot {
+  right: -0.3rem;
+  bottom: -0.3rem;
+}
+
+/* ---- What to show: All / Scenes / Performers / Studios ---- */
+.filters {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-bottom: 0.6rem;
+}
+
+.filters::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 2.2rem;
+  padding: 0 0.95rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.filter-chip.on {
+  border-color: transparent;
+  background: var(--text-primary);
+  color: var(--surface-1, var(--app-bg));
+}
+
+.filter-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.filter-count {
+  font-size: 0.78rem;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+/* ---- Top result: the performer or studio you named exactly ---- */
+.top-result {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 18px;
+  background: var(--surface-1);
+  color: inherit;
+  text-decoration: none;
+}
+
+.top-result:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-subtle));
+}
+
+.top-art {
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.top-art.studio {
+  border-radius: 14px;
+  background: #fff;
+}
+
+.top-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+}
+
+.top-art.studio img {
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
+}
+
+.top-copy {
+  display: grid;
+  gap: 0.1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.top-copy strong {
+  font-size: 1.2rem;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.top-kind {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.top-meta {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.in-library {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--success, #2f9e5b) 16%, transparent);
+  color: var(--success-text, var(--success, #2f9e5b));
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+/* Scenes on their own: a grid instead of a row. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem 0.8rem;
 }
 
 .person.studio .avatar {

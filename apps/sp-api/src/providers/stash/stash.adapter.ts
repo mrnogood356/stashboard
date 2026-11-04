@@ -890,12 +890,15 @@ export class StashAdapter extends StashLibraryToolsApi {
       imageVersion: string | null;
       sceneCount: number;
       favorite: boolean;
+      /** Their ids on stash-boxes (StashDB, FansDB…), to match catalog results. */
+      catalogIds: string[];
     }>;
     studios: Array<{
       id: string;
       name: string;
       imageVersion: string | null;
       sceneCount: number;
+      catalogIds: string[];
     }>;
   }> {
     const q = query.trim().slice(0, 100);
@@ -906,10 +909,10 @@ export class StashAdapter extends StashLibraryToolsApi {
       config,
       `query SearchPeople($filter: FindFilterType) {
         findPerformers(filter: $filter) {
-          performers { id name image_path scene_count favorite }
+          performers { id name image_path scene_count favorite stash_ids { stash_id } }
         }
         findStudios(filter: $filter) {
-          studios { id name image_path scene_count }
+          studios { id name image_path scene_count stash_ids { stash_id } }
         }
       }`,
       {
@@ -928,6 +931,13 @@ export class StashAdapter extends StashLibraryToolsApi {
       };
     };
     const count = (value: unknown) => (typeof value === 'number' ? value : 0);
+    const catalogIds = (value: unknown): string[] =>
+      Array.isArray(value)
+        ? value.flatMap((entry) => {
+            const id = (entry as { stash_id?: unknown } | null)?.stash_id;
+            return typeof id === 'string' && id ? [id] : [];
+          })
+        : [];
     return {
       performers: (payload.data?.findPerformers?.performers ?? []).flatMap(
         (entry) => {
@@ -943,6 +953,7 @@ export class StashAdapter extends StashLibraryToolsApi {
                   }),
                   sceneCount: count(entry.scene_count),
                   favorite: entry.favorite === true,
+                  catalogIds: catalogIds(entry.stash_ids),
                 },
               ]
             : [];
@@ -960,6 +971,7 @@ export class StashAdapter extends StashLibraryToolsApi {
                   realOnly: true,
                 }),
                 sceneCount: count(entry.scene_count),
+                catalogIds: catalogIds(entry.stash_ids),
               },
             ]
           : [];
