@@ -164,6 +164,13 @@ export class CatalogProviderService {
     }
   }
 
+  /** One provider by its key (StashDB or FansDB), when it's set up and ready. */
+  async getProvider(
+    key: CatalogProviderIntegrationType,
+  ): Promise<ConfiguredCatalogProvider> {
+    return this.resolveConfiguredCatalogProvider(key);
+  }
+
   /** The instance's own provider, ignoring any browse-page choice. Use for requests. */
   async getInstanceCatalogProvider(): Promise<ConfiguredCatalogProvider> {
     return this.resolveConfiguredCatalogProvider(

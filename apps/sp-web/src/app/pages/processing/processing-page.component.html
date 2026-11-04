@@ -74,11 +74,9 @@
         <div class="cards">
           @for (entry of d.handoffs; track entry.id) {
             <article class="card" [attr.data-stage]="entry.stage" data-testid="handoff">
-              <div class="card-art">
+              <div class="card-art" [class.empty]="!entry.scene?.imageUrl">
                 @if (entry.scene?.imageUrl; as image) {
                   <img [src]="image" alt="" loading="lazy" />
-                } @else {
-                  <i class="pi pi-download" aria-hidden="true"></i>
                 }
               </div>
               <div class="card-body">
@@ -96,7 +94,7 @@
                   }}</span>
                 </div>
                 <h3 class="card-title">{{ entry.scene?.title ?? entry.releaseTitle }}</h3>
-                @if (entry.scene) {
+                @if (entry.scene && entry.scene.title !== entry.releaseTitle) {
                   <p class="release app-break-anywhere">{{ entry.releaseTitle }}</p>
                 }
                 <app-stage-track [stages]="stages(entry)" [label]="entry.releaseTitle" />
@@ -162,11 +160,9 @@
         <ul class="rows">
           @for (entry of d.recentHandoffs; track entry.id) {
             <li class="row" [attr.data-stage]="entry.stage" data-testid="recent-handoff">
-              <div class="row-art">
+              <div class="row-art" [class.empty]="!entry.scene?.imageUrl">
                 @if (entry.scene?.imageUrl; as image) {
                   <img [src]="image" alt="" loading="lazy" />
-                } @else {
-                  <i class="pi pi-download" aria-hidden="true"></i>
                 }
               </div>
               <div class="row-copy">
@@ -340,8 +336,12 @@
             }
             @for (entry of failedDropIns(); track entry.id) {
               <li class="row" data-stage="failed" data-testid="drop-in-failed">
-                <div class="row-art">
-                  <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                <div class="row-art" [class.empty]="!entry.imageUrl">
+                  @if (entry.imageUrl; as image) {
+                    <img [src]="image" alt="" loading="lazy" />
+                  } @else {
+                    <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                  }
                 </div>
                 <div class="row-copy">
                   <p class="row-title app-break-anywhere">{{ entry.name }}</p>
@@ -379,7 +379,13 @@
             }
             @for (entry of broughtIn(); track entry.id) {
               <li class="row" data-stage="done" data-testid="drop-in-done">
-                <div class="row-art"><i class="pi pi-check" aria-hidden="true"></i></div>
+                <div class="row-art" [class.empty]="!entry.imageUrl">
+                  @if (entry.imageUrl; as image) {
+                    <img [src]="image" alt="" loading="lazy" />
+                  } @else {
+                    <i class="pi pi-check" aria-hidden="true"></i>
+                  }
+                </div>
                 <div class="row-copy">
                   <p class="row-title app-break-anywhere">{{ entry.name }}</p>
                   <p class="row-meta">

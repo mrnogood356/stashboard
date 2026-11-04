@@ -150,6 +150,8 @@ export interface ProcessingHandoff extends DownloadHandoff {
 
 export interface ProcessingDropIn extends DownloadDropIn {
   name: string;
+  /** Stash's screenshot once it's in the library. Older APIs: missing. */
+  imageUrl?: string | null;
   canRetry: boolean;
   /** Brought in or failed: can be cleared from the list. Older APIs: missing. */
   canClear?: boolean;

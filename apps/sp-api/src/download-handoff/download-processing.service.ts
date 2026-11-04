@@ -1,7 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { DownloadDropIn, DownloadHandoff } from '@prisma/client';
 import * as path from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
+import { stashMediaUrl } from '../media/media-url.util';
+import { CatalogProviderService } from '../providers/catalog/catalog-provider.service';
+import { StashdbAdapter } from '../providers/stashdb/stashdb.adapter';
 import { withStashImageSize } from '../providers/stashdb/stashdb-image-url.util';
 import {
   SabnzbdAdapter,
@@ -26,6 +29,12 @@ const LIVE_TTL_MS = 4_000;
 const OPEN_LIMIT = 50;
 const RECENT_LIMIT = 10;
 const PROBLEM_WINDOW_MS = 24 * 3600_000;
+/** Scenes looked up in the catalog for Downloads are remembered this long. */
+const CATALOG_SCENE_TTL_MS = 6 * 3600_000;
+/** A scene the catalog couldn't give is asked for again after this. */
+const CATALOG_MISS_TTL_MS = 10 * 60_000;
+/** At most this many catalog lookups per page load; the rest come next time. */
+const CATALOG_LOOKUPS_PER_LOAD = 8;
 
 interface LiveSab {
   at: number;
@@ -44,12 +53,18 @@ interface LiveSab {
 export class DownloadProcessingService {
   private readonly logger = new Logger(DownloadProcessingService.name);
   private live: LiveSab | null = null;
+  private readonly catalogScenes = new Map<
+    string,
+    { scene: HandoffSceneDto | null; until: number }
+  >();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly handoff: DownloadHandoffService,
     private readonly dropIns: DownloadDropInService,
     private readonly sabnzbd: SabnzbdAdapter,
+    @Optional() private readonly catalog?: CatalogProviderService,
+    @Optional() private readonly stashdb?: StashdbAdapter,
   ) {}
 
   async snapshot(now = Date.now()): Promise<ProcessingDto> {
@@ -87,7 +102,9 @@ export class DownloadProcessingService {
     const scenes = await this.scenesFor([...open, ...done]);
     const withScene = (item: ProcessingHandoffDto): ProcessingHandoffDto => ({
       ...item,
-      scene: (item.sceneId && scenes.get(item.sceneId)) || null,
+      scene:
+        (item.sceneId && scenes.get(item.sceneId)) ||
+        libraryScene(item.stashSceneId, item.releaseTitle),
     });
     const handoffs = open.map((row) =>
       withScene(handoffItem(row, live ?? null)),
@@ -163,16 +180,25 @@ export class DownloadProcessingService {
     );
   }
 
-  /** What Stashboard knows of the scenes these downloads are for, by id. */
+  /**
+   * The scenes these downloads are for, by id: from Stashboard's own index,
+   * else from the catalog (StashDB or FansDB) itself, remembered for a while
+   * so the page refreshing every few seconds doesn't ask again.
+   */
   private async scenesFor(
     rows: DownloadHandoff[],
   ): Promise<Map<string, HandoffSceneDto>> {
-    const ids = [
-      ...new Set(rows.flatMap((row) => (row.sceneId ? [row.sceneId] : []))),
-    ];
+    const providerOf = new Map<string, string | null>();
+    for (const row of rows) {
+      if (row.sceneId && !providerOf.has(row.sceneId)) {
+        providerOf.set(row.sceneId, row.provider);
+      }
+    }
+    const ids = [...providerOf.keys()];
     if (ids.length === 0) {
       return new Map();
     }
+    const scenes = new Map<string, HandoffSceneDto>();
     try {
       const found = await this.prisma.sceneIndex.findMany({
         where: { stashId: { in: ids }, title: { not: null } },
@@ -183,25 +209,78 @@ export class DownloadProcessingService {
           studioName: true,
         },
       });
-      return new Map(
-        found.map((scene) => [
-          scene.stashId,
-          {
-            title: scene.title ?? scene.stashId,
-            imageUrl: scene.imageUrl
-              ? withStashImageSize(scene.imageUrl, 600)
-              : null,
-            studio: scene.studioName,
-          },
-        ]),
-      );
+      for (const scene of found) {
+        scenes.set(scene.stashId, {
+          title: scene.title ?? scene.stashId,
+          imageUrl: scene.imageUrl
+            ? withStashImageSize(scene.imageUrl, 600)
+            : null,
+          studio: scene.studioName,
+        });
+      }
     } catch (error) {
       // The list still works with release names alone.
       this.logger.debug(
         `Scene details for downloads left off: ${error instanceof Error ? error.message : String(error)}`,
       );
-      return new Map();
     }
+    const missing = ids.filter((id) => !scenes.has(id));
+    const now = Date.now();
+    const toAsk = missing
+      .filter((id) => {
+        const known = this.catalogScenes.get(id);
+        return !known || known.until <= now;
+      })
+      .slice(0, CATALOG_LOOKUPS_PER_LOAD);
+    await Promise.all(
+      toAsk.map((id) => this.lookUpCatalogScene(id, providerOf.get(id), now)),
+    );
+    for (const id of missing) {
+      const scene = this.catalogScenes.get(id)?.scene;
+      if (scene) {
+        scenes.set(id, scene);
+      }
+    }
+    return scenes;
+  }
+
+  /** One scene straight from its catalog; remembers a miss for a shorter while. */
+  private async lookUpCatalogScene(
+    id: string,
+    provider: string | null | undefined,
+    now: number,
+  ): Promise<void> {
+    if (!this.catalog || !this.stashdb) {
+      return;
+    }
+    let scene: HandoffSceneDto | null = null;
+    try {
+      const catalog = await this.catalog.getProvider(
+        provider === 'FANSDB' ? 'FANSDB' : 'STASHDB',
+      );
+      const details = await this.stashdb.getSceneById(id, {
+        baseUrl: catalog.baseUrl,
+        apiKey: catalog.apiKey,
+      });
+      scene = {
+        title: details.title,
+        imageUrl: details.imageUrl
+          ? withStashImageSize(details.imageUrl, 600)
+          : null,
+        studio: details.studioName ?? null,
+      };
+    } catch (error) {
+      this.logger.debug(
+        `Couldn't look up scene ${id} for Downloads: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    if (this.catalogScenes.size > 500) {
+      this.catalogScenes.clear();
+    }
+    this.catalogScenes.set(id, {
+      scene,
+      until: now + (scene ? CATALOG_SCENE_TTL_MS : CATALOG_MISS_TTL_MS),
+    });
   }
 
   /** SABnzbd's queue and history for the category, briefly cached; null when unreachable. */
@@ -317,9 +396,35 @@ export function handoffItem(
     : item('queued', row.error ?? 'Sent to SABnzbd.');
 }
 
+/**
+ * A download already in the library (added in SABnzbd, or not in the
+ * catalog): its picture is Stash's screenshot, its title the release.
+ */
+function libraryScene(
+  stashSceneId: string | null,
+  title: string,
+): HandoffSceneDto | null {
+  return stashSceneId
+    ? {
+        title,
+        imageUrl: libraryScreenshot(stashSceneId),
+        studio: null,
+      }
+    : null;
+}
+
+function libraryScreenshot(stashSceneId: string): string {
+  return stashMediaUrl(
+    `scenes/${encodeURIComponent(stashSceneId)}/screenshot`,
+    null,
+    480,
+  );
+}
+
 function dropInItem(row: DownloadDropIn): ProcessingDropInDto {
   return {
     ...toDropInDto(row),
+    imageUrl: row.stashSceneId ? libraryScreenshot(row.stashSceneId) : null,
     name: path.basename(row.sourcePath),
     canRetry: row.status === 'failed',
     canClear: row.status === 'imported' || row.status === 'failed',
