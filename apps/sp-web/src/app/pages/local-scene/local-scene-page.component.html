@@ -314,17 +314,21 @@
             @for (marker of markers(); track marker.id) {
               <a
                 class="chapter"
+                draggable="false"
                 [routerLink]="['/watch', scene.id]"
                 [queryParams]="chapterQueryParams(marker)"
               >
                 <span class="chapter-thumb">
-                  <img
-                    [src]="marker.imageUrl"
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                    (error)="$any($event.target).classList.add('is-failed')"
-                  />
+                  <app-clip-preview [clip]="previewsOn() ? (marker.previewUrl ?? null) : null">
+                    <img
+                      [src]="marker.imageUrl"
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      draggable="false"
+                      (error)="$any($event.target).classList.add('is-failed')"
+                    />
+                  </app-clip-preview>
                   <span class="chapter-time">{{ formatTime(marker.seconds) }}</span>
                 </span>
                 <span class="chapter-title">{{ marker.title }}</span>

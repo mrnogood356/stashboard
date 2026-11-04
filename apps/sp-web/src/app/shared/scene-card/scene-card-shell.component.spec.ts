@@ -1,3 +1,4 @@
+import { inViewPreviews } from './in-view-previews';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -224,5 +225,92 @@ describe('SceneCardShellComponent', () => {
     ).toContain('Footer copy');
     expect(fixture.nativeElement.querySelector('.media .media-footer-test')).toBeNull();
     expect(fixture.nativeElement.querySelector('.body-test')?.textContent).toContain('Body copy');
+  });
+});
+
+describe('SceneCardShellComponent on a touch screen', () => {
+  let observed: Array<{ target: Element }>;
+  let callback: IntersectionObserverCallback;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    resetUnavailablePreviews();
+    inViewPreviews.reset();
+    observed = [];
+    vi.stubGlobal(
+      'matchMedia',
+      (query: string) => ({ matches: query.includes('hover: none') }) as MediaQueryList,
+    );
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(cb: IntersectionObserverCallback) {
+          callback = cb;
+        }
+        observe(target: Element) {
+          observed.push({ target });
+        }
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    vi.stubGlobal('requestAnimationFrame', (run: FrameRequestCallback) => {
+      run(0);
+      return 1;
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    TestBed.resetTestingModule();
+  });
+
+  it('plays the card in view on its own, and stops when it scrolls away', async () => {
+    TestBed.configureTestingModule({
+      imports: [PreviewHostComponent],
+      providers: [provideRouter([])],
+    });
+    const fixture = TestBed.createComponent(PreviewHostComponent);
+    fixture.detectChanges();
+    const media = fixture.nativeElement.querySelector('.media') as HTMLElement;
+    const video = () => fixture.nativeElement.querySelector('video.preview-video');
+    expect(observed.map((entry) => entry.target)).toContain(media);
+    expect(video()).toBeNull();
+
+    const seen = (ratio: number) =>
+      callback(
+        [
+          {
+            target: media,
+            isIntersecting: ratio > 0,
+            intersectionRatio: ratio,
+          } as unknown as IntersectionObserverEntry,
+        ],
+        {} as IntersectionObserver,
+      );
+    seen(0.9);
+    fixture.detectChanges();
+    expect(video()).toBeTruthy();
+
+    seen(0.2);
+    fixture.detectChanges();
+    expect(video()).toBeNull();
+    fixture.destroy();
+  });
+
+  it('can’t be lifted out to drag', async () => {
+    TestBed.configureTestingModule({
+      imports: [SceneCardShellHostComponent],
+      providers: [provideRouter([])],
+    });
+    const fixture = TestBed.createComponent(SceneCardShellHostComponent);
+    fixture.detectChanges();
+    const link = fixture.nativeElement.querySelector('.media-link-stretch') as HTMLElement;
+    expect(link.getAttribute('draggable')).toBe('false');
+    const drag = new Event('dragstart', { bubbles: true, cancelable: true });
+    link.dispatchEvent(drag);
+    expect(drag.defaultPrevented).toBe(true);
+    fixture.destroy();
   });
 });

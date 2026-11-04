@@ -1,20 +1,17 @@
 <article class="card">
   <div
+    #media
     class="media"
     [class.is-previewing]="previewing()"
-    [class.swallow-tap]="swallowTap()"
     (pointerenter)="onPointerEnter($event)"
     (pointermove)="onPointerMove($event)"
     (pointerleave)="onPointerLeave($event)"
-    (touchstart)="onTouchStart()"
-    (touchmove)="onTouchMove()"
-    (touchend)="onTouchEnd()"
-    (touchcancel)="onTouchEnd()"
-    (contextmenu)="previewUrl ? $event.preventDefault() : null"
+    (dragstart)="$event.preventDefault()"
   >
     @if (primaryLinkIsExternal()) {
       <a
         class="media-link-stretch"
+        draggable="false"
         [attr.href]="primaryExternalHref()"
         target="_blank"
         rel="noopener noreferrer"
@@ -23,6 +20,7 @@
     } @else if (primaryRouterCommands(); as commands) {
       <a
         class="media-link-stretch"
+        draggable="false"
         [routerLink]="commands"
         [queryParams]="primaryQueryParams()"
         [attr.aria-label]="primaryLinkLabel()"
@@ -32,6 +30,7 @@
     @if (thumbnailUrl(); as imageUrl) {
       <img
         class="thumbnail"
+        draggable="false"
         [src]="imageUrl"
         [alt]="item.title"
         loading="lazy"

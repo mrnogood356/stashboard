@@ -17,6 +17,8 @@ import type Hls from 'hls.js';
 import { PlaybackInfo, PlaybackService, SceneMarker } from '../../core/api/playback.service';
 import { LocalLibraryService, LocalSceneCard } from '../../core/api/local-library.service';
 import { AppLockService } from '../../core/app-lock/app-lock.service';
+import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
+import { ClipPreviewComponent } from '../../shared/scene-card/clip-preview.component';
 import {
   FRAME_SECONDS,
   PLAYER_SHORTCUTS,
@@ -62,6 +64,7 @@ interface WebKitVideo extends HTMLVideoElement {
 
 @Component({
   selector: 'app-watch-page',
+  imports: [ClipPreviewComponent],
   templateUrl: './watch-page.component.html',
   styleUrl: './watch-page.component.scss',
   host: {
@@ -75,6 +78,8 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
   private readonly appLock = inject(AppLockService);
   private readonly library = inject(LocalLibraryService);
+  /** Settings → Playback: card previews also play each chapter's clip. */
+  protected readonly previewsOn = inject(PlaybackSettingsService).previewsEnabled;
 
   @ViewChild('video') private videoRef?: ElementRef<WebKitVideo>;
   @ViewChild('shell') private shellRef?: ElementRef<HTMLElement>;

@@ -25,6 +25,7 @@ import {
 import { SceneCardComponent } from '../../shared/scene-card/scene-card.component';
 import { SceneEvidenceComponent } from '../../shared/scene-evidence/scene-evidence.component';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
+import { ClipPreviewComponent } from '../../shared/scene-card/clip-preview.component';
 
 const DESCRIPTION_PREVIEW_LENGTH = 280;
 
@@ -34,7 +35,7 @@ const DESCRIPTION_PREVIEW_LENGTH = 280;
  */
 @Component({
   selector: 'app-local-scene-page',
-  imports: [RouterLink, SceneCardComponent, SceneEvidenceComponent],
+  imports: [RouterLink, SceneCardComponent, SceneEvidenceComponent, ClipPreviewComponent],
   templateUrl: './local-scene-page.component.html',
   styleUrl: './local-scene-page.component.scss',
 })
@@ -45,6 +46,8 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
   private readonly library = inject(LocalLibraryService);
   /** Settings → Playback: off hides Play, Resume and chapter links. */
   protected readonly playbackOn = inject(PlaybackSettingsService).playbackEnabled;
+  /** Settings → Playback: card previews also play each chapter's clip. */
+  protected readonly previewsOn = inject(PlaybackSettingsService).previewsEnabled;
   private subscription: Subscription | null = null;
   private tagSearchSubscription: Subscription | null = null;
   private readonly tagQueries = new Subject<string>();
