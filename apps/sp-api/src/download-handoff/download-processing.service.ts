@@ -57,6 +57,7 @@ export class DownloadProcessingService {
     string,
     { scene: HandoffSceneDto | null; until: number }
   >();
+  private readonly pendingLookups = new Map<string, Promise<void>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -233,7 +234,19 @@ export class DownloadProcessingService {
       })
       .slice(0, CATALOG_LOOKUPS_PER_LOAD);
     await Promise.all(
-      toAsk.map((id) => this.lookUpCatalogScene(id, providerOf.get(id), now)),
+      toAsk.map((id) => {
+        // Overlapping loads (polling, a second tab) share one request.
+        let pending = this.pendingLookups.get(id);
+        if (!pending) {
+          pending = this.lookUpCatalogScene(
+            id,
+            providerOf.get(id),
+            now,
+          ).finally(() => this.pendingLookups.delete(id));
+          this.pendingLookups.set(id, pending);
+        }
+        return pending;
+      }),
     );
     for (const id of missing) {
       const scene = this.catalogScenes.get(id)?.scene;

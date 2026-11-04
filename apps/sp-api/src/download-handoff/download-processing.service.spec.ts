@@ -504,7 +504,8 @@ describe('DownloadProcessingService pictures', () => {
       stashdb as unknown as StashdbAdapter,
     );
 
-    const first = await service.snapshot();
+    // Two overlapping loads share one lookup; a later one uses the cache.
+    const [first] = await Promise.all([service.snapshot(), service.snapshot()]);
     await service.snapshot();
 
     expect(catalog.getProvider).toHaveBeenCalledWith('FANSDB');

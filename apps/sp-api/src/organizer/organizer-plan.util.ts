@@ -416,24 +416,32 @@ export function pickSure(
   return null;
 }
 
+/**
+ * Every file's fingerprints, as Stash's Tagger sends them: a scene with a
+ * re-encode and the original still matches on the original's.
+ */
 export function fingerprintGroup(
   files: StashOrganizerFile[],
 ): Array<{ hash: string; algorithm: 'PHASH' | 'OSHASH' | 'MD5' }> {
-  const file = files[0];
-  if (!file) {
-    return [];
-  }
-  return file.fingerprints.flatMap((print) => {
-    const algorithm =
-      print.type === 'phash'
-        ? 'PHASH'
-        : print.type === 'oshash'
-          ? 'OSHASH'
-          : print.type === 'md5'
-            ? 'MD5'
-            : null;
-    return algorithm ? [{ hash: print.value, algorithm }] : [];
-  });
+  const seen = new Set<string>();
+  return files.flatMap((file) =>
+    (file.fingerprints ?? []).flatMap((print) => {
+      const algorithm =
+        print.type === 'phash'
+          ? 'PHASH'
+          : print.type === 'oshash'
+            ? 'OSHASH'
+            : print.type === 'md5'
+              ? 'MD5'
+              : null;
+      const key = `${algorithm}:${print.value}`;
+      if (!algorithm || seen.has(key)) {
+        return [];
+      }
+      seen.add(key);
+      return [{ hash: print.value, algorithm }];
+    }),
+  );
 }
 
 export function lastFolderName(folder: string): string | null {
