@@ -50,6 +50,9 @@ function setup(
     getImportProblems: jest.fn().mockResolvedValue(problems),
     getManualImportFiles: jest.fn().mockResolvedValue(files),
     startManualImport: jest.fn().mockResolvedValue(1),
+    getCommandStatus: jest
+      .fn()
+      .mockResolvedValue({ status: 'completed', message: null }),
     removeQueueItem: jest.fn().mockResolvedValue(undefined),
   };
   const integrations = {
@@ -64,11 +67,12 @@ function setup(
     integrations as unknown as IntegrationsService,
     whisparr as unknown as WhisparrAdapter,
   );
+  service.sleep = () => Promise.resolve();
   return { service, whisparr };
 }
 
 describe('WhisparrImportsService', () => {
-  it('lists stuck downloads, importable only when Whisparr knows the scene', async () => {
+  it('lists stuck downloads, importable when Whisparr says where they are', async () => {
     const { service } = setup([
       problem(),
       problem({ queueId: 8, movieId: null, movieTitle: null }),
@@ -77,7 +81,7 @@ describe('WhisparrImportsService', () => {
     const result = await service.list();
 
     expect(result.whisparrQueueUrl).toBe('http://whisparr:6969/activity/queue');
-    expect(result.items.map((item) => item.canImport)).toEqual([true, false]);
+    expect(result.items.map((item) => item.canImport)).toEqual([true, true]);
   });
 
   it('imports the videos Whisparr can tie to the scene, leaving samples out', async () => {
@@ -86,7 +90,9 @@ describe('WhisparrImportsService', () => {
       [file(), file({ path: '/x/sample.mp4', rejections: ['Sample'] })],
     );
 
-    await service.import(7);
+    await expect(service.import(7)).resolves.toMatchObject({
+      importState: 'done',
+    });
 
     expect(whisparr.startManualImport).toHaveBeenCalledWith(
       expect.anything(),
@@ -106,6 +112,33 @@ describe('WhisparrImportsService', () => {
 
     await expect(service.import(7)).rejects.toThrow('Manual Import');
     expect(whisparr.startManualImport).not.toHaveBeenCalled();
+  });
+
+  it('never gives several unidentified videos the queue’s scene', async () => {
+    const { service, whisparr } = setup(
+      [problem()],
+      [file({ path: '/x/a.mp4' }), file({ path: '/x/b.mp4' })],
+    );
+
+    await expect(service.import(7)).rejects.toThrow('Manual Import');
+    expect(whisparr.startManualImport).not.toHaveBeenCalled();
+  });
+
+  it('says when Whisparr’s import failed, and when it’s still going', async () => {
+    const { service, whisparr } = setup([problem()], [file()]);
+    whisparr.getCommandStatus.mockResolvedValueOnce({
+      status: 'failed',
+      message: 'Not enough free space',
+    });
+    await expect(service.import(7)).rejects.toThrow('Not enough free space');
+
+    whisparr.getCommandStatus.mockResolvedValue({
+      status: 'started',
+      message: null,
+    });
+    await expect(service.import(7)).resolves.toMatchObject({
+      importState: 'importing',
+    });
   });
 
   it('removes one from the queue, and from the download client when asked', async () => {

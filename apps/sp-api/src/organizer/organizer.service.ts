@@ -313,7 +313,8 @@ export class OrganizerService
       this.logger.log(
         `Sending ${missing.length} ${missing.length === 1 ? 'scene' : 'scenes'} you have that Whisparr shows as missing.`,
       );
-      this.startSendAll();
+      // Missing ones only: "add new ones" stays a choice you make on the page.
+      this.startSendAll(true);
     } catch (error) {
       this.logger.warn(
         `Sending scenes Whisparr is missing skipped: ${messageOf(error)}`,
@@ -878,12 +879,16 @@ export class OrganizerService
           }
         }
       }
-      // Best first; on a tie, the earlier source (your main catalog) first.
+      // Surest first, then best score: a likely match isn't hidden behind a
+      // weak one that scored a little higher. On a tie, the earlier source
+      // (your main catalog) first.
       const order = new Map(
         context.sources.map((source, position) => [source.name, position]),
       );
       candidates.sort(
         (left, right) =>
+          CONFIDENCE_ORDER[left.confidence] -
+            CONFIDENCE_ORDER[right.confidence] ||
           right.score - left.score ||
           (order.get(left.source) ?? 0) - (order.get(right.source) ?? 0),
       );

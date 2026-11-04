@@ -42,6 +42,26 @@ describe('search merge', () => {
     expect(merged[2]).toMatchObject({ link: ['/library/performer', 'l3'], catalogScenes: null });
   });
 
+  it('gives a library entry to the catalog entry it’s linked to, not a namesake listed first', () => {
+    const merged = mergePerformers(
+      [
+        {
+          id: 'l1',
+          name: 'Sam',
+          imageUrl: null,
+          sceneCount: 3,
+          favorite: false,
+          catalogIds: ['c2'],
+        },
+      ],
+      [catalogPerformer('c1', 'Sam'), catalogPerformer('c2', 'Samuel')],
+      'sa',
+    );
+    const byName = new Map(merged.map((entry) => [entry.name, entry]));
+    expect(byName.get('Samuel')?.libraryScenes).toBe(3);
+    expect(byName.get('Sam')?.libraryScenes).toBeNull();
+  });
+
   it('shows a scene you own once: the catalog card, then library scenes the catalog didn’t find', () => {
     const catalog = [
       { id: 'c1', localSceneId: 'l1' },

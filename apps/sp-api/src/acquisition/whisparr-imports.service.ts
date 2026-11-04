@@ -1,4 +1,5 @@
 import {
+  BadGatewayException,
   BadRequestException,
   Injectable,
   Logger,
@@ -13,6 +14,9 @@ import {
 
 /** Whisparr's queue is asked at most this often; the page refreshes on its own. */
 const LIST_TTL_MS = 20_000;
+/** How long Import waits for Whisparr to finish before saying it's still importing. */
+const IMPORT_WAIT_MS = 20_000;
+const IMPORT_POLL_MS = 2_000;
 
 export interface WhisparrImportItemDto extends WhisparrImportProblem {
   /** Whisparr can tell which scene it is, so Import can bring it in. */
@@ -29,6 +33,11 @@ export interface WhisparrImportsDto {
   unreachable: boolean;
 }
 
+export interface WhisparrImportResultDto extends WhisparrImportsDto {
+  /** Whisparr finished the import, or is still at it (big files take a while). */
+  importState: 'done' | 'importing';
+}
+
 type WhisparrConfig = { baseUrl: string; apiKey: string | null };
 
 /**
@@ -40,6 +49,9 @@ type WhisparrConfig = { baseUrl: string; apiKey: string | null };
 export class WhisparrImportsService {
   private readonly logger = new Logger(WhisparrImportsService.name);
   private cached: { at: number; value: WhisparrImportsDto } | null = null;
+  /** Swapped in tests so they don't wait. */
+  sleep = (ms: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, ms));
 
   constructor(
     private readonly integrations: IntegrationsService,
@@ -69,7 +81,9 @@ export class WhisparrImportsService {
         unreachable: false,
         items: problems.map((problem) => ({
           ...problem,
-          canImport: problem.downloadId !== null && problem.movieId !== null,
+          // Which files go to which scene is worked out on Import, from
+          // Whisparr's own Manual Import; it says when it can't tell.
+          canImport: problem.downloadId !== null,
         })),
       };
     } catch (error) {
@@ -91,7 +105,7 @@ export class WhisparrImportsService {
    * Imports a stuck download as Whisparr's Manual Import does: every video
    * in it that Whisparr can tie to a scene (samples left out).
    */
-  async import(queueId: number): Promise<WhisparrImportsDto> {
+  async import(queueId: number): Promise<WhisparrImportResultDto> {
     const config = await this.requireConfig();
     const problem = await this.find(config, queueId);
     if (!problem.downloadId) {
@@ -103,10 +117,17 @@ export class WhisparrImportsService {
       config,
       problem.downloadId,
     );
-    const picked = files.flatMap((file) => {
-      const movieId = file.movieId ?? problem.movieId;
-      const sample = file.rejections.some((reason) => /sample/i.test(reason));
-      return movieId !== null && !sample ? [{ item: file, movieId }] : [];
+    const videos = files.filter(
+      (file) => !file.rejections.some((reason) => /sample/i.test(reason)),
+    );
+    // The queue's scene stands in for a file Whisparr couldn't place only
+    // when that's the one video there: with several, one could be another
+    // scene, so those are left to Whisparr's Manual Import.
+    const unplaced = videos.filter((file) => file.movieId === null);
+    const fallback = unplaced.length === 1 ? problem.movieId : null;
+    const picked = videos.flatMap((file) => {
+      const movieId = file.movieId ?? fallback;
+      return movieId !== null ? [{ item: file, movieId }] : [];
     });
     if (picked.length === 0) {
       throw new BadRequestException(
@@ -115,7 +136,7 @@ export class WhisparrImportsService {
           : 'Whisparr can’t tell which scene this is. Pick it in Whisparr’s Manual Import.',
       );
     }
-    await this.whisparr.startManualImport(
+    const commandId = await this.whisparr.startManualImport(
       config,
       picked.map((file) => ({
         ...file,
@@ -126,7 +147,41 @@ export class WhisparrImportsService {
     this.logger.log(
       `Asked Whisparr to import “${problem.title}” (${picked.length} file${picked.length === 1 ? '' : 's'}).`,
     );
-    return this.refreshed();
+    const importState = await this.waitForImport(config, commandId, problem);
+    return { ...(await this.refreshed()), importState };
+  }
+
+  /**
+   * Whisparr runs the import as a command after answering. Waits a little
+   * for it: a failure is reported, a long import is "still importing".
+   */
+  private async waitForImport(
+    config: WhisparrConfig,
+    commandId: number | null,
+    problem: WhisparrImportProblem,
+  ): Promise<'done' | 'importing'> {
+    if (commandId === null) {
+      return 'importing';
+    }
+    for (let waited = 0; waited < IMPORT_WAIT_MS; waited += IMPORT_POLL_MS) {
+      await this.sleep(IMPORT_POLL_MS);
+      const command = await this.whisparr
+        .getCommandStatus(config, commandId)
+        .catch(() => null);
+      if (command?.status === 'completed') {
+        return 'done';
+      }
+      if (
+        command &&
+        ['failed', 'aborted', 'cancelled'].includes(command.status)
+      ) {
+        this.cached = null;
+        throw new BadGatewayException(
+          `Whisparr couldn’t import “${problem.title}”${command.message ? `: ${command.message}` : '.'}`,
+        );
+      }
+    }
+    return 'importing';
   }
 
   /** Takes it off Whisparr's queue, and out of the download client when asked. */

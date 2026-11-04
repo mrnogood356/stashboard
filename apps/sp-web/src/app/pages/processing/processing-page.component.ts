@@ -136,7 +136,12 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
       next: (imports) => {
         this.busy.set(null);
         this.whisparr.set(imports);
-        this.notifications.success(`Whisparr is importing “${item.movieTitle ?? item.title}”`);
+        const name = item.movieTitle ?? item.title;
+        this.notifications.success(
+          imports.importState === 'done'
+            ? `Whisparr imported “${name}”`
+            : `Whisparr is importing “${name}”`,
+        );
       },
       error: (error: { error?: { message?: string } }) => {
         this.busy.set(null);

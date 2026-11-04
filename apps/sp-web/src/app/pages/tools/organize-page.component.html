@@ -935,6 +935,11 @@
                   <strong>Add another Path</strong>, container path <code>/data</code>, host path
                   <code>/mnt/user/data</code> (the same as Stash), then Apply.
                 </p>
+                @if (settings.cleanEmptyFolders) {
+                  <p class="muted warn" data-testid="cleanup-no-access">
+                    Clean up after every move is on, but can’t run until then.
+                  </p>
+                }
               }
             </div>
           </div>
@@ -984,12 +989,6 @@
                   >Removes the folders a rename, Unmatched move or Whisparr move leaves without a
                   video.</small
                 >
-                @if (settings.cleanEmptyFolders && !settings.folderAccess) {
-                  <small class="warn" data-testid="cleanup-no-access"
-                    >Not working yet: Stashboard can’t see your media folders. Map them in, as Empty
-                    folders above explains.</small
-                  >
-                }
               </span>
               <button
                 type="button"

@@ -373,7 +373,10 @@ export abstract class OrganizerFiles extends OrganizerCore {
    * Sends every scene Stash has that Whisparr still shows as missing (and,
    * if that's switched on, scenes Whisparr doesn't know yet).
    */
-  startSendAll(): OrganizerRunDto {
+  startSendAll(
+    /** Only scenes Whisparr shows as missing, even with "add new ones" on. */
+    missingOnly = false,
+  ): OrganizerRunDto {
     this.assertIdle();
     this.runState = {
       ...IDLE_RUN,
@@ -411,7 +414,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
             .catch(() => ({ total: 0, items: [] as StashOrganizerScene[] }));
           found.items.forEach((scene) => scenes.set(scene.id, scene));
         }
-        if (settings.addToWhisparr) {
+        if (settings.addToWhisparr && !missingOnly) {
           for (let page = 1; page <= MAX_BACKLOG / 100; page += 1) {
             const result = await this.stash.findOrganizerScenes(config, {
               page,
@@ -1864,7 +1867,8 @@ function movedActivity(
 const SKIP_REASONS: Partial<Record<RenameState, string>> = {
   same: 'already named right',
   whisparr: 'Whisparr’s files, which Whisparr names',
-  missing: 'not matched yet, so there’s nothing to name them by',
+  missing:
+    'not matched yet, or missing something your pattern uses (like the date or studio)',
   outside: 'outside your Stash library folders',
   'no-file': 'no file',
   gone: 'not on disk where Stash says',

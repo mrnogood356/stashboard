@@ -49,9 +49,9 @@ export function mergePerformers(
   catalog: PerformerFeedItem[],
   query: string,
 ): PersonResult[] {
-  const used = new Set<string>();
-  const results: PersonResult[] = catalog.map((performer) => {
-    const mine = findLocal(local, performer.id, performer.name, used);
+  const { matches, used } = matchLocal(local, catalog);
+  const results: PersonResult[] = catalog.map((performer, index) => {
+    const mine = matches[index];
     return {
       key: `catalog:${performer.id}`,
       kind: 'performer',
@@ -88,9 +88,9 @@ export function mergeStudios(
   catalog: StudioFeedItem[],
   query: string,
 ): PersonResult[] {
-  const used = new Set<string>();
-  const results: PersonResult[] = catalog.map((studio) => {
-    const mine = findLocal(local, studio.id, studio.name, used);
+  const { matches, used } = matchLocal(local, catalog);
+  const results: PersonResult[] = catalog.map((studio, index) => {
+    const mine = matches[index];
     return {
       key: `catalog:${studio.id}`,
       kind: 'studio',
@@ -146,19 +146,39 @@ export function mergeScenes(
   ];
 }
 
-function findLocal<T extends { id: string; name: string; catalogIds?: string[] }>(
+/**
+ * The library entry for each catalog entry, in catalog order: first every
+ * match by catalog id, then the rest by name, so a namesake can't take the
+ * entry that's linked to someone else.
+ */
+function matchLocal<T extends { id: string; name: string; catalogIds?: string[] }>(
   local: T[],
-  catalogId: string,
-  name: string,
-  used: Set<string>,
-): T | null {
-  const byId = local.find((entry) => !used.has(entry.id) && entry.catalogIds?.includes(catalogId));
-  const key = nameKey(name);
-  const found = byId ?? local.find((entry) => !used.has(entry.id) && nameKey(entry.name) === key);
-  if (found) {
-    used.add(found.id);
-  }
-  return found ?? null;
+  catalog: Array<{ id: string; name: string }>,
+): { matches: Array<T | null>; used: Set<string> } {
+  const used = new Set<string>();
+  const matches: Array<T | null> = catalog.map(() => null);
+  const claim = (index: number, entry: T | undefined) => {
+    if (entry) {
+      used.add(entry.id);
+      matches[index] = entry;
+    }
+  };
+  catalog.forEach((item, index) =>
+    claim(
+      index,
+      local.find((entry) => !used.has(entry.id) && entry.catalogIds?.includes(item.id)),
+    ),
+  );
+  catalog.forEach((item, index) => {
+    if (!matches[index]) {
+      const key = nameKey(item.name);
+      claim(
+        index,
+        local.find((entry) => !used.has(entry.id) && nameKey(entry.name) === key),
+      );
+    }
+  });
+  return { matches, used };
 }
 
 /** Exact name first, then ones in your library; otherwise as the sources ranked them. */

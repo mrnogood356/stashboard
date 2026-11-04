@@ -358,6 +358,25 @@ describe('SearchPageComponent', () => {
     expect(root.textContent).toContain('Pier Scene');
   });
 
+  it('goes back to All when the kind you picked has nothing for new words', async () => {
+    const { fixture, root } = await search('ana');
+    root.querySelector<HTMLButtonElement>('[data-testid="search-filter-performers"]')!.click();
+    fixture.detectChanges();
+
+    local['search'] = vi.fn().mockReturnValue(of({ performers: [], studios: [] }));
+    discover['getPerformersFeed'] = vi.fn().mockReturnValue(of({ total: 0, items: [] }));
+    const input = root.querySelector<HTMLInputElement>('input[type="search"]')!;
+    input.value = 'pier';
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(350);
+    fixture.detectChanges();
+
+    expect(
+      root.querySelector('[data-testid="search-filter-all"]')?.getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(root.textContent).toContain('Pier Scene');
+  });
+
   it('remembers searches you act on and lets you clear them', async () => {
     vi.useFakeTimers();
     const { fixture, root } = await render();

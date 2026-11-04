@@ -448,6 +448,38 @@ describe('WatchPageComponent', () => {
     fixture.destroy();
   });
 
+  it('treats a tap as a tap when iOS reports its click as a mouse, and a menu-closing tap never counts as a double tap', async () => {
+    const fixture = await render();
+    const component = fixture.componentInstance as unknown as {
+      speedMenuOpen: WritableSignal<boolean>;
+      controlsVisible: WritableSignal<boolean>;
+      skip(seconds: number): void;
+    };
+    const skip = vi.spyOn(component, 'skip');
+    const surface = fixture.nativeElement.querySelector('.surface') as HTMLElement;
+    const tap = (clientX: number) => {
+      surface.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', clientX }));
+      surface.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'touch', clientX }));
+      // iOS Safari: the click says "mouse".
+      surface.dispatchEvent(
+        new PointerEvent('click', { pointerType: 'mouse', clientX, bubbles: true }),
+      );
+    };
+
+    component.controlsVisible.set(true);
+    tap(10);
+    // Touch behaviour: the tap toggled the controls rather than only showing them.
+    expect(component.controlsVisible()).toBe(true);
+
+    component.speedMenuOpen.set(true);
+    await new Promise((resolve) => setTimeout(resolve, 320));
+    tap(10);
+    expect(component.speedMenuOpen()).toBe(false);
+    tap(10);
+    expect(skip).not.toHaveBeenCalled();
+    fixture.destroy();
+  });
+
   it('plays at 2× while you hold the picture, then goes back to your speed', async () => {
     vi.useFakeTimers();
     try {

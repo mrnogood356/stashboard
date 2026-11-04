@@ -166,7 +166,8 @@ export class AcquisitionService {
     const [summary, failedDownloads] = await Promise.all([
       this.indexingService.getSceneIndexSummary(),
       this.prisma.downloadHandoff.count({
-        where: { status: 'failed', updatedAt: { gte: since } },
+        // Ones you cleared from Downloads no longer need you.
+        where: { status: 'failed', updatedAt: { gte: since }, clearedAt: null },
       }),
     ]);
     return { failed: summary.failedCount + failedDownloads };

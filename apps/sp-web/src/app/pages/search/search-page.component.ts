@@ -193,6 +193,11 @@ export class SearchPageComponent implements OnInit, OnDestroy {
       .subscribe((results) => {
         this.results.set(results);
         this.searching.set(false);
+        // A kind with nothing for these words would leave the page empty.
+        const selected = this.filter();
+        if (selected !== 'all' && this.counts()[selected] === 0) {
+          this.filter.set('all');
+        }
       });
 
     const initial = this.route.snapshot.queryParamMap.get('q') ?? '';

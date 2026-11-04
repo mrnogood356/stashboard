@@ -193,14 +193,17 @@
                   }
                   @if (handoff.stage === 'failed') {
                     <a class="secondary-link small" routerLink="/processing">Retry in Downloads</a>
-                    <button
-                      type="button"
-                      class="secondary-action small"
-                      [attr.data-testid]="'clear-handoff-' + handoff.id"
-                      (click)="clearHandoff(handoff)"
-                    >
-                      Clear
-                    </button>
+                    <!-- Only once it's recorded as failed: before that there's nothing to clear. -->
+                    @if (handoff.canClear) {
+                      <button
+                        type="button"
+                        class="secondary-action small"
+                        [attr.data-testid]="'clear-handoff-' + handoff.id"
+                        (click)="clearHandoff(handoff)"
+                      >
+                        Clear
+                      </button>
+                    }
                   }
                 </div>
               </div>

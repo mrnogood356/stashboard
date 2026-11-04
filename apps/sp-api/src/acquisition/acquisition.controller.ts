@@ -21,6 +21,7 @@ import {
 import { AcquisitionScenesQueryDto } from './dto/acquisition-scenes-query.dto';
 import { AcquisitionService } from './acquisition.service';
 import {
+  WhisparrImportResultDto,
   WhisparrImportsDto,
   WhisparrImportsService,
 } from './whisparr-imports.service';
@@ -43,7 +44,7 @@ export class AcquisitionController {
   @HttpCode(200)
   importFromWhisparr(
     @Param('queueId', ParseIntPipe) queueId: number,
-  ): Promise<WhisparrImportsDto> {
+  ): Promise<WhisparrImportResultDto> {
     return this.whisparrImports.import(queueId);
   }
 

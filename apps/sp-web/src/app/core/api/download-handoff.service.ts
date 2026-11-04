@@ -244,8 +244,10 @@ export class DownloadHandoffApiService {
     return this.http.get<WhisparrImports>('/api/acquisition/whisparr-imports');
   }
 
-  importFromWhisparr(queueId: number): Observable<WhisparrImports> {
-    return this.http.post<WhisparrImports>(
+  importFromWhisparr(
+    queueId: number,
+  ): Observable<WhisparrImports & { importState?: 'done' | 'importing' }> {
+    return this.http.post<WhisparrImports & { importState?: 'done' | 'importing' }>(
       `/api/acquisition/whisparr-imports/${queueId}/import`,
       {},
     );

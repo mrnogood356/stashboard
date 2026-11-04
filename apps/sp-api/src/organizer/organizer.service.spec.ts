@@ -564,7 +564,7 @@ describe('OrganizerService', () => {
 
       await service.sendMissingDaily();
 
-      expect(start).toHaveBeenCalledTimes(1);
+      expect(start).toHaveBeenCalledWith(true);
     });
 
     it('does nothing when it is off or nothing is missing', async () => {
@@ -610,6 +610,35 @@ describe('OrganizerService', () => {
     );
     expect(result.searchedFor).toBe('bright studio summer afternoon');
     expect(result.candidates[0].confidence).toBe('strong');
+  });
+
+  it('lists a likely match before a weak one that scored a little higher', async () => {
+    stashdb.findScenesByFingerprints.mockResolvedValue([[]]);
+    // Same length and studio, nothing else: 0.50 but weak.
+    const weak = {
+      ...remote,
+      id: 'weak',
+      title: 'Kitchen Party',
+      date: '2020-01-01',
+      performers: [],
+    };
+    // Same length and part of the title: 0.49, likely.
+    const likely = {
+      ...remote,
+      id: 'likely',
+      title: 'Summer Afternoon Extra Long Special',
+      date: '2020-01-01',
+      studio: { id: 'o', name: 'Other Place', imageUrl: null },
+      performers: [],
+    };
+    stashdb.searchScenesByText.mockResolvedValue([weak, likely]);
+
+    const [result] = await service.lookup(['7']);
+
+    expect(result.candidates.map((candidate) => candidate.confidence)).toEqual([
+      'likely',
+      'weak',
+    ]);
   });
 
   it('searches your own words when given', async () => {
