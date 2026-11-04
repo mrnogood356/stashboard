@@ -79,7 +79,9 @@ async function render(api: Record<string, unknown>, tab?: string) {
       { provide: AppNotificationsService, useValue: notifications },
     ],
   }).compileComponents();
-  if (tab) {
+  // The scene list used to be the first tab; it's on Review now.
+  tab ??= 'review';
+  {
     const router = TestBed.inject(await import('@angular/router').then((m) => m.Router));
     await router.navigateByUrl(`/?tab=${tab}`);
   }
@@ -88,6 +90,36 @@ async function render(api: Record<string, unknown>, tab?: string) {
   await fixture.whenStable();
   fixture.detectChanges();
   return { fixture, root: fixture.nativeElement as HTMLElement, notifications };
+}
+
+/** The text of the Overview row with this title. */
+function row(root: HTMLElement, title: string): string {
+  return (
+    [...root.querySelectorAll('.todo-row')].find((entry) =>
+      entry.querySelector('strong')?.textContent?.includes(title),
+    )?.textContent ?? ''
+  );
+}
+
+/** Switches to another tab. */
+function tab(fixture: { detectChanges(): void }, root: HTMLElement, name: string): void {
+  const found = [...root.querySelectorAll('[role="tab"]')].find((entry) =>
+    entry.textContent?.includes(name),
+  ) as HTMLButtonElement;
+  found.click();
+  fixture.detectChanges();
+}
+
+/** Opens the Overview row with this title. */
+function openRow(fixture: { detectChanges(): void }, root: HTMLElement, title: string): void {
+  const row = [...root.querySelectorAll('.todo-row')].find((entry) =>
+    entry.querySelector('strong')?.textContent?.includes(title),
+  );
+  if (!row) {
+    throw new Error(`No row "${title}"`);
+  }
+  (row.querySelector(':scope > button') as HTMLButtonElement).click();
+  fixture.detectChanges();
 }
 
 function button(root: HTMLElement, text: string): HTMLButtonElement {
@@ -270,8 +302,8 @@ describe('OrganizePageComponent', () => {
       scope: 'all',
     });
     expect(root.textContent).toContain('No scenes match.');
-    // Match all still counts every unmatched scene, not the search.
-    expect(root.textContent).toContain('Match all 12');
+    // The Overview still counts every unmatched scene, not the search.
+    expect((fixture.componentInstance as unknown as { total(): number }).total()).toBe(12);
   });
 
   it('shows the Whisparr folder mapping read-only and links to Settings to change it', async () => {
@@ -383,6 +415,7 @@ describe('OrganizePageComponent', () => {
       status: vi.fn().mockReturnValue(of(idle)),
     };
     const { fixture, root } = await render(api, 'rename');
+    openRow(fixture, root, 'Can’t be renamed');
     button(root, 'Show the files').click();
     fixture.detectChanges();
     expect(root.textContent).toContain('Same size, so almost surely the same video.');
@@ -436,9 +469,11 @@ describe('OrganizePageComponent', () => {
     };
     const { fixture, root } = await render(api, 'rename');
 
+    openRow(fixture, root, 'Empty folders');
     button(root, 'Keep').click();
     fixture.detectChanges();
     expect(api.update).toHaveBeenLastCalledWith({ keepFolders: ['/data/stash content/fansdb'] });
+    tab(fixture, root, 'Settings');
     expect(root.querySelector('.keep-folders')?.textContent).toContain(
       '/data/stash content/fansdb',
     );
@@ -447,7 +482,7 @@ describe('OrganizePageComponent', () => {
     input.value = '/data/stash content/Keep me';
     input.dispatchEvent(new Event('input'));
     fixture.detectChanges();
-    button(root, 'Add').click();
+    (root.querySelector('.keep-add button') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(api.update).toHaveBeenLastCalledWith({
       keepFolders: ['/data/stash content/fansdb', '/data/stash content/Keep me'],
@@ -521,37 +556,42 @@ describe('OrganizePageComponent', () => {
     const { fixture, root } = await render(api, 'rename');
     expect(api.preview).toHaveBeenCalled();
     expect(root.textContent).toContain('2023-08-14 - Title.mp4');
+    openRow(fixture, root, 'Can’t be renamed');
     const reasons = root.querySelector('.skip-reasons')?.textContent ?? '';
     expect(reasons).toContain('9');
     expect(reasons).toContain('Whisparr’s file');
     expect(reasons.indexOf('Whisparr’s file')).toBeLessThan(reasons.indexOf('No title yet'));
 
+    tab(fixture, root, 'Settings');
     const select = root.querySelector('.root-field select') as HTMLSelectElement;
     expect([...select.options].map((option) => option.value)).toEqual([
       '',
       '/data/stash content',
       '/data/scenes',
     ]);
+    tab(fixture, root, 'Overview');
 
-    expect(root.querySelector('.folders')?.textContent).toContain('2 folders with no video');
+    expect(row(root, 'Empty folders')).toContain('2');
+    openRow(fixture, root, 'Empty folders');
     button(root, 'Clean up 2 folders').click();
     fixture.detectChanges();
     expect(api.cleanEmptyFolders).not.toHaveBeenCalled();
     button(root, 'Tap again to remove 2').click();
     expect(api.cleanEmptyFolders).toHaveBeenCalled();
     fixture.detectChanges();
-    expect(root.querySelector('.repair')?.textContent).toContain(
-      '3 Whisparr scenes are in the wrong folder',
-    );
+    expect(row(root, 'In the wrong folder')).toContain('3');
+    openRow(fixture, root, 'In the wrong folder');
     button(root, 'Repair Whisparr').click();
     expect(api.repairWhisparr).toHaveBeenCalled();
-    expect(root.querySelector('.relocate')?.textContent).toContain('/data/stash content/scenes');
+    expect(row(root, 'Downloads not in their folder')).toContain('/data/stash content/scenes');
+    openRow(fixture, root, 'Downloads not in their folder');
     button(root, 'Have Whisparr move them').click();
     fixture.detectChanges();
     expect(api.relocateWhisparr).not.toHaveBeenCalled();
     button(root, 'Tap again to move 4').click();
     expect(api.relocateWhisparr).toHaveBeenCalled();
 
+    openRow(fixture, root, 'Need renaming');
     button(root, 'Rename 1 file').click();
     fixture.detectChanges();
     expect(api.renameAll).not.toHaveBeenCalled();
@@ -615,7 +655,7 @@ describe('OrganizePageComponent', () => {
         }),
       ),
     };
-    const { fixture, root } = await render(api, 'rename');
+    const { fixture, root } = await render(api, 'settings');
     const component = fixture.componentInstance as any;
 
     component.setPattern('{studio}/{date} - {title}');
@@ -667,6 +707,7 @@ describe('OrganizePageComponent', () => {
     });
     const { fixture, root } = await render(api, 'rename');
 
+    openRow(fixture, root, 'Can’t be renamed');
     button(root, 'Remove 3 extra copies').click();
     fixture.detectChanges();
     expect(removeExtraCopies).not.toHaveBeenCalled();
@@ -692,7 +733,7 @@ describe('OrganizePageComponent', () => {
     });
     const { fixture, root } = await render(api, 'rename');
 
-    expect(root.querySelector('.sync .note')?.textContent).toContain('hardlinking');
+    expect(row(root, 'Sync with Whisparr')).toContain('extra copies');
     button(root, 'Sync now').click();
     fixture.detectChanges();
 
@@ -798,6 +839,7 @@ describe('OrganizePageComponent', () => {
     });
     const { fixture, root } = await render(api, 'rename');
 
+    openRow(fixture, root, 'In the wrong folder');
     expect(root.querySelector('.repair-scenes')).toBeNull();
     button(root, 'Show the 2 scenes').click();
     fixture.detectChanges();
@@ -818,10 +860,10 @@ describe('OrganizePageComponent', () => {
         .fn()
         .mockReturnValue(of({ total: 533, toMove: 0, page: 1, hasMore: false, items: [scene] })),
     };
-    const { root } = await render(api);
+    const { root } = await render(api, 'overview');
 
-    expect(root.textContent).not.toContain('unmatched files now');
-    expect(root.textContent).toContain('All 533 unmatched files are in the Unmatched folder.');
+    expect(row(root, 'Not matched yet')).toContain('533');
+    expect(row(root, 'Not matched yet')).not.toContain('to Unmatched');
   });
 
   it('shows the whole new folder when a file moves to another library folder', async () => {
@@ -850,7 +892,10 @@ describe('OrganizePageComponent', () => {
   it('previews a pattern a moment after typing stops, and right away on Enter', async () => {
     const api = renameApi();
     api.preview.mockImplementation((pattern?: string) => of(renamePreview(pattern ?? '', 2)));
-    const { fixture, root } = await render(api, 'rename');
+    const { fixture, root } = await render(api, 'settings');
+    // Settings shows the names once they're worked out.
+    (fixture.componentInstance as any).loadPreview();
+    fixture.detectChanges();
     vi.useFakeTimers();
     try {
       const calls = api.preview.mock.calls.length;
@@ -870,7 +915,7 @@ describe('OrganizePageComponent', () => {
       expect(api.preview).toHaveBeenLastCalledWith('{studio}/{date} {title}');
       fixture.detectChanges();
       expect(root.textContent).not.toContain('Working out names');
-      expect(button(root, 'Rename 2 files').disabled).toBe(false);
+      expect(root.textContent).toContain('2 to rename');
 
       const folder = root.querySelector('#rename-folders') as HTMLInputElement;
       folder.value = '{year}';
@@ -890,7 +935,8 @@ describe('OrganizePageComponent', () => {
   it('reloads the preview and the Whisparr repair plan after saving the pattern', async () => {
     const update = vi.fn().mockReturnValue(of({ ...settings, renamePattern: '{studio}/{title}' }));
     const api = renameApi({ update });
-    const { fixture, root, notifications } = await render(api, 'rename');
+    const { fixture, root, notifications } = await render(api, 'settings');
+    (fixture.componentInstance as any).loadPreview();
     const component = fixture.componentInstance as any;
     const previews = api.preview.mock.calls.length;
     const repairs = api.whisparrRepair.mock.calls.length;
@@ -982,7 +1028,7 @@ describe('OrganizePageComponent', () => {
     }
   });
 
-  it('works out names again on the Rename tab after a scene is matched', async () => {
+  it('works out names again on the Overview after a scene is matched', async () => {
     const api = {
       ...renameApi(),
       unmatched: vi.fn().mockReturnValue(of({ total: 1, page: 1, hasMore: false, items: [scene] })),
@@ -992,23 +1038,23 @@ describe('OrganizePageComponent', () => {
       apply: vi.fn().mockReturnValue(of({ sceneId: '7', renamedTo: null })),
     };
     const { fixture, root } = await render(api);
-    button(root, 'Rename').click();
+    tab(fixture, root, 'Overview');
     fixture.detectChanges();
     expect(api.preview).toHaveBeenCalledTimes(1);
-    button(root, 'Match').click();
+    tab(fixture, root, 'Review');
     fixture.detectChanges();
-    button(root, 'Rename').click();
+    tab(fixture, root, 'Overview');
     fixture.detectChanges();
     // Nothing changed: the names on screen still hold.
     expect(api.preview).toHaveBeenCalledTimes(1);
 
-    button(root, 'Match').click();
+    tab(fixture, root, 'Review');
     fixture.detectChanges();
     button(root, 'Find match').click();
     fixture.detectChanges();
     button(root, 'This one').click();
     fixture.detectChanges();
-    button(root, 'Rename').click();
+    tab(fixture, root, 'Overview');
     expect(api.preview).toHaveBeenCalledTimes(2);
     fixture.destroy();
   });

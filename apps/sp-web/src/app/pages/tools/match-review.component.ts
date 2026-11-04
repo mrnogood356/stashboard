@@ -50,6 +50,8 @@ export class MatchReviewComponent implements OnChanges {
   @Input() busy = false;
   /** Saving started a run on the server; the page follows it. */
   @Output() readonly started = new EventEmitter<OrganizerRun>();
+  /** How many are waiting, whenever that changes. */
+  @Output() readonly counted = new EventEmitter<number>();
 
   protected readonly confidenceLabel = CONFIDENCE;
   protected readonly proposals = signal<MatchProposal[]>([]);
@@ -182,6 +184,7 @@ export class MatchReviewComponent implements OnChanges {
   private drop(sceneIds: string[]): void {
     const gone = new Set(sceneIds);
     this.proposals.update((list) => list.filter((entry) => !gone.has(entry.scene.id)));
+    this.counted.emit(this.proposals().length);
     this.picked.update((current) => new Set([...current].filter((id) => !gone.has(id))));
   }
 
@@ -189,6 +192,7 @@ export class MatchReviewComponent implements OnChanges {
     this.api.proposals().subscribe({
       next: (list) => {
         this.proposals.set(list);
+        this.counted.emit(list.length);
         const ids = new Set(list.map((entry) => entry.scene.id));
         this.picked.update((current) => new Set([...current].filter((id) => ids.has(id))));
       },

@@ -418,15 +418,25 @@
   cursor: pointer;
 }
 
+/* Narrow screens: still side by side, each picture above its details. */
 @media (max-width: 760px) {
   .pair {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.6rem;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.7rem;
+    padding: 0.7rem;
   }
 
   .arrow {
-    transform: rotate(90deg);
-    margin-left: 3rem;
+    display: none;
+  }
+
+  .side {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.45rem;
+  }
+
+  .name {
+    font-size: 0.85rem;
   }
 }
 
@@ -439,9 +449,5 @@
     order: 3;
     flex-basis: 100%;
     white-space: normal;
-  }
-
-  .side {
-    grid-template-columns: 6rem minmax(0, 1fr);
   }
 }
