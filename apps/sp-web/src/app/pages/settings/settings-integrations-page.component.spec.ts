@@ -286,12 +286,9 @@ describe('SettingsIntegrationsPageComponent', () => {
       'WHISPARR',
       'STASHDB',
       'FANSDB',
-      'THEPORNDB',
       'PROWLARR',
       'SABNZBD',
     ]);
-    expect(component.sectionLabel('THEPORNDB')).toBe('Optional browse provider');
-    expect(component.catalogProviderHelp('THEPORNDB')).toContain('theporndb.net/graphql');
     expect(textContent(overview(fixture))).toContain('3 of 3 required services ready');
     // With everything ready the per-service checks are left to the rows below.
     expect(fixture.nativeElement.querySelector('.checklist-item')).toBeNull();
@@ -400,7 +397,6 @@ describe('SettingsIntegrationsPageComponent', () => {
       'WHISPARR',
       'FANSDB',
       'STASHDB',
-      'THEPORNDB',
       'PROWLARR',
       'SABNZBD',
     ]);

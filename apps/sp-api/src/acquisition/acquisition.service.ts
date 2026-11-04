@@ -1,4 +1,3 @@
-import { type CatalogProviderKey } from '../providers/catalog/catalog-provider.util';
 import {
   BadRequestException,
   ConflictException,
@@ -645,7 +644,7 @@ export class AcquisitionService {
   private toAcquisitionItem(
     row: SceneIndex,
     whisparrBaseUrl: string | null,
-    source: CatalogProviderKey,
+    source: 'STASHDB' | 'FANSDB',
     extras: Partial<
       Pick<AcquisitionSceneItemDto, 'download' | 'addedAt' | 'stashViewUrl'>
     > = {},

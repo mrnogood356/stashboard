@@ -105,7 +105,7 @@ export function estimatedTotal(
 }
 
 /**
- * Talks to a stash-box GraphQL API (StashDB, FansDB, ThePornDB): the request, readable
+ * Talks to a stash-box GraphQL API (StashDB, FansDB): the request, readable
  * network errors, runtime-health reporting, and shared normalizers.
  */
 export abstract class StashdbGraphqlClient {

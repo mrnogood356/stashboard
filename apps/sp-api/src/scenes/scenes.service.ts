@@ -387,7 +387,7 @@ export class ScenesService {
               date: scene.date,
               duration: null,
             },
-            provider,
+            provider === 'FANSDB' ? 'FANSDB' : 'STASHDB',
             statuses.get(scene.stashId) ?? { state: 'REQUESTED' },
             // Already in Whisparr, so there's nothing to request.
             false,
@@ -556,7 +556,7 @@ export class ScenesService {
       date: string | null;
       duration: number | null;
     },
-    source: CatalogProviderKey,
+    source: 'STASHDB' | 'FANSDB',
     status: SceneStatusDto,
     requestable: boolean,
   ) {
