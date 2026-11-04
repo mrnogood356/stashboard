@@ -1,0 +1,44 @@
+name: Clean Up GHCR Images
+
+# Every push to main publishes edge and a sha-… tag, and each build leaves
+# untagged layers behind. Keep latest, edge and the newest few other
+# versions (to roll back to); delete everything else.
+on:
+  workflow_run:
+    workflows: ["Publish GHCR Image"]
+    types: [completed]
+  schedule:
+    - cron: "17 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Only list what would be deleted"
+        type: boolean
+        default: true
+
+permissions:
+  packages: write
+
+concurrency:
+  group: ghcr-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Delete old images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete untagged and old sha- images
+        uses: dataaxiom/ghcr-cleanup-action@v1
+        with:
+          package: stashboard
+          owner: ${{ github.repository_owner }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Never deleted: latest and edge (and whatever else those images are tagged).
+          exclude-tags: "latest,edge"
+          # Of the rest (releases and sha-… builds of main), the newest 5 stay.
+          keep-n-tagged: 5
+          delete-untagged: true
+          delete-ghost-images: true
+          delete-partial-images: true
+          dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run || false }}
