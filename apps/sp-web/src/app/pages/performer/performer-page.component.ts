@@ -171,6 +171,14 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
   protected readonly scenesHasMore = signal(true);
   /** Show scenes Settings → Hidden content leaves out, for this list only. */
   protected readonly showHidden = signal(false);
+  /** On a phone the scene filters fold away behind one button. */
+  protected readonly filtersOpen = signal(false);
+  protected readonly activeFilters = computed(
+    () =>
+      (this.onlyFavoriteStudios() ? 1 : 0) +
+      this.studioSelectedIds().length +
+      this.tagSelectedIds().length,
+  );
   /** How many scenes the loaded pages left out for Settings → Hidden content. */
   protected readonly hiddenCount = signal(0);
   protected readonly scenesInFlight = signal(false);

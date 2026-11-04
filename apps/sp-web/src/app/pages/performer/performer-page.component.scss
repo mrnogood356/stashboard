@@ -364,19 +364,92 @@ main > button {
   overflow-wrap: anywhere;
 }
 
+/* The Filters button only shows on phones, where the filters fold away. */
+.scenes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.filters-toggle {
+  display: none;
+  align-items: center;
+  gap: 0.4rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  background: var(--chip-bg);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.filters-count {
+  min-width: 1.2rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+.filter-body {
+  display: grid;
+  gap: 0.6rem;
+}
+
 @media (max-width: 600px) {
   .hero-layout {
     grid-template-columns: minmax(0, 1fr);
     padding: 1rem;
+    gap: 1rem;
   }
 
+  /* A portrait, not a whole screen of photo. */
   .media-column {
     justify-self: center;
-    width: min(70vw, 260px);
+    width: min(48vw, 200px);
   }
 
+  .title-row,
+  .aliases,
+  .subheading,
+  .hide-row {
+    justify-content: center;
+    text-align: center;
+  }
+
+  /* Details as a compact list, not a box per line. */
   .metadata-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.15rem 1rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: 14px;
+    background: var(--surface-2);
+  }
+
+  .metadata-item {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.4rem;
+    align-items: baseline;
+    padding: 0.2rem 0;
+    background: transparent;
+  }
+
+  .metadata-item .label {
+    font-weight: 600;
+    font-size: 0.78rem;
+  }
+
+  .filters-toggle {
+    display: inline-flex;
+  }
+
+  .filter-body:not(.open) {
+    display: none;
   }
 }
 
