@@ -1,4 +1,5 @@
 import {
+  AfterViewInit,
   Component,
   ContentChild,
   Directive,
@@ -9,6 +10,7 @@ import {
   signal,
 } from '@angular/core';
 import { Params, RouterLink } from '@angular/router';
+import { InViewPreviewCard, inViewPreviews } from './in-view-previews';
 
 export interface SceneCardShellItem {
   title: string;
@@ -80,7 +82,7 @@ export class SceneCardPlaceholderDirective {}
     '[class.scene-card-shell-variant-default]': "variant === 'default'",
   },
 })
-export class SceneCardShellComponent implements OnDestroy {
+export class SceneCardShellComponent implements AfterViewInit, OnDestroy {
   @Input({ required: true }) item!: SceneCardShellItem;
   @Input() variant: SceneCardShellVariant = 'default';
   @Input() primaryLink: SceneCardShellLink | null = null;
@@ -90,7 +92,7 @@ export class SceneCardShellComponent implements OnDestroy {
   @Input() playQueryParams: Params | null = null;
   /** How far through the scene playback got, 0 to 1. */
   @Input() progress: number | null = null;
-  /** Stash's short preview clip; plays on hover, or when the card is pressed and held. */
+  /** Stash's short preview clip; plays on hover, or on a touch screen while the card is in view. */
   @Input() previewUrl: string | null = null;
 
   protected readonly previewing = signal(false);
@@ -121,11 +123,28 @@ export class SceneCardShellComponent implements OnDestroy {
       }
     });
   }
-  /** Set after a press-and-hold, so letting go doesn't also open the scene. */
-  protected readonly swallowTap = signal(false);
+  @ViewChild('media', { static: true })
+  private media?: ElementRef<HTMLElement>;
+  private inView: InViewPreviewCard | null = null;
+
+  ngAfterViewInit(): void {
+    const element = this.media?.nativeElement;
+    if (element && inViewPreviews.applies()) {
+      this.inView = {
+        element,
+        canPlay: () => this.canPreview(),
+        setActive: (active) =>
+          active && this.canPreview() ? this.previewing.set(true) : this.stopPreview(),
+      };
+      inViewPreviews.register(this.inView);
+    }
+  }
 
   ngOnDestroy(): void {
     this.cancelPreviewTimer();
+    if (this.inView) {
+      inViewPreviews.unregister(this.inView);
+    }
   }
 
   protected onPointerEnter(event: PointerEvent): void {
@@ -155,27 +174,6 @@ export class SceneCardShellComponent implements OnDestroy {
     }
   }
 
-  protected onTouchStart(): void {
-    if (this.canPreview()) {
-      this.swallowTap.set(false);
-      this.schedulePreview(380, true);
-    }
-  }
-
-  protected onTouchMove(): void {
-    // Scrolling the page, not holding the card.
-    if (!this.previewing()) {
-      this.cancelPreviewTimer();
-    }
-  }
-
-  protected onTouchEnd(): void {
-    this.stopPreview();
-    if (this.swallowTap()) {
-      setTimeout(() => this.swallowTap.set(false), 450);
-    }
-  }
-
   protected onPreviewPlaying(): void {
     this.previewPlaying.set(true);
   }
@@ -187,26 +185,22 @@ export class SceneCardShellComponent implements OnDestroy {
     }
     this.previewing.set(false);
     this.previewPlaying.set(false);
+    // On a touch screen, the next card along plays instead.
+    inViewPreviews.refresh();
   }
 
   private canPreview(): boolean {
     return Boolean(this.previewUrl) && !unavailablePreviews.has(this.previewUrl as string);
   }
 
-  /** Mouse or pen; touch uses press-and-hold instead. */
+  /** Mouse or pen; on touch, the card in view plays instead. */
   private isHoverPointer(event: PointerEvent): boolean {
     return event.pointerType === 'mouse' || event.pointerType === 'pen';
   }
 
-  private schedulePreview(delay: number, fromTouch = false): void {
+  private schedulePreview(delay: number): void {
     this.cancelPreviewTimer();
-    this.previewTimer = setTimeout(() => {
-      this.previewing.set(true);
-      if (fromTouch) {
-        this.swallowTap.set(true);
-        navigator.vibrate?.(10);
-      }
-    }, delay);
+    this.previewTimer = setTimeout(() => this.previewing.set(true), delay);
   }
 
   private stopPreview(): void {

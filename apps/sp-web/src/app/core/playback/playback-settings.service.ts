@@ -9,7 +9,7 @@ export interface PlaybackSettings {
   enabled: boolean;
   /** The swipe feed of preview clips. */
   feedEnabled: boolean;
-  /** Preview clips on scene cards (hover, or press and hold). */
+  /** Preview clips on scene cards (hover, or in view on touch). */
   previewsEnabled: boolean;
 }
 
