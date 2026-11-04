@@ -675,6 +675,8 @@ h2 {
 }
 
 .chapter {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
   display: grid;
   gap: 0.4rem;
   color: inherit;
@@ -703,6 +705,7 @@ h2 {
 
 .chapter-time {
   position: absolute;
+  z-index: 1;
   left: 0.4rem;
   bottom: 0.4rem;
   padding: 0.1rem 0.4rem;

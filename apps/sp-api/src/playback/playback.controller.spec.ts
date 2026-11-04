@@ -190,6 +190,19 @@ describe('PlaybackController stream proxy', () => {
     expect(last.url).toBe('/scene/12/stream.m3u8?resolution=FULL_HD'); // apikey query dropped
   });
 
+  it('passes a marker’s preview clip through from Stash', async () => {
+    const server = app.getHttpServer();
+    await request(server).get('/api/playback/scenes/12/markers/5/preview');
+    const last = stash.requests[stash.requests.length - 1];
+    expect(last.url).toBe('/scene/12/scene_marker/5/stream');
+
+    const before = stash.requests.length;
+    await request(server)
+      .get('/api/playback/scenes/12/markers/x%2F..%2F1/preview')
+      .expect(404);
+    expect(stash.requests.length).toBe(before);
+  });
+
   it('refuses bad, expired or mismatched tokens and unknown paths', async () => {
     const server = app.getHttpServer();
     await request(server)
@@ -228,6 +241,9 @@ describe('PlaybackController stream proxy', () => {
       'Playback is turned off. Turn it on in Settings → Playback.',
     );
     await request(server).get('/api/playback/scenes/12/preview').expect(403);
+    await request(server)
+      .get('/api/playback/scenes/12/markers/5/preview')
+      .expect(403);
     await request(server).post('/api/playback/scenes/12/play').expect(403);
     expect(stash.requests.length).toBe(before);
   });

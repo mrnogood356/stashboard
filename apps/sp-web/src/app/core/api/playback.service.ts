@@ -19,6 +19,8 @@ export interface SceneMarker {
   title: string;
   seconds: number;
   imageUrl: string;
+  /** Stash's short clip of the marker; missing from older servers. */
+  previewUrl?: string;
 }
 
 export interface PlaybackInfo {

@@ -333,8 +333,12 @@ img.thumbnail.is-failed {
 
 /* ---------- previews ---------- */
 
-.media {
+/* Holding a card on a phone shouldn't lift it out to drag, or open the link menu. */
+.media,
+.media a,
+.media img {
   -webkit-touch-callout: none;
+  -webkit-user-drag: none;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -358,9 +362,4 @@ img.thumbnail.is-failed {
 
 .media.is-previewing:has(.preview-video.is-playing) .play-button {
   opacity: 0;
-}
-
-/* Letting go after press-and-hold shouldn't also open the scene. */
-.media.swallow-tap a {
-  pointer-events: none;
 }

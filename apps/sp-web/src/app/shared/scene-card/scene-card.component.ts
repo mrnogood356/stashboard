@@ -123,7 +123,7 @@ export class SceneCardComponent implements OnInit {
   }
 
   /**
-   * Library scenes get Stash's preview clip on hover / press-and-hold, unless
+   * Library scenes get Stash's preview clip on hover (in view on touch), unless
    * Settings → Playback has card previews off.
    */
   protected previewUrl(): string | null {

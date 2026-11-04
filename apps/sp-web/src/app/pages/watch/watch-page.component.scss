@@ -612,13 +612,34 @@
 .chapters-menu {
   max-height: min(50vh, 22rem);
   overflow-y: auto;
-  min-width: 15rem;
+  min-width: 17rem;
 }
 
 .chapters-menu button {
   display: flex;
   gap: 0.6rem;
-  align-items: baseline;
+  align-items: center;
+}
+
+/* Each chapter's picture, playing Stash's marker clip as on its Markers page. */
+.chapters-menu .chapter-thumb {
+  flex: 0 0 auto;
+  width: 4.5rem;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 8%);
+}
+
+.chapters-menu .chapter-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.chapters-menu .chapter-thumb img.is-failed {
+  visibility: hidden;
 }
 
 .chapters-menu .chapter-time {
