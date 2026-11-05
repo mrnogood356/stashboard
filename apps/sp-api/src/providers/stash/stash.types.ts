@@ -74,6 +74,8 @@ export interface StashLocalLibrarySceneItem {
    */
   hasFile: boolean;
   linkedCatalogRefs: string[];
+  /** Its files' fingerprints, as "OSHASH|…", "MD5|…" and "PHASH|…". */
+  fingerprints: string[];
   title: string;
   description: string | null;
   imageUrl: string | null;
@@ -349,6 +351,7 @@ export interface StashLocalSceneRecord {
     width?: unknown;
     height?: unknown;
     duration?: unknown;
+    fingerprints?: Array<{ type?: unknown; value?: unknown }> | null;
   }>;
 }
 

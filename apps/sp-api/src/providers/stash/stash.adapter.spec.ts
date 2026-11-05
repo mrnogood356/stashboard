@@ -668,7 +668,16 @@ describe('StashAdapter', () => {
                       favorite: true,
                     },
                   ],
-                  files: [{ duration: 1800 }],
+                  files: [
+                    {
+                      duration: 1800,
+                      fingerprints: [
+                        { type: 'oshash', value: 'ABC123' },
+                        { type: 'phash', value: 'ff00' },
+                        { type: 'duration', value: '1800' },
+                      ],
+                    },
+                  ],
                   paths: {
                     screenshot: 'http://stash.local/images/411.jpg',
                   },
@@ -700,6 +709,7 @@ describe('StashAdapter', () => {
         {
           id: '411',
           activeCatalogSceneId: 'stash-411',
+          fingerprints: ['OSHASH|abc123', 'PHASH|ff00'],
           hasFile: true,
           linkedCatalogRefs: ['STASHDB|stash-411', 'FANSDB|fans-411'],
           title: 'Fresh Library Scene',

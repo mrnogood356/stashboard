@@ -899,6 +899,7 @@ export abstract class IndexingSync extends IndexingCore {
             stashSceneId: item.id,
             linkedStashId: item.activeCatalogSceneId,
             linkedCatalogRefs: item.linkedCatalogRefs,
+            fingerprints: item.fingerprints,
             title: item.title,
             description: item.description,
             imageUrl: item.imageUrl,
@@ -922,6 +923,7 @@ export abstract class IndexingSync extends IndexingCore {
           update: {
             linkedStashId: item.activeCatalogSceneId,
             linkedCatalogRefs: item.linkedCatalogRefs,
+            fingerprints: item.fingerprints,
             title: item.title,
             description: item.description,
             imageUrl: item.imageUrl,

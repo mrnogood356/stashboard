@@ -141,6 +141,8 @@ model LibrarySceneIndex {
   linkedStashId        String?
   /// Provider-qualified external refs preserved from local Stash stash_ids.
   linkedCatalogRefs    String[]  @default([])
+  /// File fingerprints ("OSHASH|…", "MD5|…", "PHASH|…"), to spot a catalog scene you have.
+  fingerprints         String[]  @default([])
   title                String
   description          String?
   imageUrl             String?

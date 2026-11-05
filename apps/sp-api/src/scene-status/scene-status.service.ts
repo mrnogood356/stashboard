@@ -13,6 +13,7 @@ import {
 } from '../providers/catalog/catalog-provider.util';
 import { CatalogProviderService } from '../providers/catalog/catalog-provider.service';
 import { StashAdapter } from '../providers/stash/stash.adapter';
+import { StashdbAdapter } from '../providers/stashdb/stashdb.adapter';
 import {
   WhisparrAdapter,
   WhisparrMovieLookupResult,
@@ -22,6 +23,10 @@ import {
   resolveSceneStatus,
   WhisparrQueueSnapshotItem,
 } from './scene-status.resolver';
+
+/** How long a catalog scene's fingerprints are kept. */
+const CATALOG_PRINTS_TTL_MS = 6 * 60 * 60_000;
+const CATALOG_PRINTS_MAX = 5_000;
 
 @Injectable()
 export class SceneStatusService {
@@ -50,7 +55,14 @@ export class SceneStatusService {
     private readonly catalogProviderService: CatalogProviderService,
     private readonly stashAdapter: StashAdapter,
     private readonly whisparrAdapter: WhisparrAdapter,
+    private readonly stashdbAdapter?: StashdbAdapter,
   ) {}
+
+  /** Catalog scenes' fingerprints, kept a while: a scene's files rarely change. */
+  private readonly catalogPrints = new Map<
+    string,
+    { keys: string[]; at: number }
+  >();
 
   async resolveForScene(stashId: string): Promise<SceneStatusDto> {
     const normalized = stashId.trim();
@@ -183,6 +195,79 @@ export class SceneStatusService {
     return statuses;
   }
 
+  /**
+   * The library scene with the same file as each of these scenes on the
+   * catalog this request browses: a matching oshash, md5 or phash.
+   */
+  private async byFingerprint(ids: string[]): Promise<Map<string, string>> {
+    const found = new Map<string, string>();
+    if (!this.stashdbAdapter || ids.length === 0) {
+      return found;
+    }
+    const prints = await this.catalogFingerprints(ids);
+    const owner = new Map<string, string>();
+    for (const [id, keys] of prints) {
+      for (const key of keys) {
+        owner.set(key, id);
+      }
+    }
+    if (owner.size === 0) {
+      return found;
+    }
+    const rows = await this.prisma.librarySceneIndex.findMany({
+      where: { fingerprints: { hasSome: [...owner.keys()] } },
+      select: { stashSceneId: true, fingerprints: true },
+      orderBy: { stashSceneId: 'asc' },
+    });
+    for (const row of rows) {
+      for (const key of row.fingerprints) {
+        const id = owner.get(key);
+        if (id && !found.has(id)) {
+          found.set(id, row.stashSceneId);
+        }
+      }
+    }
+    return found;
+  }
+
+  private async catalogFingerprints(
+    ids: string[],
+  ): Promise<Map<string, string[]>> {
+    const now = Date.now();
+    const result = new Map<string, string[]>();
+    const missing: string[] = [];
+    for (const id of ids) {
+      const cached = this.catalogPrints.get(id);
+      if (cached && now - cached.at < CATALOG_PRINTS_TTL_MS) {
+        result.set(id, cached.keys);
+      } else {
+        missing.push(id);
+      }
+    }
+    if (missing.length > 0 && this.stashdbAdapter) {
+      const config =
+        await this.catalogProviderService.getConfiguredCatalogProvider();
+      const fetched = await this.stashdbAdapter.getFingerprintKeysByIds(
+        config,
+        missing,
+      );
+      for (const id of missing) {
+        const keys = fetched.get(id) ?? [];
+        result.set(id, keys);
+        this.catalogPrints.set(id, { keys, at: now });
+      }
+      // Keep the cache bounded: drop the oldest entries.
+      while (this.catalogPrints.size > CATALOG_PRINTS_MAX) {
+        const oldest = this.catalogPrints.keys().next().value;
+        if (oldest === undefined) {
+          break;
+        }
+        this.catalogPrints.delete(oldest);
+      }
+    }
+    return result;
+  }
+
   /** The library scene Stash links to each of these secondary-catalog scenes. Never throws. */
   private async secondaryLocalSceneIds(
     ids: string[],
@@ -213,6 +298,11 @@ export class SceneStatusService {
             found.set(id, row.stashSceneId);
           }
         }
+      }
+      // Not linked there in Stash: the same file (by fingerprint) counts too.
+      const rest = ids.filter((id) => !found.has(id));
+      for (const [id, localId] of await this.byFingerprint(rest)) {
+        found.set(id, localId);
       }
     } catch (error) {
       this.logger.warn(
