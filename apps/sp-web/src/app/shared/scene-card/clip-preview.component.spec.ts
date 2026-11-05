@@ -1,6 +1,7 @@
 import { inViewPreviews } from './in-view-previews';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { ImageObscurationService } from '../../core/preferences/image-obscuration.service';
 import { ClipPreviewComponent, resetFailedClips } from './clip-preview.component';
 
 @Component({
@@ -25,6 +26,7 @@ describe('ClipPreviewComponent', () => {
   });
 
   afterEach(() => {
+    TestBed.inject(ImageObscurationService).setMode('clear');
     vi.unstubAllGlobals();
     vi.useRealTimers();
     TestBed.resetTestingModule();
@@ -51,6 +53,25 @@ describe('ClipPreviewComponent', () => {
     expect(video()?.getAttribute('src')).toBe('/api/playback/scenes/1/markers/2/preview');
 
     host.dispatchEvent(pointer('pointerleave', 'mouse'));
+    fixture.detectChanges();
+    expect(video()).toBeNull();
+  });
+
+  it('never plays while images are obscured, and stops when they become obscured', () => {
+    const { fixture, host, video } = render();
+    const obscuration = TestBed.inject(ImageObscurationService);
+
+    host.dispatchEvent(pointer('pointerenter', 'mouse'));
+    vi.advanceTimersByTime(350);
+    fixture.detectChanges();
+    expect(video()).toBeTruthy();
+
+    obscuration.setMode('obscured');
+    fixture.detectChanges();
+    expect(video()).toBeNull();
+
+    host.dispatchEvent(pointer('pointerenter', 'mouse'));
+    vi.advanceTimersByTime(350);
     fixture.detectChanges();
     expect(video()).toBeNull();
   });

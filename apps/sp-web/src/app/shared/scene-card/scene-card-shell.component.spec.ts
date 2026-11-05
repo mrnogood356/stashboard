@@ -2,6 +2,7 @@ import { inViewPreviews } from './in-view-previews';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { ImageObscurationService } from '../../core/preferences/image-obscuration.service';
 import {
   SceneCardBodyDirective,
   SceneCardMediaFooterDirective,
@@ -94,6 +95,7 @@ describe('SceneCardShellComponent previews', () => {
   });
 
   afterEach(() => {
+    TestBed.inject(ImageObscurationService).setMode('clear');
     vi.useRealTimers();
     vi.restoreAllMocks();
     TestBed.resetTestingModule();
@@ -139,6 +141,26 @@ describe('SceneCardShellComponent previews', () => {
     video()?.dispatchEvent(new Event('playing'));
     fixture.detectChanges();
     expect(video()?.classList.contains('is-playing')).toBe(true);
+  });
+
+  it('plays no preview while images are obscured, and stops one when they become obscured', async () => {
+    const { fixture, video, hover } = await render();
+    const obscuration = TestBed.inject(ImageObscurationService);
+
+    hover();
+    expect(video()).toBeTruthy();
+
+    obscuration.setMode('obscured');
+    fixture.detectChanges();
+    expect(video()).toBeNull();
+
+    hover();
+    expect(video()).toBeNull();
+
+    obscuration.setMode('clear');
+    fixture.detectChanges();
+    hover();
+    expect(video()).toBeTruthy();
   });
 
   it('stops when the pointer leaves', async () => {

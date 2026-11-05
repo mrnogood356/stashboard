@@ -7,9 +7,12 @@ import {
   Input,
   OnDestroy,
   ViewChild,
+  effect,
+  inject,
   signal,
 } from '@angular/core';
 import { Params, RouterLink } from '@angular/router';
+import { ImageObscurationService } from '../../core/preferences/image-obscuration.service';
 import { InViewPreviewCard, inViewPreviews } from './in-view-previews';
 
 export interface SceneCardShellItem {
@@ -99,6 +102,14 @@ export class SceneCardShellComponent implements AfterViewInit, OnDestroy {
   /** True once the clip is actually playing; until then the picture stays in front. */
   protected readonly previewPlaying = signal(false);
   private previewTimer: ReturnType<typeof setTimeout> | null = null;
+  /** No preview clips while images are obscured. */
+  private readonly obscured = inject(ImageObscurationService).isObscured;
+  private readonly stopWhenObscured = effect(() => {
+    if (this.obscured()) {
+      this.stopPreview();
+    }
+    inViewPreviews.refresh();
+  });
 
   /**
    * Starts the clip in code. Angular adds `muted` as an attribute after the
@@ -190,7 +201,11 @@ export class SceneCardShellComponent implements AfterViewInit, OnDestroy {
   }
 
   private canPreview(): boolean {
-    return Boolean(this.previewUrl) && !unavailablePreviews.has(this.previewUrl as string);
+    return (
+      Boolean(this.previewUrl) &&
+      !unavailablePreviews.has(this.previewUrl as string) &&
+      !this.obscured()
+    );
   }
 
   /** Mouse or pen; on touch, the card in view plays instead. */
