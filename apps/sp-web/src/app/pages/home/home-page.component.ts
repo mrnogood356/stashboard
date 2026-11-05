@@ -3,11 +3,13 @@ import { GlassArtService } from '../../core/theme/glass-art.service';
 import {
   Component,
   ElementRef,
+  Injector,
   OnDestroy,
   OnInit,
   QueryList,
   ViewChild,
   ViewChildren,
+  afterNextRender,
   computed,
   inject,
   signal,
@@ -369,6 +371,7 @@ export class HomePageComponent implements OnInit, OnDestroy {
     }
     return this.homeArt?.url;
   });
+  private readonly injector = inject(Injector);
   private featuredTimer: ReturnType<typeof setInterval> | null = null;
   private featuredPaused = false;
 
@@ -1037,6 +1040,7 @@ export class HomePageComponent implements OnInit, OnDestroy {
       // The refresh failed, but last visit's scenes are still worth showing.
       return;
     }
+    this.keepAtStart(result.id);
     this.railItemsById.update((current) => ({ ...current, [result.id]: result.items }));
     if (result.error) {
       const error = result.error;
@@ -1478,6 +1482,33 @@ export class HomePageComponent implements OnInit, OnDestroy {
       deduped.add(value);
     }
     return [...deduped];
+  }
+
+  /**
+   * A row still at its start stays there when its fresh scenes replace last
+   * visit's. New ones come in at the front (Recently added), and scroll
+   * snapping would otherwise follow the card that was first, a few cards in.
+   */
+  private keepAtStart(railId: string): void {
+    const viewport = this.findRailViewport(railId);
+    if (!viewport || viewport.scrollLeft > 4) {
+      return;
+    }
+    // Snapping re-snaps at the next layout, after Angular's render: hold it
+    // off while the new cards go in, then turn it back on from the start.
+    viewport.style.scrollSnapType = 'none';
+    afterNextRender(
+      {
+        write: () => {
+          viewport.scrollTo({ left: 0, behavior: 'instant' });
+          requestAnimationFrame(() => {
+            viewport.style.scrollSnapType = '';
+            this.updateRailEdges(railId, viewport);
+          });
+        },
+      },
+      { injector: this.injector },
+    );
   }
 
   private findRailViewport(railId: string): HTMLDivElement | null {
