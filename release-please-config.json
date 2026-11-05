@@ -7,8 +7,7 @@
       "release-type": "simple",
       "changelog-path": "CHANGELOG.md",
       "version-file": "version.txt",
-      "versioning": "always-bump-patch",
-      "release-as": "1.5.0"
+      "versioning": "always-bump-patch"
     }
   }
 }
