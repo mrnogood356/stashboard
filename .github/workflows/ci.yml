@@ -10,6 +10,24 @@ permissions:
   contents: read
 
 jobs:
+  commit-messages:
+    name: Commit Messages
+    # Release notes and "What's new" are built from commit messages: only
+    # ones starting with a type (feat:, fix:…) reach them.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check each commit starts with a type
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: bash scripts/check-commit-messages.sh "$BASE" "$HEAD"
+
   test-and-build:
     name: Test And Build
     runs-on: ubuntu-latest
