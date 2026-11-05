@@ -41,4 +41,11 @@ describe('AppUpdatesService', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     script.remove();
   });
+
+  it('says why there’s no Install on a plain http:// address', () => {
+    vi.stubGlobal('isSecureContext', false);
+    const service = TestBed.inject(AppUpdatesService);
+    service.start();
+    expect(service.installState()).toBe('insecure');
+  });
 });

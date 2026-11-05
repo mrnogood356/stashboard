@@ -91,10 +91,22 @@
           <strong>Add to Home Screen</strong>.
         </p>
       }
+      @case ('insecure') {
+        <p data-testid="install-insecure">
+          Chrome and Edge only install apps from a secure address (<code>https://</code>, or
+          <code>localhost</code>), so there’s no Install here on <code>{{ origin }}</code
+          >. Everything else works the same in the browser.
+        </p>
+        <p class="muted small">
+          To install it, open Stashboard over HTTPS, through a reverse proxy (Nginx Proxy Manager,
+          SWAG, Caddy) or Tailscale Serve.
+        </p>
+      }
       @default {
         <p>
           Install it from your browser: in Chrome or Edge, use the install button in the address
-          bar; in Safari on a Mac, choose File → Add to Dock.
+          bar, or the menu’s Cast, save and share → Install page as app; in Safari on a Mac, choose
+          File → Add to Dock.
         </p>
       }
     }
