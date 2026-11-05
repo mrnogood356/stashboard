@@ -1,7 +1,8 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import {
   createServer,
+  get,
   type IncomingMessage,
   type Server,
   type ServerResponse,
@@ -28,6 +29,16 @@ function startFakeStash(): Promise<{
     const url = new URL(req.url ?? '/', 'http://stash');
     if (req.headers.apikey !== 'stash-key') {
       res.writeHead(401).end();
+      return;
+    }
+
+    if (url.pathname === '/scene/12/stream.webm') {
+      // A transcode that takes a while to start.
+      setTimeout(() => {
+        if (!res.destroyed) {
+          res.writeHead(200, { 'Content-Type': 'video/webm' }).end('webm');
+        }
+      }, 1500);
       return;
     }
 
@@ -150,6 +161,29 @@ describe('PlaybackController stream proxy', () => {
     expect(part.status).toBe(206);
     expect(part.headers['content-range']).toBe('bytes 10-14/20');
     expect(Buffer.from(part.body as Buffer).toString()).toBe('abcde');
+  });
+
+  it('doesn’t log a player that moved on before Stash started as a failure', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn');
+    const { token } = tokens.issue('12', 'abcdef0123456789');
+    await app.listen(0, '127.0.0.1');
+    const { port } = app.getHttpServer().address() as AddressInfo;
+    await new Promise<void>((resolve) => {
+      const call = get(
+        `http://127.0.0.1:${port}/api/playback/stream/${token}/scene/12/stream.webm`,
+      );
+      call.on('error', () => resolve());
+      // The player seeks, or closes, while Stash is still starting the transcode.
+      setTimeout(() => {
+        call.destroy();
+        resolve();
+      }, 200);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(warn).not.toHaveBeenCalledWith(
+      expect.stringContaining('Stash stream failed to start'),
+    );
+    warn.mockRestore();
   });
 
   it('lets the browser keep streamed media, but never an error', async () => {

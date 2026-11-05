@@ -172,11 +172,17 @@ export class PlaybackController {
   ): Promise<void> {
     const config = await this.playbackService.getStashConfig();
     const controller = new AbortController();
-    const startTimer = setTimeout(
-      () => controller.abort(),
-      STREAM_START_TIMEOUT_MS,
-    );
-    response.on('close', () => controller.abort());
+    let timedOut = false;
+    let clientGone = false;
+    const startTimer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, STREAM_START_TIMEOUT_MS);
+    response.on('close', () => {
+      // The player moved on (seeked, changed quality, closed): not an error.
+      clientGone = !response.writableEnded;
+      controller.abort();
+    });
 
     let upstream: globalThis.Response;
     try {
@@ -195,11 +201,13 @@ export class PlaybackController {
       );
     } catch (error) {
       clearTimeout(startTimer);
-      if (controller.signal.aborted && response.writableEnded) {
+      if (clientGone || response.writableEnded || response.destroyed) {
         return;
       }
       this.logger.warn(
-        `Stash stream failed to start: ${(error as Error).message}`,
+        timedOut
+          ? `Stash took longer than ${STREAM_START_TIMEOUT_MS / 1000} s to start a stream (${rest.split('?')[0]}). Converting a video on the CPU can be that slow; About & health says how Stash transcodes.`
+          : `Stash stream failed to start: ${(error as Error).message}`,
       );
       response
         .status(502)
