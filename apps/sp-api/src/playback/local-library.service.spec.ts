@@ -7,6 +7,7 @@ import {
   isSamplePath,
   LocalLibraryService,
   pickKeeper,
+  pickKeeperWithReason,
   toCard,
 } from './local-library.service';
 import type { OrganizerService } from '../organizer/organizer.service';
@@ -331,6 +332,50 @@ describe('LocalLibraryService', () => {
         scene('c', 1920, 1080, 4),
       ]),
     ).toBe('c');
+  });
+
+  it('keeps an HEVC copy over a bigger H.264 one, and says why', () => {
+    const copy = (
+      id: string,
+      videoCodec: string,
+      bitRate: number,
+      playCount = 0,
+    ) => ({
+      id,
+      title: id,
+      date: null,
+      screenshotVersion: null,
+      studio: null,
+      playCount,
+      organized: false,
+      file: {
+        path: null,
+        basename: null,
+        size: 1,
+        width: 1920,
+        height: 1080,
+        duration: 1800,
+        videoCodec,
+        bitRate,
+        frameRate: null,
+      },
+    });
+    expect(
+      pickKeeperWithReason([
+        copy('h264', 'h264', 8e6),
+        copy('hevc', 'hevc', 6e6),
+      ]),
+    ).toEqual({
+      id: 'hevc',
+      reason: 'Same resolution, and HEVC keeps more picture than H264.',
+    });
+    // Within 5% counts as the same; then the one you've played wins.
+    expect(
+      pickKeeperWithReason([
+        copy('a', 'h264', 8e6),
+        copy('b', 'h264', 8.2e6, 3),
+      ]),
+    ).toEqual({ id: 'b', reason: 'Same quality, and the one you’ve played.' });
   });
 
   it('counts the fix-my-library lists, treating a failing list as zero', async () => {

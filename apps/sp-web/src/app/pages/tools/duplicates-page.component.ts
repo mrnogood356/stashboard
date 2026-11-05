@@ -1,4 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { Router, RouterLink } from '@angular/router';
 import {
   DuplicateGroup,
@@ -35,8 +36,10 @@ export class DuplicatesPageComponent implements OnInit {
   protected readonly groups = signal<DuplicateGroup[]>([]);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
-  /** The scene the delete sheet is open for. */
-  protected readonly pending = signal<DuplicateScene | null>(null);
+  /** The copies the delete sheet is open for: one, a set's extras, or every set's. */
+  protected readonly pending = signal<DuplicateScene[] | null>(null);
+  /** While several are removed: how many are done. */
+  protected readonly progress = signal<{ done: number; total: number } | null>(null);
   protected readonly deleting = signal(false);
   private loadRequest = 0;
 
@@ -79,51 +82,87 @@ export class DuplicatesPageComponent implements OnInit {
   }
 
   protected askDelete(scene: DuplicateScene): void {
-    this.pending.set(scene);
+    this.pending.set([scene]);
   }
+
+  /** Every copy in this set but the best one. */
+  protected askDeleteExtras(group: DuplicateGroup): void {
+    this.pending.set(extras(group));
+  }
+
+  /** Every copy but the best one, in every set. */
+  protected askDeleteAllExtras(): void {
+    this.pending.set(this.groups().flatMap(extras));
+  }
+
+  protected readonly extraCount = () => this.groups().flatMap(extras).length;
 
   protected cancelDelete(): void {
-    this.pending.set(null);
+    if (!this.deleting()) {
+      this.pending.set(null);
+    }
   }
 
-  protected confirmDelete(deleteFile: boolean): void {
-    const scene = this.pending();
-    if (!scene || this.deleting()) {
+  protected pendingBytes(): number {
+    return (this.pending() ?? []).reduce((sum, scene) => sum + (scene.file?.size ?? 0), 0);
+  }
+
+  /** One at a time, so Stash isn't swamped and a failure stops the rest. */
+  protected async confirmDelete(deleteFile: boolean): Promise<void> {
+    const scenes = this.pending();
+    if (!scenes?.length || this.deleting()) {
       return;
     }
     // A list asked for before or during the delete may still show what's gone.
     const loadAtStart = this.loading() ? -1 : this.loadRequest;
     this.deleting.set(true);
-    this.library.deleteScene(scene.id, deleteFile).subscribe({
-      next: () => {
-        this.deleting.set(false);
-        this.pending.set(null);
-        this.groups.update((groups) =>
-          groups
-            .map((group) => ({
-              ...group,
-              scenes: group.scenes.filter((entry) => entry.id !== scene.id),
-            }))
-            .filter((group) => group.scenes.length > 1),
-        );
-        if (this.loadRequest !== loadAtStart) {
-          this.load();
-        }
-        this.notifications.success(
-          deleteFile ? 'Deleted' : 'Removed from Stash',
-          deleteFile
-            ? `${scene.file?.basename ?? scene.title} was deleted.`
-            : 'The file was left on disk.',
-        );
-      },
-      error: () => {
-        this.deleting.set(false);
-        this.notifications.error(
-          "Couldn't delete that scene",
-          'Check that Stash is running and try again.',
-        );
-      },
-    });
+    this.progress.set(scenes.length > 1 ? { done: 0, total: scenes.length } : null);
+    const removed = new Set<string>();
+    let failed: DuplicateScene | null = null;
+    for (const scene of scenes) {
+      try {
+        await firstValueFrom(this.library.deleteScene(scene.id, deleteFile));
+        removed.add(scene.id);
+        this.progress.update((value) => (value ? { ...value, done: value.done + 1 } : value));
+      } catch {
+        failed = scene;
+        break;
+      }
+    }
+    this.deleting.set(false);
+    this.progress.set(null);
+    // After a failure the sheet stays open with what's left, to try again.
+    this.pending.set(failed ? scenes.filter((scene) => !removed.has(scene.id)) : null);
+    this.groups.update((groups) =>
+      groups
+        .map((group) => ({
+          ...group,
+          scenes: group.scenes.filter((entry) => !removed.has(entry.id)),
+        }))
+        .filter((group) => group.scenes.length > 1),
+    );
+    if (this.loadRequest !== loadAtStart) {
+      this.load();
+    }
+    if (removed.size > 0) {
+      const one = scenes.length === 1 ? scenes[0] : null;
+      this.notifications.success(
+        deleteFile ? 'Deleted' : 'Removed from Stash',
+        one
+          ? deleteFile
+            ? `${one.file?.basename ?? one.title} was deleted.`
+            : 'The file was left on disk.'
+          : `${removed.size} ${removed.size === 1 ? 'copy' : 'copies'} ${deleteFile ? 'deleted' : 'removed, files left on disk'}.`,
+      );
+    }
+    if (failed) {
+      this.notifications.error(
+        "Couldn't delete that scene",
+        removed.size > 0
+          ? `Stopped at ${failed.file?.basename ?? failed.title}. Check that Stash is running and try again.`
+          : 'Check that Stash is running and try again.',
+      );
+    }
   }
 
   protected resolution(scene: DuplicateScene): string {
@@ -168,4 +207,8 @@ export class DuplicatesPageComponent implements OnInit {
     const minutes = Math.floor(total / 60);
     return `${minutes}:${(total % 60).toString().padStart(2, '0')}`;
   }
+}
+
+function extras(group: DuplicateGroup): DuplicateScene[] {
+  return group.scenes.filter((scene) => scene.id !== group.suggestedKeepId);
 }

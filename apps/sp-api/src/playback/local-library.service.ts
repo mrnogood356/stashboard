@@ -86,8 +86,10 @@ export interface SampleSceneDto extends DuplicateSceneDto {
 
 export interface DuplicateGroupDto {
   scenes: DuplicateSceneDto[];
-  /** The copy to keep: highest resolution, then bit rate, then file size. */
+  /** The copy to keep: highest resolution, then picture for the codec, then length. */
   suggestedKeepId: string;
+  /** Why that one, in plain words. */
+  keepReason: string;
 }
 
 export interface FixCountsDto {
@@ -561,7 +563,9 @@ export class LocalLibraryService {
             )
           : null,
       })),
-      suggestedKeepId: pickKeeper(group),
+      ...(({ id, reason }) => ({ suggestedKeepId: id, keepReason: reason }))(
+        pickKeeperWithReason(group),
+      ),
     }));
   }
 
@@ -801,24 +805,89 @@ export function toCard(scene: StashLocalSceneCard): LocalSceneCardDto {
   };
 }
 
-/** Highest resolution wins, then bit rate, then file size, then most played. */
-export function pickKeeper(group: StashDuplicateScene[]): string {
+/**
+ * How much picture a codec gets from each bit: HEVC needs about 60% of
+ * H.264's bit rate for the same picture, AV1 about half.
+ */
+const CODEC_EFFICIENCY: Record<string, number> = {
+  av1: 2,
+  hevc: 1.6,
+  h265: 1.6,
+  vp9: 1.5,
+  h264: 1,
+  avc: 1,
+};
+
+function pixels(scene: StashDuplicateScene): number {
+  return (scene.file?.width ?? 0) * (scene.file?.height ?? 0);
+}
+
+/** Bit rate as if it were H.264, so an HEVC copy isn't beaten by a bigger H.264 one. */
+function effectiveBitRate(scene: StashDuplicateScene): number {
+  const codec = (scene.file?.videoCodec ?? '').toLowerCase();
+  const factor = CODEC_EFFICIENCY[codec] ?? 0.8;
+  return (scene.file?.bitRate ?? 0) * factor;
+}
+
+/**
+ * The copy to keep: highest resolution, then the most picture for its codec
+ * (bit rate weighed by how efficient the codec is), then the longest, then
+ * the most played. With why, in plain words.
+ */
+export function pickKeeperWithReason(group: StashDuplicateScene[]): {
+  id: string;
+  reason: string;
+} {
   const score = (scene: StashDuplicateScene) => [
-    (scene.file?.width ?? 0) * (scene.file?.height ?? 0),
-    scene.file?.bitRate ?? 0,
-    scene.file?.size ?? 0,
+    pixels(scene),
+    effectiveBitRate(scene),
+    scene.file?.duration ?? 0,
     scene.playCount,
   ];
-  return [...group].sort((left, right) => {
+  const ranked = [...group].sort((left, right) => {
     const a = score(left);
     const b = score(right);
     for (let index = 0; index < a.length; index += 1) {
-      if (a[index] !== b[index]) {
+      if (Math.abs(a[index] - b[index]) > (index === 1 ? a[index] * 0.05 : 0)) {
         return b[index] - a[index];
       }
     }
     return 0;
-  })[0].id;
+  });
+  const [best, next] = ranked;
+  return {
+    id: best.id,
+    reason: next ? keepReason(best, next) : 'The only copy.',
+  };
+}
+
+/** Highest resolution wins, then picture for the codec, then length, then most played. */
+export function pickKeeper(group: StashDuplicateScene[]): string {
+  return pickKeeperWithReason(group).id;
+}
+
+function keepReason(
+  best: StashDuplicateScene,
+  next: StashDuplicateScene,
+): string {
+  if (pixels(best) > pixels(next)) {
+    return 'Highest resolution.';
+  }
+  const bestCodec = (best.file?.videoCodec ?? '').toLowerCase();
+  const nextCodec = (next.file?.videoCodec ?? '').toLowerCase();
+  if (effectiveBitRate(best) > effectiveBitRate(next) * 1.05) {
+    return (CODEC_EFFICIENCY[bestCodec] ?? 0) >
+      (CODEC_EFFICIENCY[nextCodec] ?? 0)
+      ? `Same resolution, and ${bestCodec.toUpperCase()} keeps more picture than ${nextCodec.toUpperCase() || 'the other'}.`
+      : 'Same resolution, more picture (higher bit rate).';
+  }
+  if ((best.file?.duration ?? 0) > (next.file?.duration ?? 0)) {
+    return 'Same quality, and the longest.';
+  }
+  if (best.playCount > next.playCount) {
+    return 'Same quality, and the one you’ve played.';
+  }
+  return 'All copies look the same; this one is first.';
 }
 
 /** Each library task as the activity log names it. */

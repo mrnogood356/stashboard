@@ -153,6 +153,8 @@ export interface DuplicateScene {
 export interface DuplicateGroup {
   scenes: DuplicateScene[];
   suggestedKeepId: string;
+  /** Why that one, in plain words. */
+  keepReason?: string;
 }
 
 /** Organizing and browsing your own Stash library (saved straight to Stash). */
