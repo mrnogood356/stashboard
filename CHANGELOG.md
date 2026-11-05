@@ -1,5 +1,49 @@
 # Changelog
 
+## [1.5.0](https://github.com/mrnogood356/stashboard/compare/v1.4.0...v1.5.0) (2026-11-05)
+
+
+### Features
+
+* 1.5 — You may enjoy, Library stats, FansDB ownership, stall watchdog, release checks, and fixes ([2c0736a](https://github.com/mrnogood356/stashboard/commit/2c0736a594977b689b1ff16d8a21358c0fc1a4bb))
+* **about:** say whether Stash transcodes video with the GPU or the CPU ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+* **downloads:** clear finished and failed downloads, or the whole history ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+* **downloads:** show the scene's picture instead of a large download icon ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+* **downloads:** Waiting in Whisparr lists downloads that need a manual import, with Import and Remove ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+* **fansdb:** scenes you have show as yours by their file too ([4ef1cf4](https://github.com/mrnogood356/stashboard/commit/4ef1cf445a51f52af82b9635c2094b0ae1e5e9a8))
+* **home:** Customize Home as rows, with a look per row and ready-made rows ([03fa183](https://github.com/mrnogood356/stashboard/commit/03fa183909197e8eb828aece4a93fa6fcee71ab0))
+* **logs:** say when the server stops answering, and what it was doing ([146c0bc](https://github.com/mrnogood356/stashboard/commit/146c0bc3e561de5f3f966f779c89977e3a93f96b))
+* **organizer:** Overview, Review and Settings tabs instead of stacked cards, with "Stuck in Whisparr's import" on the Overview ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+* **organizer:** say why renaming after import or cleaning up empty folders did nothing ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+* **organizer:** send scenes Whisparr added that you already have, once a day after the nightly match ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+* **player:** chapters play each marker's preview clip, and the chapter list shows each marker's picture ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+* **previews:** on phones, the scene card in the middle of the screen plays its preview, as in Stash ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+* **requests:** You may enjoy, on Requests and as a Home row ([cfff105](https://github.com/mrnogood356/stashboard/commit/cfff105b23269d474bfb5956727cd0faf16b03b5))
+* **scenes:** the studio under a library scene opens the studio's catalog page, with every scene and the ones you have marked ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+* **search:** finds catalog studios and performers the catalog's own search misses, like Blacked Raw for "blackedraw" ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+* **search:** one list of performers, studios and scenes from your library and the catalog, with filters and a top result, in Search and Ctrl+K ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+* **suggestions:** pick catalog scenes from what you watch most ([7c56914](https://github.com/mrnogood356/stashboard/commit/7c569147e5bfb6b496145a26d6ebbe35ab7c8adc))
+* **tools:** Library stats: what takes up the space, and what re-encoding could save ([126042b](https://github.com/mrnogood356/stashboard/commit/126042bd0fdc43494b48ea4bc2983ccb7065b2cf))
+* **web:** tidier phone layouts for tabs, performer and studio pages, Calendar, Settings, Requests and Downloads ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+
+
+### Bug Fixes
+
+* address review on suggestions, stats, watchdog, transcoding and the commit check ([6e89873](https://github.com/mrnogood356/stashboard/commit/6e89873b232fb1d9732d9ef25785d7a9c41d4dc0))
+* address the second review on stats, the watchdog and GPU steps ([20799f9](https://github.com/mrnogood356/stashboard/commit/20799f906c8b12dd2e437c9b42886a9fe4ab3091))
+* **ci:** keep every release image, so there's always one to roll back to ([8c4edaa](https://github.com/mrnogood356/stashboard/commit/8c4edaa66716b72a26be6bb1c466de1e4442d522))
+* **deps:** pin patched glob and minimatch ([21a457e](https://github.com/mrnogood356/stashboard/commit/21a457e09ba6f4c92f6644af7eb986500c3ac8ff))
+* **home:** rows open at their first scene ([3ddf13b](https://github.com/mrnogood356/stashboard/commit/3ddf13bacb719854e33fcca97a6875c907a7eba5))
+* **logs:** a player that moves on isn't a stream failure, and slow-by-nature requests aren't slow ([cc7e7e2](https://github.com/mrnogood356/stashboard/commit/cc7e7e2c13bb91caa6adfe58a502b4a4324ddd57))
+* **organizer:** matching sends the fingerprints of every file in a scene, not just the first ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+* **organizer:** Move to Unmatched and Rename no longer move the same files back and forth ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+* **organizer:** stricter name matching: a strong match needs the title or the date to agree, not just length, studio and performers ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+* **player:** a click on the picture shows the controls instead of pausing ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+* scenes you have show as yours when browsing FansDB ([9462b6e](https://github.com/mrnogood356/stashboard/commit/9462b6e0d036dcbd601aa65f659a05675639698a))
+* **web:** About says why there's no Install on an http:// address ([6858eae](https://github.com/mrnogood356/stashboard/commit/6858eae50a9d4bcda7e54aa5660896230f43ab90))
+* **web:** copy buttons work on http:// addresses ([1b184b2](https://github.com/mrnogood356/stashboard/commit/1b184b26e938a8094e9511fa873956948c0a6273))
+* **web:** dropdown menus open without a flash in the Glass style ([36b4f55](https://github.com/mrnogood356/stashboard/commit/36b4f5543c9312c69b32b4be961b529a9a2695cf))
+
 ## [1.4.0](https://github.com/mrnogood356/stashboard/compare/v1.3.0...v1.4.0) (2026-10-30)
 
 
