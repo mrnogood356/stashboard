@@ -1,5 +1,15 @@
-import { AfterViewInit, Component, ElementRef, computed, inject, signal } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  DestroyRef,
+  ElementRef,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AboutApiService, ReleaseNotes } from '../../core/api/about.service';
+import { WhatsNewService } from './whats-new.service';
 
 /** The last version this browser opened; "What's new" covers everything after it. */
 export const SEEN_VERSION_KEY = 'sp-seen-version';
@@ -7,8 +17,10 @@ const RELEASE = /^v?\d+\.\d+\.\d+$/;
 
 /**
  * After an update, a short note of what changed since this browser last
- * opened Stashboard, once. A first visit only remembers the version, and
- * edge or local builds (not releases) never show it.
+ * opened Stashboard, once. When the browser remembers no version (a first
+ * visit, or Safari clearing its storage), the server answers with the release
+ * it ran before, if it has one. Edge or local builds never show it on their
+ * own; About's "What's new" opens it at any time.
  */
 @Component({
   selector: 'app-whats-new',
@@ -19,8 +31,16 @@ export class WhatsNewComponent implements AfterViewInit {
   private readonly api = inject(AboutApiService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
+  constructor() {
+    inject(WhatsNewService)
+      .requests.pipe(takeUntilDestroyed(inject(DestroyRef)))
+      .subscribe(() => this.showLatest());
+  }
+
   protected readonly releases = signal<ReleaseNotes[]>([]);
   protected readonly current = signal<string | null>(null);
+  /** The version to remember on close: the running one after an update, none when reopened from About. */
+  private remember: string | null = null;
   protected readonly title = computed(() =>
     this.current() ? `What’s new in Stashboard ${this.current()}` : 'What’s new',
   );
@@ -33,15 +53,34 @@ export class WhatsNewComponent implements AfterViewInit {
         if (!RELEASE.test(current)) {
           return;
         }
-        if (!seen || releases.length === 0) {
+        if (releases.length === 0) {
           writeSeen(current);
           return;
         }
         this.current.set(current);
+        this.remember = current;
         this.releases.set(releases);
         this.open();
       },
       // Not worth bothering anyone about; it asks again next time.
+      error: () => undefined,
+    });
+  }
+
+  /** About's "What's new": the running release's notes, whenever asked. */
+  private showLatest(): void {
+    this.api.latestChanges().subscribe({
+      next: ({ releases }) => {
+        if (releases.length === 0) {
+          return;
+        }
+        // Titled by the notes shown, which can be an earlier release than the
+        // one running; reading them again changes nothing about what's seen.
+        this.current.set(releases[0].version);
+        this.remember = null;
+        this.releases.set(releases);
+        this.open();
+      },
       error: () => undefined,
     });
   }
@@ -63,9 +102,9 @@ export class WhatsNewComponent implements AfterViewInit {
   }
 
   protected close(): void {
-    const current = this.current();
-    if (current) {
-      writeSeen(current);
+    if (this.remember) {
+      writeSeen(this.remember);
+      this.remember = null;
     }
     const dialog = this.dialogElement();
     if (dialog?.open) {

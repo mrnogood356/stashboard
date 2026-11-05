@@ -1,5 +1,6 @@
 import { provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
+import { WhatsNewService } from '../../shared/whats-new/whats-new.service';
 import { NEVER, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -131,6 +132,19 @@ describe('SettingsAboutPageComponent', () => {
     expect(text).toContain('Sync failed: Whisparr down');
     expect(text).toContain('1 thing needs a look');
     expect(root.querySelector('[data-status="fail"]')?.textContent).toContain('Whisparr');
+  });
+
+  it('opens What’s new from the Version card', async () => {
+    const { root } = await render({
+      about: vi.fn().mockReturnValue(of(about)),
+      health: vi.fn().mockReturnValue(of(health)),
+      update: vi.fn().mockReturnValue(of(behind)),
+    });
+    const show = vi.spyOn(TestBed.inject(WhatsNewService), 'show');
+
+    (root.querySelector('[data-testid="show-whats-new"]') as HTMLButtonElement).click();
+
+    expect(show).toHaveBeenCalled();
   });
 
   it('mentions how Stash transcodes quietly, with how to use the GPU only behind a tap', async () => {

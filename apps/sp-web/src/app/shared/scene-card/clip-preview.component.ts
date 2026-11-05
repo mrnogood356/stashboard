@@ -5,9 +5,11 @@ import {
   ElementRef,
   Input,
   OnDestroy,
+  effect,
   inject,
   signal,
 } from '@angular/core';
+import { ImageObscurationService } from '../../core/preferences/image-obscuration.service';
 import { InViewPreviewCard, inViewPreviews } from './in-view-previews';
 
 /** Clips that wouldn't play, kept for the session so they aren't fetched again. */
@@ -21,7 +23,7 @@ export function resetFailedClips(): void {
 /**
  * A picture that plays a short silent clip over itself, as Stash's marker
  * cards do: on hover with a mouse, or on a touch screen while it's the one
- * nearest the middle of the screen.
+ * nearest the middle of the screen. Never while images are obscured.
  */
 @Component({
   selector: 'app-clip-preview',
@@ -86,6 +88,17 @@ export class ClipPreviewComponent implements AfterViewInit, OnDestroy {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private inView: InViewPreviewCard | null = null;
   private hoverTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly obscured = inject(ImageObscurationService).isObscured;
+
+  constructor() {
+    // Obscuring images stops a clip that's playing; clearing lets one start again.
+    effect(() => {
+      if (this.obscured()) {
+        this.stop();
+      }
+      inViewPreviews.refresh();
+    });
+  }
 
   ngAfterViewInit(): void {
     if (inViewPreviews.applies()) {
@@ -140,7 +153,7 @@ export class ClipPreviewComponent implements AfterViewInit, OnDestroy {
   }
 
   private canPlay(): boolean {
-    return Boolean(this.clip) && !failedClips.has(this.clip as string);
+    return Boolean(this.clip) && !failedClips.has(this.clip as string) && !this.obscured();
   }
 
   private isMouse(event: PointerEvent): boolean {

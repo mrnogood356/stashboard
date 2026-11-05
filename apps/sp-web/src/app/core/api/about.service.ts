@@ -106,4 +106,11 @@ export class AboutApiService {
       params: since ? { since } : {},
     });
   }
+
+  /** The running release's own notes, for "What's new" in About. */
+  latestChanges(): Observable<ReleaseNotesResponse> {
+    return this.http.get<ReleaseNotesResponse>('/api/about/changes', {
+      params: { latest: '1' },
+    });
+  }
 }

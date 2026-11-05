@@ -1,4 +1,13 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  Input,
+  OnInit,
+  booleanAttribute,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { SceneRequestContext } from '../../core/api/discover.types';
 import { Suggestion, SuggestionsApiService } from '../../core/api/suggestions.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
@@ -11,15 +20,19 @@ const FIRST = 8;
 /**
  * Catalog scenes you don't have, picked from what you watch most, each with
  * why. Request opens the usual request sheet; Not interested hides it for
- * good. Nothing is requested by itself.
+ * good. Nothing is requested by itself. A section at the end of Requests,
+ * or (with `full`) the whole list on its own page.
  */
 @Component({
   selector: 'app-you-may-enjoy',
-  imports: [SceneCardComponent, SceneRequestModalComponent],
+  imports: [RouterLink, SceneCardComponent, SceneRequestModalComponent],
   templateUrl: './you-may-enjoy.component.html',
   styleUrl: './you-may-enjoy.component.scss',
 })
 export class YouMayEnjoyComponent implements OnInit {
+  /** Its own page: every pick, as a grid on phones too, without the section's heading. */
+  @Input({ transform: booleanAttribute }) full = false;
+
   private readonly api = inject(SuggestionsApiService);
   private readonly notifications = inject(AppNotificationsService);
 
@@ -32,10 +45,12 @@ export class YouMayEnjoyComponent implements OnInit {
 
   /** On a desktop the rest wait behind Show more; a phone swipes through them all. */
   protected readonly first = FIRST;
-  protected readonly more = computed(() => Math.max(0, this.items().length - FIRST));
+  protected readonly more = computed(() =>
+    this.full ? 0 : Math.max(0, this.items().length - FIRST),
+  );
 
   ngOnInit(): void {
-    this.api.list(24).subscribe({
+    this.api.list(this.full ? 60 : 24).subscribe({
       next: (result) => {
         this.items.set(result.items);
         this.message.set(result.message);

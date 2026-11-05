@@ -41,6 +41,7 @@ describe('app routes', () => {
       'search',
       'scenes',
       'calendar',
+      'you-may-enjoy',
       'acquisition',
       'processing',
       'library/scene/:sceneId',

@@ -1,5 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { AboutService } from './about.service';
 import { ReleaseNotesService } from './release-notes.service';
 import { UpdateCheckService } from './update-check.service';
@@ -10,6 +10,11 @@ export class ReleaseNotesQueryDto {
   @IsString()
   @MaxLength(64)
   since?: string;
+
+  /** "1": the running release's own notes, for About. */
+  @IsOptional()
+  @IsIn(['1'])
+  latest?: string;
 }
 
 /**
@@ -42,6 +47,8 @@ export class AboutController {
 
   @Get('changes')
   changes(@Query() query: ReleaseNotesQueryDto) {
-    return this.releaseNotes.since(query.since);
+    return query.latest === '1'
+      ? this.releaseNotes.latest()
+      : this.releaseNotes.since(query.since);
   }
 }

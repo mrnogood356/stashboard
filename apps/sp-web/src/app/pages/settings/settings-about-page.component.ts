@@ -12,6 +12,7 @@ import {
 import { AppUpdatesService } from '../../core/pwa/app-updates.service';
 import { redactForSharing, reportUrl } from './support-report';
 import { copyText } from '../../core/clipboard/copy-text';
+import { WhatsNewService } from '../../shared/whats-new/whats-new.service';
 
 type RowStatus = 'ok' | 'warn' | 'fail' | 'skip';
 
@@ -58,6 +59,7 @@ const COPIED_MS = 2_000;
 export class SettingsAboutPageComponent implements OnInit, OnDestroy {
   private readonly api = inject(AboutApiService);
   protected readonly updates = inject(AppUpdatesService);
+  protected readonly whatsNew = inject(WhatsNewService);
   /** This page's address, for "no Install on http://…". */
   protected readonly origin = inject(DOCUMENT).location?.origin ?? '';
   private copiedTimer: ReturnType<typeof setTimeout> | null = null;
