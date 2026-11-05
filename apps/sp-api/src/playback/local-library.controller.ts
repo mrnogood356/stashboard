@@ -167,8 +167,8 @@ export class LocalLibraryController {
   }
 
   @Get('problems')
-  problems(): Promise<ProblemListDto[]> {
-    return this.library.problems();
+  problems(@Query('refresh') refresh?: string): Promise<ProblemListDto[]> {
+    return this.library.problems(refresh === '1' || refresh === 'true');
   }
 
   @Delete('jobs/:jobId')

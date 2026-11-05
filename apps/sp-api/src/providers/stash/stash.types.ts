@@ -459,10 +459,14 @@ export interface StashTagSummary {
 
 /** What Library tools → Broken files lists. */
 export type StashProblemKind =
-  'no-file' | 'no-length' | 'no-cover' | 'no-fingerprint';
+  'no-file' | 'no-length' | 'no-cover' | 'no-fingerprint' | 'no-marker-preview';
 
 export interface StashProblemScene {
   id: string;
   title: string;
   path: string | null;
+  /** How many files the scene has (deleting it from disk deletes all of them). */
+  fileCount?: number;
+  /** Markers without a preview clip, for that kind. */
+  markers?: number;
 }

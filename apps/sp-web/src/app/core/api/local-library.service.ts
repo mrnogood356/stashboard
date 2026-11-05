@@ -295,8 +295,11 @@ export class LocalLibraryService {
     return this.http.post<void>('/api/local/tags/merge', { destinationId, sourceIds });
   }
 
-  problems(): Observable<ProblemList[]> {
-    return this.http.get<ProblemList[]>('/api/local/problems');
+  /** `refresh`: check every marker's preview again instead of the last check. */
+  problems(refresh = false): Observable<ProblemList[]> {
+    return this.http.get<ProblemList[]>('/api/local/problems', {
+      params: refresh ? new HttpParams().set('refresh', '1') : new HttpParams(),
+    });
   }
 
   stopJob(jobId: string): Observable<void> {
@@ -371,11 +374,22 @@ export interface SimilarTagGroup {
   tags: TagSummary[];
 }
 
-export type ProblemKind = 'no-file' | 'no-length' | 'no-cover' | 'no-fingerprint';
+export type ProblemKind =
+  'no-file' | 'no-length' | 'no-cover' | 'no-fingerprint' | 'no-marker-preview';
 
 export interface ProblemList {
   kind: ProblemKind;
   /** Null when Stash couldn't say. */
   count: number | null;
-  scenes: Array<{ id: string; title: string; path: string | null }>;
+  scenes: ProblemScene[];
+}
+
+export interface ProblemScene {
+  id: string;
+  title: string;
+  path: string | null;
+  /** Deleting the scene from disk deletes all of its files. */
+  fileCount?: number;
+  /** Markers of this scene without a preview clip. */
+  markers?: number;
 }

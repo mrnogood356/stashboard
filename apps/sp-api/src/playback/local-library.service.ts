@@ -89,12 +89,12 @@ export interface SampleSceneDto extends DuplicateSceneDto {
   reason: 'name' | 'short';
 }
 
-export const PROBLEM_KINDS: StashProblemKind[] = [
-  'no-file',
-  'no-length',
-  'no-cover',
-  'no-fingerprint',
-];
+export const PROBLEM_KINDS: Array<
+  Exclude<StashProblemKind, 'no-marker-preview'>
+> = ['no-file', 'no-length', 'no-cover', 'no-fingerprint'];
+
+/** Checking every marker's preview takes a while: kept this long. */
+const MARKER_CHECK_TTL_MS = 30 * 60_000;
 
 export interface ProblemListDto {
   kind: StashProblemKind;
@@ -616,10 +616,10 @@ export class LocalLibraryService {
   // ---------- broken files ----------
 
   /** Each kind of problem: how many scenes, and the first 50. Null when Stash couldn't say. */
-  async problems(): Promise<ProblemListDto[]> {
+  async problems(refresh = false): Promise<ProblemListDto[]> {
     const config = await this.playback.getStashConfig();
-    return Promise.all(
-      PROBLEM_KINDS.map(async (kind) => {
+    const lists = await Promise.all(
+      PROBLEM_KINDS.map(async (kind): Promise<ProblemListDto> => {
         try {
           const found = await this.stash.findProblemScenes(config, kind);
           return { kind, count: found.count, scenes: found.scenes };
@@ -628,6 +628,41 @@ export class LocalLibraryService {
         }
       }),
     );
+    return [...lists, await this.markerPreviews(config, refresh)];
+  }
+
+  private markerCheck: {
+    at: number;
+    baseUrl: string;
+    value: ProblemListDto;
+  } | null = null;
+
+  /** Markers without a preview clip; asks Stash about each one, so it's kept a while. */
+  private async markerPreviews(
+    config: { baseUrl: string; apiKey?: string | null },
+    refresh: boolean,
+  ): Promise<ProblemListDto> {
+    const kept = this.markerCheck;
+    if (
+      !refresh &&
+      kept &&
+      kept.baseUrl === config.baseUrl &&
+      Date.now() - kept.at < MARKER_CHECK_TTL_MS
+    ) {
+      return kept.value;
+    }
+    try {
+      const found = await this.stash.findMarkersWithoutPreview(config);
+      const value: ProblemListDto = {
+        kind: 'no-marker-preview',
+        count: found.missing,
+        scenes: found.scenes.slice(0, 50),
+      };
+      this.markerCheck = { at: Date.now(), baseUrl: config.baseUrl, value };
+      return value;
+    } catch {
+      return { kind: 'no-marker-preview', count: null, scenes: [] };
+    }
   }
 
   async stopJob(jobId: string): Promise<void> {

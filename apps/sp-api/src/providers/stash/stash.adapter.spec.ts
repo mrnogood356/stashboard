@@ -31,6 +31,40 @@ describe('StashAdapter', () => {
     );
   });
 
+  it('finds markers without a preview clip by asking Stash about each one', async () => {
+    fetchMock.mockImplementation((url, init) => {
+      if (init?.method === 'HEAD') {
+        const missing = String(url).includes('scene_marker/2/');
+        return Promise.resolve({
+          ok: !missing,
+          status: missing ? 404 : 200,
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              findSceneMarkers: {
+                scene_markers: [
+                  { id: '1', scene: { id: '9', title: 'One', files: [] } },
+                  { id: '2', scene: { id: '9', title: 'One', files: [] } },
+                ],
+              },
+            },
+          }),
+      } as Response);
+    });
+
+    await expect(
+      adapter.findMarkersWithoutPreview({ baseUrl: 'http://stash.local' }),
+    ).resolves.toEqual({
+      missing: 1,
+      checked: 2,
+      scenes: [{ id: '9', title: 'One', path: null, markers: 1 }],
+    });
+  });
+
   it('returns empty list when there are no matching scenes', async () => {
     fetchMock.mockResolvedValue({
       ok: true,

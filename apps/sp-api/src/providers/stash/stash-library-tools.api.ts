@@ -254,6 +254,7 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
             sprites: true,
             previews: true,
             markers: true,
+            markerScreenshots: true,
             phashes: true,
             ...(ids?.length ? { sceneIDs: ids } : {}),
           },
@@ -1674,10 +1675,13 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
   /** Scenes with one kind of problem: how many, and the first few. */
   async findProblemScenes(
     config: StashAdapterBaseConfig,
-    kind: StashProblemKind,
+    kind: Exclude<StashProblemKind, 'no-marker-preview'>,
     perPage = 50,
   ): Promise<{ count: number; scenes: StashProblemScene[] }> {
-    const filters: Record<StashProblemKind, Record<string, unknown>> = {
+    const filters: Record<
+      Exclude<StashProblemKind, 'no-marker-preview'>,
+      Record<string, unknown>
+    > = {
       'no-file': { file_count: { value: 0, modifier: 'EQUALS' } },
       'no-length': {
         file_count: { value: 0, modifier: 'GREATER_THAN' },
@@ -1730,9 +1734,103 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
           typeof scene['title'] === 'string' && scene['title']
             ? scene['title']
             : null;
-        return [{ id, title: title ?? basename ?? `Scene ${id}`, path }];
+        return [
+          {
+            id,
+            title: title ?? basename ?? `Scene ${id}`,
+            path,
+            fileCount: files.length,
+          },
+        ];
       }),
     };
+  }
+
+  /**
+   * Markers whose preview clip Stash hasn't made: each is asked with a HEAD
+   * (nothing downloaded), 8 at a time, up to `maxMarkers`. Returns the scenes
+   * they belong to, most missing first, and how many markers were checked.
+   */
+  async findMarkersWithoutPreview(
+    config: StashAdapterBaseConfig,
+    maxMarkers = 3000,
+  ): Promise<{
+    missing: number;
+    checked: number;
+    scenes: StashProblemScene[];
+  }> {
+    const payload = (await this.executeQuery(
+      config,
+      `query MarkerList($filter: FindFilterType) {
+        findSceneMarkers(filter: $filter) {
+          scene_markers { id scene { id title files { path basename } } }
+        }
+      }`,
+      {
+        filter: { per_page: maxMarkers, sort: 'created_at', direction: 'DESC' },
+      },
+    )) as unknown as {
+      data?: {
+        findSceneMarkers?: { scene_markers?: Array<Record<string, unknown>> };
+      };
+    };
+    const markers = (
+      payload.data?.findSceneMarkers?.scene_markers ?? []
+    ).flatMap((marker) => {
+      const id = this.normalizeEntityId(idText(marker['id']));
+      const scene = marker['scene'] as
+        Record<string, unknown> | null | undefined;
+      const sceneId = this.normalizeEntityId(idText(scene?.['id']));
+      return id && sceneId && scene ? [{ id, sceneId, scene }] : [];
+    });
+    const bySceneMissing = new Map<
+      string,
+      { scene: Record<string, unknown>; count: number }
+    >();
+    let next = 0;
+    const worker = async () => {
+      while (next < markers.length) {
+        const marker = markers[next++];
+        const exists = await this.assetExists(
+          config,
+          `/scene/${marker.sceneId}/scene_marker/${marker.id}/stream`,
+        );
+        if (exists === false) {
+          const entry = bySceneMissing.get(marker.sceneId) ?? {
+            scene: marker.scene,
+            count: 0,
+          };
+          entry.count += 1;
+          bySceneMissing.set(marker.sceneId, entry);
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: 8 }, worker));
+    let missing = 0;
+    const scenes = [...bySceneMissing.entries()]
+      .map(([id, { scene, count }]) => {
+        missing += count;
+        const files = Array.isArray(scene['files'])
+          ? (scene['files'] as Array<Record<string, unknown>>)
+          : [];
+        const title =
+          typeof scene['title'] === 'string' && scene['title']
+            ? scene['title']
+            : null;
+        const basename =
+          typeof files[0]?.['basename'] === 'string'
+            ? files[0]['basename']
+            : null;
+        return {
+          id,
+          title: title ?? basename ?? `Scene ${id}`,
+          path:
+            typeof files[0]?.['path'] === 'string' ? files[0]['path'] : null,
+          markers: count,
+        };
+      })
+      .sort((a, b) => b.markers - a.markers);
+    return { missing, checked: markers.length, scenes };
   }
 }
 

@@ -6,7 +6,7 @@
       <p>Scenes Stash can’t play, show or compare properly, and the fix for each.</p>
     </div>
     <div class="head-actions">
-      <button type="button" class="head-action" [disabled]="loading()" (click)="load()">
+      <button type="button" class="head-action" [disabled]="loading()" (click)="load(true)">
         <i class="pi pi-refresh" aria-hidden="true"></i><span>Look again</span>
       </button>
     </div>
@@ -24,7 +24,10 @@
   } @else if (allClear()) {
     <div class="empty">
       <i class="pi pi-check-circle" aria-hidden="true"></i>
-      <p>Nothing broken. Every scene has its file, a length, a cover and a fingerprint.</p>
+      <p>
+        Nothing broken. Every scene has its file, a length, a cover and a fingerprint, and every
+        chapter its clip.
+      </p>
     </div>
   } @else {
     <ul class="problems">
@@ -49,28 +52,36 @@
                       [queryParams]="{ returnTo: currentUrl() }"
                       >{{ scene.title }}</a
                     >
+                    @if (scene.markers) {
+                      <span class="muted path"
+                        >{{ scene.markers }}
+                        {{ scene.markers === 1 ? 'chapter' : 'chapters' }}</span
+                      >
+                    }
                     @if (scene.path) {
                       <span class="muted path" [title]="scene.path">{{ scene.path }}</span>
                     }
                   </li>
                 }
               </ul>
-              @if ((list.count ?? 0) > list.scenes.length) {
+              @if (list.kind !== 'no-marker-preview' && (list.count ?? 0) > list.scenes.length) {
                 <p class="muted more">And {{ (list.count ?? 0) - list.scenes.length }} more.</p>
               }
-              @if (info[list.kind].fix) {
-                <div class="problem-actions">
+              <div class="problem-actions">
+                @for (fix of info[list.kind].fixes; track fix.action) {
                   <button
                     type="button"
-                    class="btn small primary"
-                    [attr.data-testid]="'fix-' + list.kind"
-                    [disabled]="started().has(list.kind)"
-                    (click)="fix(list)"
+                    class="btn small"
+                    [class.primary]="!fix.confirm"
+                    [class.danger]="!!fix.confirm"
+                    [attr.data-testid]="'fix-' + list.kind + '-' + fix.action"
+                    [disabled]="started().has(key(list, fix)) || busy() !== null"
+                    (click)="runFix(list, fix)"
                   >
-                    {{ started().has(list.kind) ? 'Started' : info[list.kind].fix }}
+                    {{ label(list, fix) }}
                   </button>
-                </div>
-              }
+                }
+              </div>
             }
           </li>
         }

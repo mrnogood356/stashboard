@@ -49,6 +49,11 @@ describe('LocalLibraryService', () => {
     mergeTags: jest.fn().mockResolvedValue(undefined),
     startLibraryTask: jest.fn().mockResolvedValue('7'),
     findProblemScenes: jest.fn(),
+    findMarkersWithoutPreview: jest.fn().mockResolvedValue({
+      missing: 3,
+      checked: 10,
+      scenes: [{ id: '4', title: 'S', path: null, markers: 3 }],
+    }),
   };
   const service = new LocalLibraryService(
     playback as unknown as PlaybackService,
@@ -110,7 +115,13 @@ describe('LocalLibraryService', () => {
       ['no-length', 0],
       ['no-cover', null],
       ['no-fingerprint', 0],
+      ['no-marker-preview', 3],
     ]);
+    // The marker check is kept for a while, unless asked again.
+    await service.problems();
+    expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(1);
+    await service.problems(true);
+    expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(2);
   });
 
   it('keeps Library stats, and a read under way, to the Stash they came from', async () => {

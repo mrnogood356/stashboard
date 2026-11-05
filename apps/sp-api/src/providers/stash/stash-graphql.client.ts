@@ -53,6 +53,26 @@ export abstract class StashGraphqlClient {
     throw lastError;
   }
 
+  /** Whether Stash has this file (a HEAD, nothing downloaded); null when Stash couldn't say. */
+  protected async assetExists(
+    config: StashAdapterBaseConfig,
+    assetUrl: string,
+  ): Promise<boolean | null> {
+    const headers: Record<string, string> = {};
+    if (config.apiKey?.trim()) {
+      headers.ApiKey = config.apiKey.trim();
+    }
+    try {
+      const response = await fetchWithTimeout(
+        this.resolveProtectedAssetUrl(config.baseUrl, assetUrl),
+        { method: 'HEAD', headers },
+      );
+      return response.ok ? true : response.status === 404 ? false : null;
+    } catch {
+      return null;
+    }
+  }
+
   protected async fetchProtectedAsset(
     config: StashAdapterBaseConfig,
     assetUrl: string,
