@@ -17,6 +17,8 @@ import type Hls from 'hls.js';
 import { PlaybackInfo, PlaybackService, SceneMarker } from '../../core/api/playback.service';
 import { LocalLibraryService, LocalSceneCard } from '../../core/api/local-library.service';
 import { AppLockService } from '../../core/app-lock/app-lock.service';
+import { ImageObscurationService } from '../../core/preferences/image-obscuration.service';
+import { QuickHideService } from '../../core/quick-hide/quick-hide.service';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
 import { ClipPreviewComponent } from '../../shared/scene-card/clip-preview.component';
 import {
@@ -77,6 +79,9 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   private readonly playback = inject(PlaybackService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly appLock = inject(AppLockService);
+  /** With images obscured: no poster, and nothing telling on the lock screen. */
+  protected readonly obscured = inject(ImageObscurationService).isObscured;
+  private readonly quickHide = inject(QuickHideService);
   private readonly library = inject(LocalLibraryService);
   /** Settings → Playback: card previews also play each chapter's clip. */
   protected readonly previewsOn = inject(PlaybackSettingsService).previewsEnabled;
@@ -194,6 +199,14 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     effect(() => {
       if (this.appLock.locked()) {
         this.videoRef?.nativeElement.pause();
+      }
+    });
+    // The lock screen and Control Center follow the eye toggle.
+    effect(() => {
+      const info = this.info();
+      this.obscured();
+      if (info) {
+        this.setMediaMetadata(info);
       }
     });
   }
@@ -654,19 +667,7 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
     const session = navigator.mediaSession;
-    session.metadata = new MediaMetadata({
-      title: info.title,
-      artist: info.studio ?? 'Stashboard',
-      artwork: info.posterUrl
-        ? [
-            {
-              src: new URL(info.posterUrl, window.location.origin).toString(),
-              sizes: '640x448',
-              type: 'image/jpeg',
-            },
-          ]
-        : [],
-    });
+    this.setMediaMetadata(info);
     const set = (action: MediaSessionAction, handler: MediaSessionActionHandler | null) => {
       try {
         session.setActionHandler(action, handler);
@@ -675,8 +676,9 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       }
     };
     set('play', () => {
-      // Headphone buttons and the lock screen must not play behind App Lock.
-      if (!this.appLock.locked()) {
+      // Headphone buttons and the lock screen must not play behind App Lock
+      // or Quick hide's cover.
+      if (!this.appLock.locked() && !this.quickHide.hidden()) {
         void this.videoRef?.nativeElement.play();
       }
     });
@@ -687,6 +689,28 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       if (details.seekTime !== undefined) {
         this.seekTo(details.seekTime);
       }
+    });
+  }
+
+  /** What the lock screen shows: nothing about the scene while images are obscured. */
+  private setMediaMetadata(info: PlaybackInfo): void {
+    if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') {
+      return;
+    }
+    const hidden = this.obscured();
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: hidden ? 'Stashboard' : info.title,
+      artist: hidden ? '' : (info.studio ?? 'Stashboard'),
+      artwork:
+        !hidden && info.posterUrl
+          ? [
+              {
+                src: new URL(info.posterUrl, window.location.origin).toString(),
+                sizes: '640x448',
+                type: 'image/jpeg',
+              },
+            ]
+          : [],
     });
   }
 
@@ -810,7 +834,7 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   }
 
   /** The previous or next chapter; "previous" restarts this one if you're past its start. */
-  private stepChapter(direction: -1 | 1): void {
+  protected stepChapter(direction: -1 | 1): void {
     const video = this.videoRef?.nativeElement;
     const markers = [...this.markers()].sort((a, b) => a.seconds - b.seconds);
     if (!video || markers.length === 0) {
@@ -826,6 +850,8 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       if (direction === -1) {
         this.seekTo(0);
         this.showHud('Start');
+      } else {
+        this.showHud('Last chapter');
       }
       return;
     }

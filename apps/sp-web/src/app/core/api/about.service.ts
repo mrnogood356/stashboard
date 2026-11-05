@@ -76,6 +76,28 @@ export interface ReleaseNotes {
   fixes: string[];
 }
 
+export interface HealthHour {
+  at: string;
+  checks: number;
+  failed: number;
+  averageMs: number | null;
+}
+
+export interface ServiceHistory {
+  service: string;
+  label: string;
+  checks: number;
+  upPercent: number;
+  averageMs: number | null;
+  lastProblem: { at: string; error: string | null } | null;
+  hours: HealthHour[];
+}
+
+export interface HealthHistoryResponse {
+  since: string;
+  services: ServiceHistory[];
+}
+
 export interface ReleaseNotesResponse {
   /** The running version. */
   current: string;
@@ -98,6 +120,11 @@ export class AboutApiService {
 
   update(): Observable<UpdateCheckResponse> {
     return this.http.get<UpdateCheckResponse>('/api/about/update');
+  }
+
+  /** The last 7 days of health checks, by hour. */
+  history(): Observable<HealthHistoryResponse> {
+    return this.http.get<HealthHistoryResponse>('/api/about/health/history');
   }
 
   /** What changed since the version this browser last ran. */

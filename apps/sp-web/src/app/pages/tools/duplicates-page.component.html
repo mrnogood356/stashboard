@@ -44,9 +44,23 @@
       <p>No duplicates found.</p>
     </div>
   } @else {
-    <p class="muted summary">
-      {{ groups().length }} {{ groups().length === 1 ? 'set' : 'sets' }} of copies
-    </p>
+    <div class="summary-row">
+      <p class="muted summary">
+        {{ groups().length }} {{ groups().length === 1 ? 'set' : 'sets' }} of copies
+      </p>
+      @if (extraCount() > 1) {
+        <button
+          type="button"
+          class="btn small danger"
+          data-testid="remove-all-extras"
+          (click)="askDeleteAllExtras()"
+        >
+          <i class="pi pi-trash" aria-hidden="true"></i> Remove every extra copy ({{
+            extraCount()
+          }})
+        </button>
+      }
+    </div>
   }
 
   <div class="groups">
@@ -104,34 +118,87 @@
                 <i class="pi pi-trash" aria-hidden="true"></i> Remove this copy
               </button>
             } @else {
-              <p class="keep-note">Keep this one</p>
+              <p class="keep-note">
+                Keep this one
+                @if (group.keepReason) {
+                  <span class="muted keep-reason">{{ group.keepReason }}</span>
+                }
+              </p>
             }
           </article>
+        }
+        @if (group.scenes.length > 2) {
+          <div class="group-actions">
+            <button
+              type="button"
+              class="btn small danger"
+              data-testid="remove-extras"
+              (click)="askDeleteExtras(group)"
+            >
+              <i class="pi pi-trash" aria-hidden="true"></i> Remove the other
+              {{ group.scenes.length - 1 }} copies
+            </button>
+          </div>
         }
       </section>
     }
   </div>
 
-  @if (pending(); as scene) {
+  @if (pending(); as scenes) {
     <div class="sheet-backdrop" (click)="cancelDelete()" aria-hidden="true"></div>
-    <section class="sheet" role="dialog" aria-modal="true" aria-label="Remove this copy">
-      <h2>Remove this copy?</h2>
-      <p class="muted">
-        {{ scene.file?.basename ?? scene.title }} · {{ resolution(scene) }} ·
-        {{ size(scene.file?.size) }}
-      </p>
+    <section
+      class="sheet"
+      role="dialog"
+      aria-modal="true"
+      [attr.aria-label]="scenes.length === 1 ? 'Remove this copy' : 'Remove these copies'"
+    >
+      @if (scenes.length === 1) {
+        <h2>Remove this copy?</h2>
+        <p class="muted">
+          {{ scenes[0].file?.basename ?? scenes[0].title }} · {{ resolution(scenes[0]) }} ·
+          {{ size(scenes[0].file?.size) }}
+        </p>
+      } @else {
+        <h2>Remove {{ scenes.length }} copies?</h2>
+        <p class="muted">{{ size(pendingBytes()) }} in all. The best copy of each video is kept.</p>
+      }
+      @if (multiFile(scenes).length > 0) {
+        <p class="notice multi-file" data-testid="multi-file-note">
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+          <span>
+            @if (multiFile(scenes).length === scenes.length) {
+              {{ scenes.length === 1 ? 'This scene has' : 'These scenes have' }} more than one file.
+              Deleting from disk would delete all of them, so only removing from Stash is offered.
+            } @else {
+              {{ multiFile(scenes).length }} of these scenes have more than one file; deleting from
+              disk leaves those in place.
+            }
+          </span>
+        </p>
+      }
+      @if (progress(); as step) {
+        <p class="muted" role="status">Removing {{ step.done + 1 }} of {{ step.total }}…</p>
+      }
       <button
         type="button"
         class="btn danger wide"
-        [disabled]="deleting()"
+        data-testid="confirm-delete-files"
+        [disabled]="deleting() || multiFile(scenes).length === scenes.length"
         (click)="confirmDelete(true)"
       >
-        <i class="pi pi-trash" aria-hidden="true"></i> Delete the file from disk
+        <i class="pi pi-trash" aria-hidden="true"></i>
+        {{ scenes.length === 1 ? 'Delete the file from disk' : 'Delete the files from disk' }}
       </button>
       <button type="button" class="btn wide" [disabled]="deleting()" (click)="confirmDelete(false)">
-        Remove from Stash only (keep the file)
+        {{
+          scenes.length === 1
+            ? 'Remove from Stash only (keep the file)'
+            : 'Remove from Stash only (keep the files)'
+        }}
       </button>
-      <button type="button" class="btn wide ghost" (click)="cancelDelete()">Cancel</button>
+      <button type="button" class="btn wide ghost" [disabled]="deleting()" (click)="cancelDelete()">
+        Cancel
+      </button>
     </section>
   }
 </main>

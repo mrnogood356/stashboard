@@ -149,6 +149,8 @@ export interface StashDuplicateScene {
   studio: string | null;
   playCount: number;
   organized: boolean;
+  /** How many files the scene has; deleting the scene from disk deletes all of them. */
+  fileCount: number;
   file: {
     path: string | null;
     basename: string | null;
@@ -446,4 +448,21 @@ export interface StashSceneMatchInput {
   tagIds: string[];
   coverImageUrl: string | null;
   stashIds: Array<{ endpoint: string; stashId: string }>;
+}
+
+export interface StashTagSummary {
+  id: string;
+  name: string;
+  aliases: string[];
+  sceneCount: number;
+}
+
+/** What Library tools → Broken files lists. */
+export type StashProblemKind =
+  'no-file' | 'no-length' | 'no-cover' | 'no-fingerprint';
+
+export interface StashProblemScene {
+  id: string;
+  title: string;
+  path: string | null;
 }

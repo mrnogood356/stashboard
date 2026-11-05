@@ -1,6 +1,6 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { ActivityApiService, ActivityEntry } from '../../core/api/activity.service';
+import { ActivityApiService, ActivityEntry, ActivityFile } from '../../core/api/activity.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 
 const KINDS: Array<{ id: string | null; label: string; icon: string }> = [
@@ -32,6 +32,14 @@ const ICONS: Record<string, string> = {
 
 const SEARCH_DELAY_MS = 350;
 
+interface FilesState {
+  items: ActivityFile[];
+  page: number;
+  hasMore: boolean;
+  loading: boolean;
+  error: boolean;
+}
+
 /** Everything Stashboard did, newest first, with Undo where it can be undone. */
 @Component({
   selector: 'app-activity-page',
@@ -53,6 +61,10 @@ export class ActivityPageComponent implements OnInit, OnDestroy {
   protected readonly open = signal<ReadonlySet<string>>(new Set());
   protected readonly confirmUndo = signal<string | null>(null);
   protected readonly undoing = signal<string | null>(null);
+  /** The files a run moved, once asked for. */
+  protected readonly files = signal<Record<string, FilesState>>({});
+  /** The latest request per entry, so a late answer can't reopen or overwrite a list. */
+  private readonly filesRequest = new Map<string, number>();
   private page = 1;
   private request = 0;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -115,6 +127,73 @@ export class ActivityPageComponent implements OnInit, OnDestroy {
     this.open.set(next);
   }
 
+  /** Show files / Hide files; a list closed while loading stays closed. */
+  protected toggleFiles(entry: ActivityEntry): void {
+    if (entry.id in this.files()) {
+      this.forgetFiles(entry.id);
+      return;
+    }
+    this.files.update((all) => ({
+      ...all,
+      [entry.id]: { items: [], page: 0, hasMore: false, loading: true, error: false },
+    }));
+    this.loadFiles(entry.id, 1);
+  }
+
+  protected moreFiles(id: string): void {
+    const state = this.files()[id];
+    if (state && !state.loading && state.hasMore) {
+      this.patchFiles(id, { loading: true, error: false });
+      this.loadFiles(id, state.page + 1);
+    }
+  }
+
+  protected filesOf(id: string): FilesState | undefined {
+    return this.files()[id];
+  }
+
+  private loadFiles(id: string, page: number): void {
+    const token = (this.filesRequest.get(id) ?? 0) + 1;
+    this.filesRequest.set(id, token);
+    this.api.files(id, page).subscribe({
+      next: (result) => {
+        // Closed, or asked again, meanwhile: this answer is out of date.
+        if (this.filesRequest.get(id) !== token || !(id in this.files())) {
+          return;
+        }
+        this.patchFiles(id, {
+          items: [...(page === 1 ? [] : (this.files()[id]?.items ?? [])), ...result.items],
+          page: result.page,
+          hasMore: result.hasMore,
+          loading: false,
+        });
+      },
+      error: () => {
+        if (this.filesRequest.get(id) === token && id in this.files()) {
+          this.patchFiles(id, { loading: false, error: true });
+        }
+      },
+    });
+  }
+
+  private patchFiles(id: string, change: Partial<FilesState>): void {
+    this.files.update((all) => (all[id] ? { ...all, [id]: { ...all[id], ...change } } : all));
+  }
+
+  private forgetFiles(id?: string): void {
+    if (id === undefined) {
+      this.filesRequest.clear();
+      this.files.set({});
+      return;
+    }
+    this.filesRequest.delete(id);
+    this.files.update((all) => {
+      const rest = { ...all };
+      delete rest[id];
+      return rest;
+    });
+  }
+
   /** Undo needs a second tap: it moves files back. */
   protected undo(entry: ActivityEntry): void {
     if (this.undoing()) {
@@ -137,6 +216,8 @@ export class ActivityPageComponent implements OnInit, OnDestroy {
         this.items.update((items) =>
           items.map((item) => (item.id === updated.id ? updated : item)),
         );
+        // Its moves are undone now: what was shown is out of date.
+        this.forgetFiles(updated.id);
         this.notifications.success('Undone', 'The files are going back where they were.');
       },
       error: (error: { error?: { message?: string } }) => {
@@ -163,6 +244,7 @@ export class ActivityPageComponent implements OnInit, OnDestroy {
     this.error.set(null);
     if (page === 1) {
       this.items.set([]);
+      this.forgetFiles();
     }
     this.api.list(page, { kind: this.kind(), q: this.query() }).subscribe({
       next: (result) => {

@@ -14,6 +14,21 @@ export interface ActivityEntry {
   count: number | null;
   canUndo: boolean;
   undoneAt: string | null;
+  /** A run that moved files, which "Show files" lists. */
+  hasFiles?: boolean;
+}
+
+export interface ActivityFilesPage {
+  page: number;
+  hasMore: boolean;
+  items: ActivityFile[];
+}
+
+export interface ActivityFile {
+  sceneId: string;
+  from: string;
+  to: string;
+  undone: boolean;
 }
 
 export interface ActivityPage {
@@ -37,6 +52,12 @@ export class ActivityApiService {
       params = params.set('q', q);
     }
     return this.http.get<ActivityPage>('/api/activity', { params });
+  }
+
+  files(id: string, page = 1): Observable<ActivityFilesPage> {
+    return this.http.get<ActivityFilesPage>(`/api/activity/${encodeURIComponent(id)}/files`, {
+      params: new HttpParams().set('page', page),
+    });
   }
 
   undo(id: string): Observable<ActivityEntry> {

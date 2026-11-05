@@ -1,3 +1,8 @@
+import { groupSimilarTags, type SimilarTagGroup } from './tag-cleanup.util';
+import type {
+  StashProblemKind,
+  StashProblemScene,
+} from '../providers/stash/stash.types';
 import {
   computeLibraryStats,
   type LibraryStatsDto,
@@ -84,10 +89,25 @@ export interface SampleSceneDto extends DuplicateSceneDto {
   reason: 'name' | 'short';
 }
 
+export const PROBLEM_KINDS: StashProblemKind[] = [
+  'no-file',
+  'no-length',
+  'no-cover',
+  'no-fingerprint',
+];
+
+export interface ProblemListDto {
+  kind: StashProblemKind;
+  count: number | null;
+  scenes: StashProblemScene[];
+}
+
 export interface DuplicateGroupDto {
   scenes: DuplicateSceneDto[];
-  /** The copy to keep: highest resolution, then bit rate, then file size. */
+  /** The copy to keep: highest resolution, then picture for the codec, then length. */
   suggestedKeepId: string;
+  /** Why that one, in plain words. */
+  keepReason: string;
 }
 
 export interface FixCountsDto {
@@ -534,6 +554,82 @@ export class LocalLibraryService {
     return { jobId };
   }
 
+  /** Generate (previews, sprites, covers, fingerprints) for just these scenes. */
+  async generateFor(sceneIds: string[]): Promise<{ jobId: string | null }> {
+    // An empty list would make Stash generate for the whole library.
+    if (sceneIds.length === 0) {
+      throw new BadRequestException('Pick at least one scene.');
+    }
+    const config = await this.playback.getStashConfig();
+    const jobId = await this.stash.startLibraryTask(
+      config,
+      'generate',
+      sceneIds,
+    );
+    this.logger.log(
+      `Started Stash’s Generate for ${sceneIds.length} scene${sceneIds.length === 1 ? '' : 's'}${jobId ? ` (job ${jobId})` : ''}.`,
+    );
+    return { jobId };
+  }
+
+  // ---------- tag cleanup ----------
+
+  async similarTags(): Promise<SimilarTagGroup[]> {
+    const config = await this.playback.getStashConfig();
+    return groupSimilarTags(await this.stash.listTags(config));
+  }
+
+  /**
+   * Merges tags into one, after you pick them. Only tags Stash still has, and
+   * never a tag into itself.
+   */
+  async mergeTags(destinationId: string, sourceIds: string[]): Promise<void> {
+    const sources = [...new Set(sourceIds)].filter(
+      (id) => id !== destinationId,
+    );
+    if (sources.length === 0) {
+      throw new BadRequestException('Pick at least one other tag to merge.');
+    }
+    const config = await this.playback.getStashConfig();
+    const tags = new Map(
+      (await this.stash.listTags(config)).map((tag) => [tag.id, tag]),
+    );
+    const destination = tags.get(destinationId);
+    const missing = sources.filter((id) => !tags.has(id));
+    if (!destination || missing.length > 0) {
+      throw new BadRequestException(
+        'One of those tags is gone from Stash. Look again.',
+      );
+    }
+    await this.stash.mergeTags(config, sources, destinationId);
+    const names = sources.map((id) => tags.get(id)!.name);
+    this.logger.log(
+      `Merged tags ${names.join(', ')} into ${destination.name}.`,
+    );
+    await this.activity?.record({
+      kind: 'scan',
+      title: `Merged ${names.length} tag${names.length === 1 ? '' : 's'} into ${destination.name}.`,
+      detail: names.join(', '),
+    });
+  }
+
+  // ---------- broken files ----------
+
+  /** Each kind of problem: how many scenes, and the first 50. Null when Stash couldn't say. */
+  async problems(): Promise<ProblemListDto[]> {
+    const config = await this.playback.getStashConfig();
+    return Promise.all(
+      PROBLEM_KINDS.map(async (kind) => {
+        try {
+          const found = await this.stash.findProblemScenes(config, kind);
+          return { kind, count: found.count, scenes: found.scenes };
+        } catch {
+          return { kind, count: null, scenes: [] };
+        }
+      }),
+    );
+  }
+
   async stopJob(jobId: string): Promise<void> {
     const config = await this.playback.getStashConfig();
     await this.stash.stopJob(config, jobId);
@@ -561,7 +657,9 @@ export class LocalLibraryService {
             )
           : null,
       })),
-      suggestedKeepId: pickKeeper(group),
+      ...(({ id, reason }) => ({ suggestedKeepId: id, keepReason: reason }))(
+        pickKeeperWithReason(group),
+      ),
     }));
   }
 
@@ -658,8 +756,25 @@ export class LocalLibraryService {
     });
   }
 
-  async deleteScene(sceneId: string, deleteFile: boolean): Promise<void> {
+  /**
+   * `onlyFile`: Duplicates removes one copy, so it refuses a scene with more
+   * than one file, whose other files would go too.
+   */
+  async deleteScene(
+    sceneId: string,
+    deleteFile: boolean,
+    onlyFile = false,
+  ): Promise<void> {
     const config = await this.playback.getStashConfig();
+    if (deleteFile && onlyFile) {
+      const scene = await this.stash.getOrganizerScene(config, sceneId);
+      const count = scene?.files.length ?? 0;
+      if (count > 1) {
+        throw new BadRequestException(
+          `This scene has ${count} files, and deleting it from disk would delete all of them. Remove it from Stash only, or delete the extra file in Stash.`,
+        );
+      }
+    }
     const paths = deleteFile
       ? ((
           await this.stash
@@ -801,24 +916,102 @@ export function toCard(scene: StashLocalSceneCard): LocalSceneCardDto {
   };
 }
 
-/** Highest resolution wins, then bit rate, then file size, then most played. */
+/**
+ * How much picture a codec gets from each bit: HEVC needs about 60% of
+ * H.264's bit rate for the same picture, AV1 about half.
+ */
+const CODEC_EFFICIENCY: Record<string, number> = {
+  av1: 2,
+  hevc: 1.6,
+  h265: 1.6,
+  vp9: 1.5,
+  h264: 1,
+  avc: 1,
+};
+
+function pixels(scene: StashDuplicateScene): number {
+  return (scene.file?.width ?? 0) * (scene.file?.height ?? 0);
+}
+
+/** Bit rate as if it were H.264, so an HEVC copy isn't beaten by a bigger H.264 one. */
+function effectiveBitRate(scene: StashDuplicateScene): number {
+  const codec = (scene.file?.videoCodec ?? '').toLowerCase();
+  const factor = CODEC_EFFICIENCY[codec] ?? 0.8;
+  return (scene.file?.bitRate ?? 0) * factor;
+}
+
+/**
+ * The copy to keep: highest resolution, then the most picture for its codec
+ * (bit rate weighed by how efficient the codec is), then the longest, then
+ * the most played. With why, in plain words.
+ */
+export function pickKeeperWithReason(group: StashDuplicateScene[]): {
+  id: string;
+  reason: string;
+} {
+  const { best, maxRate } = rankCopies(group);
+  const rest = group.filter((scene) => scene !== best);
+  const next = rest.length > 0 ? rankCopies(rest).best : null;
+  return {
+    id: best.id,
+    reason: next ? keepReason(best, next, maxRate) : 'The only copy.',
+  };
+}
+
+/**
+ * The best copy, by stages measured against the whole group, never pair by
+ * pair, so the answer is the same in any order: the highest resolution;
+ * among those, any within 5% of the most picture for its codec; then the
+ * longest, the most played, and the lowest id.
+ */
+function rankCopies(group: StashDuplicateScene[]): {
+  best: StashDuplicateScene;
+  maxRate: number;
+} {
+  const topPixels = Math.max(...group.map(pixels));
+  const sharpest = group.filter((scene) => pixels(scene) === topPixels);
+  const maxRate = Math.max(...sharpest.map(effectiveBitRate));
+  const finest = sharpest.filter(
+    (scene) => effectiveBitRate(scene) >= maxRate * 0.95,
+  );
+  const best = [...finest].sort(
+    (left, right) =>
+      (right.file?.duration ?? 0) - (left.file?.duration ?? 0) ||
+      right.playCount - left.playCount ||
+      left.id.localeCompare(right.id, undefined, { numeric: true }),
+  )[0];
+  return { best, maxRate };
+}
+
+/** Highest resolution wins, then picture for the codec, then length, then most played. */
 export function pickKeeper(group: StashDuplicateScene[]): string {
-  const score = (scene: StashDuplicateScene) => [
-    (scene.file?.width ?? 0) * (scene.file?.height ?? 0),
-    scene.file?.bitRate ?? 0,
-    scene.file?.size ?? 0,
-    scene.playCount,
-  ];
-  return [...group].sort((left, right) => {
-    const a = score(left);
-    const b = score(right);
-    for (let index = 0; index < a.length; index += 1) {
-      if (a[index] !== b[index]) {
-        return b[index] - a[index];
-      }
-    }
-    return 0;
-  })[0].id;
+  return pickKeeperWithReason(group).id;
+}
+
+function keepReason(
+  best: StashDuplicateScene,
+  next: StashDuplicateScene,
+  maxRate: number,
+): string {
+  if (pixels(best) > pixels(next)) {
+    return 'Highest resolution.';
+  }
+  // The same 5% line rankCopies drew: the runner-up fell outside it.
+  if (effectiveBitRate(next) < maxRate * 0.95) {
+    const bestCodec = (best.file?.videoCodec ?? '').toLowerCase();
+    const nextCodec = (next.file?.videoCodec ?? '').toLowerCase();
+    return (CODEC_EFFICIENCY[bestCodec] ?? 0) >
+      (CODEC_EFFICIENCY[nextCodec] ?? 0)
+      ? `Same resolution, and ${bestCodec.toUpperCase()} keeps more picture than ${nextCodec.toUpperCase() || 'the other'}.`
+      : 'Same resolution, more picture (higher bit rate).';
+  }
+  if ((best.file?.duration ?? 0) > (next.file?.duration ?? 0)) {
+    return 'Same quality, and the longest.';
+  }
+  if (best.playCount > next.playCount) {
+    return 'Same quality, and the one you’ve played.';
+  }
+  return 'All copies look the same; this one is first.';
 }
 
 /** Each library task as the activity log names it. */

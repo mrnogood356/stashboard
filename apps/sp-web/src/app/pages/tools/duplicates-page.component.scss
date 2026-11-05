@@ -190,3 +190,23 @@
     margin-top: 0.3rem;
   }
 }
+
+.summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.keep-reason {
+  display: block;
+  font-weight: 500;
+  font-size: 0.78rem;
+}
+
+.group-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+}

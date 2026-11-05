@@ -6,7 +6,6 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
 import { Prisma, SceneLifecycle } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { IndexingService } from '../indexing/indexing.service';
@@ -269,20 +268,25 @@ export class OrganizerService
     return this.status();
   }
 
-  @Cron('0 4 * * *')
-  async nightly(): Promise<void> {
+  /** Run by Schedules (4:00 unless changed there), when "Match every night" is on. */
+  async nightly(): Promise<string> {
     try {
       const settings = await this.getSettings();
-      if (settings.autoMatchNightly && !this.runState.running) {
-        this.logger.log('Starting the nightly match.');
-        this.startAutoMatch('nightly');
-      } else if (settings.autoMatchNightly) {
+      if (!settings.autoMatchNightly) {
+        return 'Off: Every night is switched off';
+      }
+      if (this.runState.running) {
         this.logger.warn(
           'Nightly match skipped: the organizer is already busy.',
         );
+        return 'Skipped: the organizer was busy';
       }
+      this.logger.log('Starting the nightly match.');
+      this.startAutoMatch('nightly');
+      return 'Started';
     } catch (error) {
       this.logger.warn(`Nightly match skipped: ${messageOf(error)}`);
+      return `Failed: ${messageOf(error)}`;
     }
   }
 
@@ -291,34 +295,35 @@ export class OrganizerService
    * a request), some of which you already have in Stash. "Send matches to
    * Whisparr" only acted right after matching, so those piled up as "in
    * Stash but missing in Whisparr". Once a day, after the nightly match, they
-   * are sent too.
+   * are sent too. Run by Schedules (5:30 unless changed there).
    */
-  @Cron('30 5 * * *')
-  async sendMissingDaily(): Promise<void> {
+  async sendMissingDaily(): Promise<string> {
     try {
       const settings = await this.getSettings();
       if (!settings.sendToWhisparr) {
-        return;
+        return 'Off: Send matches to Whisparr is switched off';
       }
       const missing = await this.handoff.missingInWhisparr();
       if (missing.length === 0) {
-        return;
+        return 'Nothing to send';
       }
       if (this.runState.running) {
         this.logger.warn(
           `Sending ${missing.length} scenes Whisparr is missing skipped: the organizer is busy. They're sent tomorrow, or with Send them now.`,
         );
-        return;
+        return 'Skipped: the organizer was busy';
       }
       this.logger.log(
         `Sending ${missing.length} ${missing.length === 1 ? 'scene' : 'scenes'} you have that Whisparr shows as missing.`,
       );
       // Missing ones only: "add new ones" stays a choice you make on the page.
       this.startSendAll(true);
+      return `Started: ${missing.length} ${missing.length === 1 ? 'scene' : 'scenes'}`;
     } catch (error) {
       this.logger.warn(
         `Sending scenes Whisparr is missing skipped: ${messageOf(error)}`,
       );
+      return `Failed: ${messageOf(error)}`;
     }
   }
 

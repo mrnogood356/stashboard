@@ -226,6 +226,13 @@ describe('WatchPageComponent', () => {
     ).toEqual(['/m1', '/m2']);
     items[1].click();
     expect(video.currentTime).toBe(900);
+
+    // On a phone, the Next chapter button does what ] does.
+    video.currentTime = 10;
+    (
+      fixture.nativeElement.querySelector('[data-testid="next-chapter"]') as HTMLButtonElement
+    ).click();
+    expect(video.currentTime).toBe(900);
   });
 
   it('offers the next related scene when this one ends', async () => {

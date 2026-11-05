@@ -142,7 +142,7 @@
               <strong>In Stash, not in Whisparr</strong>
               <small>{{
                 settings.sendToWhisparr
-                  ? 'Sent every morning at 5:30'
+                  ? 'Sent every morning (see Schedules)'
                   : 'Send matches to Whisparr is off'
               }}</small>
             </span>
@@ -1034,8 +1034,9 @@
           <span class="row-copy">
             <strong>Every night</strong>
             <small
-              >Looks again at 4 AM, as StashDB keeps adding scenes. What it finds waits for you
-              here.</small
+              >Looks again every night (4 AM unless changed in
+              <a routerLink="/tools/schedules">Schedules</a>), as StashDB keeps adding scenes. What
+              it finds waits for you here.</small
             >
           </span>
           <button

@@ -7,7 +7,7 @@
     webkit-playsinline
     x-webkit-airplay="allow"
     preload="metadata"
-    [attr.poster]="info()?.posterUrl ?? null"
+    [attr.poster]="obscured() ? null : (info()?.posterUrl ?? null)"
   ></video>
 
   <div
@@ -296,6 +296,19 @@
         >
           <i class="pi pi-bookmark" aria-hidden="true"></i>
         </button>
+
+        @if (markers().length > 0) {
+          <button
+            type="button"
+            class="icon-button next-chapter"
+            data-testid="next-chapter"
+            (click)="stepChapter(1)"
+            aria-label="Next chapter"
+            title="Next chapter (])"
+          >
+            <i class="pi pi-step-forward" aria-hidden="true"></i>
+          </button>
+        }
 
         @if (markers().length > 0) {
           <div class="quality">

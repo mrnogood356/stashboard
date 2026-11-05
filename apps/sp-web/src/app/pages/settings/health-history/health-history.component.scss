@@ -1,0 +1,129 @@
+:host {
+  display: block;
+}
+
+.history h3 {
+  margin: 0 0 0.6rem;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 3px;
+}
+
+.services {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.service-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.88rem;
+}
+
+.service-head .muted {
+  font-size: 0.8rem;
+}
+
+/* One bar per hour, oldest on the left; a 1px gap keeps 168 of them apart on a phone. */
+.strip {
+  display: flex;
+  gap: 1px;
+  height: 1.6rem;
+  align-items: stretch;
+}
+
+.hour {
+  flex: 1 1 0;
+  min-width: 1px;
+  border-radius: 2px;
+}
+
+.hour[data-state='ok'],
+.swatch[data-state='ok'] {
+  background: var(--success);
+}
+
+.hour[data-state='some'],
+.swatch[data-state='some'] {
+  background: var(--warning);
+}
+
+.hour[data-state='down'],
+.swatch[data-state='down'] {
+  background: var(--danger);
+}
+
+.hour[data-state='none'],
+.swatch[data-state='none'] {
+  background: color-mix(in srgb, var(--text-muted) 22%, transparent);
+}
+
+.hour:hover {
+  outline: 2px solid var(--text-primary, currentColor);
+  outline-offset: 1px;
+}
+
+.problems {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.problems summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.problems summary i {
+  color: var(--warning-text);
+  margin-right: 0.2rem;
+}
+
+.problems ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+}
+
+/* On a phone the hours are too thin for gaps: runs of the same state read as one band. */
+@media (max-width: 640px) {
+  .strip {
+    gap: 0;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .hour {
+    border-radius: 0;
+  }
+}

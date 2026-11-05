@@ -1,4 +1,5 @@
 import { SuggestionsService } from '../suggestions/suggestions.service';
+import { HomeRowCache, rulesStamp } from './home-row-cache';
 import {
   BadRequestException,
   ConflictException,
@@ -330,6 +331,8 @@ const DEFAULT_HOME_RAILS: Array<{
 
 @Injectable()
 export class HomeService {
+  private readonly rowCache = new HomeRowCache();
+
   private readonly logger = new Logger(HomeService.name);
   private railsReady: Promise<void> | null = null;
 
@@ -557,6 +560,47 @@ export class HomeService {
       throw new BadRequestException('Unsupported Home rail content type.');
     }
 
+    return this.rowCache.get(
+      rail,
+      () => this.loadRailContent(rail),
+      (kept) => this.withCurrentStatuses(kept),
+      // Hiding a studio or tag changes what every row shows.
+      rulesStamp(await this.hiddenContent?.getRules().catch(() => null)),
+    );
+  }
+
+  /**
+   * A kept row's catalog scenes with their request status as it is now, so a
+   * scene requested since doesn't offer Request again.
+   */
+  private async withCurrentStatuses(
+    content: HomeRailContentDto,
+  ): Promise<HomeRailContentDto> {
+    const catalogIds = content.items
+      .filter(
+        (item) =>
+          item.source !== 'STASH' &&
+          (item.requestable || item.status.state !== 'AVAILABLE'),
+      )
+      .map((item) => item.id);
+    if (catalogIds.length === 0) {
+      return content;
+    }
+    const statuses = await this.sceneStatusService.resolveForScenes(catalogIds);
+    return {
+      ...content,
+      items: content.items.map((item) => {
+        const status = catalogIds.includes(item.id)
+          ? statuses.get(item.id)
+          : undefined;
+        return status
+          ? { ...item, status, requestable: isSceneStatusRequestable(status) }
+          : item;
+      }),
+    };
+  }
+
+  private loadRailContent(rail: HomeRail): Promise<HomeRailContentDto> {
     switch (rail.key) {
       case HomeRailKey.STILL_WAITING:
         return this.getStillWaitingRailContent(rail);

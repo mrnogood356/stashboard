@@ -117,6 +117,8 @@ describe('ActivityService', () => {
       count: 3,
       canUndo: false,
       undoneAt: null,
+      // A rename run: its files can be listed.
+      hasFiles: true,
     });
   });
 
@@ -260,5 +262,42 @@ describe('shorten', () => {
   it('uses the first sentence when it fits', () => {
     const long = `Matched 4 of 9. ${'Some need you to pick. '.repeat(10)}`;
     expect(shorten(long).title).toBe('Matched 4 of 9.');
+  });
+
+  it('lists the files a rename run moved, and nothing for other entries', async () => {
+    const prisma = {
+      activityEntry: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce({
+            id: 'a',
+            undo: { type: 'rename-batch', batchId: 'b1' },
+          })
+          .mockResolvedValueOnce({ id: 'c', undo: null }),
+      },
+      organizerRename: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            sceneId: '7',
+            fromPath: '/in/a.mp4',
+            toPath: '/lib/A.mp4',
+            undoneAt: null,
+          },
+        ]),
+      },
+    };
+    const service = new ActivityService(prisma as never);
+
+    await expect(service.files('a')).resolves.toEqual({
+      page: 1,
+      hasMore: false,
+      items: [
+        { sceneId: '7', from: '/in/a.mp4', to: '/lib/A.mp4', undone: false },
+      ],
+    });
+    expect(prisma.organizerRename.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { batchId: 'b1' }, skip: 0, take: 501 }),
+    );
+    await expect(service.files('c')).rejects.toThrow('moved no files');
   });
 });

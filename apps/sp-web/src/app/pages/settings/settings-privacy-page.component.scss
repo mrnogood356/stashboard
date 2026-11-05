@@ -169,3 +169,13 @@ p {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.quick-hide {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.quick-hide h3,
+.quick-hide > p {
+  margin: 0;
+}

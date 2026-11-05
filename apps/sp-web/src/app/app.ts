@@ -5,6 +5,8 @@ import { AppUpdatesService } from './core/pwa/app-updates.service';
 import { PrefetchService } from './core/prefetch/prefetch.service';
 import { AppStatusComponent } from './shared/app-status/app-status.component';
 import { AppLockScreenComponent } from './shared/app-lock-screen/app-lock-screen.component';
+import { QuickHideCoverComponent } from './shared/quick-hide-cover/quick-hide-cover.component';
+import { QuickHideService } from './core/quick-hide/quick-hide.service';
 import { ConfirmDialog } from 'primeng/confirmdialog';
 import { Toast } from 'primeng/toast';
 import { ImageObscurationToggleComponent } from './shared/image-obscuration-toggle/image-obscuration-toggle.component';
@@ -20,6 +22,7 @@ import { ReleasePickerHostComponent } from './shared/release-picker/release-pick
     Toast,
     ConfirmDialog,
     AppLockScreenComponent,
+    QuickHideCoverComponent,
     ReleasePickerHostComponent,
     AppStatusComponent,
   ],
@@ -30,6 +33,7 @@ export class App {
   constructor() {
     // App Lock and the app-switcher cover run for the whole app.
     inject(AppLockService).start();
+    inject(QuickHideService).start();
     // Installable app: offline notice, "updated" notice, service worker.
     inject(AppUpdatesService).start();
     // Scene details start loading when you point at a scene, not when you open it.

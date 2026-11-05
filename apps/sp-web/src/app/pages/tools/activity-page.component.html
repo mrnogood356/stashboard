@@ -70,6 +70,45 @@
               @if (entry.detail && open().has(entry.id)) {
                 <p class="entry-detail">{{ entry.detail }}</p>
               }
+              @if (entry.hasFiles) {
+                <button
+                  type="button"
+                  class="files-toggle"
+                  data-testid="show-files"
+                  [attr.aria-expanded]="filesOf(entry.id) !== undefined"
+                  (click)="toggleFiles(entry)"
+                >
+                  {{ filesOf(entry.id) !== undefined ? 'Hide files' : 'Show files' }}
+                </button>
+                @if (filesOf(entry.id); as state) {
+                  @if (state.items.length > 0) {
+                    <ul class="moves">
+                      @for (move of state.items; track $index) {
+                        <li [class.undone]="move.undone">
+                          <span class="from" [title]="move.from">{{ move.from }}</span>
+                          <span class="to" [title]="move.to">→ {{ move.to }}</span>
+                        </li>
+                      }
+                    </ul>
+                  } @else if (!state.loading && !state.error) {
+                    <p class="muted files-note">No files were moved.</p>
+                  }
+                  @if (state.loading) {
+                    <p class="muted files-note" role="status">Loading…</p>
+                  } @else if (state.error) {
+                    <p class="muted files-note">Couldn’t read the files for this run.</p>
+                  } @else if (state.hasMore) {
+                    <button
+                      type="button"
+                      class="files-toggle"
+                      data-testid="more-files"
+                      (click)="moreFiles(entry.id)"
+                    >
+                      Show more
+                    </button>
+                  }
+                }
+              }
             </div>
             @if (entry.canUndo && !entry.undoneAt) {
               <button

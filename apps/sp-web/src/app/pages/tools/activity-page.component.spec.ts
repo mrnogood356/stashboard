@@ -1,8 +1,12 @@
 import { provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ActivityApiService, ActivityEntry } from '../../core/api/activity.service';
+import {
+  ActivityApiService,
+  ActivityEntry,
+  ActivityFilesPage,
+} from '../../core/api/activity.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { ActivityPageComponent } from './activity-page.component';
 
@@ -68,6 +72,83 @@ describe('ActivityPageComponent', () => {
 
     expect(api.undo).toHaveBeenCalledWith('1');
     expect(root.querySelector('.entry.undone')).not.toBeNull();
+  });
+
+  it('shows the files a run moved, from where to where', async () => {
+    const files = vi.fn().mockReturnValue(
+      of({
+        page: 1,
+        hasMore: false,
+        items: [
+          { sceneId: '7', from: '/in/a.mp4', to: '/lib/Vixen/A.mp4', undone: false },
+          { sceneId: '8', from: '/in/b.mp4', to: '/lib/Vixen/B.mp4', undone: true },
+        ],
+      }),
+    );
+    const { fixture, root } = await render({
+      list: () => of({ items: [entry({ hasFiles: true })], page: 1, hasMore: false }),
+      files,
+    });
+
+    root.querySelector<HTMLButtonElement>('[data-testid="show-files"]')!.click();
+    fixture.detectChanges();
+
+    expect(files).toHaveBeenCalledWith('1', 1);
+    const moves = Array.from(root.querySelectorAll('.moves li'));
+    expect(moves.map((li) => li.querySelector('.from')?.textContent?.trim())).toEqual([
+      '/in/a.mp4',
+      '/in/b.mp4',
+    ]);
+    expect(moves[0].querySelector('.to')?.textContent?.trim()).toBe('→ /lib/Vixen/A.mp4');
+    expect(moves[1].classList.contains('undone')).toBe(true);
+
+    root.querySelector<HTMLButtonElement>('[data-testid="show-files"]')!.click();
+    fixture.detectChanges();
+    expect(root.querySelector('.moves')).toBeNull();
+  });
+
+  it('keeps a list closed while loading closed, and shows more on request', async () => {
+    const answer = new Subject<ActivityFilesPage>();
+    const files = vi
+      .fn()
+      .mockReturnValueOnce(answer)
+      .mockReturnValueOnce(
+        of({
+          page: 1,
+          hasMore: true,
+          items: [{ sceneId: '1', from: '/a', to: '/b', undone: false }],
+        }),
+      )
+      .mockReturnValueOnce(
+        of({
+          page: 2,
+          hasMore: false,
+          items: [{ sceneId: '2', from: '/c', to: '/d', undone: false }],
+        }),
+      );
+    const { fixture, root } = await render({
+      list: () => of({ items: [entry({ hasFiles: true })], page: 1, hasMore: false }),
+      files,
+    });
+    const toggle = () =>
+      root.querySelector<HTMLButtonElement>('[data-testid="show-files"]')!.click();
+
+    toggle();
+    toggle();
+    answer.next({
+      page: 1,
+      hasMore: false,
+      items: [{ sceneId: '9', from: '/x', to: '/y', undone: false }],
+    });
+    fixture.detectChanges();
+    expect(root.querySelector('.moves')).toBeNull();
+
+    toggle();
+    fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-testid="more-files"]')!.click();
+    fixture.detectChanges();
+    expect(files).toHaveBeenLastCalledWith('1', 2);
+    expect(root.querySelectorAll('.moves li').length).toBe(2);
   });
 
   it('filters by kind', async () => {

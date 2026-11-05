@@ -7,6 +7,7 @@ import {
   isSamplePath,
   LocalLibraryService,
   pickKeeper,
+  pickKeeperWithReason,
   toCard,
 } from './local-library.service';
 import type { OrganizerService } from '../organizer/organizer.service';
@@ -42,6 +43,12 @@ describe('LocalLibraryService', () => {
     searchTags: jest.fn(),
     findSampleScenes: jest.fn(),
     listLibraryFiles: jest.fn(),
+    listTags: jest.fn(),
+    getOrganizerScene: jest.fn(),
+    deleteScene: jest.fn().mockResolvedValue(undefined),
+    mergeTags: jest.fn().mockResolvedValue(undefined),
+    startLibraryTask: jest.fn().mockResolvedValue('7'),
+    findProblemScenes: jest.fn(),
   };
   const service = new LocalLibraryService(
     playback as unknown as PlaybackService,
@@ -49,6 +56,62 @@ describe('LocalLibraryService', () => {
   );
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('refuses to delete from disk a duplicate whose scene has more than one file', async () => {
+    stash.getOrganizerScene.mockResolvedValue({
+      files: [{ path: '/a' }, { path: '/b' }],
+    });
+    await expect(service.deleteScene('9', true, true)).rejects.toThrow(
+      'has 2 files',
+    );
+    expect(stash.deleteScene).not.toHaveBeenCalled();
+  });
+
+  it('merges only tags Stash still has, never a tag into itself', async () => {
+    stash.listTags.mockResolvedValue([
+      { id: '1', name: 'Blonde', aliases: [], sceneCount: 3 },
+      { id: '2', name: 'blondes', aliases: [], sceneCount: 30 },
+    ]);
+    await service.mergeTags('2', ['1', '2']);
+    expect(stash.mergeTags).toHaveBeenCalledWith(config, ['1'], '2');
+
+    await expect(service.mergeTags('2', ['2'])).rejects.toThrow(
+      'Pick at least one',
+    );
+    await expect(service.mergeTags('2', ['9'])).rejects.toThrow(
+      'gone from Stash',
+    );
+    expect(stash.mergeTags).toHaveBeenCalledTimes(1);
+  });
+
+  it('generates for the chosen scenes only, and never for the whole library by accident', async () => {
+    await expect(service.generateFor(['4', '5'])).resolves.toEqual({
+      jobId: '7',
+    });
+    expect(stash.startLibraryTask).toHaveBeenCalledWith(config, 'generate', [
+      '4',
+      '5',
+    ]);
+    await expect(service.generateFor([])).rejects.toThrow(
+      'Pick at least one scene',
+    );
+    expect(stash.startLibraryTask).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists each kind of broken file, and says when Stash couldn’t answer one', async () => {
+    stash.findProblemScenes.mockImplementation((_config, kind: string) =>
+      kind === 'no-cover'
+        ? Promise.reject(new Error('nope'))
+        : Promise.resolve({ count: kind === 'no-file' ? 2 : 0, scenes: [] }),
+    );
+    const lists = await service.problems();
+    expect(lists.map((list) => [list.kind, list.count])).toEqual([
+      ['no-file', 2],
+      ['no-length', 0],
+      ['no-cover', null],
+      ['no-fingerprint', 0],
+    ]);
+  });
 
   it('keeps Library stats, and a read under way, to the Stash they came from', async () => {
     let finish: (files: never[]) => void = () => undefined;
@@ -312,6 +375,7 @@ describe('LocalLibraryService', () => {
       studio: null,
       playCount: 0,
       organized: false,
+      fileCount: 1,
       file: {
         path: null,
         basename: null,
@@ -331,6 +395,77 @@ describe('LocalLibraryService', () => {
         scene('c', 1920, 1080, 4),
       ]),
     ).toBe('c');
+  });
+
+  it('keeps an HEVC copy over a bigger H.264 one, and says why', () => {
+    const copy = (
+      id: string,
+      videoCodec: string,
+      bitRate: number,
+      playCount = 0,
+    ) => ({
+      id,
+      title: id,
+      date: null,
+      screenshotVersion: null,
+      studio: null,
+      playCount,
+      organized: false,
+      fileCount: 1,
+      file: {
+        path: null,
+        basename: null,
+        size: 1,
+        width: 1920,
+        height: 1080,
+        duration: 1800,
+        videoCodec,
+        bitRate,
+        frameRate: null,
+      },
+    });
+    expect(
+      pickKeeperWithReason([
+        copy('h264', 'h264', 8e6),
+        copy('hevc', 'hevc', 6e6),
+      ]),
+    ).toEqual({
+      id: 'hevc',
+      reason: 'Same resolution, and HEVC keeps more picture than H264.',
+    });
+    // Within 5% counts as the same; then the one you've played wins.
+    expect(
+      pickKeeperWithReason([
+        copy('a', 'h264', 8e6),
+        copy('b', 'h264', 8.2e6, 3),
+      ]),
+    ).toEqual({ id: 'b', reason: 'Same quality, and the one you’ve played.' });
+    // Near the 5% line the pick doesn't depend on the order of the copies,
+    // even when pairs would beat each other in a circle.
+    const near = [copy('x', 'h264', 100), copy('y', 'h264', 105.2)];
+    expect(pickKeeperWithReason(near).id).toBe(
+      pickKeeperWithReason([...near].reverse()).id,
+    );
+    const long = (id: string, rate: number, duration: number) => ({
+      ...copy(id, 'h264', rate),
+      file: { ...copy(id, 'h264', rate).file, duration },
+    });
+    const a = long('a', 100, 300);
+    const b = long('b', 104, 200);
+    const c = long('c', 108, 100);
+    const orders = [
+      [a, b, c],
+      [a, c, b],
+      [b, a, c],
+      [b, c, a],
+      [c, a, b],
+      [c, b, a],
+    ];
+    const picks = new Set(
+      orders.map((order) => pickKeeperWithReason(order).id),
+    );
+    // Only b and c are within 5% of the best (108); b is the longer of them.
+    expect([...picks]).toEqual(['b']);
   });
 
   it('counts the fix-my-library lists, treating a failing list as zero', async () => {

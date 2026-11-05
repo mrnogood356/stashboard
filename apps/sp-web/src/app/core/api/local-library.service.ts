@@ -137,6 +137,8 @@ export interface DuplicateScene {
   playCount: number;
   organized: boolean;
   imageUrl: string | null;
+  /** Deleting the scene from disk deletes all of its files. */
+  fileCount?: number;
   file: {
     path: string | null;
     basename: string | null;
@@ -153,6 +155,8 @@ export interface DuplicateScene {
 export interface DuplicateGroup {
   scenes: DuplicateScene[];
   suggestedKeepId: string;
+  /** Why that one, in plain words. */
+  keepReason?: string;
 }
 
 /** Organizing and browsing your own Stash library (saved straight to Stash). */
@@ -278,6 +282,23 @@ export class LocalLibraryService {
     return this.http.post<{ jobId: string | null }>(`/api/local/jobs/${task}`, {});
   }
 
+  /** Generate (previews, sprites, covers, fingerprints) for just these scenes. */
+  generateFor(sceneIds: string[]): Observable<{ jobId: string | null }> {
+    return this.http.post<{ jobId: string | null }>('/api/local/generate', { sceneIds });
+  }
+
+  similarTags(): Observable<SimilarTagGroup[]> {
+    return this.http.get<SimilarTagGroup[]>('/api/local/tags/similar');
+  }
+
+  mergeTags(destinationId: string, sourceIds: string[]): Observable<void> {
+    return this.http.post<void>('/api/local/tags/merge', { destinationId, sourceIds });
+  }
+
+  problems(): Observable<ProblemList[]> {
+    return this.http.get<ProblemList[]>('/api/local/problems');
+  }
+
   stopJob(jobId: string): Observable<void> {
     return this.http.delete<void>(`/api/local/jobs/${enc(jobId)}`);
   }
@@ -302,10 +323,13 @@ export class LocalLibraryService {
     });
   }
 
-  deleteScene(sceneId: string, deleteFile: boolean): Observable<void> {
-    return this.http.delete<void>(`/api/local/scenes/${enc(sceneId)}`, {
-      params: new HttpParams().set('deleteFile', String(deleteFile)),
-    });
+  /** `onlyFile`: refuse a scene with more than one file, whose others would go too. */
+  deleteScene(sceneId: string, deleteFile: boolean, onlyFile = false): Observable<void> {
+    let params = new HttpParams().set('deleteFile', String(deleteFile));
+    if (onlyFile) {
+      params = params.set('onlyFile', 'true');
+    }
+    return this.http.delete<void>(`/api/local/scenes/${enc(sceneId)}`, { params });
   }
 
   searchTags(query: string): Observable<Array<{ id: string; name: string }>> {
@@ -332,4 +356,26 @@ function pageParams(page: number, sort: LocalSceneSort, seed: number): HttpParam
     params = params.set('seed', seed);
   }
   return params;
+}
+
+export interface TagSummary {
+  id: string;
+  name: string;
+  aliases: string[];
+  sceneCount: number;
+}
+
+/** The same tag written more than one way; keepId is the one most scenes use. */
+export interface SimilarTagGroup {
+  keepId: string;
+  tags: TagSummary[];
+}
+
+export type ProblemKind = 'no-file' | 'no-length' | 'no-cover' | 'no-fingerprint';
+
+export interface ProblemList {
+  kind: ProblemKind;
+  /** Null when Stash couldn't say. */
+  count: number | null;
+  scenes: Array<{ id: string; title: string; path: string | null }>;
 }

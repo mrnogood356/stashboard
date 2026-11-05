@@ -196,9 +196,13 @@ describe('Library tools', () => {
     root.querySelector<HTMLButtonElement>('.copy:not(.best) .btn')!.click();
     fixture.detectChanges();
     root.querySelector<HTMLButtonElement>('.sheet .btn.danger')!.click();
+    // Copies go one at a time; let the delete finish.
+    for (let i = 0; i < 5; i += 1) {
+      await Promise.resolve();
+    }
     fixture.detectChanges();
 
-    expect(library.deleteScene).toHaveBeenCalledWith('b', true);
+    expect(library.deleteScene).toHaveBeenCalledWith('b', true, true);
     expect(root.textContent).toContain('No duplicates found.');
   });
 

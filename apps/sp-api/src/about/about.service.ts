@@ -88,18 +88,7 @@ export class AboutService {
   }
 
   async health(): Promise<HealthResponse> {
-    const configs = await this.prisma.integrationConfig
-      .findMany()
-      .catch(() => [] as IntegrationConfig[]);
-    const configured = ORDER.map((type) =>
-      configs.find((config) => config.type === type),
-    ).filter(
-      (config): config is IntegrationConfig =>
-        !!config &&
-        config.enabled &&
-        config.status !== IntegrationStatus.NOT_CONFIGURED &&
-        !!config.baseUrl?.trim(),
-    );
+    const configured = await this.configured();
     const stashConfig = configured.find((config) => config.type === 'STASH');
 
     const [database, integrations, disks, jobs, transcoding] =
@@ -118,6 +107,57 @@ export class AboutService {
       jobs,
       transcoding,
     };
+  }
+
+  /** The integrations that are set up and on, in the page's order. */
+  private async configured(): Promise<IntegrationConfig[]> {
+    const configs = await this.prisma.integrationConfig
+      .findMany()
+      .catch(() => [] as IntegrationConfig[]);
+    return ORDER.map((type) =>
+      configs.find((config) => config.type === type),
+    ).filter(
+      (config): config is IntegrationConfig =>
+        !!config &&
+        config.enabled &&
+        config.status !== IntegrationStatus.NOT_CONFIGURED &&
+        !!config.baseUrl?.trim(),
+    );
+  }
+
+  /**
+   * One timed check of the database and each integration, for the health
+   * history. Uses the same tests as the page.
+   */
+  async sample(): Promise<
+    Array<{
+      service: string;
+      ok: boolean;
+      ms: number | null;
+      error: string | null;
+    }>
+  > {
+    const timed = async (service: string, work: () => Promise<unknown>) => {
+      const started = Date.now();
+      try {
+        await withTimeout(work());
+        return { service, ok: true, ms: Date.now() - started, error: null };
+      } catch (error) {
+        return {
+          service,
+          ok: false,
+          ms: null,
+          error: messageOf(error).slice(0, 300),
+        };
+      }
+    };
+    const configured = await this.configured();
+    return Promise.all([
+      timed('DATABASE', () => this.prisma.$queryRaw`SELECT 1`),
+      ...configured.map((config) =>
+        timed(config.type, () => this.probe(config.type, connection(config))),
+      ),
+    ]);
   }
 
   /** Just information: nothing to fix when there's no GPU. */

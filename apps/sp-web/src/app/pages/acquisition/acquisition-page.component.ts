@@ -1,3 +1,4 @@
+import { failureReason } from './failure-reason';
 import { YouMayEnjoyComponent } from '../../shared/you-may-enjoy/you-may-enjoy.component';
 import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
 import {
@@ -755,10 +756,20 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       : '';
   }
 
+  /** Whisparr's own words, kept behind a plain-words reason. */
+  protected rawFailure(item: AcquisitionSceneItem): string | null {
+    return item.status.state === 'FAILED' && failureReason(item.errorMessage)
+      ? (item.errorMessage?.trim() ?? null)
+      : null;
+  }
+
   protected operationalDetail(item: AcquisitionSceneItem): string | null {
     if (item.status.state === 'FAILED') {
       if (item.errorMessage?.trim()) {
-        return `Whisparr reported: ${item.errorMessage.trim()}`;
+        const plain = failureReason(item.errorMessage);
+        return plain
+          ? `${plain.reason} ${plain.next}`
+          : `Whisparr reported: ${item.errorMessage.trim()}`;
       }
 
       // Downloaded but Whisparr won't import it: the file isn't in the library.

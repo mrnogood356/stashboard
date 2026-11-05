@@ -1,3 +1,4 @@
+import type { SimilarTagGroup } from './tag-cleanup.util';
 import type { LibraryStatsDto } from './library-stats.util';
 import {
   BadRequestException,
@@ -25,6 +26,7 @@ import {
   FixKind,
   FixScenesQueryDto,
   IdentifyScenesDto,
+  MergeTagsDto,
   LocalBulkScenesDto,
   LIBRARY_TASKS,
   FavoriteDto,
@@ -39,6 +41,7 @@ import {
   LocalPerformerDto,
   LocalSceneCardDto,
   DuplicateGroupDto,
+  ProblemListDto,
   SampleSceneDto,
   FixCountsDto,
   LocalScenePageDto,
@@ -146,6 +149,28 @@ export class LocalLibraryController {
     return this.library.startJob(task as StashLibraryTask);
   }
 
+  /** Generate for some scenes only (Broken files). */
+  @Post('generate')
+  generate(@Body() body: IdentifyScenesDto): Promise<{ jobId: string | null }> {
+    return this.library.generateFor(body.sceneIds);
+  }
+
+  @Get('tags/similar')
+  similarTags(): Promise<SimilarTagGroup[]> {
+    return this.library.similarTags();
+  }
+
+  @Post('tags/merge')
+  @HttpCode(204)
+  async mergeTags(@Body() body: MergeTagsDto): Promise<void> {
+    await this.library.mergeTags(body.destinationId, body.sourceIds);
+  }
+
+  @Get('problems')
+  problems(): Promise<ProblemListDto[]> {
+    return this.library.problems();
+  }
+
   @Delete('jobs/:jobId')
   @HttpCode(204)
   async stopJob(@Param('jobId') jobId: string): Promise<void> {
@@ -173,7 +198,11 @@ export class LocalLibraryController {
     @Param('sceneId') sceneId: string,
     @Query() query: DeleteSceneQueryDto,
   ): Promise<void> {
-    await this.library.deleteScene(sceneId, query.deleteFile === 'true');
+    await this.library.deleteScene(
+      sceneId,
+      query.deleteFile === 'true',
+      query.onlyFile === 'true',
+    );
   }
 
   @Get('search')

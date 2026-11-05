@@ -1,0 +1,80 @@
+<main class="app-page-shell">
+  <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Broken files</h1>
+      <p>Scenes Stash can’t play, show or compare properly, and the fix for each.</p>
+    </div>
+    <div class="head-actions">
+      <button type="button" class="head-action" [disabled]="loading()" (click)="load()">
+        <i class="pi pi-refresh" aria-hidden="true"></i><span>Look again</span>
+      </button>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <p class="muted loading" role="status">
+      <span class="spinner" aria-hidden="true"></span> Checking your library…
+    </p>
+  } @else if (error()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+      <span>Couldn’t ask Stash. Check that it’s running.</span>
+    </div>
+  } @else if (allClear()) {
+    <div class="empty">
+      <i class="pi pi-check-circle" aria-hidden="true"></i>
+      <p>Nothing broken. Every scene has its file, a length, a cover and a fingerprint.</p>
+    </div>
+  } @else {
+    <ul class="problems">
+      @for (list of lists(); track list.kind) {
+        @if (list.count !== 0) {
+          <li class="problem panel" [attr.data-testid]="'problem-' + list.kind">
+            <div class="problem-head">
+              <div>
+                <h2>{{ info[list.kind].title }}</h2>
+                <p class="muted">{{ info[list.kind].why }}</p>
+              </div>
+              <span class="count-badge">{{ list.count ?? '?' }}</span>
+            </div>
+            @if (list.count === null) {
+              <p class="muted">Stash couldn’t answer this one.</p>
+            } @else {
+              <ul class="scenes">
+                @for (scene of list.scenes; track scene.id) {
+                  <li>
+                    <a
+                      [routerLink]="['/library/scene', scene.id]"
+                      [queryParams]="{ returnTo: currentUrl() }"
+                      >{{ scene.title }}</a
+                    >
+                    @if (scene.path) {
+                      <span class="muted path" [title]="scene.path">{{ scene.path }}</span>
+                    }
+                  </li>
+                }
+              </ul>
+              @if ((list.count ?? 0) > list.scenes.length) {
+                <p class="muted more">And {{ (list.count ?? 0) - list.scenes.length }} more.</p>
+              }
+              @if (info[list.kind].fix) {
+                <div class="problem-actions">
+                  <button
+                    type="button"
+                    class="btn small primary"
+                    [attr.data-testid]="'fix-' + list.kind"
+                    [disabled]="started().has(list.kind)"
+                    (click)="fix(list)"
+                  >
+                    {{ started().has(list.kind) ? 'Started' : info[list.kind].fix }}
+                  </button>
+                </div>
+              }
+            }
+          </li>
+        }
+      }
+    </ul>
+  }
+</main>

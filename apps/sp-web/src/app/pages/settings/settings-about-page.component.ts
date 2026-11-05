@@ -13,6 +13,7 @@ import { AppUpdatesService } from '../../core/pwa/app-updates.service';
 import { redactForSharing, reportUrl } from './support-report';
 import { copyText } from '../../core/clipboard/copy-text';
 import { WhatsNewService } from '../../shared/whats-new/whats-new.service';
+import { HealthHistoryComponent } from './health-history/health-history.component';
 
 type RowStatus = 'ok' | 'warn' | 'fail' | 'skip';
 
@@ -52,7 +53,7 @@ const COPIED_MS = 2_000;
  */
 @Component({
   selector: 'app-settings-about-page',
-  imports: [RouterLink],
+  imports: [RouterLink, HealthHistoryComponent],
   templateUrl: './settings-about-page.component.html',
   styleUrls: ['./settings-about-page.component.scss', './settings-shared.scss'],
 })

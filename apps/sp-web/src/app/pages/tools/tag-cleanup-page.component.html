@@ -1,0 +1,91 @@
+<main class="app-page-shell">
+  <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Tag cleanup</h1>
+      <p>The same tag written more than one way. Merge them into one.</p>
+    </div>
+  </header>
+
+  <div class="notice">
+    <i class="pi pi-info-circle" aria-hidden="true"></i>
+    <span>
+      Merging moves every scene onto the tag you keep and deletes the others in Stash. Only case,
+      spacing, punctuation and a plural ending count here, so “Blonde” and “Blonde hair” stay apart.
+    </span>
+  </div>
+
+  @if (loading()) {
+    <p class="muted loading" role="status">
+      <span class="spinner" aria-hidden="true"></span> Reading your tags from Stash…
+    </p>
+  } @else if (error()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+      <span>Couldn’t read your tags. Check that Stash is running.</span>
+    </div>
+  } @else if (groups().length === 0) {
+    <div class="empty">
+      <i class="pi pi-check-circle" aria-hidden="true"></i>
+      <p>No tags written more than one way.</p>
+    </div>
+  } @else {
+    <p class="muted summary">
+      {{ groups().length }} {{ groups().length === 1 ? 'tag' : 'tags' }} written more than one way
+    </p>
+    <ul class="tag-groups">
+      @for (group of groups(); track groupKey(group)) {
+        <li class="tag-group panel" data-testid="tag-group">
+          <ul class="tags">
+            @for (tag of group.tags; track tag.id) {
+              <li class="tag-row" [class.kept]="tag.id === kept(group)">
+                <label class="keep">
+                  <input
+                    type="radio"
+                    [name]="'keep-' + groupKey(group)"
+                    [checked]="tag.id === kept(group)"
+                    (change)="setKeep(group, tag.id)"
+                  />
+                  <span class="tag-name">{{ tag.name }}</span>
+                </label>
+                <span class="muted count"
+                  >{{ tag.sceneCount }} {{ tag.sceneCount === 1 ? 'scene' : 'scenes' }}</span
+                >
+                @if (tag.id === kept(group)) {
+                  <span class="keep-badge">Keep</span>
+                } @else {
+                  <label class="fold">
+                    <input
+                      type="checkbox"
+                      [checked]="folded(group, tag.id)"
+                      (change)="toggleFold(group, tag.id)"
+                    />
+                    Merge in
+                  </label>
+                }
+              </li>
+            }
+          </ul>
+          <div class="group-actions">
+            <button
+              type="button"
+              class="btn small"
+              [class.danger]="confirming() === groupKey(group)"
+              data-testid="merge-tags"
+              [disabled]="foldCount(group) === 0 || merging() === groupKey(group)"
+              (click)="merge(group)"
+            >
+              @if (merging() === groupKey(group)) {
+                Merging…
+              } @else if (confirming() === groupKey(group)) {
+                Tap again to merge {{ foldCount(group) }} into {{ keptName(group) }}
+              } @else {
+                Merge {{ foldCount(group) }} into {{ keptName(group) }}
+              }
+            </button>
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</main>
