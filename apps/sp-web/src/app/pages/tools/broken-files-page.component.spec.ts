@@ -16,7 +16,10 @@ async function render(lists: ProblemList[], library: Record<string, unknown> = {
     providers: [
       provideRouter([]),
       { provide: LocalLibraryService, useValue: { problems: () => of(lists), ...library } },
-      { provide: AppNotificationsService, useValue: { success: vi.fn(), error: vi.fn() } },
+      {
+        provide: AppNotificationsService,
+        useValue: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+      },
     ],
   }).compileComponents();
   const fixture = TestBed.createComponent(BrokenFilesPageComponent);
