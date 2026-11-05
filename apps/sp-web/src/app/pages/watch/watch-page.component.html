@@ -298,6 +298,19 @@
         </button>
 
         @if (markers().length > 0) {
+          <button
+            type="button"
+            class="icon-button next-chapter"
+            data-testid="next-chapter"
+            (click)="stepChapter(1)"
+            aria-label="Next chapter"
+            title="Next chapter (])"
+          >
+            <i class="pi pi-step-forward" aria-hidden="true"></i>
+          </button>
+        }
+
+        @if (markers().length > 0) {
           <div class="quality">
             <button
               type="button"

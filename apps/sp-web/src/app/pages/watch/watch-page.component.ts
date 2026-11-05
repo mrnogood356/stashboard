@@ -831,7 +831,7 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   }
 
   /** The previous or next chapter; "previous" restarts this one if you're past its start. */
-  private stepChapter(direction: -1 | 1): void {
+  protected stepChapter(direction: -1 | 1): void {
     const video = this.videoRef?.nativeElement;
     const markers = [...this.markers()].sort((a, b) => a.seconds - b.seconds);
     if (!video || markers.length === 0) {
@@ -847,6 +847,8 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       if (direction === -1) {
         this.seekTo(0);
         this.showHud('Start');
+      } else {
+        this.showHud('Last chapter');
       }
       return;
     }
