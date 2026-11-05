@@ -68,7 +68,7 @@ export class StallWatchdog {
         `The server was blocked for ${seconds(late)}: nothing else could be answered meanwhile.` +
           (open.length
             ? ` Being answered then: ${open.map((entry) => describe(entry, at)).join('; ')}.`
-            : ' No web request was open, so it was background work.'),
+            : ' No web request is open now (one may have just finished, or it was background work).'),
       );
     }
 

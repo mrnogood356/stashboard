@@ -59,10 +59,12 @@ describe('StallWatchdog', () => {
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
-  it('says it was background work when no request was open', () => {
+  it('says no request is open now, without blaming background work for sure', () => {
     const { logger, advance } = setup();
     advance(1_000 + 6_000);
-    expect(logger.warn.mock.calls[0][0]).toContain('background work');
+    expect(logger.warn.mock.calls[0][0]).toContain(
+      'No web request is open now',
+    );
   });
 
   it('names a request that waits minutes for an answer, once', () => {

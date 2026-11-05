@@ -41,6 +41,7 @@ describe('LocalLibraryService', () => {
     setPerformerFavorite: jest.fn().mockResolvedValue(undefined),
     searchTags: jest.fn(),
     findSampleScenes: jest.fn(),
+    listLibraryFiles: jest.fn(),
   };
   const service = new LocalLibraryService(
     playback as unknown as PlaybackService,
@@ -48,6 +49,28 @@ describe('LocalLibraryService', () => {
   );
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('keeps Library stats, and a read under way, to the Stash they came from', async () => {
+    let finish: (files: never[]) => void = () => undefined;
+    stash.listLibraryFiles.mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve)),
+    );
+    stash.listLibraryFiles.mockResolvedValueOnce([]);
+    const first = service.stats();
+    await Promise.resolve();
+    // Stash's address changed while the first read was still going.
+    playback.getStashConfig.mockResolvedValueOnce({
+      baseUrl: 'http://other.local',
+      apiKey: 'k',
+    });
+    await service.stats();
+    expect(stash.listLibraryFiles).toHaveBeenCalledTimes(2);
+    finish([]);
+    await first;
+    // The first Stash's count is kept for it.
+    await service.stats();
+    expect(stash.listLibraryFiles).toHaveBeenCalledTimes(2);
+  });
 
   it('finds related scenes by performers, then studio, then tags, unwatched first', async () => {
     stash.getLocalSceneDetails.mockResolvedValue({

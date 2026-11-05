@@ -573,7 +573,12 @@ export class LocalLibraryService {
     baseUrl: string;
     value: LibraryStatsDto;
   } | null = null;
-  private statsRun: Promise<LibraryStatsDto> | null = null;
+  /** The read under way, with the Stash address it's reading. */
+  private statsRun: {
+    baseUrl: string;
+    token: symbol;
+    value: Promise<LibraryStatsDto>;
+  } | null = null;
 
   /**
    * What the library is made of: size by resolution, codec and studio, the
@@ -590,19 +595,31 @@ export class LocalLibraryService {
     ) {
       return this.statsCache.value;
     }
-    // One read of the whole library at a time.
-    this.statsRun ??= (async () => {
+    // One read of the whole library at a time, per Stash.
+    if (this.statsRun?.baseUrl === config.baseUrl) {
+      return this.statsRun.value;
+    }
+    const token = Symbol('stats');
+    const value = (async () => {
       try {
-        const value = computeLibraryStats(
+        const stats = computeLibraryStats(
           await this.stash.listLibraryFiles(config),
         );
-        this.statsCache = { at: Date.now(), baseUrl: config.baseUrl, value };
-        return value;
+        this.statsCache = {
+          at: Date.now(),
+          baseUrl: config.baseUrl,
+          value: stats,
+        };
+        return stats;
       } finally {
-        this.statsRun = null;
+        // A read for another Stash may have taken over meanwhile.
+        if (this.statsRun?.token === token) {
+          this.statsRun = null;
+        }
       }
     })();
-    return this.statsRun;
+    this.statsRun = { baseUrl: config.baseUrl, token, value };
+    return value;
   }
 
   // ---------- samples ----------

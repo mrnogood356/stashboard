@@ -151,17 +151,22 @@
             <p>With a GPU, Stash can use that instead. First give the Stash container the GPU:</p>
             <ul>
               <li>
-                Intel iGPU or AMD: add <code>--device=/dev/dri</code> to its Extra Parameters.
+                Intel iGPU or AMD on Unraid: add <code>--device=/dev/dri</code> to its Extra
+                Parameters. With Docker Compose: add <code>devices: ["/dev/dri:/dev/dri"]</code> to
+                the Stash service.
               </li>
               <li>
-                NVIDIA: install the Nvidia Driver plugin, add <code>--runtime=nvidia</code> to its
-                Extra Parameters, and set <code>NVIDIA_VISIBLE_DEVICES</code> to your GPU’s id (or
-                <code>all</code>) and <code>NVIDIA_DRIVER_CAPABILITIES</code> to <code>all</code>.
+                NVIDIA on Unraid: install the Nvidia Driver plugin, add
+                <code>--runtime=nvidia</code> to its Extra Parameters, and set
+                <code>NVIDIA_VISIBLE_DEVICES</code> to your GPU’s id (or <code>all</code>) and
+                <code>NVIDIA_DRIVER_CAPABILITIES</code> to <code>all</code>.
               </li>
             </ul>
             <p>
               Then turn on hardware encoding in Stash under Settings → System → Transcoding, and
-              restart Stash. Its log lists the hardware codecs it found.
+              restart Stash. Its log lists the hardware codecs it found. If it lists none, the Stash
+              image doesn’t have the drivers for your GPU: switch to an image that includes them
+              (Stash’s documentation lists the options), and the setting will start using it.
             </p>
           </details>
         }
