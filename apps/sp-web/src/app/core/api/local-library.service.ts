@@ -280,6 +280,23 @@ export class LocalLibraryService {
     return this.http.post<{ jobId: string | null }>(`/api/local/jobs/${task}`, {});
   }
 
+  /** Generate (previews, sprites, covers, fingerprints) for just these scenes. */
+  generateFor(sceneIds: string[]): Observable<{ jobId: string | null }> {
+    return this.http.post<{ jobId: string | null }>('/api/local/generate', { sceneIds });
+  }
+
+  similarTags(): Observable<SimilarTagGroup[]> {
+    return this.http.get<SimilarTagGroup[]>('/api/local/tags/similar');
+  }
+
+  mergeTags(destinationId: string, sourceIds: string[]): Observable<void> {
+    return this.http.post<void>('/api/local/tags/merge', { destinationId, sourceIds });
+  }
+
+  problems(): Observable<ProblemList[]> {
+    return this.http.get<ProblemList[]>('/api/local/problems');
+  }
+
   stopJob(jobId: string): Observable<void> {
     return this.http.delete<void>(`/api/local/jobs/${enc(jobId)}`);
   }
@@ -334,4 +351,26 @@ function pageParams(page: number, sort: LocalSceneSort, seed: number): HttpParam
     params = params.set('seed', seed);
   }
   return params;
+}
+
+export interface TagSummary {
+  id: string;
+  name: string;
+  aliases: string[];
+  sceneCount: number;
+}
+
+/** The same tag written more than one way; keepId is the one most scenes use. */
+export interface SimilarTagGroup {
+  keepId: string;
+  tags: TagSummary[];
+}
+
+export type ProblemKind = 'no-file' | 'no-length' | 'no-cover' | 'no-fingerprint';
+
+export interface ProblemList {
+  kind: ProblemKind;
+  /** Null when Stash couldn't say. */
+  count: number | null;
+  scenes: Array<{ id: string; title: string; path: string | null }>;
 }

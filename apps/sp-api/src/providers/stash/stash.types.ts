@@ -447,3 +447,20 @@ export interface StashSceneMatchInput {
   coverImageUrl: string | null;
   stashIds: Array<{ endpoint: string; stashId: string }>;
 }
+
+export interface StashTagSummary {
+  id: string;
+  name: string;
+  aliases: string[];
+  sceneCount: number;
+}
+
+/** What Library tools → Broken files lists. */
+export type StashProblemKind =
+  'no-file' | 'no-length' | 'no-cover' | 'no-fingerprint';
+
+export interface StashProblemScene {
+  id: string;
+  title: string;
+  path: string | null;
+}

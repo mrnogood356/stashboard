@@ -1,0 +1,67 @@
+.summary {
+  margin: 0.75rem 0;
+}
+
+.tag-groups,
+.tags {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag-groups {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.tag-group {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.tag-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.4rem;
+}
+
+.keep {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.tag-name {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.count {
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.keep-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--success-text);
+}
+
+.fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.group-actions {
+  display: flex;
+  justify-content: flex-end;
+}

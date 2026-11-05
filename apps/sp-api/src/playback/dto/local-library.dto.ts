@@ -162,3 +162,15 @@ export class DeleteSceneQueryDto {
   @IsIn(['true', 'false'])
   deleteFile?: 'true' | 'false';
 }
+
+export class MergeTagsDto {
+  @IsString()
+  @MaxLength(64)
+  destinationId!: string;
+
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  sourceIds!: string[];
+}

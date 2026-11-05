@@ -43,6 +43,10 @@ describe('LocalLibraryService', () => {
     searchTags: jest.fn(),
     findSampleScenes: jest.fn(),
     listLibraryFiles: jest.fn(),
+    listTags: jest.fn(),
+    mergeTags: jest.fn().mockResolvedValue(undefined),
+    startLibraryTask: jest.fn().mockResolvedValue('7'),
+    findProblemScenes: jest.fn(),
   };
   const service = new LocalLibraryService(
     playback as unknown as PlaybackService,
@@ -50,6 +54,52 @@ describe('LocalLibraryService', () => {
   );
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('merges only tags Stash still has, never a tag into itself', async () => {
+    stash.listTags.mockResolvedValue([
+      { id: '1', name: 'Blonde', aliases: [], sceneCount: 3 },
+      { id: '2', name: 'blondes', aliases: [], sceneCount: 30 },
+    ]);
+    await service.mergeTags('2', ['1', '2']);
+    expect(stash.mergeTags).toHaveBeenCalledWith(config, ['1'], '2');
+
+    await expect(service.mergeTags('2', ['2'])).rejects.toThrow(
+      'Pick at least one',
+    );
+    await expect(service.mergeTags('2', ['9'])).rejects.toThrow(
+      'gone from Stash',
+    );
+    expect(stash.mergeTags).toHaveBeenCalledTimes(1);
+  });
+
+  it('generates for the chosen scenes only, and never for the whole library by accident', async () => {
+    await expect(service.generateFor(['4', '5'])).resolves.toEqual({
+      jobId: '7',
+    });
+    expect(stash.startLibraryTask).toHaveBeenCalledWith(config, 'generate', [
+      '4',
+      '5',
+    ]);
+    await expect(service.generateFor([])).rejects.toThrow(
+      'Pick at least one scene',
+    );
+    expect(stash.startLibraryTask).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists each kind of broken file, and says when Stash couldn’t answer one', async () => {
+    stash.findProblemScenes.mockImplementation((_config, kind: string) =>
+      kind === 'no-cover'
+        ? Promise.reject(new Error('nope'))
+        : Promise.resolve({ count: kind === 'no-file' ? 2 : 0, scenes: [] }),
+    );
+    const lists = await service.problems();
+    expect(lists.map((list) => [list.kind, list.count])).toEqual([
+      ['no-file', 2],
+      ['no-length', 0],
+      ['no-cover', null],
+      ['no-fingerprint', 0],
+    ]);
+  });
 
   it('keeps Library stats, and a read under way, to the Stash they came from', async () => {
     let finish: (files: never[]) => void = () => undefined;

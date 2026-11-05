@@ -1,0 +1,81 @@
+.problems,
+.scenes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.problems {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.problem {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.85rem 0.95rem;
+}
+
+.problem-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.problem-head h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.problem-head p {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+}
+
+.scenes {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 16rem;
+  overflow-y: auto;
+  font-size: 0.86rem;
+}
+
+.scenes li {
+  display: grid;
+  min-width: 0;
+}
+
+.path {
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.problem-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.problem-head .count-badge {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.scenes a {
+  color: var(--text-primary);
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.scenes a:hover {
+  text-decoration: underline;
+}

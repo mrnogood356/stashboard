@@ -104,6 +104,18 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'tools/tags',
+        loadComponent: () =>
+          import('./pages/tools/tag-cleanup-page.component').then((m) => m.TagCleanupPageComponent),
+      },
+      {
+        path: 'tools/broken',
+        loadComponent: () =>
+          import('./pages/tools/broken-files-page.component').then(
+            (m) => m.BrokenFilesPageComponent,
+          ),
+      },
+      {
         path: 'tools/duplicates',
         loadComponent: () =>
           import('./pages/tools/duplicates-page.component').then((m) => m.DuplicatesPageComponent),

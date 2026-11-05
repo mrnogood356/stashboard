@@ -1,3 +1,8 @@
+import { groupSimilarTags, type SimilarTagGroup } from './tag-cleanup.util';
+import type {
+  StashProblemKind,
+  StashProblemScene,
+} from '../providers/stash/stash.types';
 import {
   computeLibraryStats,
   type LibraryStatsDto,
@@ -82,6 +87,19 @@ export interface DuplicateSceneDto extends Omit<
 export interface SampleSceneDto extends DuplicateSceneDto {
   /** Why it looks like a sample: its name says so, or it's very short. */
   reason: 'name' | 'short';
+}
+
+export const PROBLEM_KINDS: StashProblemKind[] = [
+  'no-file',
+  'no-length',
+  'no-cover',
+  'no-fingerprint',
+];
+
+export interface ProblemListDto {
+  kind: StashProblemKind;
+  count: number | null;
+  scenes: StashProblemScene[];
 }
 
 export interface DuplicateGroupDto {
@@ -534,6 +552,82 @@ export class LocalLibraryService {
       detail: 'It runs in Stash; follow it in Tools → Stash jobs.',
     });
     return { jobId };
+  }
+
+  /** Generate (previews, sprites, covers, fingerprints) for just these scenes. */
+  async generateFor(sceneIds: string[]): Promise<{ jobId: string | null }> {
+    // An empty list would make Stash generate for the whole library.
+    if (sceneIds.length === 0) {
+      throw new BadRequestException('Pick at least one scene.');
+    }
+    const config = await this.playback.getStashConfig();
+    const jobId = await this.stash.startLibraryTask(
+      config,
+      'generate',
+      sceneIds,
+    );
+    this.logger.log(
+      `Started Stash’s Generate for ${sceneIds.length} scene${sceneIds.length === 1 ? '' : 's'}${jobId ? ` (job ${jobId})` : ''}.`,
+    );
+    return { jobId };
+  }
+
+  // ---------- tag cleanup ----------
+
+  async similarTags(): Promise<SimilarTagGroup[]> {
+    const config = await this.playback.getStashConfig();
+    return groupSimilarTags(await this.stash.listTags(config));
+  }
+
+  /**
+   * Merges tags into one, after you pick them. Only tags Stash still has, and
+   * never a tag into itself.
+   */
+  async mergeTags(destinationId: string, sourceIds: string[]): Promise<void> {
+    const sources = [...new Set(sourceIds)].filter(
+      (id) => id !== destinationId,
+    );
+    if (sources.length === 0) {
+      throw new BadRequestException('Pick at least one other tag to merge.');
+    }
+    const config = await this.playback.getStashConfig();
+    const tags = new Map(
+      (await this.stash.listTags(config)).map((tag) => [tag.id, tag]),
+    );
+    const destination = tags.get(destinationId);
+    const missing = sources.filter((id) => !tags.has(id));
+    if (!destination || missing.length > 0) {
+      throw new BadRequestException(
+        'One of those tags is gone from Stash. Look again.',
+      );
+    }
+    await this.stash.mergeTags(config, sources, destinationId);
+    const names = sources.map((id) => tags.get(id)!.name);
+    this.logger.log(
+      `Merged tags ${names.join(', ')} into ${destination.name}.`,
+    );
+    await this.activity?.record({
+      kind: 'scan',
+      title: `Merged ${names.length} tag${names.length === 1 ? '' : 's'} into ${destination.name}.`,
+      detail: names.join(', '),
+    });
+  }
+
+  // ---------- broken files ----------
+
+  /** Each kind of problem: how many scenes, and the first 50. Null when Stash couldn't say. */
+  async problems(): Promise<ProblemListDto[]> {
+    const config = await this.playback.getStashConfig();
+    return Promise.all(
+      PROBLEM_KINDS.map(async (kind) => {
+        try {
+          const found = await this.stash.findProblemScenes(config, kind);
+          return { kind, count: found.count, scenes: found.scenes };
+        } catch {
+          return { kind, count: null, scenes: [] };
+        }
+      }),
+    );
   }
 
   async stopJob(jobId: string): Promise<void> {

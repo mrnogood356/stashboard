@@ -14,6 +14,9 @@ import {
   type StashJob,
   type StashLibraryTask,
   type StashOrganizerScene,
+  type StashProblemKind,
+  type StashProblemScene,
+  type StashTagSummary,
   type StashSceneMatchInput,
 } from './stash.types';
 import { StashGraphqlClient } from './stash-graphql.client';
@@ -1608,6 +1611,123 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
       ),
     };
   }
+
+  // ---------- tag cleanup ----------
+
+  /** Every tag with its aliases and how many scenes use it. */
+  async listTags(config: StashAdapterBaseConfig): Promise<StashTagSummary[]> {
+    const payload = (await this.executeQuery(
+      config,
+      `query AllTags($filter: FindFilterType) {
+        findTags(filter: $filter) {
+          tags { id name aliases scene_count }
+        }
+      }`,
+      { filter: { per_page: -1, sort: 'name', direction: 'ASC' } },
+    )) as unknown as {
+      data?: { findTags?: { tags?: Array<Record<string, unknown>> } };
+    };
+    return (payload.data?.findTags?.tags ?? []).flatMap((tag) => {
+      const id = this.normalizeEntityId(idText(tag['id']));
+      const name = typeof tag['name'] === 'string' ? tag['name'] : null;
+      if (!id || !name) {
+        return [];
+      }
+      return [
+        {
+          id,
+          name,
+          aliases: Array.isArray(tag['aliases'])
+            ? tag['aliases'].filter(
+                (alias): alias is string => typeof alias === 'string',
+              )
+            : [],
+          sceneCount:
+            typeof tag['scene_count'] === 'number' ? tag['scene_count'] : 0,
+        },
+      ];
+    });
+  }
+
+  /** Stash moves the sources' scenes onto the destination and deletes the sources. */
+  async mergeTags(
+    config: StashAdapterBaseConfig,
+    sourceIds: string[],
+    destinationId: string,
+  ): Promise<void> {
+    await this.executeQuery(
+      config,
+      `mutation MergeTags($input: TagsMergeInput!) { tagsMerge(input: $input) { id } }`,
+      { input: { source: sourceIds, destination: destinationId } },
+      false,
+    );
+  }
+
+  // ---------- broken files ----------
+
+  /** Scenes with one kind of problem: how many, and the first few. */
+  async findProblemScenes(
+    config: StashAdapterBaseConfig,
+    kind: StashProblemKind,
+    perPage = 50,
+  ): Promise<{ count: number; scenes: StashProblemScene[] }> {
+    const filters: Record<StashProblemKind, Record<string, unknown>> = {
+      'no-file': { file_count: { value: 0, modifier: 'EQUALS' } },
+      'no-length': {
+        file_count: { value: 0, modifier: 'GREATER_THAN' },
+        duration: { value: 1, modifier: 'LESS_THAN' },
+      },
+      'no-cover': { is_missing: 'cover' },
+      'no-fingerprint': {
+        file_count: { value: 0, modifier: 'GREATER_THAN' },
+        is_missing: 'phash',
+      },
+    };
+    const payload = (await this.executeQuery(
+      config,
+      `query ProblemScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {
+        findScenes(filter: $filter, scene_filter: $scene_filter) {
+          count
+          scenes { id title files { path basename } }
+        }
+      }`,
+      {
+        filter: { page: 1, per_page: perPage, sort: 'path', direction: 'ASC' },
+        scene_filter: filters[kind],
+      },
+    )) as unknown as {
+      data?: {
+        findScenes?: {
+          count?: unknown;
+          scenes?: Array<Record<string, unknown>>;
+        };
+      };
+    };
+    const found = payload.data?.findScenes;
+    return {
+      count: typeof found?.count === 'number' ? found.count : 0,
+      scenes: (found?.scenes ?? []).flatMap((scene) => {
+        const id = this.normalizeEntityId(idText(scene['id']));
+        if (!id) {
+          return [];
+        }
+        const files = Array.isArray(scene['files'])
+          ? (scene['files'] as Array<Record<string, unknown>>)
+          : [];
+        const path =
+          typeof files[0]?.['path'] === 'string' ? files[0]['path'] : null;
+        const basename =
+          typeof files[0]?.['basename'] === 'string'
+            ? files[0]['basename']
+            : null;
+        const title =
+          typeof scene['title'] === 'string' && scene['title']
+            ? scene['title']
+            : null;
+        return [{ id, title: title ?? basename ?? `Scene ${id}`, path }];
+      }),
+    };
+  }
 }
 
 /** What the duplicate and sample finders show for each scene. */
@@ -1634,6 +1754,13 @@ const STASH_GENDERS = new Set([
   'INTERSEX',
   'NON_BINARY',
 ]);
+
+/** Stash sends ids as strings; anything else reads as no id. */
+function idText(value: unknown): string {
+  return typeof value === 'string' || typeof value === 'number'
+    ? String(value)
+    : '';
+}
 
 function hostLabel(endpoint: string): string {
   try {
