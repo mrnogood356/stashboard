@@ -53,8 +53,18 @@ export class ReleaseNotesService implements OnModuleInit {
       where: { key: STATE_KEY },
     });
     if (!state) {
+      // The first start since this was added. An install that already has
+      // its admin account was running the release before this one; a fresh
+      // install has nothing to catch up on.
+      const existing = (await this.prisma.adminUser.count()) > 0;
+      const previous = existing ? this.releaseBefore(current) : null;
+      this.previous = previous;
       await this.prisma.appVersionState.create({
-        data: { key: STATE_KEY, lastVersion: current },
+        data: {
+          key: STATE_KEY,
+          lastVersion: current,
+          previousVersion: previous,
+        },
       });
       return;
     }
@@ -94,6 +104,15 @@ export class ReleaseNotesService implements OnModuleInit {
       (release) => compareVersions(release.version, current) !== 1,
     );
     return { current, releases: newest ? [newest] : [] };
+  }
+
+  /** The newest release in the changelog older than `version`. */
+  private releaseBefore(version: string): string | null {
+    return (
+      this.known().find(
+        (release) => compareVersions(release.version, version) === -1,
+      )?.version ?? null
+    );
   }
 
   private known(): ReleaseNotes[] {

@@ -84,6 +84,23 @@ describe('WhatsNewComponent', () => {
     expect(dialog.textContent).toContain('Back up every setting to a file');
   });
 
+  it('titles reopened notes by their release, and leaves the seen version alone', async () => {
+    localStorage.setItem(SEEN_VERSION_KEY, '1.9.0');
+    const { fixture } = await render(
+      { current: '1.9.0', releases: [] },
+      { ...NOTES, current: '1.9.0' },
+    );
+    const root = fixture.nativeElement as HTMLElement;
+
+    TestBed.inject(WhatsNewService).show();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('What’s new in Stashboard 1.4.0');
+
+    (root.querySelector('[data-testid="whats-new-close"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(localStorage.getItem(SEEN_VERSION_KEY)).toBe('1.9.0');
+  });
+
   it('only remembers the version on a first visit', async () => {
     const { fixture } = await render({ current: '1.4.0', releases: [] });
 

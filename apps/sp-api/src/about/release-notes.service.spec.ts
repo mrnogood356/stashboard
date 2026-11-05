@@ -85,6 +85,7 @@ describe('ReleaseNotesService', () => {
   it('only starts remembering on a fresh install, and never for edge builds', async () => {
     const create = jest.fn().mockResolvedValue({});
     const fresh = service('1.4.0', {
+      adminUser: { count: jest.fn().mockResolvedValue(0) },
       appVersionState: {
         findUnique: jest.fn().mockResolvedValue(null),
         update: jest.fn(),
@@ -93,7 +94,7 @@ describe('ReleaseNotesService', () => {
     });
     await fresh.onModuleInit();
     expect(create).toHaveBeenCalledWith({
-      data: { key: 'GLOBAL', lastVersion: '1.4.0' },
+      data: { key: 'GLOBAL', lastVersion: '1.4.0', previousVersion: null },
     });
     expect(fresh.since(undefined).releases).toEqual([]);
 
@@ -102,6 +103,26 @@ describe('ReleaseNotesService', () => {
       appVersionState: { findUnique, update: jest.fn(), create: jest.fn() },
     }).onModuleInit();
     expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it('on an existing install’s first start with this, counts the release before as the earlier one', async () => {
+    const create = jest.fn().mockResolvedValue({});
+    const notes = service('1.4.0', {
+      adminUser: { count: jest.fn().mockResolvedValue(1) },
+      appVersionState: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        update: jest.fn(),
+        create,
+      },
+    });
+    await notes.onModuleInit();
+
+    expect(create).toHaveBeenCalledWith({
+      data: { key: 'GLOBAL', lastVersion: '1.4.0', previousVersion: '1.3.0' },
+    });
+    expect(notes.since(undefined).releases.map((r) => r.version)).toEqual([
+      '1.4.0',
+    ]);
   });
 
   it('does not stop the app when the version cannot be stored', async () => {

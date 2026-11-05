@@ -39,6 +39,8 @@ export class WhatsNewComponent implements AfterViewInit {
 
   protected readonly releases = signal<ReleaseNotes[]>([]);
   protected readonly current = signal<string | null>(null);
+  /** The version to remember on close: the running one after an update, none when reopened from About. */
+  private remember: string | null = null;
   protected readonly title = computed(() =>
     this.current() ? `What’s new in Stashboard ${this.current()}` : 'What’s new',
   );
@@ -56,6 +58,7 @@ export class WhatsNewComponent implements AfterViewInit {
           return;
         }
         this.current.set(current);
+        this.remember = current;
         this.releases.set(releases);
         this.open();
       },
@@ -67,11 +70,14 @@ export class WhatsNewComponent implements AfterViewInit {
   /** About's "What's new": the running release's notes, whenever asked. */
   private showLatest(): void {
     this.api.latestChanges().subscribe({
-      next: ({ current, releases }) => {
+      next: ({ releases }) => {
         if (releases.length === 0) {
           return;
         }
-        this.current.set(RELEASE.test(current) ? current : releases[0].version);
+        // Titled by the notes shown, which can be an earlier release than the
+        // one running; reading them again changes nothing about what's seen.
+        this.current.set(releases[0].version);
+        this.remember = null;
         this.releases.set(releases);
         this.open();
       },
@@ -96,9 +102,9 @@ export class WhatsNewComponent implements AfterViewInit {
   }
 
   protected close(): void {
-    const current = this.current();
-    if (current) {
-      writeSeen(current);
+    if (this.remember) {
+      writeSeen(this.remember);
+      this.remember = null;
     }
     const dialog = this.dialogElement();
     if (dialog?.open) {
