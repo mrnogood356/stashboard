@@ -64,7 +64,17 @@ export class SuggestionsService {
 
   async list(limit = 24): Promise<SuggestionsDto> {
     const value = await this.current();
-    return { ...value, items: value.items.slice(0, limit) };
+    // The list is kept for hours; a scene requested or brought in since is dropped.
+    const statuses = await this.sceneStatus.resolveForScenes(
+      value.items.map((item) => item.id),
+    );
+    const items = value.items
+      .filter((item) => {
+        const status = statuses.get(item.id);
+        return !status || isSceneStatusRequestable(status);
+      })
+      .slice(0, limit);
+    return { ...value, items };
   }
 
   /** Not interested: never shown again, and its reason counts a little less. */
@@ -104,7 +114,8 @@ export class SuggestionsService {
   private async build(): Promise<SuggestionsDto> {
     const [stashConfig, provider] = await Promise.all([
       this.stashConfig(),
-      this.catalogProvider.getConfiguredCatalogProviderOrNull(),
+      // The instance's own catalog, never one a page is browsing: the list is shared.
+      this.catalogProvider.getInstanceCatalogProvider().catch(() => null),
     ]);
     if (!stashConfig || !provider) {
       return {

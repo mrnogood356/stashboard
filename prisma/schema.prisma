@@ -170,6 +170,7 @@ model LibrarySceneIndex {
   @@index([studioName])
   @@index([title])
   @@index([tagIds], type: Gin, map: "LibrarySceneIndex_tagIds_gin_idx")
+  @@index([fingerprints], type: Gin, map: "LibrarySceneIndex_fingerprints_idx")
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "LibrarySceneIndex_title_trgm_idx")
   @@index([description(ops: raw("gin_trgm_ops"))], type: Gin, map: "LibrarySceneIndex_description_trgm_idx")
   @@index([studioName(ops: raw("gin_trgm_ops"))], type: Gin, map: "LibrarySceneIndex_studioName_trgm_idx")

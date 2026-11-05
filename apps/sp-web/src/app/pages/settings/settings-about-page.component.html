@@ -141,18 +141,27 @@
       @if (health(); as result) {
         @if (result.transcoding === 'gpu') {
           <p class="muted small" data-testid="transcoding">
-            Video that has to be converted to play is transcoded by Stash with the GPU.
+            Stash has hardware transcoding turned on: it uses the GPU when it finds one it can use.
           </p>
         } @else if (result.transcoding === 'cpu') {
           <details class="muted small transcoding" data-testid="transcoding">
             <summary>
               Video that has to be converted to play is transcoded by Stash with the CPU.
             </summary>
+            <p>With a GPU, Stash can use that instead. First give the Stash container the GPU:</p>
+            <ul>
+              <li>
+                Intel iGPU or AMD: add <code>--device=/dev/dri</code> to its Extra Parameters.
+              </li>
+              <li>
+                NVIDIA: install the Nvidia Driver plugin, add <code>--runtime=nvidia</code> to its
+                Extra Parameters, and set <code>NVIDIA_VISIBLE_DEVICES</code> to your GPU’s id (or
+                <code>all</code>) and <code>NVIDIA_DRIVER_CAPABILITIES</code> to <code>all</code>.
+              </li>
+            </ul>
             <p>
-              With an Intel iGPU (or an AMD or NVIDIA GPU) Stash can use that instead. Give the
-              Stash container the GPU (Unraid: add <code>--device=/dev/dri</code> to its Extra
-              Parameters), turn on hardware encoding in Stash under Settings → System → Transcoding,
-              and restart Stash. Its log lists the hardware codecs it found.
+              Then turn on hardware encoding in Stash under Settings → System → Transcoding, and
+              restart Stash. Its log lists the hardware codecs it found.
             </p>
           </details>
         }

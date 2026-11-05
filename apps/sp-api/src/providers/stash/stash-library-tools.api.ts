@@ -855,6 +855,9 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
       const payload = (await this.executeQuery(
         config,
         `query Transcoding { configuration { general { transcodeHardwareAcceleration } } }`,
+        undefined,
+        // Older Stash has no such field: that's not Stash being unwell.
+        false,
       )) as unknown as {
         data?: {
           configuration?: {

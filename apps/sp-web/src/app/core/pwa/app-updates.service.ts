@@ -113,7 +113,11 @@ export class AppUpdatesService {
     if (/iPhone|iPad|iPod/.test(view.navigator.userAgent) || iPadAsMac) {
       return 'ios';
     }
-    return view.isSecureContext === false ? 'insecure' : 'manual';
+    // Safari on a Mac adds any page to the Dock, https or not.
+    const safari =
+      /Safari\//.test(view.navigator.userAgent) &&
+      !/Chrome|Chromium|CriOS|Edg|OPR|Firefox/.test(view.navigator.userAgent);
+    return view.isSecureContext === false && !safari ? 'insecure' : 'manual';
   }
 
   reload(): void {

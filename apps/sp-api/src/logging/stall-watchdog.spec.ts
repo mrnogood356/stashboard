@@ -49,6 +49,16 @@ describe('StallWatchdog', () => {
     expect(line).not.toContain('/api/playback/stream');
   });
 
+  it('never calls a playing preview clip stuck', () => {
+    const { logger, open, advance } = setup();
+    open(1, 'GET', '/api/playback/scenes/12/preview');
+    open(2, 'GET', '/api/playback/scenes/12/markers/3/preview');
+    for (let at = 0; at < STUCK_AFTER_MS + 5_000; at += 1_000) {
+      advance(1_000);
+    }
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
   it('says it was background work when no request was open', () => {
     const { logger, advance } = setup();
     advance(1_000 + 6_000);

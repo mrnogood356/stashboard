@@ -83,6 +83,29 @@ describe('LibraryStatsPageComponent', () => {
     expect(statsCall).toHaveBeenLastCalledWith(true);
   });
 
+  it('says so when Refresh fails, keeping the numbers from before', async () => {
+    const statsCall = vi
+      .fn()
+      .mockReturnValueOnce(of(stats))
+      .mockReturnValueOnce(throwError(() => new Error('down')));
+    await TestBed.configureTestingModule({
+      imports: [LibraryStatsPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: LocalLibraryService, useValue: { stats: statsCall } },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(LibraryStatsPageComponent);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="stats-refresh-error"]')).toBeNull();
+
+    (root.querySelector('[data-testid="stats-refresh"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="stats-refresh-error"]')).not.toBeNull();
+    expect(root.textContent).toContain('Studio One');
+  });
+
   it('says so when Stash can’t be read', async () => {
     const root = await render({
       stats: vi.fn().mockReturnValue(throwError(() => new Error('down'))),

@@ -567,7 +567,12 @@ export class LocalLibraryService {
 
   // ---------- stats ----------
 
-  private statsCache: { at: number; value: LibraryStatsDto } | null = null;
+  /** Kept with the Stash address it came from, so another Stash is read afresh. */
+  private statsCache: {
+    at: number;
+    baseUrl: string;
+    value: LibraryStatsDto;
+  } | null = null;
   private statsRun: Promise<LibraryStatsDto> | null = null;
 
   /**
@@ -576,9 +581,11 @@ export class LocalLibraryService {
    * refresh asks Stash again.
    */
   async stats(refresh = false): Promise<LibraryStatsDto> {
+    const config = await this.playback.getStashConfig();
     if (
       !refresh &&
       this.statsCache &&
+      this.statsCache.baseUrl === config.baseUrl &&
       Date.now() - this.statsCache.at < STATS_TTL_MS
     ) {
       return this.statsCache.value;
@@ -586,11 +593,10 @@ export class LocalLibraryService {
     // One read of the whole library at a time.
     this.statsRun ??= (async () => {
       try {
-        const config = await this.playback.getStashConfig();
         const value = computeLibraryStats(
           await this.stash.listLibraryFiles(config),
         );
-        this.statsCache = { at: Date.now(), value };
+        this.statsCache = { at: Date.now(), baseUrl: config.baseUrl, value };
         return value;
       } finally {
         this.statsRun = null;

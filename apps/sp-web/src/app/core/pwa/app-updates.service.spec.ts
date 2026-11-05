@@ -2,7 +2,10 @@ import { TestBed } from '@angular/core/testing';
 import { AppUpdatesService, mainBundleName } from './app-updates.service';
 
 describe('AppUpdatesService', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
   it('reads the release’s main bundle name from a page', () => {
     expect(mainBundleName('<script src="main-WUR5SREH.js" type="module"></script>')).toBe(
@@ -40,6 +43,16 @@ describe('AppUpdatesService', () => {
     expect(service.updateReady()).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     script.remove();
+  });
+
+  it('keeps Safari’s Add to Dock steps on http://, as Safari adds any page', () => {
+    vi.stubGlobal('isSecureContext', false);
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
+    );
+    const service = TestBed.inject(AppUpdatesService);
+    service.start();
+    expect(service.installState()).toBe('manual');
   });
 
   it('says why there’s no Install on a plain http:// address', () => {

@@ -7,8 +7,12 @@ const TICK_MS = 1_000;
 export const BLOCKED_AFTER_MS = 5_000;
 /** An API request open this long is waiting on something that isn't answering. */
 export const STUCK_AFTER_MS = 120_000;
-/** Open for as long as the video plays: never "stuck". */
-const LONG_LIVED = [/^\/api\/playback\/stream\//];
+/** Open for as long as the video or preview clip plays: never "stuck". */
+const LONG_LIVED = [
+  /^\/api\/playback\/stream\//,
+  /^\/api\/playback\/scenes\/[^/]+\/preview$/,
+  /^\/api\/playback\/scenes\/[^/]+\/markers\/[^/]+\/preview$/,
+];
 /** Requests named in one warning. */
 const LISTED = 5;
 
