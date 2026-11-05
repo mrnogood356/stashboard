@@ -28,6 +28,7 @@ function handoff(overrides: Partial<DownloadHandoff> = {}): DownloadHandoff {
     sabPath: null,
     finalPath: null,
     stashSceneId: null,
+    replacesStashSceneId: null,
     error: null,
     attempts: 0,
     finishedAt: null,

@@ -175,6 +175,8 @@ export class DownloadsService {
       indexer?: string | null;
     },
     provider?: CatalogProviderKey,
+    /** Smaller copies: the Stash scene whose file this replaces once imported. */
+    options: { replacesStashSceneId?: string } = {},
   ): Promise<{ accepted: true; sentTo: 'prowlarr' | 'sabnzbd' }> {
     const config = await this.requireConfig();
     if (this.handoff && (await this.handoff.isActive())) {
@@ -198,6 +200,7 @@ export class DownloadsService {
           nzb,
           releaseTitle: found.title,
           scene: { id: scene.id, provider: scene.provider, title: scene.title },
+          replacesStashSceneId: options.replacesStashSceneId,
         });
         this.logger.log(
           `Sent “${found.title}”${found.indexer ? ` from ${found.indexer}` : ''} to SABnzbd for “${scene.title ?? scene.id}”.`,

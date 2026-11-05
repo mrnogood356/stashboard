@@ -54,6 +54,7 @@ describe('DownloadHandoffService', () => {
     sabPath: null,
     finalPath: null,
     stashSceneId: null,
+    replacesStashSceneId: null,
     error: null,
     attempts: 0,
     finishedAt: null,
@@ -743,6 +744,143 @@ describe('DownloadHandoffService', () => {
       prisma.downloadHandoff.findMany.mockResolvedValue([handoff()]);
       sabnzbd.history.mockRejectedValue(new Error('sab down'));
       await expect(service.watch()).resolves.toBeUndefined();
+    });
+  });
+
+  describe('replacing a smaller copy', () => {
+    const config = { baseUrl: 'http://stash:9999', apiKey: null };
+    let attempts: jest.Mock;
+    let oldCopy: string;
+    const file = (
+      id: string,
+      filePath: string,
+      duration: number,
+      size = 1,
+    ) => ({
+      id,
+      path: filePath,
+      duration,
+      size,
+    });
+    const replace = (newPath = '/lib/new.mkv') =>
+      (
+        service as unknown as {
+          replaceOldCopy: (
+            c: unknown,
+            r: DownloadHandoff,
+            s: string,
+            p: string,
+          ) => Promise<void>;
+        }
+      ).replaceOldCopy(config, row(), '88', newPath);
+    const outcome = () =>
+      (
+        attempts.mock.calls.at(-1)?.[0] as {
+          data: { outcome: string; detail: string };
+        }
+      ).data;
+
+    beforeEach(() => {
+      rows.push(
+        handoff({ id: 'h1', replacesStashSceneId: '12', status: 'imported' }),
+      );
+      oldCopy = 'delete';
+      attempts = jest.fn().mockResolvedValue({ count: 1 });
+      prisma.smallerCopyAttempt = { updateMany: attempts };
+      prisma.smallerCopySettings = {
+        findUnique: jest.fn(() => Promise.resolve({ oldCopy })),
+      };
+      const scenes: Record<
+        string,
+        { files: ReturnType<typeof file>[] } | null
+      > = {
+        '88': { files: [file('f-new', '/lib/new.mkv', 1800, 2e9)] },
+        '12': { files: [file('f-old', '/lib/old.mkv', 1805, 9e9)] },
+      };
+      stash.getOrganizerScene = jest.fn((_c: unknown, id: string) =>
+        Promise.resolve(scenes[id] ?? null),
+      );
+      stash.mergeScenes = jest.fn(() => {
+        scenes['12'] = {
+          files: [...scenes['12']!.files, ...scenes['88']!.files],
+        };
+        scenes['88'] = null;
+        return Promise.resolve();
+      });
+      stash.removeExtraFile = jest.fn().mockResolvedValue(undefined);
+    });
+
+    it('merges the new scene into the old one and deletes the old file', async () => {
+      await replace();
+
+      expect(stash.mergeScenes).toHaveBeenCalledWith(config, ['88'], '12');
+      expect(stash.removeExtraFile).toHaveBeenCalledWith(
+        config,
+        '12',
+        'f-new',
+        'f-old',
+      );
+      expect(row().stashSceneId).toBe('12');
+      expect(outcome()).toMatchObject({ outcome: 'replaced', newSize: 2e9 });
+      expect(outcome().detail).toContain('/lib/old.mkv');
+    });
+
+    it('keeps both files on the scene when the rules say to keep the old one', async () => {
+      oldCopy = 'keep';
+      await replace();
+
+      expect(stash.mergeScenes).toHaveBeenCalled();
+      expect(stash.removeExtraFile).not.toHaveBeenCalled();
+      expect(outcome().outcome).toBe('kept-both');
+    });
+
+    it('keeps both, unmerged, when the lengths are far apart', async () => {
+      stash.getOrganizerScene.mockImplementation((_c: unknown, id: string) =>
+        Promise.resolve(
+          id === '88'
+            ? { files: [file('f-new', '/lib/new.mkv', 600)] }
+            : { files: [file('f-old', '/lib/old.mkv', 1800)] },
+        ),
+      );
+      await replace();
+
+      expect(stash.mergeScenes).not.toHaveBeenCalled();
+      expect(outcome().outcome).toBe('kept-both');
+      expect(outcome().detail).toContain('10 min');
+    });
+
+    it('keeps the new scene when the old one is gone, or the new file reads as 0 s', async () => {
+      stash.getOrganizerScene.mockImplementation((_c: unknown, id: string) =>
+        Promise.resolve(
+          id === '88' ? { files: [file('f-new', '/lib/new.mkv', 0)] } : null,
+        ),
+      );
+      await replace();
+      expect(outcome().detail).toContain('old scene is gone');
+
+      stash.getOrganizerScene.mockImplementation((_c: unknown, id: string) =>
+        Promise.resolve({
+          files: [
+            file(
+              `f-${id}`,
+              id === '88' ? '/lib/new.mkv' : '/lib/old.mkv',
+              id === '88' ? 0 : 1800,
+            ),
+          ],
+        }),
+      );
+      await replace();
+      expect(outcome().detail).toContain('0 seconds');
+      expect(stash.mergeScenes).not.toHaveBeenCalled();
+    });
+
+    it('keeps both, saying why, when Stash fails partway', async () => {
+      stash.mergeScenes.mockRejectedValue(new Error('Stash said no'));
+      await replace();
+
+      expect(stash.removeExtraFile).not.toHaveBeenCalled();
+      expect(outcome()).toMatchObject({ outcome: 'kept-both' });
+      expect(outcome().detail).toContain('Stash said no');
     });
   });
 

@@ -272,6 +272,8 @@ export class DownloadHandoffService {
     nzb: { content: Uint8Array; fileName: string | null };
     releaseTitle: string;
     scene: { id: string; provider: CatalogProviderKey; title: string | null };
+    /** Smaller copies: the Stash scene whose file this download replaces. */
+    replacesStashSceneId?: string;
   }): Promise<DownloadHandoffDto> {
     const [settings, config] = await Promise.all([
       this.getSettings(),
@@ -297,6 +299,7 @@ export class DownloadHandoffService {
         provider: input.scene.provider,
         releaseTitle,
         status: 'sent',
+        replacesStashSceneId: input.replacesStashSceneId ?? null,
       },
     });
     const label = getCatalogProviderLabel(input.scene.provider);
@@ -972,6 +975,9 @@ export class DownloadHandoffService {
         finishedAt: new Date(),
       },
     });
+    if (row.replacesStashSceneId) {
+      await this.replaceOldCopy(config, row, sceneId, placed.to);
+    }
     const label = getCatalogProviderLabel(provider);
     this.logger.log(
       `Imported “${linked.title ?? row.releaseTitle}” into the library as Stash scene ${sceneId}, linked to ${label} scene ${catalogSceneId}${placed.to !== finalPath ? `, placed in ${placed.to}` : ''}.`,
@@ -991,6 +997,146 @@ export class DownloadHandoffService {
       ].join('\n'),
       ...(placed.reason ? { status: 'partial' as const } : {}),
     });
+  }
+
+  /**
+   * Smaller copies: the new download joins the scene it replaces (plays,
+   * chapters and details stay with it), then that scene's other files are
+   * deleted. Only when the new file has a length close to the old one's;
+   * otherwise both are kept and the attempt says why.
+   */
+  private async replaceOldCopy(
+    config: StashAdapterBaseConfig,
+    row: DownloadHandoff,
+    newSceneId: string,
+    newPath: string,
+  ): Promise<void> {
+    const oldSceneId = row.replacesStashSceneId!;
+    const record = (
+      outcome: 'replaced' | 'kept-both',
+      detail: string,
+      newSize?: number | null,
+    ) =>
+      this.prisma.smallerCopyAttempt
+        .updateMany({
+          where: { handoffId: row.id },
+          data: { outcome, detail, ...(newSize ? { newSize } : {}) },
+        })
+        .catch(() => undefined);
+    if (oldSceneId === newSceneId) {
+      await record(
+        'kept-both',
+        'Stash put the new file on the same scene; nothing to replace.',
+      );
+      return;
+    }
+    try {
+      const [fresh, old] = await Promise.all([
+        this.stash.getOrganizerScene(config, newSceneId),
+        this.stash.getOrganizerScene(config, oldSceneId),
+      ]);
+      if (!old) {
+        await record(
+          'kept-both',
+          'The old scene is gone from Stash, so the new one stays as it is.',
+        );
+        return;
+      }
+      const newFile =
+        fresh?.files.find((file) => samePath(file.path, newPath)) ??
+        fresh?.files[0] ??
+        null;
+      const oldLength = Math.max(
+        0,
+        ...old.files.map((file) => file.duration ?? 0),
+      );
+      const newLength = newFile?.duration ?? 0;
+      if (!newFile || newLength <= 0) {
+        await record(
+          'kept-both',
+          'The new file reads as 0 seconds long, so the old one was kept.',
+        );
+        return;
+      }
+      if (
+        oldLength > 0 &&
+        Math.abs(newLength - oldLength) > Math.max(60, oldLength * 0.1)
+      ) {
+        await record(
+          'kept-both',
+          `The new file runs ${Math.round(newLength / 60)} min and the old one ${Math.round(oldLength / 60)} min, so both were kept to check by hand.`,
+          newFile.size,
+        );
+        return;
+      }
+      await this.stash.mergeScenes(config, [newSceneId], oldSceneId);
+      const merged = await this.stash.getOrganizerScene(config, oldSceneId);
+      const keep = merged?.files.find((file) =>
+        samePath(file.path, newFile.path),
+      );
+      if (!merged || !keep) {
+        await record(
+          'kept-both',
+          'Stash merged the scenes but the new file couldn’t be found on it.',
+        );
+        return;
+      }
+      const settings = await this.prisma.smallerCopySettings
+        .findUnique({ where: { key: 'GLOBAL' } })
+        .catch(() => null);
+      if (settings?.oldCopy === 'keep') {
+        await this.prisma.downloadHandoff.update({
+          where: { id: row.id },
+          data: { stashSceneId: oldSceneId },
+        });
+        await record(
+          'kept-both',
+          'Both files are on the scene now, as the rules ask; remove the old one when you like.',
+          newFile.size,
+        );
+        return;
+      }
+      const removed: string[] = [];
+      for (const file of merged.files) {
+        if (file.id !== keep.id) {
+          await this.stash.removeExtraFile(
+            config,
+            oldSceneId,
+            keep.id,
+            file.id,
+          );
+          removed.push(file.path);
+        }
+      }
+      await this.prisma.downloadHandoff.update({
+        where: { id: row.id },
+        data: { stashSceneId: oldSceneId },
+      });
+      await record(
+        'replaced',
+        `Deleted ${removed.join(', ') || 'the old file'}.`,
+        newFile.size,
+      );
+      this.logger.log(
+        `Replaced Stash scene ${oldSceneId}'s file with ${keep.path}; deleted ${removed.join(', ')}.`,
+      );
+      await this.activity?.record({
+        kind: 'download',
+        title: 'Replaced a scene with a smaller copy',
+        detail: [
+          `Kept ${keep.path}`,
+          ...removed.map((path) => `Deleted ${path}`),
+        ].join('\n'),
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Couldn't replace Stash scene ${oldSceneId}'s file: ${messageOf(error)}. Both copies are kept.`,
+      );
+      await record(
+        'kept-both',
+        `Couldn’t replace the old file: ${messageOf(error)}. Both are kept.`,
+      );
+    }
   }
 
   /**
@@ -1477,4 +1623,10 @@ function messageOf(error: unknown): string {
   return error instanceof Error && error.message
     ? error.message
     : 'unknown error';
+}
+
+/** The same file, whatever the case or a trailing separator. */
+function samePath(a: string, b: string): boolean {
+  const flat = (path: string) => path.replace(/[\\/]+$/, '').toLowerCase();
+  return flat(a) === flat(b);
 }
