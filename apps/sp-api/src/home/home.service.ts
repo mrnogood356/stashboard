@@ -1,3 +1,4 @@
+import { SuggestionsService } from '../suggestions/suggestions.service';
 import {
   BadRequestException,
   ConflictException,
@@ -144,6 +145,12 @@ const STOCK_HOME_ROWS: Array<{
     title: 'Coming Soon',
     subtitle: 'Scenes Whisparr is waiting for, by release date.',
     from: 'whisparr',
+  },
+  {
+    key: HomeRailKey.YOU_MAY_ENJOY,
+    title: 'You May Enjoy',
+    subtitle: 'Catalog scenes you don’t have, picked from what you watch most.',
+    from: 'catalog',
   },
 ];
 
@@ -336,6 +343,7 @@ export class HomeService {
     @Optional() private readonly stashAdapter?: StashAdapter,
     @Optional() private readonly hiddenContent?: HiddenContentService,
     @Optional() private readonly scenes?: ScenesService,
+    @Optional() private readonly suggestions?: SuggestionsService,
   ) {}
 
   async getRails(): Promise<HomeRailDto[]> {
@@ -565,6 +573,8 @@ export class HomeService {
         return this.getPickedLibraryRowContent(rail, rail.key);
       case HomeRailKey.COMING_SOON:
         return this.getComingSoonRowContent(rail);
+      case HomeRailKey.YOU_MAY_ENJOY:
+        return this.getYouMayEnjoyRowContent(rail);
       default:
         break;
     }
@@ -725,6 +735,44 @@ export class HomeService {
   }
 
   /** What Whisparr is waiting for over the next weeks, soonest first. */
+  private async getYouMayEnjoyRowContent(
+    rail: HomeRail,
+  ): Promise<HomeRailContentDto> {
+    if (!this.suggestions) {
+      return { items: [], message: 'Suggestions aren’t available.' };
+    }
+    try {
+      const { items, message } = await this.suggestions.list(
+        this.railLimit(rail),
+      );
+      return {
+        items: items.map((item): HomeRailItemDto => ({
+          id: item.id,
+          title: item.title,
+          description: item.description,
+          imageUrl: item.imageUrl,
+          cardImageUrl: item.cardImageUrl,
+          studioId: item.studioId,
+          studio: item.studio,
+          studioImageUrl: item.studioImageUrl,
+          releaseDate: item.releaseDate,
+          duration: item.duration,
+          type: 'SCENE',
+          source: item.source,
+          status: item.status,
+          requestable: item.requestable,
+          viewUrl: null,
+        })),
+        message,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Failed to load the Home row “${rail.title}”. ${(error as Error)?.message ?? 'Unknown error.'}`,
+      );
+      return { items: [], message: 'Couldn’t work out suggestions right now.' };
+    }
+  }
+
   private async getComingSoonRowContent(
     rail: HomeRail,
   ): Promise<HomeRailContentDto> {

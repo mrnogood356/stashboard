@@ -1,3 +1,4 @@
+import { SuggestionsModule } from './suggestions/suggestions.module';
 import { PlaybackModule } from './playback/playback.module';
 import { ActivityModule } from './activity/activity.module';
 import { AutomationModule } from './automation/automation.module';
@@ -55,6 +56,7 @@ import { StudiosModule } from './studios/studios.module';
     SetupCheckModule,
     AcquisitionModule,
     ScenesModule,
+    SuggestionsModule,
     RequestsModule,
     DownloadsModule,
     PerformersModule,

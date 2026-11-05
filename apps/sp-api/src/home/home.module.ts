@@ -1,3 +1,4 @@
+import { SuggestionsModule } from '../suggestions/suggestions.module';
 import { Module } from '@nestjs/common';
 import { AcquisitionModule } from '../acquisition/acquisition.module';
 import { HiddenContentModule } from '../hidden-content/hidden-content.module';
@@ -27,6 +28,7 @@ import { HomeService } from './home.service';
     OrganizerModule,
     PlaybackModule,
     ScenesModule,
+    SuggestionsModule,
   ],
   controllers: [HomeController],
   providers: [HomeService, HomeAttentionService],

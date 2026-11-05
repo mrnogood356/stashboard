@@ -241,6 +241,7 @@ enum HomeRailKey {
   QUICK_PICKS
   LIBRARY_4K
   COMING_SOON
+  YOU_MAY_ENJOY
 }
 
 enum HomeRailKind {
@@ -631,4 +632,15 @@ model PlaybackSettings {
   previewsEnabled Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+/// A "You may enjoy" scene you said Not interested to: never suggested again,
+/// and the reason it was picked counts a little less.
+model SuggestionDismissal {
+  sceneId   String   @id
+  /// "performer:<id>" or "studio:<id>".
+  reasonKey String
+  createdAt DateTime @default(now())
+
+  @@index([reasonKey])
 }
