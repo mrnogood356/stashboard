@@ -133,7 +133,7 @@ describe('DuplicatesPageComponent', () => {
     button(root, 'Remove from Stash only').click();
     await settle(fixture);
 
-    expect(library.deleteScene).toHaveBeenCalledWith('c', false);
+    expect(library.deleteScene).toHaveBeenCalledWith('c', false, false);
     expect(notifications.success).toHaveBeenCalledWith(
       'Removed from Stash',
       'The file was left on disk.',
@@ -177,7 +177,7 @@ describe('DuplicatesPageComponent', () => {
     button(root, 'Delete the file from disk').click();
     await settle(fixture);
 
-    expect(library.deleteScene).toHaveBeenCalledWith('b', true);
+    expect(library.deleteScene).toHaveBeenCalledWith('b', true, true);
     expect(notifications.error).toHaveBeenCalledWith(
       "Couldn't delete that scene",
       expect.any(String),
@@ -271,5 +271,33 @@ describe('DuplicatesPageComponent', () => {
 
     expect(root.querySelector('.sheet h2')?.textContent).toContain('Remove this copy?');
     expect(root.querySelector('.sheet')?.textContent).toContain('c.mp4');
+  });
+
+  it('never deletes from disk a scene with more than one file', async () => {
+    const multi = { ...scene('c', 480), fileCount: 2 };
+    const groups: DuplicateGroup[] = [
+      { suggestedKeepId: 'a', scenes: [scene('a', 1080), scene('b', 720), multi] },
+    ];
+    const library = {
+      duplicates: vi.fn().mockReturnValue(of(groups)),
+      deleteScene: vi.fn().mockReturnValue(of(undefined)),
+    };
+    const { fixture, root, notifications } = await render(library);
+
+    // Only that one: deleting from disk isn't offered.
+    root.querySelectorAll<HTMLButtonElement>('.copy .btn.danger')[1].click();
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="multi-file-note"]')).toBeTruthy();
+    expect(button(root, 'Delete the file from disk').disabled).toBe(true);
+    button(root, 'Cancel').click();
+    fixture.detectChanges();
+
+    // With others: they're deleted, it's left in place, and the server is asked to refuse too.
+    root.querySelector<HTMLButtonElement>('[data-testid="remove-extras"]')!.click();
+    fixture.detectChanges();
+    button(root, 'Delete the files from disk').click();
+    await settle(fixture);
+    expect(library.deleteScene.mock.calls).toEqual([['b', true, true]]);
+    expect(notifications.info).toHaveBeenCalledWith('1 left in place', expect.any(String));
   });
 });

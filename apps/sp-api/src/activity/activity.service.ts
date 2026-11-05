@@ -8,12 +8,13 @@ import {
 import { ActivityEntry, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  ACTIVITY_FILES_PAGE,
   ACTIVITY_PAGE_SIZE,
   MAX_ACTIVITY_ENTRIES,
   MAX_DETAIL_LENGTH,
   MAX_TITLE_LENGTH,
   type ActivityEntryDto,
-  type ActivityFileDto,
+  type ActivityFilesDto,
   type ActivityPageDto,
   type ActivityStatus,
   type ActivityUndo,
@@ -262,8 +263,11 @@ export class ActivityService implements OnModuleInit {
     };
   }
 
-  /** The files a rename or move run moved: from where, to where. */
-  async files(id: string): Promise<ActivityFileDto[]> {
+  /**
+   * The files a rename or move run moved, from where to where: 500 at a
+   * time, oldest first, with whether there are more.
+   */
+  async files(id: string, page = 1): Promise<ActivityFilesDto> {
     const row = await this.prisma.activityEntry.findUnique({ where: { id } });
     const undo = row ? asUndo(row.undo) : null;
     if (
@@ -273,17 +277,23 @@ export class ActivityService implements OnModuleInit {
     ) {
       throw new NotFoundException('That entry moved no files.');
     }
+    const current = Math.max(1, Math.floor(page) || 1);
     const moves = await this.prisma.organizerRename.findMany({
       where: { batchId: undo['batchId'] },
       orderBy: { id: 'asc' },
-      take: 1000,
+      skip: (current - 1) * ACTIVITY_FILES_PAGE,
+      take: ACTIVITY_FILES_PAGE + 1,
     });
-    return moves.map((move) => ({
-      sceneId: move.sceneId,
-      from: move.fromPath,
-      to: move.toPath,
-      undone: move.undoneAt !== null,
-    }));
+    return {
+      page: current,
+      hasMore: moves.length > ACTIVITY_FILES_PAGE,
+      items: moves.slice(0, ACTIVITY_FILES_PAGE).map((move) => ({
+        sceneId: move.sceneId,
+        from: move.fromPath,
+        to: move.toPath,
+        undone: move.undoneAt !== null,
+      })),
+    };
   }
 }
 

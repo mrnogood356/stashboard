@@ -756,8 +756,25 @@ export class LocalLibraryService {
     });
   }
 
-  async deleteScene(sceneId: string, deleteFile: boolean): Promise<void> {
+  /**
+   * `onlyFile`: Duplicates removes one copy, so it refuses a scene with more
+   * than one file, whose other files would go too.
+   */
+  async deleteScene(
+    sceneId: string,
+    deleteFile: boolean,
+    onlyFile = false,
+  ): Promise<void> {
     const config = await this.playback.getStashConfig();
+    if (deleteFile && onlyFile) {
+      const scene = await this.stash.getOrganizerScene(config, sceneId);
+      const count = scene?.files.length ?? 0;
+      if (count > 1) {
+        throw new BadRequestException(
+          `This scene has ${count} files, and deleting it from disk would delete all of them. Remove it from Stash only, or delete the extra file in Stash.`,
+        );
+      }
+    }
     const paths = deleteFile
       ? ((
           await this.stash
@@ -912,6 +929,11 @@ const CODEC_EFFICIENCY: Record<string, number> = {
   avc: 1,
 };
 
+/** Within 5% of the larger counts as the same, whichever is asked first. */
+function sameBitRate(a: number, b: number): boolean {
+  return Math.abs(a - b) <= Math.max(a, b) * 0.05;
+}
+
 function pixels(scene: StashDuplicateScene): number {
   return (scene.file?.width ?? 0) * (scene.file?.height ?? 0);
 }
@@ -938,17 +960,27 @@ export function pickKeeperWithReason(group: StashDuplicateScene[]): {
     scene.file?.duration ?? 0,
     scene.playCount,
   ];
-  const ranked = [...group].sort((left, right) => {
+  // One pass, keeping the better of each pair, so the pick never depends on
+  // the order Stash listed the copies in.
+  const better = (left: StashDuplicateScene, right: StashDuplicateScene) => {
     const a = score(left);
     const b = score(right);
     for (let index = 0; index < a.length; index += 1) {
-      if (Math.abs(a[index] - b[index]) > (index === 1 ? a[index] * 0.05 : 0)) {
-        return b[index] - a[index];
+      if (
+        index === 1 ? !sameBitRate(a[index], b[index]) : a[index] !== b[index]
+      ) {
+        return a[index] > b[index] ? left : right;
       }
     }
-    return 0;
-  });
-  const [best, next] = ranked;
+    // A full tie: the older scene (lower id), the same whichever comes first.
+    return left.id.localeCompare(right.id, undefined, { numeric: true }) <= 0
+      ? left
+      : right;
+  };
+  const best = group.reduce((kept, scene) => better(kept, scene));
+  const rest = group.filter((scene) => scene !== best);
+  const next =
+    rest.length > 0 ? rest.reduce((kept, scene) => better(kept, scene)) : null;
   return {
     id: best.id,
     reason: next ? keepReason(best, next) : 'The only copy.',
@@ -969,7 +1001,10 @@ function keepReason(
   }
   const bestCodec = (best.file?.videoCodec ?? '').toLowerCase();
   const nextCodec = (next.file?.videoCodec ?? '').toLowerCase();
-  if (effectiveBitRate(best) > effectiveBitRate(next) * 1.05) {
+  if (
+    !sameBitRate(effectiveBitRate(best), effectiveBitRate(next)) &&
+    effectiveBitRate(best) > effectiveBitRate(next)
+  ) {
     return (CODEC_EFFICIENCY[bestCodec] ?? 0) >
       (CODEC_EFFICIENCY[nextCodec] ?? 0)
       ? `Same resolution, and ${bestCodec.toUpperCase()} keeps more picture than ${nextCodec.toUpperCase() || 'the other'}.`

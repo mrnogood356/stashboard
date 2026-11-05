@@ -112,6 +112,12 @@ export class QuickHideService {
 
   private onKey(event: KeyboardEvent): void {
     this.touch();
+    // Nothing under the cover hears a key (Space would play the video). On
+    // the focused cover itself, Enter or Space still bring the app back.
+    if (this.hidden()) {
+      event.stopPropagation();
+      return;
+    }
     if (!this.settings().gesture || event.key !== 'Escape' || event.repeat) {
       return;
     }

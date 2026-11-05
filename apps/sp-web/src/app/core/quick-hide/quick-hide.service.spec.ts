@@ -61,6 +61,16 @@ describe('QuickHideService', () => {
     expect(obscured()).toBe(true);
   });
 
+  it('lets no key reach the page while the cover is up', () => {
+    const { service } = start();
+    service.hide();
+    const heard = vi.fn();
+    document.addEventListener('keydown', heard);
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    document.removeEventListener('keydown', heard);
+    expect(heard).not.toHaveBeenCalled();
+  });
+
   it('does not hide on two Escs far apart', () => {
     const { service } = start();
     esc();

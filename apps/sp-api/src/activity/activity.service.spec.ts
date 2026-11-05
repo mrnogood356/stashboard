@@ -288,11 +288,15 @@ describe('shorten', () => {
     };
     const service = new ActivityService(prisma as never);
 
-    await expect(service.files('a')).resolves.toEqual([
-      { sceneId: '7', from: '/in/a.mp4', to: '/lib/A.mp4', undone: false },
-    ]);
+    await expect(service.files('a')).resolves.toEqual({
+      page: 1,
+      hasMore: false,
+      items: [
+        { sceneId: '7', from: '/in/a.mp4', to: '/lib/A.mp4', undone: false },
+      ],
+    });
     expect(prisma.organizerRename.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { batchId: 'b1' } }),
+      expect.objectContaining({ where: { batchId: 'b1' }, skip: 0, take: 501 }),
     );
     await expect(service.files('c')).rejects.toThrow('moved no files');
   });

@@ -1,5 +1,5 @@
 import { SuggestionsService } from '../suggestions/suggestions.service';
-import { HomeRowCache } from './home-row-cache';
+import { HomeRowCache, rulesStamp } from './home-row-cache';
 import {
   BadRequestException,
   ConflictException,
@@ -565,9 +565,7 @@ export class HomeService {
       () => this.loadRailContent(rail),
       (kept) => this.withCurrentStatuses(kept),
       // Hiding a studio or tag changes what every row shows.
-      JSON.stringify(
-        (await this.hiddenContent?.getRules().catch(() => null)) ?? null,
-      ),
+      rulesStamp(await this.hiddenContent?.getRules().catch(() => null)),
     );
   }
 
@@ -600,11 +598,6 @@ export class HomeService {
           : item;
       }),
     };
-  }
-
-  /** Drops every row kept for Home, e.g. after rows change. */
-  forgetRowContent(): void {
-    this.rowCache.clear();
   }
 
   private loadRailContent(rail: HomeRail): Promise<HomeRailContentDto> {

@@ -58,17 +58,19 @@
               @if ((list.count ?? 0) > list.scenes.length) {
                 <p class="muted more">And {{ (list.count ?? 0) - list.scenes.length }} more.</p>
               }
-              <div class="problem-actions">
-                <button
-                  type="button"
-                  class="btn small primary"
-                  [attr.data-testid]="'fix-' + list.kind"
-                  [disabled]="started().has(list.kind)"
-                  (click)="fix(list)"
-                >
-                  {{ started().has(list.kind) ? 'Started' : info[list.kind].fix }}
-                </button>
-              </div>
+              @if (info[list.kind].fix) {
+                <div class="problem-actions">
+                  <button
+                    type="button"
+                    class="btn small primary"
+                    [attr.data-testid]="'fix-' + list.kind"
+                    [disabled]="started().has(list.kind)"
+                    (click)="fix(list)"
+                  >
+                    {{ started().has(list.kind) ? 'Started' : info[list.kind].fix }}
+                  </button>
+                </div>
+              }
             }
           </li>
         }

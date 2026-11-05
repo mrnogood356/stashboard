@@ -18,6 +18,12 @@ export interface ActivityEntry {
   hasFiles?: boolean;
 }
 
+export interface ActivityFilesPage {
+  page: number;
+  hasMore: boolean;
+  items: ActivityFile[];
+}
+
 export interface ActivityFile {
   sceneId: string;
   from: string;
@@ -48,8 +54,10 @@ export class ActivityApiService {
     return this.http.get<ActivityPage>('/api/activity', { params });
   }
 
-  files(id: string): Observable<ActivityFile[]> {
-    return this.http.get<ActivityFile[]>(`/api/activity/${encodeURIComponent(id)}/files`);
+  files(id: string, page = 1): Observable<ActivityFilesPage> {
+    return this.http.get<ActivityFilesPage>(`/api/activity/${encodeURIComponent(id)}/files`, {
+      params: new HttpParams().set('page', page),
+    });
   }
 
   undo(id: string): Observable<ActivityEntry> {

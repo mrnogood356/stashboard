@@ -162,6 +162,20 @@
         <h2>Remove {{ scenes.length }} copies?</h2>
         <p class="muted">{{ size(pendingBytes()) }} in all. The best copy of each video is kept.</p>
       }
+      @if (multiFile(scenes).length > 0) {
+        <p class="notice multi-file" data-testid="multi-file-note">
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+          <span>
+            @if (multiFile(scenes).length === scenes.length) {
+              {{ scenes.length === 1 ? 'This scene has' : 'These scenes have' }} more than one file.
+              Deleting from disk would delete all of them, so only removing from Stash is offered.
+            } @else {
+              {{ multiFile(scenes).length }} of these scenes have more than one file; deleting from
+              disk leaves those in place.
+            }
+          </span>
+        </p>
+      }
       @if (progress(); as step) {
         <p class="muted" role="status">Removing {{ step.done + 1 }} of {{ step.total }}…</p>
       }
@@ -169,7 +183,7 @@
         type="button"
         class="btn danger wide"
         data-testid="confirm-delete-files"
-        [disabled]="deleting()"
+        [disabled]="deleting() || multiFile(scenes).length === scenes.length"
         (click)="confirmDelete(true)"
       >
         <i class="pi pi-trash" aria-hidden="true"></i>

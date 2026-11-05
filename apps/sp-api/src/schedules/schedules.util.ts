@@ -48,7 +48,8 @@ export const JOB_INFO: Record<
   },
   'stash-clean': {
     label: 'Clean in Stash',
-    detail: 'Removes scenes whose files are gone.',
+    detail:
+      'Removes scenes whose files Stash can’t find. If a drive isn’t mounted when it runs, its scenes are removed too, so leave this off unless every library folder is always there.',
     defaults: { enabled: false, hour: 2, minute: 30, days: [0] },
   },
 };

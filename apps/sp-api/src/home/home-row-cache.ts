@@ -101,3 +101,23 @@ function stampOf(rail: HomeRail): string {
     rail.updatedAt?.valueOf?.() ?? null,
   ]);
 }
+
+/**
+ * The hidden studios, tags and words as text, so a change to any of them
+ * builds the rows again. Sets and patterns don't survive plain JSON, which
+ * writes both as {}.
+ */
+export function rulesStamp(rules: unknown): string {
+  return JSON.stringify(rules ?? null, (_key, value: unknown) => {
+    if (value instanceof Set) {
+      return [...(value as Set<unknown>)].map(String).sort();
+    }
+    if (value instanceof RegExp) {
+      return `/${value.source}/${value.flags}`;
+    }
+    if (value instanceof Map) {
+      return [...(value as Map<unknown, unknown>).entries()];
+    }
+    return value;
+  });
+}

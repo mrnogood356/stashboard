@@ -5,7 +5,7 @@ import {
   normalizeCatalogSceneRefs,
 } from '../catalog/catalog-provider.util';
 import type { StatsFile } from '../../playback/library-stats.util';
-import { BadGatewayException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException } from '@nestjs/common';
 import { stashImageVersion } from './stash-image-version.util';
 import {
   type StashAdapterBaseConfig,
@@ -234,6 +234,11 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
     const ids = sceneIds
       ?.map((id) => this.normalizeEntityId(id))
       .filter((id): id is string => !!id);
+    // Scenes were named but none is a real id: never fall through to the
+    // whole library.
+    if (sceneIds && ids?.length === 0) {
+      throw new BadRequestException('None of those is a scene Stash knows.');
+    }
     let mutation: string;
     let variables: Record<string, unknown> = {};
     switch (task) {
@@ -492,6 +497,7 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
       studio: this.normalizeOptionalString(studio?.name),
       playCount: typeof scene.play_count === 'number' ? scene.play_count : 0,
       organized: scene.organized === true,
+      fileCount: Array.isArray(scene.files) ? scene.files.length : 0,
       file: file
         ? {
             path: this.normalizeOptionalString(file.path),

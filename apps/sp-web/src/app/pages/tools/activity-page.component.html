@@ -80,25 +80,32 @@
                 >
                   {{ filesOf(entry.id) !== undefined ? 'Hide files' : 'Show files' }}
                 </button>
-                @switch (filesOf(entry.id)) {
-                  @case (undefined) {}
-                  @case (null) {
-                    <p class="muted files-note" role="status">Loading…</p>
-                  }
-                  @case ('error') {
-                    <p class="muted files-note">Couldn’t read the files for this run.</p>
-                  }
-                  @default {
+                @if (filesOf(entry.id); as state) {
+                  @if (state.items.length > 0) {
                     <ul class="moves">
-                      @for (move of asList(filesOf(entry.id)); track $index) {
+                      @for (move of state.items; track $index) {
                         <li [class.undone]="move.undone">
                           <span class="from" [title]="move.from">{{ move.from }}</span>
                           <span class="to" [title]="move.to">→ {{ move.to }}</span>
                         </li>
-                      } @empty {
-                        <li class="muted">No files were moved.</li>
                       }
                     </ul>
+                  } @else if (!state.loading && !state.error) {
+                    <p class="muted files-note">No files were moved.</p>
+                  }
+                  @if (state.loading) {
+                    <p class="muted files-note" role="status">Loading…</p>
+                  } @else if (state.error) {
+                    <p class="muted files-note">Couldn’t read the files for this run.</p>
+                  } @else if (state.hasMore) {
+                    <button
+                      type="button"
+                      class="files-toggle"
+                      data-testid="more-files"
+                      (click)="moreFiles(entry.id)"
+                    >
+                      Show more
+                    </button>
                   }
                 }
               }

@@ -1,5 +1,5 @@
 import { HomeRailKey, type HomeRail } from '@prisma/client';
-import { FRESH_MS, HomeRowCache, STALE_MS } from './home-row-cache';
+import { FRESH_MS, HomeRowCache, STALE_MS, rulesStamp } from './home-row-cache';
 
 const rail = (over: Partial<HomeRail> = {}): HomeRail =>
   ({
@@ -107,5 +107,18 @@ describe('HomeRowCache', () => {
     finish(content('once'));
     expect((await a).items).toEqual((await b).items);
     expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('stamps the hidden rules so a changed hidden studio or word builds the rows again', () => {
+    const one = rulesStamp({ studioIds: new Set(['a']), terms: [/foo/i] });
+    expect(one).not.toBe(
+      rulesStamp({ studioIds: new Set(['b']), terms: [/foo/i] }),
+    );
+    expect(one).not.toBe(
+      rulesStamp({ studioIds: new Set(['a']), terms: [/bar/i] }),
+    );
+    expect(one).toBe(
+      rulesStamp({ studioIds: new Set(['a']), terms: [/foo/i] }),
+    );
   });
 });

@@ -137,6 +137,8 @@ export interface DuplicateScene {
   playCount: number;
   organized: boolean;
   imageUrl: string | null;
+  /** Deleting the scene from disk deletes all of its files. */
+  fileCount?: number;
   file: {
     path: string | null;
     basename: string | null;
@@ -321,10 +323,13 @@ export class LocalLibraryService {
     });
   }
 
-  deleteScene(sceneId: string, deleteFile: boolean): Observable<void> {
-    return this.http.delete<void>(`/api/local/scenes/${enc(sceneId)}`, {
-      params: new HttpParams().set('deleteFile', String(deleteFile)),
-    });
+  /** `onlyFile`: refuse a scene with more than one file, whose others would go too. */
+  deleteScene(sceneId: string, deleteFile: boolean, onlyFile = false): Observable<void> {
+    let params = new HttpParams().set('deleteFile', String(deleteFile));
+    if (onlyFile) {
+      params = params.set('onlyFile', 'true');
+    }
+    return this.http.delete<void>(`/api/local/scenes/${enc(sceneId)}`, { params });
   }
 
   searchTags(query: string): Observable<Array<{ id: string; name: string }>> {

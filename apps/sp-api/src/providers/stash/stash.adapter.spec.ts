@@ -479,6 +479,13 @@ describe('StashAdapter', () => {
       ).resolves.not.toBe(one);
       expect(mutations()).toBe(2);
     });
+
+    it('never runs Generate for the whole library when no named scene is real', async () => {
+      await expect(
+        adapter.startLibraryTask(config, 'generate', ['', '  ']),
+      ).rejects.toThrow('None of those is a scene');
+      expect(mutations()).toBe(0);
+    });
   });
 
   it('throws BadGatewayException when provider request fails', async () => {

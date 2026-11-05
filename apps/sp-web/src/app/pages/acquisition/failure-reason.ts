@@ -20,8 +20,8 @@ const RULES: Array<{ test: RegExp; reason: FailureReason }> = [
   {
     test: /permission|access (is )?denied|access to the path .* is denied|read-?only|EACCES|EPERM/i,
     reason: {
-      reason: 'Whisparr wasn’t allowed to write the file into your library.',
-      next: 'Check the library folder’s permissions for Whisparr’s user, then import it again in Whisparr.',
+      reason: 'A folder wasn’t writable: a permissions problem.',
+      next: 'Check the folder in Whisparr’s message below. Whichever app writes there (Whisparr, or your download client) needs write access to it.',
     },
   },
   {
@@ -68,7 +68,9 @@ const RULES: Array<{ test: RegExp; reason: FailureReason }> = [
     },
   },
   {
-    test: /timed? ?out|unreachable|ECONNREFUSED|connection refused|couldn.?t (connect|reach)|download client/i,
+    // Only an unreachable client: "Download client reported a failure" is a
+    // failed release, left to Whisparr's own words.
+    test: /timed? ?out|unreachable|ECONNREFUSED|connection refused|couldn.?t (connect|reach)|download client (is )?unavailable|unable to connect/i,
     reason: {
       reason: 'Whisparr couldn’t reach the download client.',
       next: 'Check that SABnzbd (or your download client) is running, then pick the release again.',

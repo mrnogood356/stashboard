@@ -198,7 +198,11 @@ export class LocalLibraryController {
     @Param('sceneId') sceneId: string,
     @Query() query: DeleteSceneQueryDto,
   ): Promise<void> {
-    await this.library.deleteScene(sceneId, query.deleteFile === 'true');
+    await this.library.deleteScene(
+      sceneId,
+      query.deleteFile === 'true',
+      query.onlyFile === 'true',
+    );
   }
 
   @Get('search')

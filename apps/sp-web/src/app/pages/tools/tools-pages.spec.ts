@@ -202,7 +202,7 @@ describe('Library tools', () => {
     }
     fixture.detectChanges();
 
-    expect(library.deleteScene).toHaveBeenCalledWith('b', true);
+    expect(library.deleteScene).toHaveBeenCalledWith('b', true, true);
     expect(root.textContent).toContain('No duplicates found.');
   });
 

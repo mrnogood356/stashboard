@@ -161,6 +161,11 @@ export class DeleteSceneQueryDto {
   @IsOptional()
   @IsIn(['true', 'false'])
   deleteFile?: 'true' | 'false';
+
+  /** Refuse a scene with more than one file (Duplicates). */
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  onlyFile?: 'true' | 'false';
 }
 
 export class MergeTagsDto {

@@ -117,7 +117,10 @@ export class TagCleanupPageComponent implements OnInit {
         );
         this.groups.update((groups) =>
           groups
-            .map((entry) => (key(entry) === k ? { ...entry, tags: left } : entry))
+            // The tag kept becomes the group's default, whichever it was.
+            .map((entry) =>
+              key(entry) === k ? { ...entry, keepId: destination, tags: left } : entry,
+            )
             .filter((entry) => entry.tags.length > 1),
         );
         this.notifications.success(

@@ -103,6 +103,14 @@ export class DuplicatesPageComponent implements OnInit {
     }
   }
 
+  /**
+   * Scenes with more than one file: deleting one from disk would delete its
+   * other files too, so they're only ever removed from Stash here.
+   */
+  protected multiFile(scenes: DuplicateScene[] | null): DuplicateScene[] {
+    return (scenes ?? []).filter((scene) => (scene.fileCount ?? 1) > 1);
+  }
+
   protected pendingBytes(): number {
     return (this.pending() ?? []).reduce((sum, scene) => sum + (scene.file?.size ?? 0), 0);
   }
@@ -118,10 +126,14 @@ export class DuplicatesPageComponent implements OnInit {
     this.deleting.set(true);
     this.progress.set(scenes.length > 1 ? { done: 0, total: scenes.length } : null);
     const removed = new Set<string>();
+    const skipped = deleteFile ? this.multiFile(scenes) : [];
     let failed: DuplicateScene | null = null;
     for (const scene of scenes) {
+      if (skipped.includes(scene)) {
+        continue;
+      }
       try {
-        await firstValueFrom(this.library.deleteScene(scene.id, deleteFile));
+        await firstValueFrom(this.library.deleteScene(scene.id, deleteFile, deleteFile));
         removed.add(scene.id);
         this.progress.update((value) => (value ? { ...value, done: value.done + 1 } : value));
       } catch {
@@ -153,6 +165,12 @@ export class DuplicatesPageComponent implements OnInit {
             ? `${one.file?.basename ?? one.title} was deleted.`
             : 'The file was left on disk.'
           : `${removed.size} ${removed.size === 1 ? 'copy' : 'copies'} ${deleteFile ? 'deleted' : 'removed, files left on disk'}.`,
+      );
+    }
+    if (skipped.length > 0 && !failed) {
+      this.notifications.info(
+        `${skipped.length} left in place`,
+        `${skipped.length === 1 ? 'Its scene has' : 'Their scenes have'} more than one file, and deleting from disk would delete them all. Remove ${skipped.length === 1 ? 'it' : 'them'} from Stash only, or delete the extra file in Stash.`,
       );
     }
     if (failed) {

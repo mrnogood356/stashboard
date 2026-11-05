@@ -72,6 +72,29 @@ describe('TagCleanupPageComponent', () => {
     expect(mergeTags).toHaveBeenCalledWith('1', ['2', '3']);
   });
 
+  it('keeps the tag you kept as the default after leaving one out', async () => {
+    const mergeTags = vi.fn().mockReturnValue(of(undefined));
+    const { fixture, root } = await render({ similarTags: () => of(GROUPS), mergeTags });
+    // Keep "Blonde" (1), merge "blondes" (2), leave "BLONDE" (3) out.
+    root.querySelectorAll<HTMLInputElement>('.keep input')[1].click();
+    fixture.detectChanges();
+    root.querySelectorAll<HTMLInputElement>('.fold input')[1].click();
+    fixture.detectChanges();
+    const merge = () => root.querySelector<HTMLButtonElement>('[data-testid="merge-tags"]')!;
+    merge().click();
+    fixture.detectChanges();
+    merge().click();
+    fixture.detectChanges();
+
+    expect(mergeTags).toHaveBeenCalledWith('1', ['2']);
+    expect(root.querySelector('.tag-row.kept .tag-name')?.textContent).toBe('Blonde');
+    // The one left out stays out until ticked.
+    expect(merge().disabled).toBe(true);
+    root.querySelector<HTMLInputElement>('.fold input')!.click();
+    fixture.detectChanges();
+    expect(merge().textContent).toContain('Merge 1 into Blonde');
+  });
+
   it('says when there is nothing to merge, or Stash can’t be read', async () => {
     expect((await render({ similarTags: () => of([]) })).root.textContent).toContain(
       'No tags written more than one way',

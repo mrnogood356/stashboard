@@ -41,8 +41,8 @@ describe('BrokenFilesPageComponent', () => {
     expect(root.querySelector('[data-testid="problem-no-length"]')).toBeNull();
     expect(root.textContent).toContain('And 70 more.');
 
-    root.querySelector<HTMLButtonElement>('[data-testid="fix-no-file"]')!.click();
-    expect(startJob).toHaveBeenCalledWith('clean');
+    // No one-tap fix for scenes with no file: Clean wouldn't remove them.
+    expect(root.querySelector('[data-testid="fix-no-file"]')).toBeNull();
     // A few scenes: Generate for just them. Many: for the library.
     root.querySelector<HTMLButtonElement>('[data-testid="fix-no-cover"]')!.click();
     expect(generateFor).toHaveBeenCalledWith(['1', '2', '3']);
@@ -51,8 +51,16 @@ describe('BrokenFilesPageComponent', () => {
 
     fixture.detectChanges();
     expect(
-      root.querySelector<HTMLButtonElement>('[data-testid="fix-no-file"]')!.textContent,
+      root.querySelector<HTMLButtonElement>('[data-testid="fix-no-cover"]')!.textContent,
     ).toContain('Started');
+    expect(startJob).not.toHaveBeenCalledWith('clean');
+
+    // Look again: anything still listed can be fixed again.
+    root.querySelector<HTMLButtonElement>('.head-action')!.click();
+    fixture.detectChanges();
+    expect(root.querySelector<HTMLButtonElement>('[data-testid="fix-no-cover"]')!.disabled).toBe(
+      false,
+    );
   });
 
   it('says so when nothing is broken', async () => {

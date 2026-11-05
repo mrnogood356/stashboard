@@ -70,3 +70,12 @@ export interface ActivityFileDto {
   to: string;
   undone: boolean;
 }
+
+/** Moves listed per page of "Show files". */
+export const ACTIVITY_FILES_PAGE = 500;
+
+export interface ActivityFilesDto {
+  page: number;
+  hasMore: boolean;
+  items: ActivityFileDto[];
+}

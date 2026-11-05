@@ -44,6 +44,8 @@ describe('LocalLibraryService', () => {
     findSampleScenes: jest.fn(),
     listLibraryFiles: jest.fn(),
     listTags: jest.fn(),
+    getOrganizerScene: jest.fn(),
+    deleteScene: jest.fn().mockResolvedValue(undefined),
     mergeTags: jest.fn().mockResolvedValue(undefined),
     startLibraryTask: jest.fn().mockResolvedValue('7'),
     findProblemScenes: jest.fn(),
@@ -54,6 +56,16 @@ describe('LocalLibraryService', () => {
   );
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('refuses to delete from disk a duplicate whose scene has more than one file', async () => {
+    stash.getOrganizerScene.mockResolvedValue({
+      files: [{ path: '/a' }, { path: '/b' }],
+    });
+    await expect(service.deleteScene('9', true, true)).rejects.toThrow(
+      'has 2 files',
+    );
+    expect(stash.deleteScene).not.toHaveBeenCalled();
+  });
 
   it('merges only tags Stash still has, never a tag into itself', async () => {
     stash.listTags.mockResolvedValue([
@@ -363,6 +375,7 @@ describe('LocalLibraryService', () => {
       studio: null,
       playCount: 0,
       organized: false,
+      fileCount: 1,
       file: {
         path: null,
         basename: null,
@@ -398,6 +411,7 @@ describe('LocalLibraryService', () => {
       studio: null,
       playCount,
       organized: false,
+      fileCount: 1,
       file: {
         path: null,
         basename: null,
@@ -426,6 +440,11 @@ describe('LocalLibraryService', () => {
         copy('b', 'h264', 8.2e6, 3),
       ]),
     ).toEqual({ id: 'b', reason: 'Same quality, and the one you’ve played.' });
+    // Near the 5% line the pick doesn't depend on the order of the copies.
+    const near = [copy('x', 'h264', 100), copy('y', 'h264', 105.2)];
+    expect(pickKeeperWithReason(near).id).toBe(
+      pickKeeperWithReason([...near].reverse()).id,
+    );
   });
 
   it('counts the fix-my-library lists, treating a failing list as zero', async () => {

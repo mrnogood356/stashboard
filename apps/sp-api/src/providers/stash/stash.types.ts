@@ -149,6 +149,8 @@ export interface StashDuplicateScene {
   studio: string | null;
   playCount: number;
   organized: boolean;
+  /** How many files the scene has; deleting the scene from disk deletes all of them. */
+  fileCount: number;
   file: {
     path: string | null;
     basename: string | null;

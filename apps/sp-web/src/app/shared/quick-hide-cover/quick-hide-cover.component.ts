@@ -1,7 +1,7 @@
-import { Component, inject } from '@angular/core';
+import { Component, ElementRef, effect, inject } from '@angular/core';
 import { QuickHideService } from '../../core/quick-hide/quick-hide.service';
 
-/** A plain screen over everything after Quick hide; a tap or key brings the app back. */
+/** A plain screen over everything after Quick hide; a tap, Enter or Space brings the app back. */
 @Component({
   selector: 'app-quick-hide-cover',
   template: `
@@ -37,4 +37,16 @@ import { QuickHideService } from '../../core/quick-hide/quick-hide.service';
 })
 export class QuickHideCoverComponent {
   protected readonly quickHide = inject(QuickHideService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  constructor() {
+    // Focus moves onto the cover, so keys reach it and nothing behind it.
+    effect(() => {
+      if (this.quickHide.hidden()) {
+        queueMicrotask(() =>
+          this.host.nativeElement.querySelector<HTMLButtonElement>('button')?.focus(),
+        );
+      }
+    });
+  }
 }

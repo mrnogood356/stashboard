@@ -18,6 +18,7 @@ import { PlaybackInfo, PlaybackService, SceneMarker } from '../../core/api/playb
 import { LocalLibraryService, LocalSceneCard } from '../../core/api/local-library.service';
 import { AppLockService } from '../../core/app-lock/app-lock.service';
 import { ImageObscurationService } from '../../core/preferences/image-obscuration.service';
+import { QuickHideService } from '../../core/quick-hide/quick-hide.service';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
 import { ClipPreviewComponent } from '../../shared/scene-card/clip-preview.component';
 import {
@@ -80,6 +81,7 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   private readonly appLock = inject(AppLockService);
   /** With images obscured: no poster, and nothing telling on the lock screen. */
   protected readonly obscured = inject(ImageObscurationService).isObscured;
+  private readonly quickHide = inject(QuickHideService);
   private readonly library = inject(LocalLibraryService);
   /** Settings → Playback: card previews also play each chapter's clip. */
   protected readonly previewsOn = inject(PlaybackSettingsService).previewsEnabled;
@@ -674,8 +676,9 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       }
     };
     set('play', () => {
-      // Headphone buttons and the lock screen must not play behind App Lock.
-      if (!this.appLock.locked()) {
+      // Headphone buttons and the lock screen must not play behind App Lock
+      // or Quick hide's cover.
+      if (!this.appLock.locked() && !this.quickHide.hidden()) {
         void this.videoRef?.nativeElement.play();
       }
     });

@@ -12,17 +12,20 @@ import { AppNotificationsService } from '../../core/notifications/app-notificati
 interface ProblemInfo {
   title: string;
   why: string;
-  fix: string;
+  /** No fix button when there's no safe one-tap fix. */
+  fix: string | null;
   /** A Stash job for the whole library, or Generate for just these scenes. */
-  action: 'clean' | 'scan' | 'generate';
+  action: 'scan' | 'generate' | null;
 }
 
 export const PROBLEMS: Record<ProblemKind, ProblemInfo> = {
+  // Clean doesn't remove scenes with no file, and a library-wide Clean can
+  // remove scenes on a drive that isn't mounted: no button here.
   'no-file': {
     title: 'Scenes with no file',
-    why: 'Their file was moved or deleted outside Stash.',
-    fix: 'Run Clean',
-    action: 'clean',
+    why: 'Stash keeps a scene when its file goes. Open each one to delete it, or to give it a file again.',
+    fix: null,
+    action: null,
   },
   'no-length': {
     title: 'Files that read as 0 seconds',
@@ -77,6 +80,8 @@ export class BrokenFilesPageComponent implements OnInit {
     this.error.set(false);
     this.library.problems().subscribe({
       next: (lists) => {
+        // Fresh results: anything still listed can be fixed again.
+        this.started.set(new Set());
         this.lists.set(lists);
         this.loading.set(false);
       },
@@ -97,11 +102,14 @@ export class BrokenFilesPageComponent implements OnInit {
 
   protected fix(list: ProblemList): void {
     const info = PROBLEMS[list.kind];
+    if (!info.action) {
+      return;
+    }
     let run: Observable<{ jobId: string | null }>;
     if (info.action === 'generate' && (list.count ?? 0) <= GENERATE_FOR_LISTED) {
       run = this.library.generateFor(list.scenes.map((scene) => scene.id));
     } else {
-      run = this.library.startJob(info.action as LibraryTask);
+      run = this.library.startJob(info.action satisfies LibraryTask);
     }
     run.subscribe({
       next: () => {
