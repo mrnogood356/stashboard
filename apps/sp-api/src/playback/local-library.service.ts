@@ -1,4 +1,8 @@
-import { groupSimilarTags, type SimilarTagGroup } from './tag-cleanup.util';
+import {
+  groupSimilarTags,
+  nameKey,
+  type SimilarTagGroup,
+} from './tag-cleanup.util';
 import type {
   StashProblemKind,
   StashProblemScene,
@@ -26,6 +30,7 @@ import {
   type StashJob,
   type StashLibraryTask,
   type StashLocalSceneCard,
+  type StashMergeCandidate,
   type StashLocalSceneUpdate,
 } from '../providers/stash/stash.adapter';
 import type {
@@ -71,6 +76,13 @@ export interface ChapterDto {
   previewUrl: string;
 }
 
+export interface MergeCandidatesDto {
+  /** Entered more than once; keepId is the one with the most scenes. */
+  groups: Array<{ keepId: string; items: StashMergeCandidate[] }>;
+  /** Names matching the search. */
+  matches: StashMergeCandidate[];
+}
+
 export interface LocalScenePageDto {
   total: number;
   page: number;
@@ -84,6 +96,7 @@ export interface LocalPerformerDto {
   disambiguation: string | null;
   gender: string | null;
   birthdate: string | null;
+  deathDate?: string | null;
   country: string | null;
   details: string | null;
   favorite: boolean;
@@ -699,6 +712,85 @@ export class LocalLibraryService {
     });
   }
 
+  // ---------- merge performers and studios ----------
+
+  /**
+   * Performers or studios entered more than once (the same name or alias,
+   * ignoring case, accents, spacing and punctuation), and, with `query`,
+   * those whose name or an alias has those words, for picking by hand.
+   */
+  async mergeCandidates(
+    kind: 'performer' | 'studio',
+    query?: string,
+  ): Promise<MergeCandidatesDto> {
+    const config = await this.playback.getStashConfig();
+    const all = await this.stash.listForMerge(config, kind);
+    const byId = new Map(all.map((item) => [item.id, item]));
+    const groups = groupSimilarTags(
+      all.map(({ id, name, aliases, sceneCount }) => ({
+        id,
+        name,
+        aliases,
+        sceneCount,
+      })),
+      nameKey,
+    ).map((group) => ({
+      keepId: group.keepId,
+      items: group.tags.map((tag) => byId.get(tag.id)!),
+    }));
+    const words = nameKey(query ?? '');
+    const matches = words
+      ? all
+          .filter((item) =>
+            [item.name, ...item.aliases].some((name) =>
+              nameKey(name).includes(words),
+            ),
+          )
+          .sort((a, b) => b.sceneCount - a.sceneCount)
+          .slice(0, 30)
+      : [];
+    return { groups, matches };
+  }
+
+  /** Merges performers or studios into the one kept, after you pick them. */
+  async merge(
+    kind: 'performer' | 'studio',
+    keepId: string,
+    mergeIds: string[],
+  ): Promise<void> {
+    const sources = [...new Set(mergeIds)].filter((id) => id !== keepId);
+    if (sources.length === 0) {
+      throw new BadRequestException(
+        `Pick at least one other ${kind} to merge.`,
+      );
+    }
+    const config = await this.playback.getStashConfig();
+    const all = new Map(
+      (await this.stash.listForMerge(config, kind)).map((item) => [
+        item.id,
+        item,
+      ]),
+    );
+    const keep = all.get(keepId);
+    if (!keep || sources.some((id) => !all.has(id))) {
+      throw new BadRequestException(
+        `One of those ${kind}s is gone from Stash. Look again.`,
+      );
+    }
+    if (kind === 'performer') {
+      await this.stash.mergePerformers(config, keepId, sources);
+    } else {
+      await this.stash.mergeStudios(config, keepId, sources);
+    }
+    const names = sources.map((id) => all.get(id)!.name);
+    this.logger.log(`Merged ${kind}s ${names.join(', ')} into ${keep.name}.`);
+    await this.activity?.record({
+      kind: 'scan',
+      title: `Merged ${names.length} ${kind}${names.length === 1 ? '' : 's'} into ${keep.name}.`,
+      detail: `${names.join(', ')}: their scenes are now ${keep.name}'s, and their names are aliases.`,
+    });
+  }
+
   // ---------- broken files ----------
 
   /** Each kind of problem: how many scenes, and the first 50. Null when Stash couldn't say. */
@@ -763,9 +855,19 @@ export class LocalLibraryService {
     accuracy: keyof typeof DUPLICATE_DISTANCE = 'exact',
   ): Promise<DuplicateGroupDto[]> {
     const config = await this.playback.getStashConfig();
-    const groups = await this.stash.findDuplicateScenes(
+    const found = await this.stash.findDuplicateScenes(
       config,
       DUPLICATE_DISTANCE[accuracy],
+    );
+    const ignored = new Set(
+      (
+        (await this.prisma?.duplicateIgnore
+          .findMany({ select: { sceneKey: true } })
+          .catch(() => [])) ?? []
+      ).map((row) => row.sceneKey),
+    );
+    const groups = found.filter(
+      (group) => !ignored.has(duplicateKey(group.map((scene) => scene.id))),
     );
     return groups.map((group) => ({
       scenes: group.map(({ screenshotVersion, ...scene }) => ({
@@ -782,6 +884,42 @@ export class LocalLibraryService {
         pickKeeperWithReason(group),
       ),
     }));
+  }
+
+  /** A set you checked and found aren't copies: hidden until its scenes change. */
+  async ignoreDuplicates(sceneIds: string[]): Promise<void> {
+    const ids = [...new Set(sceneIds)];
+    if (ids.length < 2 || !this.prisma) {
+      throw new BadRequestException('Pick a set of at least two scenes.');
+    }
+    const sceneKey = duplicateKey(ids);
+    await this.prisma.duplicateIgnore.upsert({
+      where: { sceneKey },
+      create: { sceneKey },
+      update: {},
+    });
+  }
+
+  /** How many sets are hidden as not duplicates. */
+  async ignoredDuplicateCount(): Promise<number> {
+    return (await this.prisma?.duplicateIgnore.count().catch(() => 0)) ?? 0;
+  }
+
+  /** Shows every hidden set again. */
+  async clearIgnoredDuplicates(): Promise<void> {
+    await this.prisma?.duplicateIgnore.deleteMany({});
+  }
+
+  /** Before a copy is removed: its plays, tags, chapters and more go to the copy kept. */
+  async carryDetails(fromId: string, toId: string): Promise<void> {
+    if (fromId === toId) {
+      throw new BadRequestException('A copy can’t be carried into itself.');
+    }
+    const config = await this.playback.getStashConfig();
+    const carried = await this.stash.carrySceneDetails(config, fromId, toId);
+    this.logger.log(
+      `Carried Stash scene ${fromId}'s details to ${toId}: ${carried.plays} plays, ${carried.os} Os, ${carried.chapters} chapters.`,
+    );
   }
 
   // ---------- stats ----------
@@ -1039,6 +1177,13 @@ export function rankRelated(
         left.order - right.order,
     )
     .map((entry) => entry.item);
+}
+
+/** The same key for the same set of scenes, in any order. */
+export function duplicateKey(sceneIds: string[]): string {
+  return [...new Set(sceneIds)]
+    .sort((a, b) => Number(a) - Number(b) || a.localeCompare(b))
+    .join(',');
 }
 
 export function toCard(scene: StashLocalSceneCard): LocalSceneCardDto {

@@ -760,3 +760,10 @@ model WatchLaterItem {
 
   @@index([position])
 }
+
+/// Duplicate sets you said aren't duplicates; a set shows again if its scenes change.
+model DuplicateIgnore {
+  /// The set's Stash scene ids, sorted and joined with commas.
+  sceneKey  String   @id
+  createdAt DateTime @default(now())
+}

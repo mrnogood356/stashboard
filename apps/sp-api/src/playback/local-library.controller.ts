@@ -27,6 +27,8 @@ import {
   FixScenesQueryDto,
   IdentifyScenesDto,
   MergeTagsDto,
+  MergeEntitiesDto,
+  IgnoreDuplicatesDto,
   LocalBulkScenesDto,
   LIBRARY_TASKS,
   FavoriteDto,
@@ -37,6 +39,7 @@ import {
 } from './dto/local-library.dto';
 import {
   ChapterDto,
+  MergeCandidatesDto,
   LocalBulkResultDto,
   LocalLibraryService,
   LocalPerformerDto,
@@ -183,6 +186,23 @@ export class LocalLibraryController {
     return this.library.stats(refresh === '1' || refresh === 'true');
   }
 
+  @Post('duplicates/ignore')
+  @HttpCode(204)
+  async ignoreDuplicates(@Body() body: IgnoreDuplicatesDto): Promise<void> {
+    await this.library.ignoreDuplicates(body.sceneIds);
+  }
+
+  @Get('duplicates/ignored')
+  async ignoredDuplicates(): Promise<{ count: number }> {
+    return { count: await this.library.ignoredDuplicateCount() };
+  }
+
+  @Delete('duplicates/ignored')
+  @HttpCode(204)
+  async clearIgnoredDuplicates(): Promise<void> {
+    await this.library.clearIgnoredDuplicates();
+  }
+
   @Get('duplicates')
   duplicates(@Query() query: DuplicatesQueryDto): Promise<DuplicateGroupDto[]> {
     return this.library.duplicates(query.accuracy ?? 'exact');
@@ -199,6 +219,10 @@ export class LocalLibraryController {
     @Param('sceneId') sceneId: string,
     @Query() query: DeleteSceneQueryDto,
   ): Promise<void> {
+    if (query.carryTo) {
+      // Nothing is removed if carrying the details over fails.
+      await this.library.carryDetails(sceneId, query.carryTo);
+    }
     await this.library.deleteScene(
       sceneId,
       query.deleteFile === 'true',
@@ -209,6 +233,24 @@ export class LocalLibraryController {
   @Get('search')
   search(@Query() query: TagSearchQueryDto): Promise<LocalSearchDto> {
     return this.library.search(query.query ?? '');
+  }
+
+  /** Performers or studios entered more than once, and names matching `q`. */
+  @Get('merge/:kind')
+  mergeCandidates(
+    @Param('kind') kind: string,
+    @Query('q') q?: string,
+  ): Promise<MergeCandidatesDto> {
+    return this.library.mergeCandidates(mergeKind(kind), q);
+  }
+
+  @Post('merge/:kind')
+  @HttpCode(204)
+  async merge(
+    @Param('kind') kind: string,
+    @Body() body: MergeEntitiesDto,
+  ): Promise<void> {
+    await this.library.merge(mergeKind(kind), body.keepId, body.mergeIds);
   }
 
   /** Chapters across the library, by tag, performer or words. */
@@ -301,4 +343,14 @@ export class LocalLibraryController {
   ): Promise<Array<{ id: string; name: string }>> {
     return this.library.searchTags(query.query ?? '');
   }
+}
+
+function mergeKind(kind: string): 'performer' | 'studio' {
+  if (kind === 'performers' || kind === 'performer') {
+    return 'performer';
+  }
+  if (kind === 'studios' || kind === 'studio') {
+    return 'studio';
+  }
+  throw new BadRequestException('Merge performers or studios.');
 }

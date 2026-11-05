@@ -1569,6 +1569,237 @@ describe('StashAdapter', () => {
       });
     });
 
+    it('merges performers, keeping the others’ names as aliases and their links', async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          ok({
+            findPerformers: {
+              performers: [
+                {
+                  id: '1',
+                  name: 'Jane Doe',
+                  alias_list: ['JD'],
+                  stash_ids: [{ endpoint: 'sdb', stash_id: 'a' }],
+                },
+                {
+                  id: '2',
+                  name: 'jane doe',
+                  alias_list: ['Janie'],
+                  stash_ids: [{ endpoint: 'fdb', stash_id: 'b' }],
+                },
+              ],
+            },
+          }),
+        )
+        .mockResolvedValueOnce(ok({ performerMerge: { id: '1' } }));
+
+      await adapter.mergePerformers(config, '1', ['2']);
+
+      expect(sentBody(1).variables).toEqual({
+        input: {
+          source: ['2'],
+          destination: '1',
+          values: {
+            id: '1',
+            alias_list: ['JD', 'Janie'],
+            stash_ids: [
+              { endpoint: 'sdb', stash_id: 'a' },
+              { endpoint: 'fdb', stash_id: 'b' },
+            ],
+          },
+        },
+      });
+    });
+
+    it('merges studios: moves everything, then deletes the merged one before adding its name as an alias', async () => {
+      const calls: string[] = [];
+      fetchMock.mockImplementation((_url: unknown, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as {
+          query: string;
+          variables: Record<string, unknown>;
+        };
+        const name = /(query|mutation) (\w+)/.exec(body.query)?.[2] ?? '?';
+        calls.push(name);
+        if (name === 'MergeStudioSources') {
+          return Promise.resolve(
+            ok({
+              findStudios: {
+                studios: [
+                  {
+                    id: '1',
+                    name: 'Brand',
+                    aliases: [],
+                    stash_ids: [],
+                    child_studios: [],
+                  },
+                  {
+                    id: '2',
+                    name: 'Brand Inc',
+                    aliases: ['BI'],
+                    stash_ids: [],
+                    child_studios: [{ id: '9' }],
+                  },
+                ],
+              },
+            }),
+          );
+        }
+        if (name === 'StudioItems') {
+          return Promise.resolve(
+            ok(
+              body.query.includes('findScenes')
+                ? { findScenes: { scenes: [{ id: '50' }, { id: '51' }] } }
+                : {
+                    findGalleries: { galleries: [] },
+                    findImages: { images: [] },
+                    findGroups: { groups: [] },
+                  },
+            ),
+          );
+        }
+        return Promise.resolve(ok({}));
+      });
+
+      await adapter.mergeStudios(config, '1', ['2']);
+
+      expect(calls).toEqual([
+        'MergeStudioSources',
+        'StudioItems',
+        'MoveToStudio',
+        'StudioItems',
+        'StudioItems',
+        'StudioItems',
+        'MoveSubStudio',
+        'RemoveStudio',
+        'KeepStudio',
+      ]);
+      const bodies = fetchMock.mock.calls.map(
+        ([, init]) =>
+          JSON.parse(String((init as RequestInit).body)) as {
+            variables: Record<string, unknown>;
+          },
+      );
+      expect(bodies[2].variables).toEqual({
+        input: { ids: ['50', '51'], studio_id: '1' },
+      });
+      expect(bodies[6].variables).toEqual({
+        input: { id: '9', parent_id: '1' },
+      });
+      expect(bodies[8].variables).toEqual({
+        input: { id: '1', aliases: ['Brand Inc', 'BI'], stash_ids: [] },
+      });
+    });
+
+    it('carries a removed copy’s plays, tags and chapters to the copy kept', async () => {
+      const calls: Array<{ name: string; variables: Record<string, unknown> }> =
+        [];
+      const scenes = (fromLength: number) => [
+        {
+          id: '2',
+          rating100: 80,
+          organized: true,
+          play_history: ['2026-01-01T00:00:00Z', '2026-02-01T00:00:00Z'],
+          o_history: [],
+          urls: ['https://a'],
+          tags: [{ id: 't1' }, { id: 't2' }],
+          performers: [{ id: 'p1' }],
+          galleries: [],
+          groups: [{ group: { id: 'g1' }, scene_index: 3 }],
+          stash_ids: [{ endpoint: 'sdb', stash_id: 'x' }],
+          files: [{ duration: fromLength }],
+          scene_markers: [
+            {
+              title: 'Pool',
+              seconds: 100,
+              primary_tag: { id: 't9' },
+              tags: [],
+            },
+            {
+              title: 'Same',
+              seconds: 300,
+              primary_tag: { id: 't8' },
+              tags: [],
+            },
+          ],
+        },
+        {
+          id: '1',
+          rating100: null,
+          organized: false,
+          play_history: [],
+          o_history: [],
+          urls: [],
+          tags: [{ id: 't2' }],
+          performers: [],
+          galleries: [],
+          groups: [],
+          stash_ids: [],
+          files: [{ duration: 1800 }],
+          scene_markers: [
+            { title: 'Same', seconds: 300.5, primary_tag: { id: 't8' } },
+          ],
+        },
+      ];
+      let fromLength = 1801;
+      fetchMock.mockImplementation((_url: unknown, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as {
+          query: string;
+          variables: Record<string, unknown>;
+        };
+        const name = /(query|mutation) (\w+)/.exec(body.query)?.[2] ?? '?';
+        calls.push({ name, variables: body.variables });
+        return Promise.resolve(
+          ok(
+            name === 'CarryScenes'
+              ? { findScenes: { scenes: scenes(fromLength) } }
+              : {},
+          ),
+        );
+      });
+
+      expect(await adapter.carrySceneDetails(config, '2', '1')).toEqual({
+        plays: 2,
+        os: 0,
+        chapters: 1,
+      });
+      expect(calls.map((call) => call.name)).toEqual([
+        'CarryScenes',
+        'CarryDetails',
+        'CarryPlays',
+        'CarryChapter',
+      ]);
+      expect(calls[1].variables).toEqual({
+        input: {
+          id: '1',
+          tag_ids: ['t2', 't1'],
+          performer_ids: ['p1'],
+          gallery_ids: [],
+          groups: [{ group_id: 'g1', scene_index: 3 }],
+          stash_ids: [{ endpoint: 'sdb', stash_id: 'x' }],
+          urls: ['https://a'],
+          rating100: 80,
+          organized: true,
+        },
+      });
+      expect(calls[3].variables).toEqual({
+        input: {
+          scene_id: '1',
+          title: 'Pool',
+          seconds: 100,
+          primary_tag_id: 't9',
+          tag_ids: [],
+        },
+      });
+
+      // A different length: no chapters, which could land in the wrong place.
+      calls.length = 0;
+      fromLength = 1700;
+      expect((await adapter.carrySceneDetails(config, '2', '1')).chapters).toBe(
+        0,
+      );
+      expect(calls.some((call) => call.name === 'CarryChapter')).toBe(false);
+    });
+
     it('saves rating, organized and tags with sceneUpdate', async () => {
       fetchMock.mockResolvedValue(ok({ sceneUpdate: { id: '5' } }));
 

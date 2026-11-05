@@ -180,6 +180,8 @@ export interface StashLocalPerformer {
   disambiguation: string | null;
   gender: string | null;
   birthdate: string | null;
+  /** When they died, when Stash has it. */
+  deathDate?: string | null;
   country: string | null;
   details: string | null;
   favorite: boolean;

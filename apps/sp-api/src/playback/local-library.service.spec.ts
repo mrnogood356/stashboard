@@ -47,6 +47,9 @@ describe('LocalLibraryService', () => {
     getOrganizerScene: jest.fn(),
     deleteScene: jest.fn().mockResolvedValue(undefined),
     mergeTags: jest.fn().mockResolvedValue(undefined),
+    listForMerge: jest.fn(),
+    mergePerformers: jest.fn().mockResolvedValue(undefined),
+    mergeStudios: jest.fn().mockResolvedValue(undefined),
     startLibraryTask: jest.fn().mockResolvedValue('7'),
     findProblemScenes: jest.fn(),
     findMarkersWithoutPreview: jest.fn().mockResolvedValue({
@@ -87,6 +90,55 @@ describe('LocalLibraryService', () => {
       'gone from Stash',
     );
     expect(stash.mergeTags).toHaveBeenCalledTimes(1);
+  });
+
+  it('suggests performers entered twice, and merges only ones Stash still has', async () => {
+    const person = (
+      id: string,
+      name: string,
+      sceneCount: number,
+      aliases: string[] = [],
+    ) => ({
+      id,
+      name,
+      aliases,
+      sceneCount,
+      note: null,
+      deathDate: null,
+    });
+    stash.listForMerge.mockResolvedValue([
+      person('1', 'Jane Doe', 3),
+      person('2', 'Jané  Doe', 9),
+      person('3', 'Alexis', 1),
+      person('4', 'Alexi', 1),
+      person('5', 'JD', 2, ['Jane-Doe']),
+    ]);
+
+    const found = await service.mergeCandidates('performer', 'ale');
+    expect(found.groups).toEqual([
+      {
+        keepId: '2',
+        items: [
+          expect.objectContaining({ id: '2' }),
+          expect.objectContaining({ id: '1' }),
+          expect.objectContaining({ id: '5' }),
+        ],
+      },
+    ]);
+    expect(found.matches.map((item) => item.id)).toEqual(['3', '4']);
+
+    await expect(service.merge('performer', '2', ['2'])).rejects.toThrow(
+      'Pick at least one',
+    );
+    await expect(service.merge('performer', '2', ['99'])).rejects.toThrow(
+      'gone from Stash',
+    );
+    await service.merge('performer', '2', ['1', '5', '1']);
+    expect(stash.mergePerformers).toHaveBeenCalledWith(expect.anything(), '2', [
+      '1',
+      '5',
+    ]);
+    expect(stash.mergeStudios).not.toHaveBeenCalled();
   });
 
   it('generates for the chosen scenes only, and never for the whole library by accident', async () => {

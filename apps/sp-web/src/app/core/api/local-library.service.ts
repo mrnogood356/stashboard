@@ -22,6 +22,23 @@ export interface LocalSceneCard {
   source: 'STASH';
 }
 
+export type MergeKind = 'performers' | 'studios';
+
+export interface MergeCandidate {
+  id: string;
+  name: string;
+  aliases: string[];
+  sceneCount: number;
+  /** A performer's disambiguation, or a studio's parent. */
+  note: string | null;
+  deathDate: string | null;
+}
+
+export interface MergeCandidates {
+  groups: Array<{ keepId: string; items: MergeCandidate[] }>;
+  matches: MergeCandidate[];
+}
+
 /** A chapter (Stash scene marker) from anywhere in the library. */
 export interface Chapter {
   id: string;
@@ -50,6 +67,8 @@ export interface LocalPerformer {
   disambiguation: string | null;
   gender: string | null;
   birthdate: string | null;
+  /** When they died, when Stash has it. */
+  deathDate?: string | null;
   country: string | null;
   details: string | null;
   favorite: boolean;
@@ -364,12 +383,45 @@ export class LocalLibraryService {
   }
 
   /** `onlyFile`: refuse a scene with more than one file, whose others would go too. */
-  deleteScene(sceneId: string, deleteFile: boolean, onlyFile = false): Observable<void> {
+  deleteScene(
+    sceneId: string,
+    deleteFile: boolean,
+    onlyFile = false,
+    /** Duplicates: first carry plays, tags, chapters and more to this scene. */
+    carryTo?: string,
+  ): Observable<void> {
     let params = new HttpParams().set('deleteFile', String(deleteFile));
     if (onlyFile) {
       params = params.set('onlyFile', 'true');
     }
+    if (carryTo) {
+      params = params.set('carryTo', carryTo);
+    }
     return this.http.delete<void>(`/api/local/scenes/${enc(sceneId)}`, { params });
+  }
+
+  /** A duplicate set you checked: hidden until its scenes change. */
+  ignoreDuplicates(sceneIds: string[]): Observable<void> {
+    return this.http.post<void>('/api/local/duplicates/ignore', { sceneIds });
+  }
+
+  ignoredDuplicates(): Observable<{ count: number }> {
+    return this.http.get<{ count: number }>('/api/local/duplicates/ignored');
+  }
+
+  clearIgnoredDuplicates(): Observable<void> {
+    return this.http.delete<void>('/api/local/duplicates/ignored');
+  }
+
+  /** Performers or studios entered more than once, and names matching `q`. */
+  mergeCandidates(kind: MergeKind, q = ''): Observable<MergeCandidates> {
+    return this.http.get<MergeCandidates>(`/api/local/merge/${kind}`, {
+      params: q.trim() ? { q: q.trim() } : {},
+    });
+  }
+
+  merge(kind: MergeKind, keepId: string, mergeIds: string[]): Observable<void> {
+    return this.http.post<void>(`/api/local/merge/${kind}`, { keepId, mergeIds });
   }
 
   searchTags(query: string): Observable<Array<{ id: string; name: string }>> {

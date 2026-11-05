@@ -47,6 +47,10 @@ export interface LibraryScenePick {
 }
 
 export * from './stash.types';
+export type {
+  StashChapter,
+  StashMergeCandidate,
+} from './stash-library-tools.api';
 
 @Injectable()
 export class StashAdapter extends StashLibraryToolsApi {
@@ -755,7 +759,7 @@ export class StashAdapter extends StashLibraryToolsApi {
     if (!id) {
       return null;
     }
-    const full = `id name disambiguation gender birthdate country details favorite image_path scene_count`;
+    const full = `id name disambiguation gender birthdate death_date country details favorite image_path scene_count`;
     const basic = `id name gender favorite image_path scene_count`;
     const performer = await this.queryWithFallback(
       config,
@@ -778,6 +782,7 @@ export class StashAdapter extends StashLibraryToolsApi {
       disambiguation: str(performer.disambiguation),
       gender: str(performer.gender),
       birthdate: str(performer.birthdate),
+      deathDate: str(performer.death_date),
       country: str(performer.country),
       details: str(performer.details),
       favorite: performer.favorite === true,

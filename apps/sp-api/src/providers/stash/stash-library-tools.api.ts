@@ -40,6 +40,61 @@ export interface StashChapter {
   sceneTitle: string;
 }
 
+/** A performer or studio, for Library tools → Merge. */
+export interface StashMergeCandidate {
+  id: string;
+  name: string;
+  aliases: string[];
+  sceneCount: number;
+  /** A performer's disambiguation, or a studio's parent. */
+  note: string | null;
+  /** Performers: when they died, when Stash has it. */
+  deathDate: string | null;
+}
+
+/** The kept one's aliases and links, plus the merged ones' names, aliases and links. */
+function mergedValues(
+  keep: Record<string, unknown>,
+  sources: Array<Record<string, unknown>>,
+  aliasField: 'alias_list' | 'aliases',
+): {
+  aliases: string[];
+  stashIds: Array<{ endpoint: string; stash_id: string }>;
+} {
+  const keepName = (typeof keep['name'] === 'string' ? keep['name'] : '')
+    .trim()
+    .toLowerCase();
+  const aliases = new Map<string, string>();
+  const add = (value: unknown) => {
+    if (typeof value === 'string' && value.trim()) {
+      const key = value.trim().toLowerCase();
+      if (key !== keepName && !aliases.has(key)) {
+        aliases.set(key, value.trim());
+      }
+    }
+  };
+  const list = (row: Record<string, unknown>, field: string) =>
+    Array.isArray(row[field]) ? (row[field] as unknown[]) : [];
+  list(keep, aliasField).forEach(add);
+  for (const source of sources) {
+    add(source['name']);
+    list(source, aliasField).forEach(add);
+  }
+  const links = new Map<string, { endpoint: string; stash_id: string }>();
+  for (const row of [keep, ...sources]) {
+    for (const link of list(row, 'stash_ids') as Array<
+      Record<string, unknown>
+    >) {
+      const endpoint = link?.['endpoint'];
+      const stashId = link?.['stash_id'];
+      if (typeof endpoint === 'string' && typeof stashId === 'string') {
+        links.set(`${endpoint} ${stashId}`, { endpoint, stash_id: stashId });
+      }
+    }
+  }
+  return { aliases: [...aliases.values()], stashIds: [...links.values()] };
+}
+
 export abstract class StashLibraryToolsApi extends StashGraphqlClient {
   /**
    * Jobs Stashboard queued, by what they do. Stash runs one job at a time, so
@@ -1814,6 +1869,428 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
         return id && name && count > 0 ? [{ id, name, count }] : [];
       })
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }
+
+  /** Every performer or studio, for finding ones entered twice. */
+  async listForMerge(
+    config: StashAdapterBaseConfig,
+    kind: 'performer' | 'studio',
+  ): Promise<StashMergeCandidate[]> {
+    const query =
+      kind === 'performer'
+        ? `query MergePerformers($filter: FindFilterType) {
+            findPerformers(filter: $filter) {
+              performers { id name disambiguation alias_list scene_count death_date }
+            }
+          }`
+        : `query MergeStudios($filter: FindFilterType) {
+            findStudios(filter: $filter) {
+              studios { id name aliases scene_count parent_studio { name } }
+            }
+          }`;
+    const payload = (await this.executeQuery(config, query, {
+      filter: { per_page: -1, sort: 'name', direction: 'ASC' },
+    })) as unknown as {
+      data?: {
+        findPerformers?: { performers?: Array<Record<string, unknown>> };
+        findStudios?: { studios?: Array<Record<string, unknown>> };
+      };
+    };
+    const rows =
+      kind === 'performer'
+        ? (payload.data?.findPerformers?.performers ?? [])
+        : (payload.data?.findStudios?.studios ?? []);
+    return rows.flatMap((row) => {
+      const id = this.normalizeEntityId(idText(row['id']));
+      const name = typeof row['name'] === 'string' ? row['name'].trim() : '';
+      if (!id || !name) {
+        return [];
+      }
+      const aliases = row[kind === 'performer' ? 'alias_list' : 'aliases'];
+      const parent = row['parent_studio'] as Record<string, unknown> | null;
+      const note =
+        kind === 'performer'
+          ? (typeof row['disambiguation'] === 'string' &&
+              row['disambiguation'].trim()) ||
+            null
+          : typeof parent?.['name'] === 'string'
+            ? `Part of ${parent['name']}`
+            : null;
+      return [
+        {
+          id,
+          name,
+          aliases: Array.isArray(aliases)
+            ? aliases.filter(
+                (alias): alias is string => typeof alias === 'string',
+              )
+            : [],
+          sceneCount:
+            typeof row['scene_count'] === 'number' ? row['scene_count'] : 0,
+          note,
+          deathDate:
+            typeof row['death_date'] === 'string' && row['death_date']
+              ? row['death_date']
+              : null,
+        },
+      ];
+    });
+  }
+
+  /**
+   * Merges performers into one with Stash's performerMerge (scenes,
+   * galleries, images and tags), keeping the others' names as aliases and
+   * their StashDB/FansDB links, which the merge itself drops.
+   */
+  async mergePerformers(
+    config: StashAdapterBaseConfig,
+    keepId: string,
+    mergeIds: string[],
+  ): Promise<void> {
+    const ids = [keepId, ...mergeIds];
+    const payload = (await this.executeQuery(
+      config,
+      `query MergeSources($ids: [ID!]) {
+        findPerformers(ids: $ids, filter: { per_page: -1 }) {
+          performers { id name alias_list stash_ids { endpoint stash_id } }
+        }
+      }`,
+      { ids },
+    )) as unknown as {
+      data?: {
+        findPerformers?: { performers?: Array<Record<string, unknown>> };
+      };
+    };
+    const found = payload.data?.findPerformers?.performers ?? [];
+    const keep = found.find((row) => idText(row['id']) === keepId);
+    const sources = found.filter((row) =>
+      mergeIds.includes(idText(row['id']) ?? ''),
+    );
+    if (!keep || sources.length !== mergeIds.length) {
+      throw new Error('One of those performers is no longer in Stash.');
+    }
+    const values = mergedValues(keep, sources, 'alias_list');
+    await this.executeQuery(
+      config,
+      `mutation MergePerformers($input: PerformerMergeInput!) {
+        performerMerge(input: $input) { id }
+      }`,
+      {
+        input: {
+          source: mergeIds,
+          destination: keepId,
+          values: {
+            id: keepId,
+            alias_list: values.aliases,
+            stash_ids: values.stashIds,
+          },
+        },
+      },
+    );
+  }
+
+  /**
+   * Merges studios into one. Stash has no studio merge, so this moves each
+   * one's scenes, galleries, images, groups and sub-studios to the one kept,
+   * adds its name and aliases as aliases and its StashDB/FansDB links, then
+   * deletes it. Stops at the first failure; what moved stays moved.
+   */
+  async mergeStudios(
+    config: StashAdapterBaseConfig,
+    keepId: string,
+    mergeIds: string[],
+  ): Promise<void> {
+    const studioFields =
+      'id name aliases stash_ids { endpoint stash_id } child_studios { id }';
+    const payload = (await this.executeQuery(
+      config,
+      `query MergeStudioSources($ids: [ID!]) {
+        findStudios(ids: $ids, filter: { per_page: -1 }) { studios { ${studioFields} } }
+      }`,
+      { ids: [keepId, ...mergeIds] },
+    )) as unknown as {
+      data?: { findStudios?: { studios?: Array<Record<string, unknown>> } };
+    };
+    const found = payload.data?.findStudios?.studios ?? [];
+    const keep = found.find((row) => idText(row['id']) === keepId);
+    const sources = found.filter((row) =>
+      mergeIds.includes(idText(row['id']) ?? ''),
+    );
+    if (!keep || sources.length !== mergeIds.length) {
+      throw new Error('One of those studios is no longer in Stash.');
+    }
+    const kinds = [
+      {
+        find: 'findScenes',
+        list: 'scenes',
+        filter: 'scene_filter',
+        type: 'SceneFilterType',
+        bulk: 'bulkSceneUpdate',
+        input: 'BulkSceneUpdateInput',
+      },
+      {
+        find: 'findGalleries',
+        list: 'galleries',
+        filter: 'gallery_filter',
+        type: 'GalleryFilterType',
+        bulk: 'bulkGalleryUpdate',
+        input: 'BulkGalleryUpdateInput',
+      },
+      {
+        find: 'findImages',
+        list: 'images',
+        filter: 'image_filter',
+        type: 'ImageFilterType',
+        bulk: 'bulkImageUpdate',
+        input: 'BulkImageUpdateInput',
+      },
+      {
+        find: 'findGroups',
+        list: 'groups',
+        filter: 'group_filter',
+        type: 'GroupFilterType',
+        bulk: 'bulkGroupUpdate',
+        input: 'BulkGroupUpdateInput',
+      },
+    ];
+    for (const source of sources) {
+      const sourceId = idText(source['id']);
+      for (const kind of kinds) {
+        const listed = (await this.executeQuery(
+          config,
+          `query StudioItems($f: ${kind.type}) {
+            ${kind.find}(${kind.filter}: $f, filter: { per_page: -1 }) { ${kind.list} { id } }
+          }`,
+          {
+            f: {
+              studios: { value: [sourceId], modifier: 'INCLUDES', depth: 0 },
+            },
+          },
+        )) as unknown as {
+          data?: Record<string, Record<string, Array<{ id: unknown }>>>;
+        };
+        const itemIds = (listed.data?.[kind.find]?.[kind.list] ?? [])
+          .map((item) => idText(item.id))
+          .filter((id): id is string => !!id);
+        for (let start = 0; start < itemIds.length; start += 500) {
+          await this.executeQuery(
+            config,
+            `mutation MoveToStudio($input: ${kind.input}!) { ${kind.bulk}(input: $input) { id } }`,
+            {
+              input: {
+                ids: itemIds.slice(start, start + 500),
+                studio_id: keepId,
+              },
+            },
+          );
+        }
+      }
+      const children = Array.isArray(source['child_studios'])
+        ? (source['child_studios'] as Array<Record<string, unknown>>)
+        : [];
+      for (const child of children) {
+        const childId = idText(child['id']);
+        if (childId && childId !== keepId) {
+          await this.executeQuery(
+            config,
+            `mutation MoveSubStudio($input: StudioUpdateInput!) { studioUpdate(input: $input) { id } }`,
+            { input: { id: childId, parent_id: keepId } },
+          );
+        }
+      }
+    }
+    // A studio's alias can't be another studio's name, so the merged ones go first.
+    for (const id of mergeIds) {
+      await this.executeQuery(
+        config,
+        `mutation RemoveStudio($input: StudioDestroyInput!) { studioDestroy(input: $input) }`,
+        { input: { id } },
+      );
+    }
+    const values = mergedValues(keep, sources, 'aliases');
+    await this.executeQuery(
+      config,
+      `mutation KeepStudio($input: StudioUpdateInput!) { studioUpdate(input: $input) { id } }`,
+      {
+        input: {
+          id: keepId,
+          aliases: values.aliases,
+          stash_ids: values.stashIds,
+        },
+      },
+    );
+  }
+
+  /**
+   * Before a duplicate is removed: puts its plays and O history, tags,
+   * performers, galleries, groups, links and rating on the copy kept, and its
+   * chapters too when both run the same length (within 3 seconds).
+   */
+  async carrySceneDetails(
+    config: StashAdapterBaseConfig,
+    fromId: string,
+    toId: string,
+  ): Promise<{ plays: number; os: number; chapters: number }> {
+    const payload = (await this.executeQuery(
+      config,
+      `query CarryScenes($ids: [ID!]) {
+        findScenes(ids: $ids, filter: { per_page: -1 }) {
+          scenes {
+            id rating100 organized play_history o_history urls
+            tags { id } performers { id } galleries { id }
+            groups { group { id } scene_index }
+            stash_ids { endpoint stash_id }
+            files { duration }
+            scene_markers { title seconds end_seconds primary_tag { id } tags { id } }
+          }
+        }
+      }`,
+      { ids: [fromId, toId] },
+    )) as unknown as {
+      data?: { findScenes?: { scenes?: Array<Record<string, unknown>> } };
+    };
+    const scenes = payload.data?.findScenes?.scenes ?? [];
+    const from = scenes.find((scene) => idText(scene['id']) === fromId);
+    const to = scenes.find((scene) => idText(scene['id']) === toId);
+    if (!from || !to) {
+      throw new Error('One of the copies is no longer in Stash.');
+    }
+    const list = (scene: Record<string, unknown>, field: string) =>
+      Array.isArray(scene[field])
+        ? (scene[field] as Array<Record<string, unknown>>)
+        : [];
+    const ids = (field: string) => [
+      ...new Set(
+        [...list(to, field), ...list(from, field)]
+          .map((item) => idText(item['id']))
+          .filter((id): id is string => !!id),
+      ),
+    ];
+    const groups = new Map<
+      string,
+      { group_id: string; scene_index: number | null }
+    >();
+    for (const entry of [...list(to, 'groups'), ...list(from, 'groups')]) {
+      const groupId = idText(
+        (entry['group'] as Record<string, unknown> | null)?.['id'],
+      );
+      if (groupId && !groups.has(groupId)) {
+        groups.set(groupId, {
+          group_id: groupId,
+          scene_index:
+            typeof entry['scene_index'] === 'number'
+              ? entry['scene_index']
+              : null,
+        });
+      }
+    }
+    const links = new Map<string, { endpoint: string; stash_id: string }>();
+    for (const link of [...list(to, 'stash_ids'), ...list(from, 'stash_ids')]) {
+      if (
+        typeof link['endpoint'] === 'string' &&
+        typeof link['stash_id'] === 'string'
+      ) {
+        links.set(`${link['endpoint']} ${link['stash_id']}`, {
+          endpoint: link['endpoint'],
+          stash_id: link['stash_id'],
+        });
+      }
+    }
+    const strings = (scene: Record<string, unknown>, field: string) =>
+      Array.isArray(scene[field])
+        ? (scene[field] as unknown[]).filter(
+            (value): value is string => typeof value === 'string',
+          )
+        : [];
+    await this.executeQuery(
+      config,
+      `mutation CarryDetails($input: SceneUpdateInput!) { sceneUpdate(input: $input) { id } }`,
+      {
+        input: {
+          id: toId,
+          tag_ids: ids('tags'),
+          performer_ids: ids('performers'),
+          gallery_ids: ids('galleries'),
+          groups: [...groups.values()],
+          stash_ids: [...links.values()],
+          urls: [
+            ...new Set([...strings(to, 'urls'), ...strings(from, 'urls')]),
+          ],
+          rating100:
+            typeof to['rating100'] === 'number'
+              ? to['rating100']
+              : (from['rating100'] ?? null),
+          organized: to['organized'] === true || from['organized'] === true,
+        },
+      },
+    );
+    const plays = strings(from, 'play_history');
+    const os = strings(from, 'o_history');
+    if (plays.length > 0) {
+      await this.executeQuery(
+        config,
+        `mutation CarryPlays($id: ID!, $times: [Timestamp!]) { sceneAddPlay(id: $id, times: $times) { count } }`,
+        { id: toId, times: plays },
+      );
+    }
+    if (os.length > 0) {
+      await this.executeQuery(
+        config,
+        `mutation CarryOs($id: ID!, $times: [Timestamp!]) { sceneAddO(id: $id, times: $times) { count } }`,
+        { id: toId, times: os },
+      );
+    }
+    const length = (scene: Record<string, unknown>) =>
+      Math.max(
+        0,
+        ...list(scene, 'files').map((file) =>
+          typeof file['duration'] === 'number' ? file['duration'] : 0,
+        ),
+      );
+    let chapters = 0;
+    if (Math.abs(length(from) - length(to)) <= 3 && length(to) > 0) {
+      const existing = list(to, 'scene_markers');
+      for (const marker of list(from, 'scene_markers')) {
+        const tagId = idText(
+          (marker['primary_tag'] as Record<string, unknown> | null)?.['id'],
+        );
+        const seconds = marker['seconds'];
+        if (!tagId || typeof seconds !== 'number') {
+          continue;
+        }
+        const already = existing.some(
+          (other) =>
+            typeof other['seconds'] === 'number' &&
+            Math.abs(other['seconds'] - seconds) <= 1 &&
+            idText(
+              (other['primary_tag'] as Record<string, unknown> | null)?.['id'],
+            ) === tagId,
+        );
+        if (already) {
+          continue;
+        }
+        await this.executeQuery(
+          config,
+          `mutation CarryChapter($input: SceneMarkerCreateInput!) { sceneMarkerCreate(input: $input) { id } }`,
+          {
+            input: {
+              scene_id: toId,
+              title: typeof marker['title'] === 'string' ? marker['title'] : '',
+              seconds,
+              ...(typeof marker['end_seconds'] === 'number'
+                ? { end_seconds: marker['end_seconds'] }
+                : {}),
+              primary_tag_id: tagId,
+              tag_ids: list(marker, 'tags')
+                .map((tag) => idText(tag['id']))
+                .filter((id): id is string => !!id),
+            },
+          },
+        );
+        chapters += 1;
+      }
+    }
+    return { plays: plays.length, os: os.length, chapters };
   }
 
   /** Stash moves the sources' scenes onto the destination and deletes the sources. */

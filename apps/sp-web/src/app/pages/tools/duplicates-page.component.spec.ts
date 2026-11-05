@@ -39,7 +39,15 @@ async function render(library: Record<string, unknown>) {
     imports: [DuplicatesPageComponent],
     providers: [
       provideRouter([]),
-      { provide: LocalLibraryService, useValue: library },
+      {
+        provide: LocalLibraryService,
+        useValue: {
+          ignoredDuplicates: () => of({ count: 0 }),
+          ignoreDuplicates: vi.fn(() => of(undefined)),
+          clearIgnoredDuplicates: vi.fn(() => of(undefined)),
+          ...library,
+        },
+      },
       { provide: AppNotificationsService, useValue: notifications },
     ],
   }).compileComponents();
@@ -133,7 +141,7 @@ describe('DuplicatesPageComponent', () => {
     button(root, 'Remove from Stash only').click();
     await settle(fixture);
 
-    expect(library.deleteScene).toHaveBeenCalledWith('c', false, false);
+    expect(library.deleteScene).toHaveBeenCalledWith('c', false, false, 'a');
     expect(notifications.success).toHaveBeenCalledWith(
       'Removed from Stash',
       'The file was left on disk.',
@@ -177,7 +185,7 @@ describe('DuplicatesPageComponent', () => {
     button(root, 'Delete the file from disk').click();
     await settle(fixture);
 
-    expect(library.deleteScene).toHaveBeenCalledWith('b', true, true);
+    expect(library.deleteScene).toHaveBeenCalledWith('b', true, true, 'a');
     expect(notifications.error).toHaveBeenCalledWith(
       "Couldn't delete that scene",
       expect.any(String),
@@ -297,7 +305,69 @@ describe('DuplicatesPageComponent', () => {
     fixture.detectChanges();
     button(root, 'Delete the files from disk').click();
     await settle(fixture);
-    expect(library.deleteScene.mock.calls).toEqual([['b', true, true]]);
+    expect(library.deleteScene.mock.calls).toEqual([['b', true, true, 'a']]);
     expect(notifications.info).toHaveBeenCalledWith('1 left in place', expect.any(String));
+  });
+
+  it('hides a set you say isn’t duplicates, and shows hidden sets again', async () => {
+    const groups: DuplicateGroup[] = [
+      { suggestedKeepId: 'a', scenes: [scene('a', 2160), scene('b', 720)] },
+    ];
+    const ignore = vi.fn(() => of(undefined));
+    const clear = vi.fn(() => of(undefined));
+    await TestBed.configureTestingModule({
+      imports: [DuplicatesPageComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: LocalLibraryService,
+          useValue: {
+            duplicates: vi.fn().mockReturnValue(of(groups)),
+            deleteScene: vi.fn(),
+            ignoredDuplicates: () => of({ count: 2 }),
+            ignoreDuplicates: ignore,
+            clearIgnoredDuplicates: clear,
+          },
+        },
+        {
+          provide: AppNotificationsService,
+          useValue: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+        },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(DuplicatesPageComponent);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="hidden-note"]')?.textContent).toContain('2 sets');
+
+    (root.querySelector('[data-testid="not-duplicates"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(ignore).toHaveBeenCalledWith(['a', 'b']);
+    expect(root.querySelectorAll('.group').length).toBe(0);
+    expect(root.querySelector('[data-testid="hidden-note"]')?.textContent).toContain('3 sets');
+
+    button(root, 'Show them again').click();
+    expect(clear).toHaveBeenCalled();
+  });
+
+  it('removes without carrying details over when that’s unticked', async () => {
+    const groups: DuplicateGroup[] = [
+      { suggestedKeepId: 'a', scenes: [scene('a', 2160), scene('b', 720)] },
+    ];
+    const library = {
+      duplicates: vi.fn().mockReturnValue(of(groups)),
+      deleteScene: vi.fn().mockReturnValue(of(undefined)),
+    };
+    const { fixture, root } = await render(library);
+    button(root, 'Remove this copy').click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const carry = root.querySelector('input[name="carryOver"]') as HTMLInputElement;
+    expect(carry.checked).toBe(true);
+    carry.click();
+    fixture.detectChanges();
+    button(root, 'Remove from Stash only').click();
+    await settle(fixture);
+    expect(library.deleteScene).toHaveBeenCalledWith('b', false, false, undefined);
   });
 });

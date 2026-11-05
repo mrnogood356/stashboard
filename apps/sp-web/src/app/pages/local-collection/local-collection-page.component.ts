@@ -249,11 +249,12 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
 
   private toHeader(entity: LocalPerformer | LocalStudio): CollectionHeader {
     if ('gender' in entity) {
-      const age = ageFrom(entity.birthdate);
+      const age = entity.deathDate ? null : ageFrom(entity.birthdate);
       const subtitle = [
         entity.disambiguation,
         formatGender(entity.gender),
         age !== null ? `${age} years old` : null,
+        entity.deathDate ? `Passed away ${entity.deathDate}` : null,
         entity.country,
       ]
         .filter((part): part is string => !!part)

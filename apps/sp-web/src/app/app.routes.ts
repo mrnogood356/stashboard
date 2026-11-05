@@ -116,6 +116,11 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'tools/merge',
+        loadComponent: () =>
+          import('./pages/tools/merge-page.component').then((m) => m.MergePageComponent),
+      },
+      {
         path: 'tools/smaller-copies',
         loadComponent: () =>
           import('./pages/tools/smaller-copies-page.component').then(
