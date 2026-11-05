@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.5.1](https://github.com/mrnogood356/stashboard/compare/v1.5.0...v1.5.1) (2026-11-05)
+
+
+### Features
+
+* **suggestions:** a You may enjoy page with every pick; the Home row's See all opens it ([e08ed91](https://github.com/mrnogood356/stashboard/commit/e08ed91ef4b5fd26a56d349383e64d4718efe8af))
+
+
+### Bug Fixes
+
+* **about:** show What's new after an update even when the browser forgot its version, and open it from About ([ce9b425](https://github.com/mrnogood356/stashboard/commit/ce9b4257c63a267ef759761f6acd14e4dc2bf8f4))
+* address review on What's new and the obscured feed ([9f344d8](https://github.com/mrnogood356/stashboard/commit/9f344d8967f9c3d6f109ec7869f24a2c9d4efe9a))
+* no preview clips while images are obscured; What's new after an update; You may enjoy page ([0129d24](https://github.com/mrnogood356/stashboard/commit/0129d246b893fc4d3459c30b8c299c8cbb0add1c))
+* **previews:** no preview clips while images are obscured ([70cf882](https://github.com/mrnogood356/stashboard/commit/70cf882cfd77595ad51ce92ab7b89005e6a18b25))
+
 ## [1.5.0](https://github.com/mrnogood356/stashboard/compare/v1.4.0...v1.5.0) (2026-11-05)
 
 
