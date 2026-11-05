@@ -672,7 +672,11 @@ describe('AcquisitionPageComponent', () => {
     });
     expect(failedTab?.textContent).toContain('1');
     expect(lifecycleHeadings).toEqual(['Failed', 'Downloading', 'Requested']);
-    expect(text).toContain('Whisparr reported: The download is stalled with no connections');
+    // In plain words, with Whisparr's own words beneath.
+    expect(text).toContain(
+      'The download stalled: nobody was sending the file. Pick another release.',
+    );
+    expect(text).toContain('Whisparr said: The download is stalled with no connections');
     expect(
       fixture.nativeElement
         .querySelector('a[href="http://whisparr.local/movie/failed"]')

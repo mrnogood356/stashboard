@@ -474,6 +474,9 @@
                         <p class="detail" [class.detail-failed]="item.status.state === 'FAILED'">
                           {{ detail }}
                         </p>
+                        @if (rawFailure(item); as raw) {
+                          <p class="detail detail-raw">Whisparr said: {{ raw }}</p>
+                        }
                       }
 
                       @if (timelines().get(item.id); as timeline) {
