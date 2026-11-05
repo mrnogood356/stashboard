@@ -130,6 +130,23 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   } | null>(null);
 
   protected readonly chaptersMenuOpen = signal(false);
+  protected readonly moreMenuOpen = signal(false);
+  /** A-B loop: the start, and the end once it's set. */
+  protected readonly loop = signal<{ a: number; b: number | null } | null>(null);
+  /** The picture flipped left to right; kept while the player is open. */
+  protected readonly mirrored = signal(false);
+  protected readonly loopBand = computed(() => {
+    const loop = this.loop();
+    const duration = this.duration();
+    if (!loop || duration <= 0) {
+      return null;
+    }
+    const end = loop.b ?? loop.a;
+    return {
+      left: (loop.a / duration) * 100,
+      width: Math.max(0.4, ((end - loop.a) / duration) * 100),
+    };
+  });
   /** "Add chapter" sheet: title, tag (Stash needs one) and the time it was opened at. */
   protected readonly chapterDraft = signal<{
     seconds: number;
@@ -249,6 +266,8 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     this.bufferedEnd.set(0);
     this.resumedFrom.set(null);
     this.chaptersMenuOpen.set(false);
+    this.moreMenuOpen.set(false);
+    this.loop.set(null);
     this.load(null);
   }
 
@@ -527,6 +546,10 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       this.buffering.set(false);
     });
     on('timeupdate', () => {
+      const loop = this.loop();
+      if (loop && loop.b !== null && video.currentTime >= loop.b) {
+        video.currentTime = loop.a;
+      }
       this.currentTime.set(video.currentTime);
       this.trackWatched(video.currentTime);
     });
@@ -545,6 +568,13 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       }
     });
     on('ended', () => {
+      const loop = this.loop();
+      if (loop && loop.b !== null) {
+        // A loop that runs to the very end goes round instead of ending.
+        video.currentTime = loop.a;
+        void video.play().catch(() => undefined);
+        return;
+      }
       this.playing.set(false);
       this.saveProgress('ended');
       this.showControls();
@@ -971,7 +1001,67 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     return current;
   }
 
+  // ---------- Loop and mirror ----------
+
+  protected toggleMoreMenu(): void {
+    this.moreMenuOpen.update((open) => !open);
+    this.chaptersMenuOpen.set(false);
+    this.qualityMenuOpen.set(false);
+    this.speedMenuOpen.set(false);
+    this.showControls();
+  }
+
+  /** First press sets where the loop starts, the second where it ends, the third turns it off. */
+  protected stepLoop(): void {
+    const now = this.videoRef?.nativeElement.currentTime ?? this.currentTime();
+    const loop = this.loop();
+    if (!loop) {
+      this.loop.set({ a: now, b: null });
+      this.showHud(`Loop from ${formatTime(now)}: press again at the end`);
+    } else if (loop.b === null) {
+      if (now <= loop.a + 0.5) {
+        this.showHud('The end has to be after the start');
+        return;
+      }
+      this.loop.set({ a: loop.a, b: now });
+      this.showHud(`Looping ${formatTime(loop.a)}–${formatTime(now)}`);
+      this.seekTo(loop.a);
+    } else {
+      this.clearLoop();
+    }
+  }
+
+  protected clearLoop(): void {
+    if (this.loop()) {
+      this.loop.set(null);
+      this.showHud('Loop off');
+    }
+  }
+
+  /** Loops one chapter, from its start to the next chapter (or the end). */
+  protected loopChapter(marker: SceneMarker, event?: Event): void {
+    event?.stopPropagation();
+    const markers = this.markers();
+    const next = markers.find((other) => other.seconds > marker.seconds + 0.25);
+    const end = next?.seconds ?? this.duration();
+    if (!(end > marker.seconds)) {
+      return;
+    }
+    this.loop.set({ a: marker.seconds, b: end });
+    this.chaptersMenuOpen.set(false);
+    this.moreMenuOpen.set(false);
+    this.showHud(`Looping “${marker.title}”`);
+    this.seekTo(marker.seconds);
+    void this.videoRef?.nativeElement.play().catch(() => undefined);
+  }
+
+  protected toggleMirror(): void {
+    this.mirrored.update((on) => !on);
+    this.showHud(this.mirrored() ? 'Mirrored' : 'Not mirrored');
+  }
+
   protected toggleChaptersMenu(): void {
+    this.moreMenuOpen.set(false);
     this.chaptersMenuOpen.update((open) => !open);
     this.qualityMenuOpen.set(false);
     this.speedMenuOpen.set(false);
@@ -1212,7 +1302,12 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
 
   /** Closes whichever menu is open; true when one was. */
   private closeMenus(): boolean {
-    const open = this.speedMenuOpen() || this.qualityMenuOpen() || this.chaptersMenuOpen();
+    const open =
+      this.speedMenuOpen() ||
+      this.qualityMenuOpen() ||
+      this.chaptersMenuOpen() ||
+      this.moreMenuOpen();
+    this.moreMenuOpen.set(false);
     this.speedMenuOpen.set(false);
     this.qualityMenuOpen.set(false);
     this.chaptersMenuOpen.set(false);
@@ -1382,11 +1477,17 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       case 'help':
         this.setHelpOpen(!this.helpOpen());
         break;
+      case 'loop':
+        this.stepLoop();
+        break;
+      case 'mirror':
+        this.toggleMirror();
+        break;
       case 'escape':
-        if (this.speedMenuOpen() || this.qualityMenuOpen() || this.chaptersMenuOpen()) {
-          this.speedMenuOpen.set(false);
-          this.qualityMenuOpen.set(false);
-          this.chaptersMenuOpen.set(false);
+        if (this.closeMenus()) {
+          // A menu was open; it's closed now.
+        } else if (this.loop()) {
+          this.clearLoop();
         } else if (!document.fullscreenElement) {
           this.goBack();
         }

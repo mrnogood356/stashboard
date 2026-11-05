@@ -11,6 +11,8 @@ export type PlayerAction =
   | { type: 'fullscreen' }
   | { type: 'mute' }
   | { type: 'pip' }
+  | { type: 'loop' }
+  | { type: 'mirror' }
   | { type: 'help' }
   | { type: 'escape' };
 
@@ -31,6 +33,8 @@ export const PLAYER_SHORTCUTS: ReadonlyArray<{ keys: string[]; does: string }> =
   { keys: [',', '.'], does: 'One frame back or forward (while paused)' },
   { keys: ['<', '>'], does: 'Slower or faster' },
   { keys: ['[', ']'], does: 'Previous or next chapter' },
+  { keys: ['A'], does: 'Loop: set the start, then the end, then off' },
+  { keys: ['X'], does: 'Mirror the picture' },
   { keys: ['N'], does: 'Next scene' },
   { keys: ['F'], does: 'Fullscreen' },
   { keys: ['P'], does: 'Picture in picture' },
@@ -88,6 +92,10 @@ export function playerKeyAction(
       return { type: 'mute' };
     case 'p':
       return { type: 'pip' };
+    case 'a':
+      return { type: 'loop' };
+    case 'x':
+      return { type: 'mirror' };
     case '?':
       return { type: 'help' };
     case 'Escape':

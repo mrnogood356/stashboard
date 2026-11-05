@@ -405,6 +405,69 @@ describe('WatchPageComponent', () => {
     localStorage.removeItem('stashboard.player.volume');
   });
 
+  it('loops between two points with A, goes round at the end, and mirrors with X', async () => {
+    const fixture = await render();
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    Object.defineProperty(video, 'duration', { configurable: true, value: 1800 });
+    video.dispatchEvent(new Event('loadedmetadata'));
+    const press = (key: string) => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key }));
+      fixture.detectChanges();
+    };
+    video.currentTime = 100;
+    press('a');
+    video.currentTime = 100.2;
+    press('a');
+    // Too close to the start: still waiting for the end.
+    expect(fixture.nativeElement.querySelector('[data-testid="player-hud"]').textContent).toContain(
+      'after the start',
+    );
+    video.currentTime = 160;
+    press('a');
+    expect(video.currentTime).toBe(100);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="seek-loop"]')).not.toBeNull();
+
+    video.currentTime = 161;
+    video.dispatchEvent(new Event('timeupdate'));
+    expect(video.currentTime).toBe(100);
+
+    // Esc turns the loop off before it would leave the player.
+    press('Escape');
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="seek-loop"]')).toBeNull();
+
+    press('x');
+    expect(video.classList.contains('mirrored')).toBe(true);
+    press('x');
+    expect(video.classList.contains('mirrored')).toBe(false);
+  });
+
+  it('loops a chapter from the chapter list', async () => {
+    playback.getInfo.mockReturnValue(
+      of({
+        ...baseInfo,
+        markers: [
+          { id: 'm1', title: 'Intro', seconds: 0, imageUrl: '/m1' },
+          { id: 'm2', title: 'Beach', seconds: 900, imageUrl: '/m2' },
+          { id: 'm3', title: 'Pool', seconds: 1200, imageUrl: '/m3' },
+        ],
+      }),
+    );
+    const fixture = await render();
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    (fixture.nativeElement.querySelector('[aria-label="Chapters"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    (
+      fixture.nativeElement.querySelector('[aria-label="Loop chapter Beach"]') as HTMLButtonElement
+    ).click();
+    expect(video.currentTime).toBe(900);
+    video.currentTime = 1201;
+    video.dispatchEvent(new Event('timeupdate'));
+    expect(video.currentTime).toBe(900);
+  });
+
   it('keeps a muted video muted when you turn the volume down', async () => {
     const fixture = await render();
     const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;

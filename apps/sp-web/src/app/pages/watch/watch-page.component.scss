@@ -209,6 +209,24 @@
   background: var(--focus-ring);
 }
 
+.seek-loop {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  border-radius: 3px;
+  background: rgb(255 214 10 / 45%);
+  box-shadow: inset 0 0 0 1px rgb(255 214 10 / 90%);
+  pointer-events: none;
+}
+
+.video.mirrored {
+  transform: scaleX(-1);
+}
+
+.icon-button.is-on {
+  color: var(--focus-ring);
+}
+
 .seek-thumb {
   position: absolute;
   top: 50%;
@@ -806,8 +824,12 @@
   color: rgb(255 255 255 / 45%);
 }
 
-.chapter-delete:hover {
+.chapter-delete:not(.chapter-loop):hover {
   color: #ff6961;
+}
+
+.chapter-loop:hover {
+  color: var(--focus-ring);
 }
 
 .sheet-backdrop {

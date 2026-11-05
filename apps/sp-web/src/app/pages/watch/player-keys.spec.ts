@@ -17,13 +17,15 @@ describe('player keys', () => {
     expect(key('[')).toEqual({ type: 'chapter', direction: -1 });
     expect(key('N')).toEqual({ type: 'next' });
     expect(key('?')).toEqual({ type: 'help' });
+    expect(key('A')).toEqual({ type: 'loop' });
+    expect(key('x')).toEqual({ type: 'mirror' });
   });
 
   it('leaves keys with Ctrl, ⌘ or Alt to the browser', () => {
     expect(key('f', { ctrlKey: true })).toBeNull();
     expect(key('k', { metaKey: true })).toBeNull();
     expect(key('ArrowLeft', { altKey: true })).toBeNull();
-    expect(key('x')).toBeNull();
+    expect(key('z')).toBeNull();
   });
 
   it('steps through the speeds and stops at the ends', () => {
