@@ -1,6 +1,6 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { ActivityApiService, ActivityEntry } from '../../core/api/activity.service';
+import { ActivityApiService, ActivityEntry, ActivityFile } from '../../core/api/activity.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 
 const KINDS: Array<{ id: string | null; label: string; icon: string }> = [
@@ -53,6 +53,8 @@ export class ActivityPageComponent implements OnInit, OnDestroy {
   protected readonly open = signal<ReadonlySet<string>>(new Set());
   protected readonly confirmUndo = signal<string | null>(null);
   protected readonly undoing = signal<string | null>(null);
+  /** The files a run moved, once asked for; null while loading, 'error' if it failed. */
+  protected readonly files = signal<Record<string, ActivityFile[] | null | 'error'>>({});
   private page = 1;
   private request = 0;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -116,6 +118,30 @@ export class ActivityPageComponent implements OnInit, OnDestroy {
   }
 
   /** Undo needs a second tap: it moves files back. */
+  protected toggleFiles(entry: ActivityEntry): void {
+    if (entry.id in this.files()) {
+      this.files.update((all) => {
+        const rest = { ...all };
+        delete rest[entry.id];
+        return rest;
+      });
+      return;
+    }
+    this.files.update((all) => ({ ...all, [entry.id]: null }));
+    this.api.files(entry.id).subscribe({
+      next: (list) => this.files.update((all) => ({ ...all, [entry.id]: list })),
+      error: () => this.files.update((all) => ({ ...all, [entry.id]: 'error' })),
+    });
+  }
+
+  protected filesOf(id: string): ActivityFile[] | null | 'error' | undefined {
+    return this.files()[id];
+  }
+
+  protected asList(value: ActivityFile[] | null | 'error' | undefined): ActivityFile[] {
+    return Array.isArray(value) ? value : [];
+  }
+
   protected undo(entry: ActivityEntry): void {
     if (this.undoing()) {
       return;

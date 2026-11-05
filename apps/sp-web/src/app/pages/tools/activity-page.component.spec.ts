@@ -70,6 +70,35 @@ describe('ActivityPageComponent', () => {
     expect(root.querySelector('.entry.undone')).not.toBeNull();
   });
 
+  it('shows the files a run moved, from where to where', async () => {
+    const files = vi.fn().mockReturnValue(
+      of([
+        { sceneId: '7', from: '/in/a.mp4', to: '/lib/Vixen/A.mp4', undone: false },
+        { sceneId: '8', from: '/in/b.mp4', to: '/lib/Vixen/B.mp4', undone: true },
+      ]),
+    );
+    const { fixture, root } = await render({
+      list: () => of({ items: [entry({ hasFiles: true })], page: 1, hasMore: false }),
+      files,
+    });
+
+    root.querySelector<HTMLButtonElement>('[data-testid="show-files"]')!.click();
+    fixture.detectChanges();
+
+    expect(files).toHaveBeenCalledWith('1');
+    const moves = Array.from(root.querySelectorAll('.moves li'));
+    expect(moves.map((li) => li.querySelector('.from')?.textContent?.trim())).toEqual([
+      '/in/a.mp4',
+      '/in/b.mp4',
+    ]);
+    expect(moves[0].querySelector('.to')?.textContent?.trim()).toBe('→ /lib/Vixen/A.mp4');
+    expect(moves[1].classList.contains('undone')).toBe(true);
+
+    root.querySelector<HTMLButtonElement>('[data-testid="show-files"]')!.click();
+    fixture.detectChanges();
+    expect(root.querySelector('.moves')).toBeNull();
+  });
+
   it('filters by kind', async () => {
     const api = {
       list: vi.fn().mockReturnValue(of({ items: [], page: 1, hasMore: false })),

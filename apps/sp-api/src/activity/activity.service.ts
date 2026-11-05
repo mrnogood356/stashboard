@@ -13,6 +13,7 @@ import {
   MAX_DETAIL_LENGTH,
   MAX_TITLE_LENGTH,
   type ActivityEntryDto,
+  type ActivityFileDto,
   type ActivityPageDto,
   type ActivityStatus,
   type ActivityUndo,
@@ -257,7 +258,32 @@ export class ActivityService implements OnModuleInit {
         undo && !row.undoneAt && this.undoHandlers.has(undo.type),
       ),
       undoneAt: row.undoneAt?.toISOString() ?? null,
+      ...(undo?.type === 'rename-batch' ? { hasFiles: true } : {}),
     };
+  }
+
+  /** The files a rename or move run moved: from where, to where. */
+  async files(id: string): Promise<ActivityFileDto[]> {
+    const row = await this.prisma.activityEntry.findUnique({ where: { id } });
+    const undo = row ? asUndo(row.undo) : null;
+    if (
+      !row ||
+      undo?.type !== 'rename-batch' ||
+      typeof undo['batchId'] !== 'string'
+    ) {
+      throw new NotFoundException('That entry moved no files.');
+    }
+    const moves = await this.prisma.organizerRename.findMany({
+      where: { batchId: undo['batchId'] },
+      orderBy: { id: 'asc' },
+      take: 1000,
+    });
+    return moves.map((move) => ({
+      sceneId: move.sceneId,
+      from: move.fromPath,
+      to: move.toPath,
+      undone: move.undoneAt !== null,
+    }));
   }
 }
 

@@ -1,6 +1,10 @@
 import { Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ActivityQueryDto } from './activity.dto';
-import type { ActivityEntryDto, ActivityPageDto } from './activity.model';
+import type {
+  ActivityEntryDto,
+  ActivityFileDto,
+  ActivityPageDto,
+} from './activity.model';
 import { ActivityService } from './activity.service';
 
 @Controller('api/activity')
@@ -14,6 +18,11 @@ export class ActivityController {
       kind: query.kind,
       q: query.q,
     });
+  }
+
+  @Get(':id/files')
+  files(@Param('id') id: string): Promise<ActivityFileDto[]> {
+    return this.activity.files(id);
   }
 
   @Post(':id/undo')

@@ -151,3 +151,51 @@
   overflow: hidden;
   clip: rect(0 0 0 0);
 }
+
+.files-toggle {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+  padding: 0.2rem 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-text, var(--accent));
+  cursor: pointer;
+}
+
+.files-note {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+}
+
+.moves {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 20rem;
+  overflow-y: auto;
+  font-size: 0.78rem;
+}
+
+.moves li {
+  display: grid;
+  min-width: 0;
+}
+
+.moves li.undone {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.moves .from {
+  color: var(--text-muted);
+}
+
+.moves .from,
+.moves .to {
+  overflow-wrap: anywhere;
+}

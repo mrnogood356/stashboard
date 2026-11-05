@@ -45,6 +45,8 @@ export interface ActivityEntryDto {
   count: number | null;
   canUndo: boolean;
   undoneAt: string | null;
+  /** A run that moved files, which "Show files" lists. */
+  hasFiles?: boolean;
 }
 
 export interface ActivityPageDto {
@@ -61,3 +63,10 @@ export const MAX_ACTIVITY_ENTRIES = 2000;
 export const ACTIVITY_PAGE_SIZE = 30;
 export const MAX_TITLE_LENGTH = 160;
 export const MAX_DETAIL_LENGTH = 4000;
+
+export interface ActivityFileDto {
+  sceneId: string;
+  from: string;
+  to: string;
+  undone: boolean;
+}
