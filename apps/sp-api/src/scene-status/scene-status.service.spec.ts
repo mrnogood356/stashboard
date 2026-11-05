@@ -110,6 +110,9 @@ describe('SceneStatusService', () => {
         baseUrl: configuredStashdbIntegration.baseUrl,
         apiKey: configuredStashdbIntegration.apiKey,
       });
+    catalogProviderService.getSecondaryBrowseProviderKey = jest
+      .fn()
+      .mockResolvedValue(null);
     requestDelegate.findUnique.mockResolvedValue(null);
     requestDelegate.findMany.mockResolvedValue([]);
     findScenesByStashIdMock.mockResolvedValue([]);
@@ -122,6 +125,42 @@ describe('SceneStatusService', () => {
         state: row.computedLifecycle,
       }),
     );
+  });
+
+  describe('browsing a second catalog (FansDB next to StashDB)', () => {
+    beforeEach(() => {
+      catalogProviderService.getSecondaryBrowseProviderKey = jest
+        .fn()
+        .mockResolvedValue('FANSDB');
+      canResolveUnknownScenesAsNotRequestedMock.mockResolvedValue(true);
+      librarySceneIndexFindManyMock.mockImplementation(
+        (args: { where: { linkedCatalogRefs?: { hasSome: string[] } } }) =>
+          Promise.resolve(
+            args.where.linkedCatalogRefs?.hasSome.includes('FANSDB|fans-1')
+              ? [
+                  {
+                    stashSceneId: '42',
+                    linkedCatalogRefs: ['STASHDB|main-1', 'FANSDB|fans-1'],
+                  },
+                ]
+              : [],
+          ),
+      );
+    });
+
+    it('marks scenes Stash links to that catalog as in the library', async () => {
+      const statuses = await service.resolveForScenes(['fans-1', 'fans-2']);
+      expect(statuses.get('fans-1')).toEqual({ state: 'AVAILABLE' });
+      expect(statuses.get('fans-2')).toEqual({ state: 'NOT_REQUESTED' });
+      await expect(service.resolveForScene('fans-1')).resolves.toEqual({
+        state: 'AVAILABLE',
+      });
+    });
+
+    it('gives them their library scene, for previews and Play', async () => {
+      const local = await service.resolveLocalSceneIds(['fans-1', 'fans-2']);
+      expect([...local]).toEqual([['fans-1', '42']]);
+    });
   });
 
   describe('resolveForScene', () => {

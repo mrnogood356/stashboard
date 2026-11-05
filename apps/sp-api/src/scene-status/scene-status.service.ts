@@ -7,7 +7,10 @@ import {
 import { IndexingService } from '../indexing/indexing.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { type CatalogProviderKey } from '../providers/catalog/catalog-provider.util';
+import {
+  type CatalogProviderKey,
+  buildCatalogSceneRef,
+} from '../providers/catalog/catalog-provider.util';
 import { CatalogProviderService } from '../providers/catalog/catalog-provider.service';
 import { StashAdapter } from '../providers/stash/stash.adapter';
 import {
@@ -54,6 +57,9 @@ export class SceneStatusService {
     if (!normalized) {
       this.logger.debug('resolveForScene received empty stashId.');
       return SceneStatusService.NOT_REQUESTED;
+    }
+    if ((await this.secondaryLocalSceneIds([normalized])).has(normalized)) {
+      return { state: 'AVAILABLE' };
     }
 
     const indexedRows = await this.indexingService.getFreshSceneIndexRows([
@@ -157,7 +163,65 @@ export class SceneStatusService {
   async resolveForScenes(
     stashIds: string[],
   ): Promise<Map<string, SceneStatusDto>> {
-    return this.resolveForScenesInternal(stashIds);
+    return this.withSecondaryLinks(
+      await this.resolveForScenesInternal(stashIds),
+    );
+  }
+
+  /**
+   * The index knows each library scene by the main catalog's id only. When
+   * this request browses another catalog (FansDB next to StashDB), scenes
+   * Stash links to that catalog are in the library too: mark them so.
+   */
+  private async withSecondaryLinks(
+    statuses: Map<string, SceneStatusDto>,
+  ): Promise<Map<string, SceneStatusDto>> {
+    const local = await this.secondaryLocalSceneIds([...statuses.keys()]);
+    for (const id of local.keys()) {
+      statuses.set(id, { state: 'AVAILABLE' });
+    }
+    return statuses;
+  }
+
+  /** The library scene Stash links to each of these secondary-catalog scenes. Never throws. */
+  private async secondaryLocalSceneIds(
+    ids: string[],
+  ): Promise<Map<string, string>> {
+    const found = new Map<string, string>();
+    try {
+      const provider =
+        await this.catalogProviderService.getSecondaryBrowseProviderKey();
+      if (!provider || ids.length === 0) {
+        return found;
+      }
+      const refs = new Map<string, string>();
+      for (const id of ids) {
+        const ref = buildCatalogSceneRef(provider, id);
+        if (ref) {
+          refs.set(ref, id);
+        }
+      }
+      const rows = await this.prisma.librarySceneIndex.findMany({
+        where: { linkedCatalogRefs: { hasSome: [...refs.keys()] } },
+        select: { stashSceneId: true, linkedCatalogRefs: true },
+        orderBy: { stashSceneId: 'asc' },
+      });
+      for (const row of rows) {
+        for (const ref of row.linkedCatalogRefs) {
+          const id = refs.get(ref);
+          if (id && !found.has(id)) {
+            found.set(id, row.stashSceneId);
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Looking up scenes linked to the browsed catalog failed. error=${this.safeJson(
+          this.serializeError(error),
+        )}`,
+      );
+    }
+    return found;
   }
 
   /**
@@ -212,6 +276,10 @@ export class SceneStatusService {
       );
     }
 
+    const missing = ids.filter((id) => !localIds.has(id));
+    for (const [id, localId] of await this.secondaryLocalSceneIds(missing)) {
+      localIds.set(id, localId);
+    }
     return localIds;
   }
 
@@ -222,7 +290,9 @@ export class SceneStatusService {
       movieByStashId?: Map<string, WhisparrMovieLookupResult>;
     },
   ): Promise<Map<string, SceneStatusDto>> {
-    return this.resolveForScenesInternal(stashIds, evidence);
+    return this.withSecondaryLinks(
+      await this.resolveForScenesInternal(stashIds, evidence),
+    );
   }
 
   private async resolveForScenesInternal(
