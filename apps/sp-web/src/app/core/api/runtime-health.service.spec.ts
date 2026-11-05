@@ -1,3 +1,4 @@
+import { SuggestionsApiService } from './suggestions.service';
 import { HttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
@@ -224,6 +225,10 @@ describe('RuntimeHealthService', () => {
     await TestBed.configureTestingModule({
       imports: [AppShellLayoutComponent, AcquisitionPageComponent],
       providers: [
+        {
+          provide: SuggestionsApiService,
+          useValue: { list: () => of({ items: [], message: null }), dismiss: () => of(undefined) },
+        },
         provideRouter([]),
         RuntimeHealthService,
         SetupStatusStore,

@@ -1109,6 +1109,10 @@ export class HomePageComponent implements OnInit, OnDestroy {
       return { path: '/calendar', queryParams: {} };
     }
 
+    if (rail.key === 'YOU_MAY_ENJOY') {
+      return { path: '/acquisition', queryParams: {} };
+    }
+
     if (rail.key && NO_SEE_ALL_ROW_KEYS.includes(rail.key)) {
       return null;
     }

@@ -1,3 +1,4 @@
+import { SuggestionsApiService } from '../../core/api/suggestions.service';
 import {
   DownloadHandoffApiService,
   Processing,
@@ -335,6 +336,10 @@ describe('AcquisitionPageComponent', () => {
       providers: [
         provideRouter([]),
         { provide: AppNotificationsService, useValue: notifications },
+        {
+          provide: SuggestionsApiService,
+          useValue: { list: () => of({ items: [], message: null }), dismiss: () => of(undefined) },
+        },
         { provide: TimelineApiService, useValue: timelineApi },
         { provide: DownloadHandoffApiService, useValue: downloadsApi },
         {

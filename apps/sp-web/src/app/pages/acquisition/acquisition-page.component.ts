@@ -1,3 +1,4 @@
+import { YouMayEnjoyComponent } from '../../shared/you-may-enjoy/you-may-enjoy.component';
 import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
 import {
   Stage,
@@ -114,6 +115,7 @@ interface AcquisitionPageAlert {
     Select,
     SelectionBarComponent,
     SceneTimelineComponent,
+    YouMayEnjoyComponent,
   ],
   templateUrl: './acquisition-page.component.html',
   styleUrl: './acquisition-page.component.scss',
