@@ -81,3 +81,29 @@ export interface ReleaseNotesResponse {
     fixes: string[];
   }>;
 }
+
+export interface HealthHour {
+  /** Start of the hour (ISO). */
+  at: string;
+  checks: number;
+  failed: number;
+  /** Average answer time of the checks that answered; null when none did. */
+  averageMs: number | null;
+}
+
+export interface ServiceHistory {
+  service: string;
+  label: string;
+  checks: number;
+  /** Share of checks that answered, 0 to 100, one decimal. */
+  upPercent: number;
+  averageMs: number | null;
+  lastProblem: { at: string; error: string | null } | null;
+  /** Oldest first. */
+  hours: HealthHour[];
+}
+
+export interface HealthHistoryResponse {
+  since: string;
+  services: ServiceHistory[];
+}

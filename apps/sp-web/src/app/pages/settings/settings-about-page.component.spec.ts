@@ -105,7 +105,13 @@ describe('SettingsAboutPageComponent', () => {
   async function render(api: Partial<Record<keyof AboutApiService, unknown>>) {
     await TestBed.configureTestingModule({
       imports: [SettingsAboutPageComponent],
-      providers: [provideRouter([]), { provide: AboutApiService, useValue: api }],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AboutApiService,
+          useValue: { history: () => of({ since: '', services: [] }), ...api },
+        },
+      ],
     }).compileComponents();
     const fixture = TestBed.createComponent(SettingsAboutPageComponent);
     fixture.detectChanges();

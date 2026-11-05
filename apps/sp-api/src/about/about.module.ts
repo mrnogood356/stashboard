@@ -7,6 +7,7 @@ import { WhisparrModule } from '../providers/whisparr/whisparr.module';
 import { RuntimeHealthModule } from '../runtime-health/runtime-health.module';
 import { AboutController } from './about.controller';
 import { AboutService } from './about.service';
+import { HealthHistoryService } from './health-history.service';
 import { ReleaseNotesService } from './release-notes.service';
 import { UpdateCheckService } from './update-check.service';
 
@@ -24,6 +25,11 @@ import { UpdateCheckService } from './update-check.service';
     RuntimeHealthModule,
   ],
   controllers: [AboutController],
-  providers: [AboutService, UpdateCheckService, ReleaseNotesService],
+  providers: [
+    AboutService,
+    UpdateCheckService,
+    ReleaseNotesService,
+    HealthHistoryService,
+  ],
 })
 export class AboutModule {}

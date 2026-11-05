@@ -654,3 +654,19 @@ model AppVersionState {
   previousVersion String?
   updatedAt       DateTime @updatedAt
 }
+
+/// One check of a service Stashboard depends on, every 5 minutes, kept for
+/// 7 days: About's "Last 7 days".
+model HealthSample {
+  id      String   @id @default(cuid())
+  at      DateTime @default(now())
+  /// IntegrationType, or DATABASE.
+  service String
+  ok      Boolean
+  /// How long it took to answer; null when it didn't.
+  ms      Int?
+  error   String?
+
+  @@index([service, at])
+  @@index([at])
+}

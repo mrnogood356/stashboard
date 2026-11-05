@@ -1,0 +1,52 @@
+<section class="group history" data-testid="health-history">
+  <h3>Last 7 days</h3>
+  @if (services(); as list) {
+    @if (list.length === 0) {
+      <p class="muted">
+        Stashboard checks everything every 5 minutes. The first results show here shortly.
+      </p>
+    } @else {
+      <ul class="legend" aria-label="What the bars mean">
+        @for (key of legend; track key) {
+          <li><span class="swatch" [attr.data-state]="key"></span>{{ stateLabel[key] }}</li>
+        }
+      </ul>
+      <ul class="services">
+        @for (service of list; track service.service) {
+          <li class="service" [attr.data-testid]="'history-' + service.service">
+            <div class="service-head">
+              <strong>{{ service.label }}</strong>
+              <span class="muted">{{ summary(service) }}</span>
+            </div>
+            <div
+              class="strip"
+              role="img"
+              [attr.aria-label]="service.label + ': ' + summary(service)"
+            >
+              @for (hour of service.hours; track hour.at) {
+                <span class="hour" [attr.data-state]="state(hour)" [attr.title]="tip(hour)"></span>
+              }
+            </div>
+            @if (service.lastProblem; as problem) {
+              <details class="problems">
+                <summary>
+                  <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                  Last problem {{ when(problem.at) }}{{ problem.error ? ': ' + problem.error : '' }}
+                </summary>
+                <ul>
+                  @for (hour of problemHours(service); track hour.at) {
+                    <li>{{ tip(hour) }}</li>
+                  }
+                </ul>
+              </details>
+            }
+          </li>
+        }
+      </ul>
+    }
+  } @else if (failed()) {
+    <p class="muted">Couldn’t read the history right now.</p>
+  } @else {
+    <p class="muted" role="status">Loading…</p>
+  }
+</section>
