@@ -6,7 +6,8 @@
     ".": {
       "release-type": "simple",
       "changelog-path": "CHANGELOG.md",
-      "version-file": "version.txt"
+      "version-file": "version.txt",
+      "versioning": "always-bump-patch"
     }
   }
 }

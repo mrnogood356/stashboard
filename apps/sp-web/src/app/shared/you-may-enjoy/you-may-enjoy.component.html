@@ -1,0 +1,56 @@
+<section
+  class="enjoy app-section-panel"
+  aria-labelledby="you-may-enjoy"
+  data-testid="you-may-enjoy"
+>
+  <div class="enjoy-head">
+    <h2 id="you-may-enjoy">You may enjoy</h2>
+    <p class="muted">Scenes you don’t have yet, picked from what you watch most.</p>
+  </div>
+
+  @if (loading()) {
+    <p class="muted" role="status">Picking scenes…</p>
+  } @else if (failed()) {
+    <p class="muted">Couldn’t pick scenes right now. Try again later.</p>
+  } @else if (items().length === 0) {
+    <p class="muted">{{ message() ?? 'Nothing to suggest right now.' }}</p>
+  } @else {
+    <ul class="enjoy-grid">
+      @for (item of items(); track item.id; let index = $index) {
+        <li class="enjoy-item" [class.extra]="index >= first && !expanded()">
+          <app-scene-card
+            [item]="item"
+            studioBadgeRoute="studio"
+            [requestable]="item.requestable"
+            (request)="openRequest($event)"
+          />
+          <div class="enjoy-why">
+            <span class="reason">{{ item.reason.text }}</span>
+            <button
+              type="button"
+              class="not-interested"
+              data-testid="not-interested"
+              (click)="notInterested(item)"
+            >
+              Not interested
+            </button>
+          </div>
+        </li>
+      }
+    </ul>
+    @if (more() > 0 && !expanded()) {
+      <button type="button" class="show-more" data-testid="show-more" (click)="expanded.set(true)">
+        Show {{ more() }} more
+      </button>
+    }
+  }
+</section>
+
+<app-scene-request-modal
+  [open]="requestContext() !== null"
+  [sceneId]="requestContext()?.id ?? null"
+  [sceneTitle]="requestContext()?.title ?? null"
+  [sceneImageUrl]="requestContext()?.imageUrl ?? null"
+  (closed)="closeRequest()"
+  (submitted)="onRequested()"
+/>

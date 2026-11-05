@@ -121,11 +121,13 @@ export class HomeRowsEditorComponent implements OnChanges, OnDestroy {
     const from =
       row.key === 'COMING_SOON'
         ? 'Whisparr'
-        : row.key === 'STILL_WAITING'
-          ? 'Requests'
-          : row.source === 'STASH'
-            ? 'Your library'
-            : 'Catalog';
+        : row.key === 'YOU_MAY_ENJOY'
+          ? 'Catalog, picked from what you watch'
+          : row.key === 'STILL_WAITING'
+            ? 'Requests'
+            : row.source === 'STASH'
+              ? 'Your library'
+              : 'Catalog';
     const parts = [from];
     if (row.kind === 'CUSTOM') {
       parts.push(SORT_LABEL[row.config.sort] ?? row.config.sort.toLowerCase());

@@ -62,6 +62,12 @@ export interface HealthResponse {
   integrations: IntegrationHealth[];
   disks: DiskHealth[];
   jobs: JobHealth[];
+  /**
+   * Stash's hardware transcoding setting: 'gpu' when it's on (Stash then uses
+   * a GPU it can find, else the CPU), 'cpu' when it's off.
+   * Null when Stash isn't set up or reachable, or doesn't have the setting.
+   */
+  transcoding: 'gpu' | 'cpu' | null;
 }
 
 export interface ReleaseNotesResponse {

@@ -12,7 +12,11 @@ interface InstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-export type InstallState = 'installed' | 'prompt' | 'ios' | 'manual';
+/**
+ * 'insecure': a plain http:// address other than localhost. Chrome and Edge
+ * only install (and only run the service worker) on https:// or localhost.
+ */
+export type InstallState = 'installed' | 'prompt' | 'ios' | 'insecure' | 'manual';
 
 /** "main-WUR5SREH.js" from a script tag or a page; changes with every release. */
 export function mainBundleName(html: string): string | null {
@@ -106,7 +110,14 @@ export class AppUpdatesService {
     // iPads ask for desktop sites, so they say "Macintosh"; only they have a touch screen.
     const iPadAsMac =
       /Macintosh/.test(view.navigator.userAgent) && (view.navigator.maxTouchPoints ?? 0) > 1;
-    return /iPhone|iPad|iPod/.test(view.navigator.userAgent) || iPadAsMac ? 'ios' : 'manual';
+    if (/iPhone|iPad|iPod/.test(view.navigator.userAgent) || iPadAsMac) {
+      return 'ios';
+    }
+    // Safari on a Mac adds any page to the Dock, https or not.
+    const safari =
+      /Safari\//.test(view.navigator.userAgent) &&
+      !/Chrome|Chromium|CriOS|Edg|OPR|Firefox/.test(view.navigator.userAgent);
+    return view.isSecureContext === false && !safari ? 'insecure' : 'manual';
   }
 
   reload(): void {

@@ -1,4 +1,8 @@
 import {
+  computeLibraryStats,
+  type LibraryStatsDto,
+} from './library-stats.util';
+import {
   BadRequestException,
   Inject,
   Injectable,
@@ -142,6 +146,9 @@ export interface LocalBulkResultDto {
  * Your own Stash library, beyond playback: organizing a scene, related scenes,
  * and performer and studio pages. Everything is read from and saved to Stash.
  */
+/** How long Library stats are kept before Stash is asked again. */
+const STATS_TTL_MS = 30 * 60_000;
+
 @Injectable()
 export class LocalLibraryService {
   private readonly logger = new Logger(LocalLibraryService.name);
@@ -556,6 +563,63 @@ export class LocalLibraryService {
       })),
       suggestedKeepId: pickKeeper(group),
     }));
+  }
+
+  // ---------- stats ----------
+
+  /** Kept with the Stash address it came from, so another Stash is read afresh. */
+  private statsCache: {
+    at: number;
+    baseUrl: string;
+    value: LibraryStatsDto;
+  } | null = null;
+  /** The read under way, with the Stash address it's reading. */
+  private statsRun: {
+    baseUrl: string;
+    token: symbol;
+    value: Promise<LibraryStatsDto>;
+  } | null = null;
+
+  /**
+   * What the library is made of: size by resolution, codec and studio, the
+   * biggest files, and what re-encoding could save. Kept 30 minutes;
+   * refresh asks Stash again.
+   */
+  async stats(refresh = false): Promise<LibraryStatsDto> {
+    const config = await this.playback.getStashConfig();
+    if (
+      !refresh &&
+      this.statsCache &&
+      this.statsCache.baseUrl === config.baseUrl &&
+      Date.now() - this.statsCache.at < STATS_TTL_MS
+    ) {
+      return this.statsCache.value;
+    }
+    // One read of the whole library at a time, per Stash.
+    if (this.statsRun?.baseUrl === config.baseUrl) {
+      return this.statsRun.value;
+    }
+    const token = Symbol('stats');
+    const value = (async () => {
+      try {
+        const stats = computeLibraryStats(
+          await this.stash.listLibraryFiles(config),
+        );
+        this.statsCache = {
+          at: Date.now(),
+          baseUrl: config.baseUrl,
+          value: stats,
+        };
+        return stats;
+      } finally {
+        // A read for another Stash may have taken over meanwhile.
+        if (this.statsRun?.token === token) {
+          this.statsRun = null;
+        }
+      }
+    })();
+    this.statsRun = { baseUrl: config.baseUrl, token, value };
+    return value;
   }
 
   // ---------- samples ----------

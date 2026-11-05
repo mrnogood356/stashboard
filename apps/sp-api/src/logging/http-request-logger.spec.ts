@@ -72,6 +72,20 @@ describe('httpRequestLogger', () => {
     );
   });
 
+  it('gives Organizer lookups and the empty-folder scan longer too', () => {
+    const lookup = { method: 'POST', originalUrl: '/api/organizer/lookup' };
+    expect(run(lookup, 200, 8347).warn).not.toHaveBeenCalled();
+    expect(run(lookup, 200, 25_000).warn).toHaveBeenCalledTimes(1);
+    expect(
+      run({ originalUrl: '/api/organizer/folders/empty' }, 304, 4625).warn,
+    ).not.toHaveBeenCalled();
+    // Only those: another Organizer request is still slow after 3 s.
+    expect(
+      run({ method: 'POST', originalUrl: '/api/organizer/apply' }, 200, 4000)
+        .warn,
+    ).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps polling at trace unless it fails', () => {
     const polled = run({ originalUrl: '/api/about/health' }, 200, 30);
     expect(polled.verbose).toHaveBeenCalledTimes(1);

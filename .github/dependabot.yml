@@ -4,6 +4,10 @@ updates:
   # instead of dozens.
   - package-ecosystem: npm
     directory: /
+    # "chore(deps): bump …", which the commit-message check accepts.
+    commit-message:
+      prefix: chore
+      include: scope
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -25,10 +29,18 @@ updates:
         update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
+    # "chore(deps): bump …", which the commit-message check accepts.
+    commit-message:
+      prefix: chore
+      include: scope
     schedule:
       interval: monthly
   - package-ecosystem: docker
     directory: /
+    # "chore(deps): bump …", which the commit-message check accepts.
+    commit-message:
+      prefix: chore
+      include: scope
     schedule:
       interval: monthly
     ignore:

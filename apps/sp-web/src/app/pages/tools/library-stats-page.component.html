@@ -1,0 +1,170 @@
+<main class="app-page-shell">
+  <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Library stats</h1>
+      <p>What takes up the space in your library.</p>
+    </div>
+    <div class="head-actions">
+      <button
+        type="button"
+        class="head-action"
+        data-testid="stats-refresh"
+        [disabled]="loading()"
+        (click)="load(true)"
+      >
+        <i class="pi pi-refresh" aria-hidden="true"></i><span>Refresh</span>
+      </button>
+    </div>
+  </header>
+
+  @if (loading() && !stats()) {
+    <p class="muted loading" role="status">
+      <span class="spinner" aria-hidden="true"></span> Reading your library from Stash…
+    </p>
+  } @else if (error() && !stats()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+      <span>Couldn’t read your library from Stash. Try again in a moment.</span>
+    </div>
+  } @else if (stats(); as s) {
+    @if (error()) {
+      <div class="notice error" role="alert" data-testid="stats-refresh-error">
+        <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+        <span>Couldn’t count again just now; these are the numbers from before.</span>
+      </div>
+    }
+    <section class="totals" aria-label="In all" data-testid="stats-totals">
+      <div class="total">
+        <span class="total-value">{{ size(s.bytes) }}</span>
+        <span class="total-label">in all</span>
+      </div>
+      <div class="total">
+        <span class="total-value">{{ s.scenes }}</span>
+        <span class="total-label">{{ s.scenes === 1 ? 'scene' : 'scenes' }}</span>
+      </div>
+      <div class="total">
+        <span class="total-value">{{ hours() }} h</span>
+        <span class="total-label">of video</span>
+      </div>
+      @if (s.reencode.files > 0) {
+        <div class="total">
+          <span class="total-value">≈ {{ size(s.reencode.saving) }}</span>
+          <span class="total-label">re-encoding could save</span>
+        </div>
+      }
+    </section>
+
+    <div class="stat-groups">
+      <section class="block app-section-panel" aria-labelledby="stats-resolution">
+        <h2 id="stats-resolution">By resolution</h2>
+        <ul class="bars">
+          @for (bucket of s.byResolution; track bucket.key) {
+            <li class="bar-row">
+              <span class="bar-name">{{ bucket.label }}</span>
+              <span class="bar-track" aria-hidden="true">
+                <span class="bar" [style.width.%]="share(bucket, s.byResolution)"></span>
+              </span>
+              <span class="bar-value"
+                >{{ size(bucket.bytes) }} · {{ bucket.files }}
+                {{ bucket.files === 1 ? 'file' : 'files' }}</span
+              >
+            </li>
+          }
+        </ul>
+      </section>
+
+      <section class="block app-section-panel" aria-labelledby="stats-codec">
+        <h2 id="stats-codec">By codec</h2>
+        <ul class="bars">
+          @for (bucket of s.byCodec; track bucket.key) {
+            <li class="bar-row">
+              <span class="bar-name">{{ bucket.label }}</span>
+              <span class="bar-track" aria-hidden="true">
+                <span class="bar" [style.width.%]="share(bucket, s.byCodec)"></span>
+              </span>
+              <span class="bar-value">{{ size(bucket.bytes) }} · {{ percent(bucket.bytes) }}</span>
+            </li>
+          }
+        </ul>
+      </section>
+    </div>
+
+    @if (s.topStudios.length > 0) {
+      <section class="block app-section-panel" aria-labelledby="stats-studios">
+        <h2 id="stats-studios">Biggest studios</h2>
+        <ul class="bars">
+          @for (studio of s.topStudios; track studio.studioId) {
+            <li class="bar-row">
+              <a class="bar-name" [routerLink]="['/library/studio', studio.studioId, 'all']">{{
+                studio.label
+              }}</a>
+              <span class="bar-track" aria-hidden="true">
+                <span class="bar" [style.width.%]="share(studio, s.topStudios)"></span>
+              </span>
+              <span class="bar-value"
+                >{{ size(studio.bytes) }} · {{ studio.files }}
+                {{ studio.files === 1 ? 'file' : 'files' }}</span
+              >
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    @if (s.reencode.files > 0) {
+      <section class="block app-section-panel" aria-labelledby="stats-reencode">
+        <h2 id="stats-reencode">Would shrink most</h2>
+        <p class="muted small">
+          {{ s.reencode.files }} {{ s.reencode.files === 1 ? 'file uses' : 'files use' }} H.264 or
+          an older codec. Re-encoded to HEVC or AV1 at the same quality, they’d be roughly half the
+          size: about {{ size(s.reencode.saving) }} in all. A rule of thumb, not a promise: it
+          depends on the encoder and settings.
+        </p>
+        <ol class="files">
+          @for (file of s.reencode.top; track $index) {
+            <li>
+              <a class="file-title" [routerLink]="['/library/scene', file.sceneId]">{{
+                file.title
+              }}</a>
+              <span class="file-meta">
+                {{ size(file.bytes) }} · {{ file.codec ?? 'Unknown codec' }}
+                @if (file.resolution) {
+                  · {{ file.resolution }}
+                }
+                · saves ≈ {{ size(file.saving ?? 0) }}
+              </span>
+            </li>
+          }
+        </ol>
+      </section>
+    }
+
+    <section class="block app-section-panel" aria-labelledby="stats-biggest">
+      <h2 id="stats-biggest">Biggest files</h2>
+      <ol class="files">
+        @for (file of s.biggest; track $index) {
+          <li>
+            <a class="file-title" [routerLink]="['/library/scene', file.sceneId]">{{
+              file.title
+            }}</a>
+            <span class="file-meta">
+              {{ size(file.bytes) }}
+              @if (file.resolution) {
+                · {{ file.resolution }}
+              }
+              @if (file.codec) {
+                · {{ file.codec }}
+              }
+              @if (file.studioName) {
+                · {{ file.studioName }}
+              }
+            </span>
+          </li>
+        }
+      </ol>
+    </section>
+
+    <p class="muted small">Counted {{ checked(s.computedAt) }}.</p>
+  }
+</main>

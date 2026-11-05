@@ -6,13 +6,20 @@ import { redact } from './redact';
 export const SLOW_REQUEST_MS = 3_000;
 
 /**
- * Release searches wait on Prowlarr or Whisparr asking every indexer, so a
- * few seconds is normal there; only warn when one takes really long.
+ * Requests that wait on other services asking around, or read the whole
+ * library, take a few seconds as a matter of course; only warn when one
+ * takes really long:
+ * - release searches (Prowlarr or Whisparr asking every indexer)
+ * - Organizer lookups (every stash-box: StashDB, FansDB…) and scrapes
+ * - looking for empty folders (every library folder on disk)
  */
 export const SLOW_INDEXER_SEARCH_MS = 20_000;
-const INDEXER_SEARCHES = [
-  /^\/api\/downloads\/scenes\/[^/]+\/releases$/,
-  /^\/api\/requests\/[^/]+\/releases$/,
+const LONG_BY_NATURE: Array<{ method: string; path: RegExp }> = [
+  { method: 'GET', path: /^\/api\/downloads\/scenes\/[^/]+\/releases$/ },
+  { method: 'GET', path: /^\/api\/requests\/[^/]+\/releases$/ },
+  { method: 'POST', path: /^\/api\/organizer\/lookup$/ },
+  { method: 'POST', path: /^\/api\/organizer\/scrape$/ },
+  { method: 'GET', path: /^\/api\/organizer\/folders\/empty$/ },
 ];
 
 /**
@@ -27,6 +34,20 @@ const POLLED = [
 ];
 
 type RequestLogger = Pick<Logger, 'debug' | 'warn' | 'verbose'>;
+
+/** An API request still being answered, for the stall watchdog. */
+export interface InFlightRequest {
+  method: string;
+  /** Path and query, secrets removed. */
+  url: string;
+  path: string;
+  /** performance.now() when it started. */
+  startedAt: number;
+}
+
+/** Every API request being answered right now, by an id of its own. */
+export const inFlightRequests = new Map<number, InFlightRequest>();
+let nextRequestId = 1;
 
 /**
  * One line per API request: method, path (secrets in the query removed),
@@ -45,12 +66,20 @@ export function httpRequestLogger(
       return;
     }
     const started = now();
+    const id = nextRequestId++;
+    inFlightRequests.set(id, {
+      method: request.method,
+      url: redact(url),
+      path,
+      startedAt: started,
+    });
     let done = false;
     const finish = (aborted: boolean) => {
       if (done) {
         return;
       }
       done = true;
+      inFlightRequests.delete(id);
       try {
         const ms = Math.round(now() - started);
         const status = aborted ? 'aborted' : String(response.statusCode);
@@ -79,8 +108,9 @@ export function httpRequestLogger(
 }
 
 function slowAfter(method: string, path: string): number {
-  return method === 'GET' &&
-    INDEXER_SEARCHES.some((pattern) => pattern.test(path))
+  return LONG_BY_NATURE.some(
+    (entry) => entry.method === method && entry.path.test(path),
+  )
     ? SLOW_INDEXER_SEARCH_MS
     : SLOW_REQUEST_MS;
 }

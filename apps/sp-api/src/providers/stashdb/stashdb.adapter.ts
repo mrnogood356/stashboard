@@ -1,3 +1,4 @@
+import { fingerprintKey } from '../stash/fingerprints.util';
 import {
   BadGatewayException,
   Injectable,
@@ -877,6 +878,54 @@ export class StashdbAdapter extends StashdbPeopleApi {
       duration: typeof scene.duration === 'number' ? scene.duration : null,
       fingerprints,
     };
+  }
+
+  /**
+   * Each scene's file fingerprints, as "OSHASH|…", "MD5|…" and "PHASH|…"
+   * (see fingerprintKey), in one request. Scenes the catalog doesn't have
+   * are left out.
+   */
+  async getFingerprintKeysByIds(
+    config: StashdbAdapterBaseConfig,
+    ids: string[],
+  ): Promise<Map<string, string[]>> {
+    const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+    if (unique.length === 0) {
+      return new Map();
+    }
+    const variables = Object.fromEntries(
+      unique.map((id, index) => [`id${index}`, id]),
+    );
+    const payload = await this.executeQuery(
+      config,
+      `query SceneFingerprintsById(${unique.map((_, index) => `$id${index}: ID!`).join(', ')}) {
+        ${unique.map((_, index) => `s${index}: findScene(id: $id${index}) { id fingerprints { hash algorithm } }`).join('\n')}
+      }`,
+      variables,
+    );
+    const data = (payload.data ?? {}) as Record<string, unknown>;
+    return new Map(
+      unique.flatMap((id, index) => {
+        const scene = data[`s${index}`] as
+          | { fingerprints?: Array<{ hash?: unknown; algorithm?: unknown }> }
+          | null
+          | undefined;
+        if (!scene) {
+          return [];
+        }
+        const keys = (
+          Array.isArray(scene.fingerprints) ? scene.fingerprints : []
+        ).flatMap((print) => {
+          const key =
+            typeof print?.hash === 'string' &&
+            typeof print.algorithm === 'string'
+              ? fingerprintKey(print.algorithm, print.hash)
+              : null;
+          return key ? [key] : [];
+        });
+        return [[id, [...new Set(keys)]] as const];
+      }),
+    );
   }
 
   /** These scenes, by id, in the shape matching uses (missing ones are left out). */

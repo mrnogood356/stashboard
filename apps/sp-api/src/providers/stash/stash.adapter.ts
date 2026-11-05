@@ -1,3 +1,4 @@
+import { fileFingerprints } from './fingerprints.util';
 import { Injectable } from '@nestjs/common';
 import {
   type CatalogProviderKey,
@@ -1284,6 +1285,10 @@ export class StashAdapter extends StashLibraryToolsApi {
             }
             files {
               duration
+              fingerprints {
+                type
+                value
+              }
             }
           }
         }
@@ -1645,6 +1650,7 @@ export class StashAdapter extends StashLibraryToolsApi {
         : null,
       hasFile: Array.isArray(scene.files) && scene.files.length > 0,
       linkedCatalogRefs,
+      fingerprints: fileFingerprints(scene.files),
       title: this.normalizeOptionalString(scene.title) ?? `Scene #${id}`,
       description: this.normalizeOptionalString(scene.details),
       imageUrl: this.parseAssetUrl(scene.paths?.screenshot),

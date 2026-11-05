@@ -1,4 +1,5 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import {
   AboutApiService,
@@ -57,6 +58,8 @@ const COPIED_MS = 2_000;
 export class SettingsAboutPageComponent implements OnInit, OnDestroy {
   private readonly api = inject(AboutApiService);
   protected readonly updates = inject(AppUpdatesService);
+  /** This page's address, for "no Install on http://…". */
+  protected readonly origin = inject(DOCUMENT).location?.origin ?? '';
   private copiedTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly about = signal<AboutResponse | null>(null);

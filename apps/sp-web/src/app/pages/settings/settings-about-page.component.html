@@ -91,10 +91,22 @@
           <strong>Add to Home Screen</strong>.
         </p>
       }
+      @case ('insecure') {
+        <p data-testid="install-insecure">
+          Chrome and Edge only install apps from a secure address (<code>https://</code>, or
+          <code>localhost</code>), so there’s no Install here on <code>{{ origin }}</code
+          >. Everything else works the same in the browser.
+        </p>
+        <p class="muted small">
+          To install it, open Stashboard over HTTPS, through a reverse proxy (Nginx Proxy Manager,
+          SWAG, Caddy) or Tailscale Serve.
+        </p>
+      }
       @default {
         <p>
           Install it from your browser: in Chrome or Edge, use the install button in the address
-          bar; in Safari on a Mac, choose File → Add to Dock.
+          bar, or the menu’s Cast, save and share → Install page as app; in Safari on a Mac, choose
+          File → Add to Dock.
         </p>
       }
     }
@@ -127,6 +139,37 @@
         }
       </ul>
       @if (health(); as result) {
+        @if (result.transcoding === 'gpu') {
+          <p class="muted small" data-testid="transcoding">
+            Stash has hardware transcoding turned on: it uses the GPU when it finds one it can use.
+          </p>
+        } @else if (result.transcoding === 'cpu') {
+          <details class="muted small transcoding" data-testid="transcoding">
+            <summary>
+              Video that has to be converted to play is transcoded by Stash with the CPU.
+            </summary>
+            <p>With a GPU, Stash can use that instead. First give the Stash container the GPU:</p>
+            <ul>
+              <li>
+                Intel iGPU or AMD on Unraid: add <code>--device=/dev/dri</code> to its Extra
+                Parameters. With Docker Compose: add <code>devices: ["/dev/dri:/dev/dri"]</code> to
+                the Stash service.
+              </li>
+              <li>
+                NVIDIA on Unraid: install the Nvidia Driver plugin, add
+                <code>--runtime=nvidia</code> to its Extra Parameters, and set
+                <code>NVIDIA_VISIBLE_DEVICES</code> to your GPU’s id (or <code>all</code>) and
+                <code>NVIDIA_DRIVER_CAPABILITIES</code> to <code>all</code>.
+              </li>
+            </ul>
+            <p>
+              Then turn on hardware encoding in Stash under Settings → System → Transcoding, and
+              restart Stash. Its log lists the hardware codecs it found. If it lists none, the Stash
+              image doesn’t have the drivers for your GPU: switch to an image that includes them
+              (Stash’s documentation lists the options), and the setting will start using it.
+            </p>
+          </details>
+        }
         <p class="muted small">
           Checked {{ when(result.checkedAt) }}. Setup problems?
           <a routerLink="/settings/setup-check">Run the setup check</a>.

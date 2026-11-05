@@ -79,6 +79,12 @@ export class CatalogProviderService {
     }
   }
 
+  /** The secondary provider this request browses (FansDB next to StashDB, say); null for the main one. */
+  async getSecondaryBrowseProviderKey(): Promise<CatalogProviderKey | null> {
+    const type = await this.getRequestedBrowseProviderType();
+    return type ? catalogProviderKeyFromIntegrationType(type) : null;
+  }
+
   /** True when this request is browsing a secondary provider; its scenes can't be requested. */
   async isBrowseOnlyRequest(): Promise<boolean> {
     return (await this.getRequestedBrowseProviderType()) !== null;

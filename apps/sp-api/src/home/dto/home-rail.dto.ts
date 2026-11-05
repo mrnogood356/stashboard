@@ -22,6 +22,7 @@ export const HOME_RAIL_KEY_VALUES = [
   'QUICK_PICKS',
   'LIBRARY_4K',
   'COMING_SOON',
+  'YOU_MAY_ENJOY',
 ] as const;
 export type HomeRailKey = (typeof HOME_RAIL_KEY_VALUES)[number];
 

@@ -542,7 +542,8 @@ export class ScenesService {
     }
   }
 
-  private toScenesFeedItem(
+  /** A catalog scene as a scene card, for this page and others built from catalog scenes. */
+  toScenesFeedItem(
     scene: {
       id: string;
       title: string;

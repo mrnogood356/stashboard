@@ -79,6 +79,37 @@ export interface LocalSearchResults {
   }>;
 }
 
+export interface LibraryStatsBucket {
+  key: string;
+  label: string;
+  files: number;
+  bytes: number;
+}
+
+export interface LibraryStatsFile {
+  sceneId: string;
+  title: string;
+  studioName: string | null;
+  bytes: number;
+  resolution: string | null;
+  codec: string | null;
+  duration: number | null;
+  saving?: number;
+}
+
+export interface LibraryStats {
+  computedAt: string;
+  scenes: number;
+  files: number;
+  bytes: number;
+  duration: number;
+  byResolution: LibraryStatsBucket[];
+  byCodec: LibraryStatsBucket[];
+  topStudios: Array<LibraryStatsBucket & { studioId: string }>;
+  biggest: LibraryStatsFile[];
+  reencode: { saving: number; files: number; top: LibraryStatsFile[] };
+}
+
 export type FixKind = 'unmatched' | 'untagged' | 'unorganized';
 export type FixCounts = Record<FixKind, number>;
 export type LibraryTask = 'scan' | 'generate' | 'identify' | 'auto-tag' | 'clean';
@@ -249,6 +280,13 @@ export class LocalLibraryService {
 
   stopJob(jobId: string): Observable<void> {
     return this.http.delete<void>(`/api/local/jobs/${enc(jobId)}`);
+  }
+
+  /** What the library is made of; refresh asks Stash again instead of the last 30 minutes' answer. */
+  stats(refresh = false): Observable<LibraryStats> {
+    return this.http.get<LibraryStats>('/api/local/stats', {
+      params: refresh ? { refresh: '1' } : {},
+    });
   }
 
   duplicates(accuracy: 'exact' | 'high' | 'medium'): Observable<DuplicateGroup[]> {

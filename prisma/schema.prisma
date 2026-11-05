@@ -141,6 +141,8 @@ model LibrarySceneIndex {
   linkedStashId        String?
   /// Provider-qualified external refs preserved from local Stash stash_ids.
   linkedCatalogRefs    String[]  @default([])
+  /// File fingerprints ("OSHASH|…", "MD5|…", "PHASH|…"), to spot a catalog scene you have.
+  fingerprints         String[]  @default([])
   title                String
   description          String?
   imageUrl             String?
@@ -168,6 +170,7 @@ model LibrarySceneIndex {
   @@index([studioName])
   @@index([title])
   @@index([tagIds], type: Gin, map: "LibrarySceneIndex_tagIds_gin_idx")
+  @@index([fingerprints], type: Gin, map: "LibrarySceneIndex_fingerprints_idx")
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "LibrarySceneIndex_title_trgm_idx")
   @@index([description(ops: raw("gin_trgm_ops"))], type: Gin, map: "LibrarySceneIndex_description_trgm_idx")
   @@index([studioName(ops: raw("gin_trgm_ops"))], type: Gin, map: "LibrarySceneIndex_studioName_trgm_idx")
@@ -239,6 +242,7 @@ enum HomeRailKey {
   QUICK_PICKS
   LIBRARY_4K
   COMING_SOON
+  YOU_MAY_ENJOY
 }
 
 enum HomeRailKind {
@@ -629,4 +633,15 @@ model PlaybackSettings {
   previewsEnabled Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+/// A "You may enjoy" scene you said Not interested to: never suggested again,
+/// and the reason it was picked counts a little less.
+model SuggestionDismissal {
+  sceneId   String   @id
+  /// "performer:<id>" or "studio:<id>".
+  reasonKey String
+  createdAt DateTime @default(now())
+
+  @@index([reasonKey])
 }

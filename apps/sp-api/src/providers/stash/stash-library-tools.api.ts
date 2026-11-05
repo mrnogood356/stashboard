@@ -1,3 +1,10 @@
+import type { WatchedScene } from '../../suggestions/suggestions.util';
+import {
+  type CatalogProviderKey,
+  findCatalogExternalIdForProvider,
+  normalizeCatalogSceneRefs,
+} from '../catalog/catalog-provider.util';
+import type { StatsFile } from '../../playback/library-stats.util';
 import { BadGatewayException } from '@nestjs/common';
 import { stashImageVersion } from './stash-image-version.util';
 import {
@@ -655,6 +662,216 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
     return (payload.data?.configuration?.general?.stashes ?? [])
       .map((entry) => this.normalizeOptionalString(entry.path))
       .filter((path): path is string => !!path);
+  }
+
+  /**
+   * The scenes you've watched, rated or marked (O), with their performers
+   * and studio as this catalog knows them, for "You may enjoy". Up to a few
+   * hundred of each, most recent and highest first.
+   */
+  async listWatchHistory(
+    config: StashAdapterBaseConfig,
+    providerKey: CatalogProviderKey,
+  ): Promise<WatchedScene[]> {
+    const filters: Array<{ filter: Record<string, unknown>; sort: string }> = [
+      {
+        filter: { play_count: { value: 0, modifier: 'GREATER_THAN' } },
+        sort: 'last_played_at',
+      },
+      {
+        filter: { o_counter: { value: 0, modifier: 'GREATER_THAN' } },
+        sort: 'o_counter',
+      },
+      {
+        filter: { rating100: { value: 60, modifier: 'GREATER_THAN' } },
+        sort: 'rating',
+      },
+    ];
+    const ref = { endpoint: '', stash_id: '' };
+    const catalogId = (value: unknown): string | null => {
+      const refs = normalizeCatalogSceneRefs(
+        (Array.isArray(value) ? value : []).flatMap((entry) => {
+          const item = (entry ?? ref) as {
+            endpoint?: unknown;
+            stash_id?: unknown;
+          };
+          return typeof item.endpoint === 'string' &&
+            typeof item.stash_id === 'string'
+            ? [{ endpoint: item.endpoint, externalId: item.stash_id }]
+            : [];
+        }),
+      );
+      return findCatalogExternalIdForProvider(refs, providerKey);
+    };
+    const byId = new Map<string, WatchedScene>();
+    for (const { filter, sort } of filters) {
+      const payload = (await this.executeQuery(
+        config,
+        `query WatchHistory($filter: FindFilterType, $scene_filter: SceneFilterType) {
+          findScenes(filter: $filter, scene_filter: $scene_filter) {
+            scenes {
+              id play_count o_counter rating100 last_played_at
+              performers { name favorite stash_ids { endpoint stash_id } }
+              studio { name favorite stash_ids { endpoint stash_id } }
+            }
+          }
+        }`,
+        {
+          filter: { page: 1, per_page: 300, sort, direction: 'DESC' },
+          scene_filter: filter,
+        },
+      )) as unknown as {
+        data?: { findScenes?: { scenes?: Array<Record<string, unknown>> } };
+      };
+      for (const scene of payload.data?.findScenes?.scenes ?? []) {
+        const id = this.normalizeOptionalString(scene.id);
+        if (!id || byId.has(id)) {
+          continue;
+        }
+        const number = (value: unknown) =>
+          typeof value === 'number' ? value : 0;
+        const studio = scene.studio as Record<string, unknown> | null;
+        const studioName = this.normalizeOptionalString(studio?.name);
+        byId.set(id, {
+          playCount: number(scene.play_count),
+          oCounter: number(scene.o_counter),
+          rating100:
+            typeof scene.rating100 === 'number' ? scene.rating100 : null,
+          lastPlayedAt: this.normalizeOptionalString(scene.last_played_at),
+          performers: (Array.isArray(scene.performers)
+            ? scene.performers
+            : []
+          ).flatMap((raw) => {
+            const performer = raw as Record<string, unknown>;
+            const name = this.normalizeOptionalString(performer.name);
+            return name
+              ? [
+                  {
+                    name,
+                    favorite: performer.favorite === true,
+                    catalogId: catalogId(performer.stash_ids),
+                  },
+                ]
+              : [];
+          }),
+          studio: studioName
+            ? {
+                name: studioName,
+                favorite: studio?.favorite === true,
+                catalogId: catalogId(studio?.stash_ids),
+              }
+            : null,
+        });
+      }
+    }
+    return [...byId.values()];
+  }
+
+  /**
+   * Every video file in the library with its size, resolution and codec, for
+   * Library stats. Pages through Stash 500 scenes at a time.
+   */
+  async listLibraryFiles(config: StashAdapterBaseConfig): Promise<StatsFile[]> {
+    const files: StatsFile[] = [];
+    const perPage = 500;
+    for (let page = 1; page <= 200; page += 1) {
+      const payload = (await this.executeQuery(
+        config,
+        `query LibraryFiles($filter: FindFilterType) {
+          findScenes(filter: $filter) {
+            count
+            scenes {
+              id title
+              studio { id name }
+              files { basename size width height video_codec duration }
+            }
+          }
+        }`,
+        // Oldest first, as the library sync does: a scene added meanwhile lands on the last page.
+        {
+          filter: {
+            page,
+            per_page: perPage,
+            sort: 'created_at',
+            direction: 'ASC',
+          },
+        },
+      )) as unknown as {
+        data?: {
+          findScenes?: {
+            count?: unknown;
+            scenes?: Array<Record<string, unknown>>;
+          };
+        };
+      };
+      const result = payload.data?.findScenes;
+      const scenes = Array.isArray(result?.scenes) ? result.scenes : [];
+      for (const scene of scenes) {
+        const sceneId = this.normalizeOptionalString(scene.id);
+        if (!sceneId) {
+          continue;
+        }
+        const studio = scene.studio as Record<string, unknown> | null;
+        for (const raw of Array.isArray(scene.files) ? scene.files : []) {
+          const file = raw as Record<string, unknown>;
+          const number = (value: unknown) =>
+            typeof value === 'number'
+              ? value
+              : typeof value === 'string' && value.trim() !== ''
+                ? Number(value)
+                : null;
+          files.push({
+            sceneId,
+            title:
+              this.normalizeOptionalString(scene.title) ??
+              this.normalizeOptionalString(file.basename) ??
+              `Scene #${sceneId}`,
+            studioId: this.normalizeOptionalString(studio?.id),
+            studioName: this.normalizeOptionalString(studio?.name),
+            size: number(file.size) ?? 0,
+            width: number(file.width),
+            height: number(file.height),
+            codec: this.normalizeOptionalString(file.video_codec),
+            duration: number(file.duration),
+          });
+        }
+      }
+      const count = typeof result?.count === 'number' ? result.count : 0;
+      if (scenes.length === 0 || page * perPage >= count) {
+        break;
+      }
+    }
+    return files;
+  }
+
+  /**
+   * Whether Stash transcodes with the GPU (Settings → System → Transcoding,
+   * hardware encoding). Null when this Stash doesn't have the setting.
+   */
+  async getTranscodeHardwareAcceleration(
+    config: StashAdapterBaseConfig,
+  ): Promise<boolean | null> {
+    try {
+      const payload = (await this.executeQuery(
+        config,
+        `query Transcoding { configuration { general { transcodeHardwareAcceleration } } }`,
+        undefined,
+        // Older Stash has no such field: that's not Stash being unwell.
+        false,
+      )) as unknown as {
+        data?: {
+          configuration?: {
+            general?: { transcodeHardwareAcceleration?: unknown };
+          };
+        };
+      };
+      const value =
+        payload.data?.configuration?.general?.transcodeHardwareAcceleration;
+      return typeof value === 'boolean' ? value : null;
+    } catch {
+      // Older Stash: no such field.
+      return null;
+    }
   }
 
   /**
