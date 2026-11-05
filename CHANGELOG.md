@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.6.0](https://github.com/mrnogood356/stashboard/compare/v1.5.1...v1.6.0) (2026-11-05)
+
+
+### Features
+
+* 1.6 — Quick hide, instant Home, health history, library cleanup tools and schedules ([040b010](https://github.com/mrnogood356/stashboard/commit/040b0100890f58553db82c16f2b74d0fde0df39b))
+* **about:** Last 7 days: how each service answered, hour by hour ([d3bde44](https://github.com/mrnogood356/stashboard/commit/d3bde441242f94afef76467a9c87c51fc55d3979))
+* **activity:** see which files a rename or move run moved ([523c472](https://github.com/mrnogood356/stashboard/commit/523c4724ce59c3f5571b4e0d9f25122e80bbdebf))
+* **duplicates:** a smarter best copy, why it was picked, and removing every extra copy at once ([9570bad](https://github.com/mrnogood356/stashboard/commit/9570badedae979699fb5ee3742dd977cedcd60b6))
+* **home:** rows open at once, kept on the server and refreshed behind ([9356944](https://github.com/mrnogood356/stashboard/commit/93569448a12e6d7fd9ddc0b152ff720a54c01213))
+* **player:** a Next chapter button, for phones without a ] key ([3cce014](https://github.com/mrnogood356/stashboard/commit/3cce0149d66fc3d99c802214e49f51ae3e13998a))
+* **privacy:** Quick hide, blur on open or when idle, and nothing left unblurred ([bca2d5c](https://github.com/mrnogood356/stashboard/commit/bca2d5c0d0ffe276a82f71494b02c9013176ace5))
+* **requests:** say why a download failed, in plain words, and what to do ([6f27e29](https://github.com/mrnogood356/stashboard/commit/6f27e29d16fcd96da2bd740b833414627a0e8725))
+* **schedules:** choose when jobs run, and schedule Stash's Scan, Generate and Clean ([b8bab55](https://github.com/mrnogood356/stashboard/commit/b8bab550ec4efe30729db804e00056bee1ffbf85))
+* **tools:** Tag cleanup and Broken files ([bdc555f](https://github.com/mrnogood356/stashboard/commit/bdc555fcc8267c321c8237a4adbf643b26bb0758))
+
+
+### Bug Fixes
+
+* address review on duplicates, broken files, Quick hide, Home rows and activity ([8933293](https://github.com/mrnogood356/stashboard/commit/89332935ebe54f6e7d6926ed98a759b76215de2e))
+* keep the best duplicate the same in any order, and say what a scheduled organizer job did ([81549b5](https://github.com/mrnogood356/stashboard/commit/81549b5144429da5385d3a28b2ca928ed6323827))
+
 ## [1.5.1](https://github.com/mrnogood356/stashboard/compare/v1.5.0...v1.5.1) (2026-11-05)
 
 
