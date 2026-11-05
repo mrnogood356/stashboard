@@ -14,6 +14,7 @@ describe('AboutController', () => {
     };
     const releaseNotes = {
       since: jest.fn().mockReturnValue({ current: '1.3.0', releases: [] }),
+      latest: jest.fn().mockReturnValue({ current: '1.3.0', releases: [{}] }),
     };
     const controller = new AboutController(
       about as unknown as AboutService,
@@ -29,5 +30,7 @@ describe('AboutController', () => {
       releases: [],
     });
     expect(releaseNotes.since).toHaveBeenCalledWith('1.2.0');
+    expect(controller.changes({ latest: '1' }).releases).toHaveLength(1);
+    expect(releaseNotes.latest).toHaveBeenCalled();
   });
 });

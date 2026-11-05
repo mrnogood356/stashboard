@@ -645,3 +645,12 @@ model SuggestionDismissal {
 
   @@index([reasonKey])
 }
+
+/// The release this server ran last, and the one before it: "What's new"
+/// covers the update for a browser that remembers no version of its own.
+model AppVersionState {
+  key             String   @id @default("GLOBAL")
+  lastVersion     String
+  previousVersion String?
+  updatedAt       DateTime @updatedAt
+}

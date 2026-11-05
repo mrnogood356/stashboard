@@ -3,6 +3,7 @@ import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AboutApiService, ReleaseNotesResponse } from '../../core/api/about.service';
 import { SEEN_VERSION_KEY, WhatsNewComponent } from './whats-new.component';
+import { WhatsNewService } from './whats-new.service';
 
 const NOTES: ReleaseNotesResponse = {
   current: '1.4.0',
@@ -23,11 +24,12 @@ describe('WhatsNewComponent', () => {
     localStorage.removeItem(SEEN_VERSION_KEY);
   });
 
-  async function render(response: ReleaseNotesResponse) {
+  async function render(response: ReleaseNotesResponse, latest: ReleaseNotesResponse = NOTES) {
     const changes = vi.fn().mockReturnValue(of(response));
+    const latestChanges = vi.fn().mockReturnValue(of(latest));
     await TestBed.configureTestingModule({
       imports: [WhatsNewComponent],
-      providers: [{ provide: AboutApiService, useValue: { changes } }],
+      providers: [{ provide: AboutApiService, useValue: { changes, latestChanges } }],
     }).compileComponents();
     const fixture = TestBed.createComponent(WhatsNewComponent);
     fixture.detectChanges();
@@ -54,6 +56,32 @@ describe('WhatsNewComponent', () => {
 
     expect(dialog.hasAttribute('open')).toBe(false);
     expect(localStorage.getItem(SEEN_VERSION_KEY)).toBe('1.4.0');
+  });
+
+  it('shows the notes the server has for a browser that remembers no version', async () => {
+    const { fixture, changes } = await render(NOTES);
+
+    expect(changes).toHaveBeenCalledWith(null);
+    expect(
+      (
+        fixture.nativeElement.querySelector('[data-testid="whats-new"]') as HTMLElement
+      ).hasAttribute('open'),
+    ).toBe(true);
+  });
+
+  it('opens the running release’s notes when About asks', async () => {
+    localStorage.setItem(SEEN_VERSION_KEY, '1.4.0');
+    const { fixture } = await render({ current: '1.4.0', releases: [] });
+    const dialog = fixture.nativeElement.querySelector(
+      '[data-testid="whats-new"]',
+    ) as HTMLDialogElement;
+    expect(dialog.hasAttribute('open')).toBe(false);
+
+    TestBed.inject(WhatsNewService).show();
+    fixture.detectChanges();
+
+    expect(dialog.hasAttribute('open')).toBe(true);
+    expect(dialog.textContent).toContain('Back up every setting to a file');
   });
 
   it('only remembers the version on a first visit', async () => {

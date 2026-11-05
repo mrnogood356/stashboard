@@ -64,6 +64,15 @@
         <span class="muted small">{{ reason }}</span>
       }
     </p>
+    <button
+      type="button"
+      class="pill whats-new"
+      data-testid="show-whats-new"
+      (click)="whatsNew.show()"
+    >
+      <i class="pi pi-sparkles" aria-hidden="true"></i>
+      What’s new
+    </button>
   </article>
 
   <article class="card app-card" data-testid="install-card">
