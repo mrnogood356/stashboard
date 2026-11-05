@@ -7,6 +7,14 @@
       }
     </div>
     <div class="head-actions">
+      <a class="filters-toggle" routerLink="/watch-later" data-testid="watch-later-link">
+        <i class="pi pi-bookmark" aria-hidden="true"></i>
+        <span>Watch later</span>
+      </a>
+      <a class="filters-toggle" routerLink="/history">
+        <i class="pi pi-history" aria-hidden="true"></i>
+        <span>History</span>
+      </a>
       <button
         type="button"
         class="filters-toggle select-toggle"
@@ -302,6 +310,8 @@
             studioBadgeRoute="library"
             [playSceneId]="item.id"
             [playQueryParams]="{ returnTo: currentRouteUrl() }"
+            [menuActions]="selecting() ? [] : cardActions(item.id)"
+            (menuAction)="onCardAction(item.id, $event)"
           />
           @if (selecting()) {
             <button

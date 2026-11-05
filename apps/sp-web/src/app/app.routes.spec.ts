@@ -45,6 +45,8 @@ describe('app routes', () => {
       'search',
       'scenes',
       'calendar',
+      'watch-later',
+      'history',
       'you-may-enjoy',
       'acquisition',
       'processing',

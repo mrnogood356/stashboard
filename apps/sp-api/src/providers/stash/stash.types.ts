@@ -128,6 +128,8 @@ export interface StashLocalSceneCard {
   duration: number | null;
   playCount: number;
   resumeTime: number;
+  /** When it was last played, when Stash says. */
+  lastPlayedAt?: string | null;
 }
 
 export interface StashJob {

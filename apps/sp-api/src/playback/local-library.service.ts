@@ -53,6 +53,8 @@ export interface LocalSceneCardDto {
   playCount: number;
   /** How far through the scene playback got, 0 to 1. */
   progress: number | null;
+  /** When it was last played. */
+  lastPlayedAt?: string | null;
   type: 'SCENE';
   source: 'STASH';
 }
@@ -285,19 +287,58 @@ export class LocalLibraryService {
         : Promise.resolve([]),
     ]);
 
-    const seen = new Set([scene.id]);
-    const merged: StashLocalSceneCard[] = [];
-    for (const item of [...byPerformers, ...byStudio, ...byTags]) {
-      if (!seen.has(item.id)) {
-        seen.add(item.id);
-        merged.push(item);
-      }
+    return rankRelated(scene.id, [
+      { items: byPerformers, weight: 3 },
+      { items: byStudio, weight: 2 },
+      { items: byTags, weight: 1 },
+    ])
+      .slice(0, RELATED_LIMIT)
+      .map(toCard);
+  }
+
+  /** What you've played, latest first. */
+  async history(page: number): Promise<LocalScenePageDto> {
+    const config = await this.playback.getStashConfig();
+    const current = Math.max(1, Math.floor(page) || 1);
+    const perPage = 40;
+    const result = await this.stash.findLocalScenes(config, {
+      page: current,
+      perPage,
+      sort: 'last_played_at',
+      direction: 'DESC',
+      sceneFilter: { play_count: { value: 0, modifier: 'GREATER_THAN' } },
+    });
+    return {
+      total: result.total,
+      page: current,
+      hasMore: current * perPage < result.total,
+      items: result.items.map(toCard),
+    };
+  }
+
+  /** Cards for these scenes, in the order given; ones gone from Stash are left out. */
+  async cardsFor(ids: string[]): Promise<LocalSceneCardDto[]> {
+    if (ids.length === 0) {
+      return [];
     }
-    // Stable sort keeps the relevance order within watched/unwatched groups.
-    merged.sort(
-      (left, right) => Number(left.playCount > 0) - Number(right.playCount > 0),
-    );
-    return merged.slice(0, RELATED_LIMIT).map(toCard);
+    const config = await this.playback.getStashConfig();
+    const found = new Map<string, StashLocalSceneCard>();
+    for (let start = 0; start < ids.length; start += 100) {
+      const chunk = ids.slice(start, start + 100);
+      const result = await this.stash.findLocalScenes(config, {
+        page: 1,
+        perPage: 100,
+        sort: 'id',
+        direction: 'ASC',
+        sceneFilter: {},
+        ids: chunk,
+      });
+      result.items.forEach((item) => found.set(item.id, item));
+    }
+    return ids.flatMap((id) => {
+      const item = found.get(id);
+      return item ? [toCard(item)] : [];
+    });
   }
 
   async performer(performerId: string): Promise<LocalPerformerDto> {
@@ -918,6 +959,43 @@ function seedFrom(value: string): number {
   return hash || 1;
 }
 
+/**
+ * Related scenes, most in common first: sharing performers counts most, then
+ * the studio, then the tags, adding up when a scene shares more than one.
+ * Unplayed ones come before played ones with the same score.
+ */
+export function rankRelated(
+  selfId: string,
+  groups: Array<{ items: StashLocalSceneCard[]; weight: number }>,
+): StashLocalSceneCard[] {
+  const scored = new Map<
+    string,
+    { item: StashLocalSceneCard; score: number; order: number }
+  >();
+  let order = 0;
+  for (const { items, weight } of groups) {
+    for (const item of items) {
+      if (item.id === selfId) {
+        continue;
+      }
+      const seen = scored.get(item.id);
+      if (seen) {
+        seen.score += weight;
+      } else {
+        scored.set(item.id, { item, score: weight, order: order++ });
+      }
+    }
+  }
+  return [...scored.values()]
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        Number(left.item.playCount > 0) - Number(right.item.playCount > 0) ||
+        left.order - right.order,
+    )
+    .map((entry) => entry.item);
+}
+
 export function toCard(scene: StashLocalSceneCard): LocalSceneCardDto {
   const screenshotPath = `scenes/${encodeURIComponent(scene.id)}/screenshot`;
   const screenshot = scene.screenshotVersion
@@ -946,6 +1024,7 @@ export function toCard(scene: StashLocalSceneCard): LocalSceneCardDto {
     duration: scene.duration,
     playCount: scene.playCount,
     progress,
+    lastPlayedAt: scene.lastPlayedAt ?? null,
     type: 'SCENE',
     source: 'STASH',
   };

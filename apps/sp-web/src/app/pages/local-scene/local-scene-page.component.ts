@@ -25,6 +25,7 @@ import {
 import { SceneCardComponent } from '../../shared/scene-card/scene-card.component';
 import { SceneEvidenceComponent } from '../../shared/scene-evidence/scene-evidence.component';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
+import { WatchLaterService } from '../../core/api/watch-later.service';
 import { ClipPreviewComponent } from '../../shared/scene-card/clip-preview.component';
 
 const DESCRIPTION_PREVIEW_LENGTH = 280;
@@ -44,6 +45,8 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly playback = inject(PlaybackService);
   private readonly library = inject(LocalLibraryService);
+  protected readonly watchLater = inject(WatchLaterService);
+  protected readonly watchLaterBusy = signal(false);
   /** Settings → Playback: off hides Play, Resume and chapter links. */
   protected readonly playbackOn = inject(PlaybackSettingsService).playbackEnabled;
   /** Settings → Playback: card previews also play each chapter's clip. */
@@ -91,7 +94,19 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
     return typeof rating === 'number' && rating > 0 ? Math.round(rating / 20) : 0;
   });
 
+  protected toggleWatchLater(sceneId: string): void {
+    this.watchLaterBusy.set(true);
+    this.watchLater.toggle(sceneId).subscribe({
+      next: () => this.watchLaterBusy.set(false),
+      error: () => {
+        this.watchLaterBusy.set(false);
+        this.actionError.set('Couldn’t change Watch later. Try again in a moment.');
+      },
+    });
+  }
+
   ngOnInit(): void {
+    this.watchLater.ensureLoaded();
     this.tagSearchSubscription = this.tagQueries
       .pipe(
         debounceTime(200),

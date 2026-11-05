@@ -1,0 +1,51 @@
+<main class="app-page-shell app-page-shell--wide">
+  <app-section-back />
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>History</h1>
+      <p>
+        What you’ve played, latest first.
+        @if (total() > 0) {
+          {{ total() }} scene{{ total() === 1 ? '' : 's' }} played.
+        }
+      </p>
+    </div>
+  </header>
+
+  @for (day of days(); track day.label) {
+    <section class="day">
+      <h2>{{ day.label }}</h2>
+      <div class="grid">
+        @for (item of day.items; track item.id) {
+          <div class="cell">
+            <app-scene-card
+              [item]="item"
+              primaryLinkMode="local"
+              [sceneQueryParams]="{ returnTo: '/history' }"
+              studioBadgeRoute="library"
+              [playSceneId]="item.id"
+              [playQueryParams]="{ returnTo: '/history' }"
+              [progress]="item.progress"
+            />
+            <p class="played">
+              {{ playedAt(item) }}{{ playedAt(item) && item.playCount > 1 ? ' · ' : ''
+              }}{{ item.playCount > 1 ? item.playCount + ' plays' : '' }}
+            </p>
+          </div>
+        }
+      </div>
+    </section>
+  }
+
+  @if (loading()) {
+    <p class="muted" role="status">Loading…</p>
+  } @else if (error()) {
+    <div class="notice" role="alert">Couldn’t read your history right now.</div>
+  } @else if (items().length === 0) {
+    <p class="muted">Nothing played yet.</p>
+  } @else if (hasMore()) {
+    <div class="more">
+      <button type="button" class="app-btn" (click)="more()">Show more</button>
+    </div>
+  }
+</main>

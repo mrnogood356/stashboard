@@ -16,6 +16,8 @@ export interface LocalSceneCard {
   duration: number | null;
   playCount: number;
   progress: number | null;
+  /** When it was last played (history only). */
+  lastPlayedAt?: string | null;
   type: 'SCENE';
   source: 'STASH';
 }
@@ -172,6 +174,11 @@ export class LocalLibraryService {
     return this.http.post<LocalSceneDetails>(`/api/local/scenes/${enc(sceneId)}/watched`, {
       watched,
     });
+  }
+
+  /** What you've played, latest first. */
+  history(page = 1): Observable<LocalScenePage> {
+    return this.http.get<LocalScenePage>('/api/local/history', { params: { page } });
   }
 
   related(sceneId: string): Observable<LocalSceneCard[]> {

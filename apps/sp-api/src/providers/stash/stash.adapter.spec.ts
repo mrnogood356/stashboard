@@ -1593,6 +1593,7 @@ describe('StashAdapter', () => {
             duration: 600,
             playCount: 2,
             resumeTime: 30,
+            lastPlayedAt: null,
           },
         ],
       });

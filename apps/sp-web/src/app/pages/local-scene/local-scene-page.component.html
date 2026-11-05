@@ -171,6 +171,22 @@
                 <span>From the start</span>
               </a>
             }
+            <button
+              type="button"
+              class="action secondary"
+              data-testid="watch-later-button"
+              [attr.aria-pressed]="watchLater.has(scene.id)"
+              [disabled]="watchLaterBusy()"
+              (click)="toggleWatchLater(scene.id)"
+            >
+              <i
+                class="pi"
+                [class.pi-bookmark-fill]="watchLater.has(scene.id)"
+                [class.pi-bookmark]="!watchLater.has(scene.id)"
+                aria-hidden="true"
+              ></i>
+              <span>{{ watchLater.has(scene.id) ? 'Saved' : 'Watch later' }}</span>
+            </button>
             @if (scene.catalogSceneId) {
               <a
                 class="action secondary"

@@ -38,6 +38,13 @@ export const QUICK_PAGES: readonly QuickPage[] = [
   { label: 'Performers', url: '/performers', icon: 'pi-users', keywords: 'people' },
   { label: 'Studios', url: '/studios', icon: 'pi-building' },
   { label: 'Library', url: '/library', icon: 'pi-folder-open', keywords: 'stash mine owned' },
+  {
+    label: 'Watch later',
+    url: '/watch-later',
+    icon: 'pi-bookmark',
+    keywords: 'saved queue playlist later',
+  },
+  { label: 'History', url: '/history', icon: 'pi-history', keywords: 'played watched recent' },
   { label: 'Requests', url: '/acquisition', icon: 'pi-inbox', keywords: 'wanted whisparr queue' },
   {
     label: 'You may enjoy',

@@ -210,6 +210,12 @@ export class LocalLibraryController {
     return this.library.search(query.query ?? '');
   }
 
+  /** What you've played, latest first. */
+  @Get('history')
+  history(@Query('page') page?: string): Promise<LocalScenePageDto> {
+    return this.library.history(Number(page) || 1);
+  }
+
   @Get('scenes/:sceneId/related')
   related(@Param('sceneId') sceneId: string): Promise<LocalSceneCardDto[]> {
     return this.library.related(sceneId);

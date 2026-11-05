@@ -148,6 +148,18 @@ export const routes: Routes = [
           import('./pages/calendar/calendar-page.component').then((m) => m.CalendarPageComponent),
       },
       {
+        path: 'watch-later',
+        loadComponent: () =>
+          import('./pages/watch-later/watch-later-page.component').then(
+            (m) => m.WatchLaterPageComponent,
+          ),
+      },
+      {
+        path: 'history',
+        loadComponent: () =>
+          import('./pages/history/history-page.component').then((m) => m.HistoryPageComponent),
+      },
+      {
         path: 'you-may-enjoy',
         loadComponent: () =>
           import('./pages/you-may-enjoy/you-may-enjoy-page.component').then(

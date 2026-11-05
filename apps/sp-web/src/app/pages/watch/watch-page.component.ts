@@ -20,6 +20,8 @@ import { AppLockService } from '../../core/app-lock/app-lock.service';
 import { ImageObscurationService } from '../../core/preferences/image-obscuration.service';
 import { QuickHideService } from '../../core/quick-hide/quick-hide.service';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
+import { PlayQueueService, type QueueItem } from '../../core/play-queue/play-queue.service';
+import { WatchLaterService } from '../../core/api/watch-later.service';
 import { ClipPreviewComponent } from '../../shared/scene-card/clip-preview.component';
 import {
   FRAME_SECONDS,
@@ -83,6 +85,8 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   protected readonly obscured = inject(ImageObscurationService).isObscured;
   private readonly quickHide = inject(QuickHideService);
   private readonly library = inject(LocalLibraryService);
+  private readonly queue = inject(PlayQueueService);
+  protected readonly watchLater = inject(WatchLaterService);
   /** Settings → Playback: card previews also play each chapter's clip. */
   protected readonly previewsOn = inject(PlaybackSettingsService).previewsEnabled;
 
@@ -158,6 +162,10 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   protected readonly chapterError = signal<string | null>(null);
   /** Shown when the scene ends: the next related scene, with a countdown. */
   protected readonly upNext = signal<LocalSceneCard | null>(null);
+  /** "Watch later · 3 of 12" while a list plays. */
+  protected readonly queueLabel = signal<string | null>(null);
+  /** The list item playing now, when one is. */
+  private queued: QueueItem | null = null;
   protected readonly upNextCountdown = signal(UP_NEXT_SECONDS);
   protected readonly markers = computed<SceneMarker[]>(() => this.info()?.markers ?? []);
   protected readonly chapterTicks = computed(() => {
@@ -229,6 +237,7 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
+    this.watchLater.ensureLoaded();
     this.sceneId = this.route.snapshot.paramMap.get('sceneId') ?? '';
     void this.appLock.refresh();
     this.attachVideoListeners();
@@ -296,6 +305,16 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     this.error.set(null);
     const sceneId = this.sceneId;
     if (keepTime === null) {
+      this.queued = this.queue.currentFor(sceneId);
+      const queued = this.queue.queue();
+      this.queueLabel.set(
+        this.queued && queued ? `${queued.label} · ${this.queue.position()}` : null,
+      );
+    }
+    const fromQueue = this.queued ? this.queue.peekNext() : null;
+    if (keepTime === null && fromQueue) {
+      this.nextCandidate = cardOf(fromQueue);
+    } else if (keepTime === null) {
       // Pick the Up next scene early so it's ready when this one ends.
       this.library
         .related(sceneId)
@@ -552,6 +571,12 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       }
       this.currentTime.set(video.currentTime);
       this.trackWatched(video.currentTime);
+      const end = this.queued?.end;
+      if (end !== undefined && !loop && video.currentTime >= end && !video.paused) {
+        // A chapter in a playlist: on to the next one straight away.
+        video.pause();
+        this.finishQueued();
+      }
     });
     on('progress', () => {
       const ranges = video.buffered;
@@ -578,6 +603,11 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       this.playing.set(false);
       this.saveProgress('ended');
       this.showControls();
+      if (this.queued?.end !== undefined) {
+        this.finishQueued();
+        return;
+      }
+      this.leaveWatchLater();
       this.startUpNext();
     });
     on('play', () => this.cancelUpNext());
@@ -798,6 +828,9 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   }
 
   private requestedStart(): number | null {
+    if (this.queued?.start !== undefined) {
+      return this.queued.start;
+    }
     const raw = this.route.snapshot.queryParamMap.get('t');
     if (raw === null || raw.trim() === '') {
       return null;
@@ -1186,11 +1219,64 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     this.upNext.set(null);
   }
 
+  /** A chapter in a playlist reached its end. */
+  private finishQueued(): void {
+    if (this.queue.peekNext()) {
+      this.playUpNext();
+    } else {
+      this.queue.clear();
+      this.queued = null;
+      this.queueLabel.set(null);
+      this.showHud('End of the list');
+    }
+  }
+
+  /** Played to the end from Watch later: it leaves the list. */
+  private leaveWatchLater(): void {
+    if (this.queued && this.queue.queue()?.kind === 'later') {
+      this.watchLater.remove(this.sceneId).subscribe({ error: () => undefined });
+    }
+  }
+
+  protected sceneIdNow(): string {
+    return this.sceneId;
+  }
+
+  protected toggleWatchLater(): void {
+    const saved = this.watchLater.has(this.sceneId);
+    this.watchLater.toggle(this.sceneId).subscribe({
+      next: () => this.showHud(saved ? 'Removed from Watch later' : 'Saved to Watch later'),
+      error: () => this.showHud('Couldn’t change Watch later'),
+    });
+    this.moreMenuOpen.set(false);
+  }
+
   protected playUpNext(): void {
     const next = this.upNext() ?? this.nextCandidate;
     this.cancelUpNext();
     if (!next) {
       return;
+    }
+    if (this.queued) {
+      const item = this.queue.advance();
+      if (item && item.sceneId === next.id) {
+        const returnTo = this.route.snapshot.queryParamMap.get('returnTo');
+        if (item.sceneId === this.sceneId) {
+          // The next chapter is in this scene: just jump there.
+          this.queued = item;
+          this.queueLabel.set(`${this.queue.queue()?.label} · ${this.queue.position()}`);
+          const following = this.queue.peekNext();
+          this.nextCandidate = following ? cardOf(following) : null;
+          this.seekTo(item.start ?? 0);
+          void this.videoRef?.nativeElement.play().catch(() => undefined);
+          return;
+        }
+        void this.router.navigate(['/watch', item.sceneId], {
+          queryParams: returnTo ? { returnTo } : {},
+          replaceUrl: true,
+        });
+        return;
+      }
     }
     const returnTo = this.route.snapshot.queryParamMap.get('returnTo');
     void this.router.navigate(['/watch', next.id], {
@@ -1559,4 +1645,23 @@ function isFocusVisible(element: Element): boolean {
   } catch {
     return false;
   }
+}
+
+/** A list item as an Up next card. */
+function cardOf(item: QueueItem): LocalSceneCard {
+  return {
+    id: item.sceneId,
+    title: item.title,
+    imageUrl: item.imageUrl,
+    cardImageUrl: item.imageUrl,
+    studioId: null,
+    studio: null,
+    studioImageUrl: null,
+    releaseDate: null,
+    duration: null,
+    playCount: 0,
+    progress: null,
+    type: 'SCENE',
+    source: 'STASH',
+  };
 }

@@ -108,7 +108,7 @@
         <span class="up-next-count" aria-live="polite">{{ upNextCountdown() }}</span>
       </div>
       <div class="up-next-copy">
-        <p class="up-next-label">Up next</p>
+        <p class="up-next-label">Up next{{ queueLabel() ? ' · ' + queueLabel() : '' }}</p>
         <p class="up-next-title">{{ next.title }}</p>
         <div class="up-next-actions">
           <button type="button" class="pill primary" (click)="playUpNext()">
@@ -187,7 +187,9 @@
     </button>
     <div class="titles">
       <h1>{{ info()?.title ?? (error() ? 'Unavailable' : 'Loading…') }}</h1>
-      @if (info()?.studio; as studio) {
+      @if (queueLabel(); as list) {
+        <p data-testid="queue-label">{{ list }}</p>
+      } @else if (info()?.studio; as studio) {
         <p>{{ studio }}</p>
       }
     </div>
@@ -415,6 +417,20 @@
                   </button>
                 </li>
               }
+              <li>
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  data-testid="watch-later-toggle"
+                  [attr.aria-checked]="watchLater.has(sceneIdNow())"
+                  [class.active]="watchLater.has(sceneIdNow())"
+                  (click)="toggleWatchLater()"
+                >
+                  {{
+                    watchLater.has(sceneIdNow()) ? 'Saved to Watch later' : 'Save to Watch later'
+                  }}
+                </button>
+              </li>
               <li>
                 <button
                   type="button"

@@ -146,7 +146,7 @@ describe('LocalLibraryService', () => {
     expect(stash.listLibraryFiles).toHaveBeenCalledTimes(2);
   });
 
-  it('finds related scenes by performers, then studio, then tags, unwatched first', async () => {
+  it('finds related scenes, most in common first, by performers, studio and tags', async () => {
     stash.getLocalSceneDetails.mockResolvedValue({
       id: '1',
       performers: [{ id: 'p1' }],
@@ -170,9 +170,10 @@ describe('LocalLibraryService', () => {
 
     const related = await service.related('1');
 
-    // Itself is excluded, duplicates removed, a failing query is ignored,
-    // and the watched scene 2 moves after the unwatched ones.
-    expect(related.map((item) => item.id)).toEqual(['3', '4', '2']);
+    // Itself is excluded and a failing query is ignored. 3 shares the
+    // performer and the studio; 2 (played) a performer, which counts more
+    // than 4's studio.
+    expect(related.map((item) => item.id)).toEqual(['3', '2', '4']);
     const tagCall = stash.findLocalScenes.mock.calls.find(
       ([, options]) =>
         (options as { sceneFilter: Record<string, unknown> }).sceneFilter[

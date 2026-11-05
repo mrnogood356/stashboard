@@ -689,12 +689,14 @@ export class StashAdapter extends StashLibraryToolsApi {
       sort: string;
       direction: 'ASC' | 'DESC';
       sceneFilter: Record<string, unknown>;
+      /** Only these scenes. */
+      ids?: string[];
     },
   ): Promise<StashLocalScenePage> {
     const payload = (await this.executeQuery(
       config,
-      `query LocalScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {
-        findScenes(filter: $filter, scene_filter: $scene_filter) {
+      `query LocalScenes($filter: FindFilterType, $scene_filter: SceneFilterType, $ids: [ID!]) {
+        findScenes(filter: $filter, scene_filter: $scene_filter, ids: $ids) {
           count
           scenes {
             id
@@ -702,6 +704,7 @@ export class StashAdapter extends StashLibraryToolsApi {
             date
             play_count
             resume_time
+            last_played_at
             paths {
               screenshot
             }
@@ -724,6 +727,7 @@ export class StashAdapter extends StashLibraryToolsApi {
           direction: options.direction,
         },
         scene_filter: options.sceneFilter,
+        ...(options.ids ? { ids: options.ids } : {}),
       },
     )) as unknown as {
       data?: {
@@ -1067,6 +1071,7 @@ export class StashAdapter extends StashLibraryToolsApi {
       duration: typeof duration === 'number' ? duration : null,
       playCount: typeof scene.play_count === 'number' ? scene.play_count : 0,
       resumeTime: typeof scene.resume_time === 'number' ? scene.resume_time : 0,
+      lastPlayedAt: this.normalizeOptionalString(scene.last_played_at),
     };
   }
 

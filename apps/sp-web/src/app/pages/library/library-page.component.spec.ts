@@ -8,6 +8,7 @@ import { RuntimeHealthService } from '../../core/api/runtime-health.service';
 import { RuntimeHealthResponse } from '../../core/api/runtime-health.types';
 import { SetupStatusStore } from '../../core/api/setup-status.store';
 import { SetupStatusResponse } from '../../core/api/setup.types';
+import { WatchLaterService } from '../../core/api/watch-later.service';
 import { LocalLibraryService } from '../../core/api/local-library.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { LibraryPageComponent } from './library-page.component';
@@ -172,6 +173,14 @@ describe('LibraryPageComponent', () => {
       providers: [
         provideRouter([]),
         { provide: LocalLibraryService, useValue: localLibrary },
+        {
+          provide: WatchLaterService,
+          useValue: {
+            ensureLoaded: () => undefined,
+            has: (id: string) => id === 'saved',
+            toggle: vi.fn(() => of([])),
+          },
+        },
         {
           provide: AppNotificationsService,
           useValue: { success: vi.fn(), error: vi.fn(), info: vi.fn() },

@@ -751,3 +751,12 @@ model SmallerCopyAttempt {
   @@index([searchedAt])
   @@index([retryAfter])
 }
+
+/// Scenes saved to watch later, in the order they'll play.
+model WatchLaterItem {
+  stashSceneId String   @id
+  position     Int
+  addedAt      DateTime @default(now())
+
+  @@index([position])
+}
