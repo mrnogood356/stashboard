@@ -173,6 +173,10 @@ docker compose pull
 docker compose up -d
 ```
 
+On Unraid, edit the Stashboard container, set **Repository** to the release you want (for example `ghcr.io/mrnogood356/stashboard:v1.4.0`) and click **Apply**. Set it back to `:latest` to follow releases again.
+
+Every release (`vX.Y.Z`) stays in the registry to roll back to; the [releases page](https://github.com/mrnogood356/stashboard/releases) lists them. Of the builds of `main` in between (`sha-…`), only the five newest are kept.
+
 Rolling back the app image does not automatically roll back database schema changes. Take a database backup before upgrades, and be cautious about rolling back across releases that may have already applied newer migrations. If an older image cannot start cleanly against the migrated schema, restore the pre-upgrade database backup before retrying the rollback.
 
 ## Backups
