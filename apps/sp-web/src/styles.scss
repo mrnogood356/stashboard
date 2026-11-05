@@ -1156,7 +1156,8 @@ select:disabled {
 /* Preview clips don't start while obscured; this covers the swipe feed and
    any clip caught mid-play. The feed's backdrop is already blurred harder.
    The player itself isn't touched: it only plays when asked. */
-:root[data-images='obscured'] video:not(.player > .video) {
+:root[data-images='obscured'] video:not(.player > .video),
+:root[data-images='obscured'] .scrub-image {
   filter: blur(18px) saturate(0.35) brightness(0.78);
   pointer-events: none;
 }

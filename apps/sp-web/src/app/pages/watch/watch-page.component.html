@@ -7,7 +7,7 @@
     webkit-playsinline
     x-webkit-airplay="allow"
     preload="metadata"
-    [attr.poster]="info()?.posterUrl ?? null"
+    [attr.poster]="obscured() ? null : (info()?.posterUrl ?? null)"
   ></video>
 
   <div

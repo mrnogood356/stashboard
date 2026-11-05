@@ -1,7 +1,9 @@
 <section class="privacy-page">
   <header class="section-head">
     <h2>Privacy</h2>
-    <p class="lede">A PIN or Face ID for the home-screen app. Browsers are never locked.</p>
+    <p class="lede">
+      A PIN or Face ID for the home-screen app, and Quick hide. Browsers are never locked.
+    </p>
   </header>
 
   @if (loading()) {
@@ -145,6 +147,63 @@
           {{ passkeys().length ? 'Add another device' : 'Set up Face ID on this device' }}
         </button>
       }
+    </section>
+
+    <section class="card quick-hide" data-testid="quick-hide-settings">
+      <h3>Quick hide</h3>
+      <p class="muted">On this device. Saved as you change it.</p>
+      <div class="switch-row">
+        <span>
+          <strong>Hide with a gesture</strong>
+          <small
+            >Press Esc twice, or tap three times quickly. The screen goes blank, anything playing
+            pauses and pictures are blurred. Tap to come back.</small
+          >
+        </span>
+        <input
+          type="checkbox"
+          class="app-switch"
+          role="switch"
+          aria-label="Hide with a gesture"
+          data-testid="quick-hide-gesture"
+          [checked]="quickHide.settings().gesture"
+          (change)="setQuickHide({ gesture: $any($event.target).checked })"
+        />
+      </div>
+      <div class="switch-row">
+        <span>
+          <strong>Blur pictures when it opens</strong>
+          <small>Every time Stashboard opens, start with pictures and previews blurred.</small>
+        </span>
+        <input
+          type="checkbox"
+          class="app-switch"
+          role="switch"
+          aria-label="Blur pictures when it opens"
+          data-testid="quick-hide-open"
+          [checked]="quickHide.settings().obscureOnOpen"
+          (change)="setQuickHide({ obscureOnOpen: $any($event.target).checked })"
+        />
+      </div>
+      <label class="field">
+        <span class="field-label">Blur pictures when idle</span>
+        <select
+          class="text-input"
+          data-testid="quick-hide-idle"
+          [value]="quickHide.settings().idleMinutes"
+          (change)="setQuickHide({ idleMinutes: +$any($event.target).value })"
+        >
+          @for (option of idleOptions; track option.value) {
+            <option
+              [value]="option.value"
+              [selected]="option.value === quickHide.settings().idleMinutes"
+            >
+              {{ option.label }}
+            </option>
+          }
+        </select>
+        <span class="muted">With no touch, key or scroll for this long.</span>
+      </label>
     </section>
   }
 </section>

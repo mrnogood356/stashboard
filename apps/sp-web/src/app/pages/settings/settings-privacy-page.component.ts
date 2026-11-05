@@ -1,6 +1,11 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AppLockService } from '../../core/app-lock/app-lock.service';
+import {
+  IDLE_OPTIONS,
+  QuickHideService,
+  QuickHideSettings,
+} from '../../core/quick-hide/quick-hide.service';
 
 export const LOCK_TIMEOUT_OPTIONS = [
   { value: 0, label: 'Immediately' },
@@ -19,6 +24,8 @@ export const LOCK_TIMEOUT_OPTIONS = [
 export class SettingsPrivacyPageComponent implements OnInit {
   protected readonly appLock = inject(AppLockService);
   protected readonly timeoutOptions = LOCK_TIMEOUT_OPTIONS;
+  protected readonly quickHide = inject(QuickHideService);
+  protected readonly idleOptions = IDLE_OPTIONS;
 
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
@@ -45,6 +52,10 @@ export class SettingsPrivacyPageComponent implements OnInit {
       this.hideInSwitcher = status.hideInSwitcher;
     }
     this.loading.set(false);
+  }
+
+  protected setQuickHide(change: Partial<QuickHideSettings>): void {
+    this.quickHide.save({ ...this.quickHide.settings(), ...change });
   }
 
   protected pinNeeded(): boolean {
