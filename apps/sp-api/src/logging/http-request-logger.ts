@@ -35,6 +35,20 @@ const POLLED = [
 
 type RequestLogger = Pick<Logger, 'debug' | 'warn' | 'verbose'>;
 
+/** An API request still being answered, for the stall watchdog. */
+export interface InFlightRequest {
+  method: string;
+  /** Path and query, secrets removed. */
+  url: string;
+  path: string;
+  /** performance.now() when it started. */
+  startedAt: number;
+}
+
+/** Every API request being answered right now, by an id of its own. */
+export const inFlightRequests = new Map<number, InFlightRequest>();
+let nextRequestId = 1;
+
 /**
  * One line per API request: method, path (secrets in the query removed),
  * status, time taken and who asked. Debug normally; a warning for server
@@ -52,12 +66,20 @@ export function httpRequestLogger(
       return;
     }
     const started = now();
+    const id = nextRequestId++;
+    inFlightRequests.set(id, {
+      method: request.method,
+      url: redact(url),
+      path,
+      startedAt: started,
+    });
     let done = false;
     const finish = (aborted: boolean) => {
       if (done) {
         return;
       }
       done = true;
+      inFlightRequests.delete(id);
       try {
         const ms = Math.round(now() - started);
         const status = aborted ? 'aborted' : String(response.statusCode);

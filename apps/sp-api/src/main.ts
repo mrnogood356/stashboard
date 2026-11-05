@@ -1,5 +1,6 @@
 // Before anything reads its settings: the names from before the rename.
 import './legacy-env';
+import { StallWatchdog } from './logging/stall-watchdog';
 import { existsSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { Logger } from '@nestjs/common';
@@ -73,6 +74,8 @@ async function bootstrap() {
   const host = process.env.HOST ?? '0.0.0.0';
 
   await app.listen(port, host);
+  // Says in the logs when the server stops answering, with what it was doing.
+  new StallWatchdog().start();
   new Logger('Stashboard').log(
     `Stashboard ${resolveBuildInfo().version} listening on ${host}:${port}` +
       ` · log level ${appLogger.level}` +
