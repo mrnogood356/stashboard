@@ -1,0 +1,87 @@
+<main class="app-page-shell">
+  <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Schedules</h1>
+      <p>When jobs run by themselves. Changes save as you make them.</p>
+    </div>
+  </header>
+
+  @if (data(); as info) {
+    <p class="muted clock">
+      Times are the server’s ({{ info.timeZone }}), now {{ when(info.serverTime) }}.
+    </p>
+    <ul class="schedules">
+      @for (schedule of info.schedules; track schedule.job) {
+        <li class="schedule panel" [attr.data-testid]="'schedule-' + schedule.job">
+          <div class="schedule-head">
+            <div>
+              <h2>{{ schedule.label }}</h2>
+              <p class="muted">{{ schedule.detail }}</p>
+            </div>
+            @if (!schedule.switchIn) {
+              <input
+                type="checkbox"
+                class="app-switch"
+                role="switch"
+                [attr.aria-label]="schedule.label"
+                [checked]="schedule.enabled"
+                [disabled]="saving() === schedule.job"
+                (change)="setEnabled(schedule, $any($event.target).checked)"
+              />
+            }
+          </div>
+          @if (schedule.switchIn) {
+            <p class="muted small">On or off in {{ schedule.switchIn }}.</p>
+          }
+          <div class="when-row">
+            <label class="time">
+              <span class="field-label">At</span>
+              <input
+                type="time"
+                class="text-input"
+                [value]="timeValue(schedule)"
+                [disabled]="saving() === schedule.job"
+                (change)="setTime(schedule, $any($event.target).value)"
+              />
+            </label>
+            <div class="days" role="group" [attr.aria-label]="'Days for ' + schedule.label">
+              @for (name of dayNames; track $index) {
+                <button
+                  type="button"
+                  class="day"
+                  [class.on]="onDay(schedule, $index)"
+                  [attr.aria-pressed]="onDay(schedule, $index)"
+                  [disabled]="saving() === schedule.job"
+                  (click)="toggleDay(schedule, $index)"
+                >
+                  {{ name }}
+                </button>
+              }
+            </div>
+          </div>
+          <p class="muted small status">
+            @if (schedule.nextRunAt) {
+              Next: {{ when(schedule.nextRunAt) }}.
+            } @else if (!schedule.switchIn) {
+              Off.
+            }
+            @if (schedule.lastRunAt) {
+              Last: {{ when(schedule.lastRunAt)
+              }}{{ schedule.lastStatus ? ' · ' + schedule.lastStatus : '' }}.
+            }
+          </p>
+        </li>
+      }
+    </ul>
+  } @else if (error()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+      <span>Couldn’t read the schedules right now.</span>
+    </div>
+  } @else {
+    <p class="muted loading" role="status">
+      <span class="spinner" aria-hidden="true"></span> Loading…
+    </p>
+  }
+</main>

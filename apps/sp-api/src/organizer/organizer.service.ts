@@ -6,7 +6,6 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
 import { Prisma, SceneLifecycle } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { IndexingService } from '../indexing/indexing.service';
@@ -269,7 +268,7 @@ export class OrganizerService
     return this.status();
   }
 
-  @Cron('0 4 * * *')
+  /** Run by Schedules (4:00 unless changed there), when "Match every night" is on. */
   async nightly(): Promise<void> {
     try {
       const settings = await this.getSettings();
@@ -293,7 +292,7 @@ export class OrganizerService
    * Stash but missing in Whisparr". Once a day, after the nightly match, they
    * are sent too.
    */
-  @Cron('30 5 * * *')
+  /** Run by Schedules (5:30 unless changed there). */
   async sendMissingDaily(): Promise<void> {
     try {
       const settings = await this.getSettings();

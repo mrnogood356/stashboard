@@ -670,3 +670,18 @@ model HealthSample {
   @@index([service, at])
   @@index([at])
 }
+
+/// When a scheduled job runs: Library tools → Schedules. Times are the
+/// server's local time (the container's TZ).
+model JobSchedule {
+  /// organizer-match, send-missing, stash-scan, stash-generate, stash-clean
+  job        String    @id
+  enabled    Boolean   @default(false)
+  hour       Int       @default(4)
+  minute     Int       @default(0)
+  /// 0 is Sunday; empty is every day.
+  days       Int[]     @default([])
+  lastRunAt  DateTime?
+  lastStatus String?
+  updatedAt  DateTime  @updatedAt
+}

@@ -116,6 +116,11 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'tools/schedules',
+        loadComponent: () =>
+          import('./pages/tools/schedules-page.component').then((m) => m.SchedulesPageComponent),
+      },
+      {
         path: 'tools/duplicates',
         loadComponent: () =>
           import('./pages/tools/duplicates-page.component').then((m) => m.DuplicatesPageComponent),

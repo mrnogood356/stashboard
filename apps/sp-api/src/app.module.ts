@@ -1,5 +1,6 @@
 import { SuggestionsModule } from './suggestions/suggestions.module';
 import { PlaybackModule } from './playback/playback.module';
+import { SchedulesModule } from './schedules/schedules.module';
 import { ActivityModule } from './activity/activity.module';
 import { AutomationModule } from './automation/automation.module';
 import { OrganizerModule } from './organizer/organizer.module';
@@ -64,6 +65,7 @@ import { StudiosModule } from './studios/studios.module';
     NotificationsModule,
     HiddenContentModule,
     PlaybackModule,
+    SchedulesModule,
     ClientLogModule,
     AboutModule,
     LogsModule,
