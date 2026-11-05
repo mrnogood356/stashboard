@@ -63,7 +63,7 @@
           <p class="muted small status">
             @if (schedule.nextRunAt) {
               Next: {{ when(schedule.nextRunAt) }}.
-            } @else if (!schedule.switchIn) {
+            } @else {
               Off.
             }
             @if (schedule.lastRunAt) {

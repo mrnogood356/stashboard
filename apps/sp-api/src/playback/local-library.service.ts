@@ -929,11 +929,6 @@ const CODEC_EFFICIENCY: Record<string, number> = {
   avc: 1,
 };
 
-/** Within 5% of the larger counts as the same, whichever is asked first. */
-function sameBitRate(a: number, b: number): boolean {
-  return Math.abs(a - b) <= Math.max(a, b) * 0.05;
-}
-
 function pixels(scene: StashDuplicateScene): number {
   return (scene.file?.width ?? 0) * (scene.file?.height ?? 0);
 }
@@ -954,37 +949,38 @@ export function pickKeeperWithReason(group: StashDuplicateScene[]): {
   id: string;
   reason: string;
 } {
-  const score = (scene: StashDuplicateScene) => [
-    pixels(scene),
-    effectiveBitRate(scene),
-    scene.file?.duration ?? 0,
-    scene.playCount,
-  ];
-  // One pass, keeping the better of each pair, so the pick never depends on
-  // the order Stash listed the copies in.
-  const better = (left: StashDuplicateScene, right: StashDuplicateScene) => {
-    const a = score(left);
-    const b = score(right);
-    for (let index = 0; index < a.length; index += 1) {
-      if (
-        index === 1 ? !sameBitRate(a[index], b[index]) : a[index] !== b[index]
-      ) {
-        return a[index] > b[index] ? left : right;
-      }
-    }
-    // A full tie: the older scene (lower id), the same whichever comes first.
-    return left.id.localeCompare(right.id, undefined, { numeric: true }) <= 0
-      ? left
-      : right;
-  };
-  const best = group.reduce((kept, scene) => better(kept, scene));
+  const { best, maxRate } = rankCopies(group);
   const rest = group.filter((scene) => scene !== best);
-  const next =
-    rest.length > 0 ? rest.reduce((kept, scene) => better(kept, scene)) : null;
+  const next = rest.length > 0 ? rankCopies(rest).best : null;
   return {
     id: best.id,
-    reason: next ? keepReason(best, next) : 'The only copy.',
+    reason: next ? keepReason(best, next, maxRate) : 'The only copy.',
   };
+}
+
+/**
+ * The best copy, by stages measured against the whole group, never pair by
+ * pair, so the answer is the same in any order: the highest resolution;
+ * among those, any within 5% of the most picture for its codec; then the
+ * longest, the most played, and the lowest id.
+ */
+function rankCopies(group: StashDuplicateScene[]): {
+  best: StashDuplicateScene;
+  maxRate: number;
+} {
+  const topPixels = Math.max(...group.map(pixels));
+  const sharpest = group.filter((scene) => pixels(scene) === topPixels);
+  const maxRate = Math.max(...sharpest.map(effectiveBitRate));
+  const finest = sharpest.filter(
+    (scene) => effectiveBitRate(scene) >= maxRate * 0.95,
+  );
+  const best = [...finest].sort(
+    (left, right) =>
+      (right.file?.duration ?? 0) - (left.file?.duration ?? 0) ||
+      right.playCount - left.playCount ||
+      left.id.localeCompare(right.id, undefined, { numeric: true }),
+  )[0];
+  return { best, maxRate };
 }
 
 /** Highest resolution wins, then picture for the codec, then length, then most played. */
@@ -995,16 +991,15 @@ export function pickKeeper(group: StashDuplicateScene[]): string {
 function keepReason(
   best: StashDuplicateScene,
   next: StashDuplicateScene,
+  maxRate: number,
 ): string {
   if (pixels(best) > pixels(next)) {
     return 'Highest resolution.';
   }
-  const bestCodec = (best.file?.videoCodec ?? '').toLowerCase();
-  const nextCodec = (next.file?.videoCodec ?? '').toLowerCase();
-  if (
-    !sameBitRate(effectiveBitRate(best), effectiveBitRate(next)) &&
-    effectiveBitRate(best) > effectiveBitRate(next)
-  ) {
+  // The same 5% line rankCopies drew: the runner-up fell outside it.
+  if (effectiveBitRate(next) < maxRate * 0.95) {
+    const bestCodec = (best.file?.videoCodec ?? '').toLowerCase();
+    const nextCodec = (next.file?.videoCodec ?? '').toLowerCase();
     return (CODEC_EFFICIENCY[bestCodec] ?? 0) >
       (CODEC_EFFICIENCY[nextCodec] ?? 0)
       ? `Same resolution, and ${bestCodec.toUpperCase()} keeps more picture than ${nextCodec.toUpperCase() || 'the other'}.`

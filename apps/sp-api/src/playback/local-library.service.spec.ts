@@ -440,11 +440,32 @@ describe('LocalLibraryService', () => {
         copy('b', 'h264', 8.2e6, 3),
       ]),
     ).toEqual({ id: 'b', reason: 'Same quality, and the one you’ve played.' });
-    // Near the 5% line the pick doesn't depend on the order of the copies.
+    // Near the 5% line the pick doesn't depend on the order of the copies,
+    // even when pairs would beat each other in a circle.
     const near = [copy('x', 'h264', 100), copy('y', 'h264', 105.2)];
     expect(pickKeeperWithReason(near).id).toBe(
       pickKeeperWithReason([...near].reverse()).id,
     );
+    const long = (id: string, rate: number, duration: number) => ({
+      ...copy(id, 'h264', rate),
+      file: { ...copy(id, 'h264', rate).file, duration },
+    });
+    const a = long('a', 100, 300);
+    const b = long('b', 104, 200);
+    const c = long('c', 108, 100);
+    const orders = [
+      [a, b, c],
+      [a, c, b],
+      [b, a, c],
+      [b, c, a],
+      [c, a, b],
+      [c, b, a],
+    ];
+    const picks = new Set(
+      orders.map((order) => pickKeeperWithReason(order).id),
+    );
+    // Only b and c are within 5% of the best (108); b is the longer of them.
+    expect([...picks]).toEqual(['b']);
   });
 
   it('counts the fix-my-library lists, treating a failing list as zero', async () => {

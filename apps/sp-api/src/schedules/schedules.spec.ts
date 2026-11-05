@@ -38,7 +38,13 @@ describe('schedules', () => {
     const prisma = {
       jobSchedule: { findMany: jest.fn().mockResolvedValue(rows), upsert },
     };
-    const organizer = { nightly: jest.fn(), sendMissingDaily: jest.fn() };
+    const organizer = {
+      getSettings: jest
+        .fn()
+        .mockResolvedValue({ autoMatchNightly: false, sendToWhisparr: true }),
+      nightly: jest.fn().mockResolvedValue('Off: Every night is switched off'),
+      sendMissingDaily: jest.fn().mockResolvedValue('Nothing to send'),
+    };
     const library = { startJob: jest.fn().mockResolvedValue({ jobId: '1' }) };
     const service = new SchedulesService(
       prisma as never,
@@ -54,8 +60,14 @@ describe('schedules', () => {
     await four.service.tick();
     expect(four.organizer.nightly).toHaveBeenCalled();
     expect(four.library.startJob).not.toHaveBeenCalled();
+    // What it actually did is what's shown, not just "Started".
     expect(four.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { job: 'organizer-match' } }),
+      expect.objectContaining({
+        where: { job: 'organizer-match' },
+        update: expect.objectContaining({
+          lastStatus: 'Off: Every night is switched off',
+        }),
+      }),
     );
 
     // Stash's scan is off by default; switched on at 3:00 it runs.
@@ -118,5 +130,17 @@ describe('schedules', () => {
       }),
     );
     await expect(service.update('rm-rf', daily)).rejects.toThrow('no such job');
+  });
+
+  it('shows no next run for an organizer job switched off in its settings', async () => {
+    const { service } = setup();
+    service.now = () => at(2026, 11, 8, 1, 0);
+    const { schedules } = await service.list();
+    const match = schedules.find((s) => s.job === 'organizer-match')!;
+    const send = schedules.find((s) => s.job === 'send-missing')!;
+    expect(match.enabled).toBe(false);
+    expect(match.nextRunAt).toBeNull();
+    expect(send.enabled).toBe(true);
+    expect(send.nextRunAt).not.toBeNull();
   });
 });

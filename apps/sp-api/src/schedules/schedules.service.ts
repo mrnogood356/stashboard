@@ -57,6 +57,12 @@ export class SchedulesService {
       (await this.prisma.jobSchedule.findMany()).map((row) => [row.job, row]),
     );
     const now = this.now();
+    // The organizer's two jobs are switched on and off in its own settings.
+    const organizer = await this.organizer?.getSettings().catch(() => null);
+    const switchedOn: Partial<Record<ScheduledJob, boolean>> = {
+      'organizer-match': organizer?.autoMatchNightly ?? false,
+      'send-missing': organizer?.sendToWhisparr ?? false,
+    };
     return {
       serverTime: now.toISOString(),
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -71,13 +77,14 @@ export class SchedulesService {
               days: row.days,
             }
           : info.defaults;
-        const runs = info.switchIn ? true : time.enabled;
+        const runs = info.switchIn ? (switchedOn[job] ?? false) : time.enabled;
         return {
           job,
           label: info.label,
           detail: info.detail,
           switchIn: info.switchIn ?? null,
           ...time,
+          enabled: runs,
           lastRunAt: row?.lastRunAt?.toISOString() ?? null,
           lastStatus: row?.lastStatus ?? null,
           nextRunAt: runs ? (nextRun(time, now)?.toISOString() ?? null) : null,
@@ -117,6 +124,8 @@ export class SchedulesService {
       const now = this.now();
       const { schedules } = await this.list();
       for (const schedule of schedules) {
+        // The organizer's jobs run at their time either way and say why they
+        // did nothing; Stash's only when switched on.
         const runs = schedule.switchIn !== null || schedule.enabled;
         const last = schedule.lastRunAt ? new Date(schedule.lastRunAt) : null;
         if (runs && isDue(schedule, now, last)) {
@@ -137,11 +146,11 @@ export class SchedulesService {
     try {
       switch (job) {
         case 'organizer-match':
-          // Checks "Match every night" and whether the organizer is busy.
-          await this.organizer?.nightly();
+          // Says whether it started, was off, or the organizer was busy.
+          status = (await this.organizer?.nightly()) ?? status;
           break;
         case 'send-missing':
-          await this.organizer?.sendMissingDaily();
+          status = (await this.organizer?.sendMissingDaily()) ?? status;
           break;
         case 'stash-scan':
           await this.library?.startJob('scan');
@@ -169,9 +178,9 @@ export class SchedulesService {
         job,
         ...JOB_INFO[job].defaults,
         lastRunAt: now,
-        lastStatus: status,
+        lastStatus: status.slice(0, 300),
       },
-      update: { lastRunAt: now, lastStatus: status },
+      update: { lastRunAt: now, lastStatus: status.slice(0, 300) },
     });
   }
 }
