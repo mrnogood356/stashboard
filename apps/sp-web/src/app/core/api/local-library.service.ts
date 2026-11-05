@@ -22,6 +22,19 @@ export interface LocalSceneCard {
   source: 'STASH';
 }
 
+/** A chapter (Stash scene marker) from anywhere in the library. */
+export interface Chapter {
+  id: string;
+  title: string;
+  seconds: number;
+  endSeconds: number;
+  tagName: string | null;
+  sceneId: string;
+  sceneTitle: string;
+  imageUrl: string;
+  previewUrl: string;
+}
+
 export interface LocalScenePage {
   total: number;
   page: number;
@@ -174,6 +187,23 @@ export class LocalLibraryService {
     return this.http.post<LocalSceneDetails>(`/api/local/scenes/${enc(sceneId)}/watched`, {
       watched,
     });
+  }
+
+  /** Chapters across the library, by tag, performer or words. */
+  chapters(filter: { tag?: string; performer?: string; q?: string }): Observable<Chapter[]> {
+    const params: Record<string, string> = {};
+    for (const [key, value] of Object.entries(filter)) {
+      if (value) {
+        params[key] = value;
+      }
+    }
+    return this.http.get<Chapter[]>('/api/local/chapters', { params });
+  }
+
+  chapterTags(): Observable<Array<{ id: string; name: string; count: number }>> {
+    return this.http.get<Array<{ id: string; name: string; count: number }>>(
+      '/api/local/chapters/tags',
+    );
   }
 
   /** What you've played, latest first. */

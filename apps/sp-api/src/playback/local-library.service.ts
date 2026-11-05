@@ -59,6 +59,18 @@ export interface LocalSceneCardDto {
   source: 'STASH';
 }
 
+export interface ChapterDto {
+  id: string;
+  title: string;
+  seconds: number;
+  endSeconds: number;
+  tagName: string | null;
+  sceneId: string;
+  sceneTitle: string;
+  imageUrl: string;
+  previewUrl: string;
+}
+
 export interface LocalScenePageDto {
   total: number;
   page: number;
@@ -294,6 +306,39 @@ export class LocalLibraryService {
     ])
       .slice(0, RELATED_LIMIT)
       .map(toCard);
+  }
+
+  /** Chapters across the library, for chapter playlists. */
+  async chapters(options: {
+    tagId?: string | null;
+    performerId?: string | null;
+    query?: string | null;
+  }): Promise<ChapterDto[]> {
+    const config = await this.playback.getStashConfig();
+    const id = (value?: string | null) =>
+      value && /^\d{1,12}$/.test(value.trim()) ? value.trim() : null;
+    const chapters = await this.stash.findChapters(config, {
+      tagId: id(options.tagId),
+      performerId: id(options.performerId),
+      query: options.query?.slice(0, 100) ?? null,
+      limit: 500,
+    });
+    return chapters.map((chapter) => {
+      const scene = encodeURIComponent(chapter.sceneId);
+      const marker = encodeURIComponent(chapter.id);
+      return {
+        ...chapter,
+        imageUrl: `/api/media/stash/scenes/${scene}/markers/${marker}/screenshot`,
+        previewUrl: `/api/playback/scenes/${scene}/markers/${marker}/preview`,
+      };
+    });
+  }
+
+  async chapterTags(): Promise<
+    Array<{ id: string; name: string; count: number }>
+  > {
+    const config = await this.playback.getStashConfig();
+    return this.stash.listChapterTags(config);
   }
 
   /** What you've played, latest first. */

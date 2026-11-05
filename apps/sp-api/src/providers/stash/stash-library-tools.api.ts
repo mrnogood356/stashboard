@@ -27,6 +27,19 @@ import { trimTrailingSeparators } from '../../path-separators';
  * and what the organizer needs: scenes with their files, moving files, and
  * saving matches.
  */
+/** A chapter with no end and nothing after it plays this long. */
+const DEFAULT_CHAPTER_SECONDS = 60;
+
+export interface StashChapter {
+  id: string;
+  title: string;
+  seconds: number;
+  endSeconds: number;
+  tagName: string | null;
+  sceneId: string;
+  sceneTitle: string;
+}
+
 export abstract class StashLibraryToolsApi extends StashGraphqlClient {
   /**
    * Jobs Stashboard queued, by what they do. Stash runs one job at a time, so
@@ -1654,6 +1667,153 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
         },
       ];
     });
+  }
+
+  /**
+   * Chapters (scene markers) across the library, by tag, performer or words
+   * in the title. Each says where it ends: its own end time, else the next
+   * chapter in its scene, else a minute on (never past the scene's end).
+   */
+  async findChapters(
+    config: StashAdapterBaseConfig,
+    options: {
+      tagId?: string | null;
+      performerId?: string | null;
+      query?: string | null;
+      limit: number;
+    },
+  ): Promise<StashChapter[]> {
+    const markerFilter: Record<string, unknown> = {};
+    if (options.tagId) {
+      // A chapter counts when its main tag or any of its tags is this one.
+      markerFilter['tags'] = {
+        value: [options.tagId],
+        modifier: 'INCLUDES',
+        depth: 0,
+      };
+    }
+    if (options.performerId) {
+      markerFilter['performers'] = {
+        value: [options.performerId],
+        modifier: 'INCLUDES',
+      };
+    }
+    const payload = (await this.executeQuery(
+      config,
+      `query Chapters($filter: FindFilterType, $marker_filter: SceneMarkerFilterType) {
+        findSceneMarkers(filter: $filter, scene_marker_filter: $marker_filter) {
+          scene_markers {
+            id title seconds end_seconds
+            primary_tag { id name }
+            scene { id title files { duration } scene_markers { seconds } }
+          }
+        }
+      }`,
+      {
+        filter: {
+          per_page: Math.min(1000, Math.max(1, Math.floor(options.limit))),
+          sort: 'created_at',
+          direction: 'DESC',
+          ...(options.query?.trim() ? { q: options.query.trim() } : {}),
+        },
+        marker_filter: markerFilter,
+      },
+    )) as unknown as {
+      data?: {
+        findSceneMarkers?: { scene_markers?: Array<Record<string, unknown>> };
+      };
+    };
+    return (payload.data?.findSceneMarkers?.scene_markers ?? []).flatMap(
+      (marker) => {
+        const id = this.normalizeEntityId(idText(marker['id']));
+        const scene = marker['scene'] as Record<string, unknown> | null;
+        const sceneId = this.normalizeEntityId(idText(scene?.['id']));
+        const seconds = marker['seconds'];
+        if (!id || !sceneId || typeof seconds !== 'number' || seconds < 0) {
+          return [];
+        }
+        const tag = marker['primary_tag'] as Record<string, unknown> | null;
+        const files = Array.isArray(scene?.['files'])
+          ? (scene['files'] as Array<Record<string, unknown>>)
+          : [];
+        const duration = files.find(
+          (file) => typeof file['duration'] === 'number',
+        )?.['duration'] as number | undefined;
+        const others = (
+          Array.isArray(scene?.['scene_markers'])
+            ? (scene['scene_markers'] as Array<Record<string, unknown>>)
+            : []
+        )
+          .map((other) => other['seconds'])
+          .filter(
+            (value): value is number =>
+              typeof value === 'number' && value > seconds + 0.5,
+          )
+          .sort((a, b) => a - b);
+        const own = marker['end_seconds'];
+        let end =
+          typeof own === 'number' && own > seconds
+            ? own
+            : (others[0] ?? seconds + DEFAULT_CHAPTER_SECONDS);
+        if (duration && duration > seconds) {
+          end = Math.min(end, duration);
+        }
+        const title =
+          (typeof marker['title'] === 'string' && marker['title'].trim()) ||
+          (typeof tag?.['name'] === 'string' ? tag['name'] : '') ||
+          'Chapter';
+        const sceneTitle =
+          typeof scene?.['title'] === 'string' && scene['title'].trim()
+            ? scene['title'].trim()
+            : `Scene #${sceneId}`;
+        return [
+          {
+            id,
+            title,
+            seconds,
+            endSeconds: end,
+            tagName: typeof tag?.['name'] === 'string' ? tag['name'] : null,
+            sceneId,
+            sceneTitle,
+          },
+        ];
+      },
+    );
+  }
+
+  /** Tags used on chapters, the most used first. */
+  async listChapterTags(
+    config: StashAdapterBaseConfig,
+  ): Promise<Array<{ id: string; name: string; count: number }>> {
+    const payload = (await this.executeQuery(
+      config,
+      `query ChapterTags($filter: FindFilterType, $tag_filter: TagFilterType) {
+        findTags(filter: $filter, tag_filter: $tag_filter) {
+          tags { id name scene_marker_count }
+        }
+      }`,
+      {
+        filter: {
+          per_page: 200,
+          sort: 'scene_markers_count',
+          direction: 'DESC',
+        },
+        tag_filter: { marker_count: { value: 0, modifier: 'GREATER_THAN' } },
+      },
+    )) as unknown as {
+      data?: { findTags?: { tags?: Array<Record<string, unknown>> } };
+    };
+    return (payload.data?.findTags?.tags ?? [])
+      .flatMap((tag) => {
+        const id = this.normalizeEntityId(idText(tag['id']));
+        const name = typeof tag['name'] === 'string' ? tag['name'] : null;
+        const count =
+          typeof tag['scene_marker_count'] === 'number'
+            ? tag['scene_marker_count']
+            : 0;
+        return id && name && count > 0 ? [{ id, name, count }] : [];
+      })
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }
 
   /** Stash moves the sources' scenes onto the destination and deletes the sources. */

@@ -155,6 +155,11 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'chapters',
+        loadComponent: () =>
+          import('./pages/chapters/chapters-page.component').then((m) => m.ChaptersPageComponent),
+      },
+      {
         path: 'history',
         loadComponent: () =>
           import('./pages/history/history-page.component').then((m) => m.HistoryPageComponent),

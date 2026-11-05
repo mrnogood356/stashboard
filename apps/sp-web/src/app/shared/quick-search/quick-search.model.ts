@@ -44,6 +44,12 @@ export const QUICK_PAGES: readonly QuickPage[] = [
     icon: 'pi-bookmark',
     keywords: 'saved queue playlist later',
   },
+  {
+    label: 'Chapters',
+    url: '/chapters',
+    icon: 'pi-list',
+    keywords: 'markers playlist shuffle compilation',
+  },
   { label: 'History', url: '/history', icon: 'pi-history', keywords: 'played watched recent' },
   { label: 'Requests', url: '/acquisition', icon: 'pi-inbox', keywords: 'wanted whisparr queue' },
   {

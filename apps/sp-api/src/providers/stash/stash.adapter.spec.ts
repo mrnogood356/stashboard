@@ -1501,6 +1501,74 @@ describe('StashAdapter', () => {
         variables: Record<string, unknown>;
       };
 
+    it('lists chapters with where each ends, filtered by tag and words', async () => {
+      const scene = (id: string, duration: number, starts: number[]) => ({
+        id,
+        title: `Scene ${id}`,
+        files: [{ duration }],
+        scene_markers: starts.map((seconds) => ({ seconds })),
+      });
+      fetchMock.mockResolvedValue(
+        ok({
+          findSceneMarkers: {
+            scene_markers: [
+              // Its own end time.
+              {
+                id: '1',
+                title: 'Own',
+                seconds: 10,
+                end_seconds: 25,
+                primary_tag: { name: 'T' },
+                scene: scene('5', 600, [10, 200]),
+              },
+              // Up to the next chapter in its scene.
+              {
+                id: '2',
+                title: '',
+                seconds: 200,
+                primary_tag: { name: 'Pool' },
+                scene: scene('6', 600, [200, 260]),
+              },
+              // Nothing after it: a minute, but not past the end.
+              {
+                id: '3',
+                title: 'Last',
+                seconds: 570,
+                primary_tag: { name: 'T' },
+                scene: scene('7', 600, [570]),
+              },
+              { id: '9', seconds: 1, scene: null },
+            ],
+          },
+        }),
+      );
+
+      const chapters = await adapter.findChapters(config, {
+        tagId: '4',
+        query: ' beach ',
+        limit: 500,
+      });
+
+      expect(
+        chapters.map((c) => [c.id, c.title, c.seconds, c.endSeconds]),
+      ).toEqual([
+        ['1', 'Own', 10, 25],
+        ['2', 'Pool', 200, 260],
+        ['3', 'Last', 570, 600],
+      ]);
+      expect(sentBody(0).variables).toEqual({
+        filter: {
+          per_page: 500,
+          sort: 'created_at',
+          direction: 'DESC',
+          q: 'beach',
+        },
+        marker_filter: {
+          tags: { value: ['4'], modifier: 'INCLUDES', depth: 0 },
+        },
+      });
+    });
+
     it('saves rating, organized and tags with sceneUpdate', async () => {
       fetchMock.mockResolvedValue(ok({ sceneUpdate: { id: '5' } }));
 

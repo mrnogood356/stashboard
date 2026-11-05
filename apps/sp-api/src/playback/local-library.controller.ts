@@ -36,6 +36,7 @@ import {
   UpdateLocalSceneDto,
 } from './dto/local-library.dto';
 import {
+  ChapterDto,
   LocalBulkResultDto,
   LocalLibraryService,
   LocalPerformerDto,
@@ -208,6 +209,25 @@ export class LocalLibraryController {
   @Get('search')
   search(@Query() query: TagSearchQueryDto): Promise<LocalSearchDto> {
     return this.library.search(query.query ?? '');
+  }
+
+  /** Chapters across the library, by tag, performer or words. */
+  @Get('chapters')
+  chapters(
+    @Query('tag') tag?: string,
+    @Query('performer') performer?: string,
+    @Query('q') q?: string,
+  ): Promise<ChapterDto[]> {
+    return this.library.chapters({
+      tagId: tag,
+      performerId: performer,
+      query: q,
+    });
+  }
+
+  @Get('chapters/tags')
+  chapterTags(): Promise<Array<{ id: string; name: string; count: number }>> {
+    return this.library.chapterTags();
   }
 
   /** What you've played, latest first. */

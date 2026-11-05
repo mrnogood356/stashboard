@@ -1,0 +1,94 @@
+<main class="app-page-shell app-page-shell--wide">
+  <app-section-back />
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Chapters</h1>
+      <p>Chapters from across your library, played back to back. Pick a tag or search.</p>
+    </div>
+  </header>
+
+  <div class="filters">
+    <input
+      class="search"
+      type="search"
+      name="q"
+      placeholder="Search chapters, scenes or tags"
+      aria-label="Search chapters"
+      [(ngModel)]="query"
+      (ngModelChange)="onType()"
+    />
+    @if (performer(); as who) {
+      <button type="button" class="chip on" (click)="clearPerformer()">
+        {{ who.name }} <i class="pi pi-times" aria-hidden="true"></i>
+      </button>
+    }
+    @if (tags().length > 0) {
+      <div class="chips" role="group" aria-label="Tags">
+        @for (item of tags(); track item.id) {
+          <button
+            type="button"
+            class="chip"
+            [class.on]="tag() === item.id"
+            [attr.aria-pressed]="tag() === item.id"
+            (click)="pickTag(item.id)"
+          >
+            {{ item.name }} <span class="count">{{ item.count }}</span>
+          </button>
+        }
+      </div>
+    }
+  </div>
+
+  @if (chapters(); as list) {
+    @if (list.length === 0) {
+      <p class="muted">No chapters match. Add chapters from the player’s chapter list.</p>
+    } @else {
+      <div class="actions">
+        <button type="button" class="app-btn app-btn--primary" (click)="play()">
+          <i class="pi pi-play" aria-hidden="true"></i> Play all
+        </button>
+        <button type="button" class="app-btn" (click)="play(0, true)">
+          <i class="pi pi-sort-alt-slash" aria-hidden="true"></i> Shuffle
+        </button>
+        <span class="muted total"
+          >{{ list.length }} chapter{{ list.length === 1 ? '' : 's'
+          }}{{ list.length >= 500 ? ' (the newest 500)' : '' }}</span
+        >
+      </div>
+      <ul class="grid">
+        @for (chapter of list; track chapter.id; let i = $index) {
+          <li>
+            <button
+              type="button"
+              class="chapter"
+              [attr.data-testid]="'chapter-' + chapter.id"
+              [attr.aria-label]="'Play from ' + chapter.title + ' in ' + chapter.sceneTitle"
+              (click)="play(i)"
+            >
+              <span class="art">
+                <app-clip-preview [clip]="previewsOn() ? chapter.previewUrl : null">
+                  <img
+                    [src]="chapter.imageUrl"
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    (error)="$any($event.target).classList.add('is-failed')"
+                  />
+                </app-clip-preview>
+                <span class="length">{{ length(chapter) }}</span>
+              </span>
+              <span class="name">{{ chapter.title }}</span>
+              <span class="scene"
+                >{{ chapter.sceneTitle }} · {{ formatTime(chapter.seconds) }}</span
+              >
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  } @else if (error()) {
+    <div class="notice" role="alert">Couldn’t read chapters right now.</div>
+  } @else {
+    <p class="muted" role="status">Loading…</p>
+  }
+</main>
