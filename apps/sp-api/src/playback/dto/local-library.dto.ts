@@ -174,6 +174,24 @@ export class DeleteSceneQueryDto {
   carryTo?: string;
 }
 
+/** Library → Chapters. One value each: a repeated parameter is refused. */
+export class ChaptersQueryDto {
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{1,12}$/)
+  tag?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{1,12}$/)
+  performer?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  q?: string;
+}
+
 export class IgnoreDuplicatesDto {
   @IsArray()
   @ArrayMinSize(2)

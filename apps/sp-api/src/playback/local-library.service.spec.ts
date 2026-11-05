@@ -48,6 +48,7 @@ describe('LocalLibraryService', () => {
     deleteScene: jest.fn().mockResolvedValue(undefined),
     mergeTags: jest.fn().mockResolvedValue(undefined),
     listForMerge: jest.fn(),
+    findChapters: jest.fn().mockResolvedValue([]),
     mergePerformers: jest.fn().mockResolvedValue(undefined),
     mergeStudios: jest.fn().mockResolvedValue(undefined),
     startLibraryTask: jest.fn().mockResolvedValue('7'),
@@ -90,6 +91,24 @@ describe('LocalLibraryService', () => {
       'gone from Stash',
     );
     expect(stash.mergeTags).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes only plain strings to Stash for chapters and merge searches', async () => {
+    await service.chapters({
+      tagId: ['1', '2'] as unknown as string,
+      performerId: ' 33 ',
+      query: ['a', 'b'] as unknown as string,
+    });
+    expect(stash.findChapters).toHaveBeenCalledWith(expect.anything(), {
+      tagId: null,
+      performerId: '33',
+      query: null,
+      limit: 500,
+    });
+    stash.listForMerge.mockResolvedValue([]);
+    await expect(
+      service.mergeCandidates('performer', ['x'] as unknown as string),
+    ).resolves.toEqual({ groups: [], matches: [] });
   });
 
   it('suggests performers entered twice, and merges only ones Stash still has', async () => {

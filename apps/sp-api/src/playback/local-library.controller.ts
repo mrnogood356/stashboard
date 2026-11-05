@@ -29,6 +29,7 @@ import {
   MergeTagsDto,
   MergeEntitiesDto,
   IgnoreDuplicatesDto,
+  ChaptersQueryDto,
   LocalBulkScenesDto,
   LIBRARY_TASKS,
   FavoriteDto,
@@ -255,15 +256,11 @@ export class LocalLibraryController {
 
   /** Chapters across the library, by tag, performer or words. */
   @Get('chapters')
-  chapters(
-    @Query('tag') tag?: string,
-    @Query('performer') performer?: string,
-    @Query('q') q?: string,
-  ): Promise<ChapterDto[]> {
+  chapters(@Query() query: ChaptersQueryDto): Promise<ChapterDto[]> {
     return this.library.chapters({
-      tagId: tag,
-      performerId: performer,
-      query: q,
+      tagId: query.tag,
+      performerId: query.performer,
+      query: query.q,
     });
   }
 

@@ -328,12 +328,17 @@ export class LocalLibraryService {
     query?: string | null;
   }): Promise<ChapterDto[]> {
     const config = await this.playback.getStashConfig();
-    const id = (value?: string | null) =>
-      value && /^\d{1,12}$/.test(value.trim()) ? value.trim() : null;
+    // Only plain strings reach Stash, whatever the request held.
+    const id = (value: unknown) =>
+      typeof value === 'string' && /^\d{1,12}$/.test(value.trim())
+        ? value.trim()
+        : null;
+    const words =
+      typeof options.query === 'string' ? options.query.slice(0, 100) : null;
     const chapters = await this.stash.findChapters(config, {
       tagId: id(options.tagId),
       performerId: id(options.performerId),
-      query: options.query?.slice(0, 100) ?? null,
+      query: words,
       limit: 500,
     });
     return chapters.map((chapter) => {
@@ -738,7 +743,7 @@ export class LocalLibraryService {
       keepId: group.keepId,
       items: group.tags.map((tag) => byId.get(tag.id)!),
     }));
-    const words = nameKey(query ?? '');
+    const words = nameKey(typeof query === 'string' ? query.slice(0, 100) : '');
     const matches = words
       ? all
           .filter((item) =>
