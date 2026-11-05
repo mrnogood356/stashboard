@@ -124,6 +124,13 @@ export const routes: Routes = [
           import('./pages/calendar/calendar-page.component').then((m) => m.CalendarPageComponent),
       },
       {
+        path: 'you-may-enjoy',
+        loadComponent: () =>
+          import('./pages/you-may-enjoy/you-may-enjoy-page.component').then(
+            (m) => m.YouMayEnjoyPageComponent,
+          ),
+      },
+      {
         path: 'acquisition',
         loadComponent: () =>
           import('./pages/acquisition/acquisition-page.component').then(

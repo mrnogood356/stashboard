@@ -1,12 +1,22 @@
 <section
-  class="enjoy app-section-panel"
-  aria-labelledby="you-may-enjoy"
+  class="enjoy"
+  [class.app-section-panel]="!full"
+  [class.is-full]="full"
+  [attr.aria-labelledby]="full ? null : 'you-may-enjoy'"
+  [attr.aria-label]="full ? 'Suggested scenes' : null"
   data-testid="you-may-enjoy"
 >
-  <div class="enjoy-head">
-    <h2 id="you-may-enjoy">You may enjoy</h2>
-    <p class="muted">Scenes you don’t have yet, picked from what you watch most.</p>
-  </div>
+  @if (!full) {
+    <div class="enjoy-head">
+      <div>
+        <h2 id="you-may-enjoy">You may enjoy</h2>
+        <p class="muted">Scenes you don’t have yet, picked from what you watch most.</p>
+      </div>
+      @if (items().length > 0) {
+        <a class="see-all" routerLink="/you-may-enjoy" data-testid="enjoy-see-all">See all</a>
+      }
+    </div>
+  }
 
   @if (loading()) {
     <p class="muted" role="status">Picking scenes…</p>
@@ -17,7 +27,7 @@
   } @else {
     <ul class="enjoy-grid">
       @for (item of items(); track item.id; let index = $index) {
-        <li class="enjoy-item" [class.extra]="index >= first && !expanded()">
+        <li class="enjoy-item" [class.extra]="!full && index >= first && !expanded()">
           <app-scene-card
             [item]="item"
             studioBadgeRoute="studio"

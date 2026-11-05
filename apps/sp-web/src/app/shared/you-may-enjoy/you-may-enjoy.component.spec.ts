@@ -28,7 +28,7 @@ const suggestion = (id: string, reason: string): Suggestion =>
 describe('YouMayEnjoyComponent', () => {
   afterEach(() => TestBed.resetTestingModule());
 
-  async function render(api: Partial<SuggestionsApiService>) {
+  async function render(api: Partial<SuggestionsApiService>, full = false) {
     await TestBed.configureTestingModule({
       imports: [YouMayEnjoyComponent],
       providers: [
@@ -38,6 +38,7 @@ describe('YouMayEnjoyComponent', () => {
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(YouMayEnjoyComponent);
+    fixture.componentRef.setInput('full', full);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -63,6 +64,23 @@ describe('YouMayEnjoyComponent', () => {
     fixture.detectChanges();
     expect(dismiss).toHaveBeenCalledWith(items[0]);
     expect(root.textContent).not.toContain('Because you watch Kaitlyn');
+  });
+
+  it('links the section to its own page, which lists every pick', async () => {
+    const items = Array.from({ length: 10 }, (_, i) => suggestion(`s${i}`, 'From Vixen'));
+    const section = await render({ list: vi.fn().mockReturnValue(of({ items, message: null })) });
+    expect(
+      section.nativeElement.querySelector('[data-testid="enjoy-see-all"]')?.getAttribute('href'),
+    ).toBe('/you-may-enjoy');
+    TestBed.resetTestingModule();
+
+    const list = vi.fn().mockReturnValue(of({ items, message: null }));
+    const page = await render({ list }, true);
+    const root = page.nativeElement as HTMLElement;
+    expect(list).toHaveBeenCalledWith(60);
+    expect(root.querySelectorAll('.enjoy-item:not(.extra)').length).toBe(10);
+    expect(root.querySelector('[data-testid="show-more"]')).toBeNull();
+    expect(root.querySelector('[data-testid="enjoy-see-all"]')).toBeNull();
   });
 
   it('says why when there’s nothing, and fails quietly', async () => {

@@ -39,6 +39,12 @@ export const QUICK_PAGES: readonly QuickPage[] = [
   { label: 'Studios', url: '/studios', icon: 'pi-building' },
   { label: 'Library', url: '/library', icon: 'pi-folder-open', keywords: 'stash mine owned' },
   { label: 'Requests', url: '/acquisition', icon: 'pi-inbox', keywords: 'wanted whisparr queue' },
+  {
+    label: 'You may enjoy',
+    url: '/you-may-enjoy',
+    icon: 'pi-sparkles',
+    keywords: 'suggestions recommended for you',
+  },
   { label: 'Downloads', url: '/processing', icon: 'pi-sync', keywords: 'sabnzbd drop-ins' },
   { label: 'Swipe feed', url: '/feed', icon: 'pi-mobile', feed: true },
   { label: 'Search', url: '/search', icon: 'pi-search' },
