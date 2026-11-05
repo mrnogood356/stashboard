@@ -1,3 +1,4 @@
+import type { StatsFile } from '../../playback/library-stats.util';
 import { BadGatewayException } from '@nestjs/common';
 import { stashImageVersion } from './stash-image-version.util';
 import {
@@ -655,6 +656,83 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
     return (payload.data?.configuration?.general?.stashes ?? [])
       .map((entry) => this.normalizeOptionalString(entry.path))
       .filter((path): path is string => !!path);
+  }
+
+  /**
+   * Every video file in the library with its size, resolution and codec, for
+   * Library stats. Pages through Stash 500 scenes at a time.
+   */
+  async listLibraryFiles(config: StashAdapterBaseConfig): Promise<StatsFile[]> {
+    const files: StatsFile[] = [];
+    const perPage = 500;
+    for (let page = 1; page <= 200; page += 1) {
+      const payload = (await this.executeQuery(
+        config,
+        `query LibraryFiles($filter: FindFilterType) {
+          findScenes(filter: $filter) {
+            count
+            scenes {
+              id title
+              studio { id name }
+              files { basename size width height video_codec duration }
+            }
+          }
+        }`,
+        // Oldest first, as the library sync does: a scene added meanwhile lands on the last page.
+        {
+          filter: {
+            page,
+            per_page: perPage,
+            sort: 'created_at',
+            direction: 'ASC',
+          },
+        },
+      )) as unknown as {
+        data?: {
+          findScenes?: {
+            count?: unknown;
+            scenes?: Array<Record<string, unknown>>;
+          };
+        };
+      };
+      const result = payload.data?.findScenes;
+      const scenes = Array.isArray(result?.scenes) ? result.scenes : [];
+      for (const scene of scenes) {
+        const sceneId = this.normalizeOptionalString(scene.id);
+        if (!sceneId) {
+          continue;
+        }
+        const studio = scene.studio as Record<string, unknown> | null;
+        for (const raw of Array.isArray(scene.files) ? scene.files : []) {
+          const file = raw as Record<string, unknown>;
+          const number = (value: unknown) =>
+            typeof value === 'number'
+              ? value
+              : typeof value === 'string' && value.trim() !== ''
+                ? Number(value)
+                : null;
+          files.push({
+            sceneId,
+            title:
+              this.normalizeOptionalString(scene.title) ??
+              this.normalizeOptionalString(file.basename) ??
+              `Scene #${sceneId}`,
+            studioId: this.normalizeOptionalString(studio?.id),
+            studioName: this.normalizeOptionalString(studio?.name),
+            size: number(file.size) ?? 0,
+            width: number(file.width),
+            height: number(file.height),
+            codec: this.normalizeOptionalString(file.video_codec),
+            duration: number(file.duration),
+          });
+        }
+      }
+      const count = typeof result?.count === 'number' ? result.count : 0;
+      if (scenes.length === 0 || page * perPage >= count) {
+        break;
+      }
+    }
+    return files;
   }
 
   /**

@@ -1,4 +1,8 @@
 import {
+  computeLibraryStats,
+  type LibraryStatsDto,
+} from './library-stats.util';
+import {
   BadRequestException,
   Inject,
   Injectable,
@@ -142,6 +146,9 @@ export interface LocalBulkResultDto {
  * Your own Stash library, beyond playback: organizing a scene, related scenes,
  * and performer and studio pages. Everything is read from and saved to Stash.
  */
+/** How long Library stats are kept before Stash is asked again. */
+const STATS_TTL_MS = 30 * 60_000;
+
 @Injectable()
 export class LocalLibraryService {
   private readonly logger = new Logger(LocalLibraryService.name);
@@ -556,6 +563,40 @@ export class LocalLibraryService {
       })),
       suggestedKeepId: pickKeeper(group),
     }));
+  }
+
+  // ---------- stats ----------
+
+  private statsCache: { at: number; value: LibraryStatsDto } | null = null;
+  private statsRun: Promise<LibraryStatsDto> | null = null;
+
+  /**
+   * What the library is made of: size by resolution, codec and studio, the
+   * biggest files, and what re-encoding could save. Kept 30 minutes;
+   * refresh asks Stash again.
+   */
+  async stats(refresh = false): Promise<LibraryStatsDto> {
+    if (
+      !refresh &&
+      this.statsCache &&
+      Date.now() - this.statsCache.at < STATS_TTL_MS
+    ) {
+      return this.statsCache.value;
+    }
+    // One read of the whole library at a time.
+    this.statsRun ??= (async () => {
+      try {
+        const config = await this.playback.getStashConfig();
+        const value = computeLibraryStats(
+          await this.stash.listLibraryFiles(config),
+        );
+        this.statsCache = { at: Date.now(), value };
+        return value;
+      } finally {
+        this.statsRun = null;
+      }
+    })();
+    return this.statsRun;
   }
 
   // ---------- samples ----------

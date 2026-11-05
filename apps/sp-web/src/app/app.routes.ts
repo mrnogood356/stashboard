@@ -97,6 +97,13 @@ export const routes: Routes = [
           import('./pages/tools/samples-page.component').then((m) => m.SamplesPageComponent),
       },
       {
+        path: 'tools/stats',
+        loadComponent: () =>
+          import('./pages/tools/library-stats-page.component').then(
+            (m) => m.LibraryStatsPageComponent,
+          ),
+      },
+      {
         path: 'tools/duplicates',
         loadComponent: () =>
           import('./pages/tools/duplicates-page.component').then((m) => m.DuplicatesPageComponent),

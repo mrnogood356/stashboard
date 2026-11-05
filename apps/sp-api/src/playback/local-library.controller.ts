@@ -1,3 +1,4 @@
+import type { LibraryStatsDto } from './library-stats.util';
 import {
   BadRequestException,
   Body,
@@ -149,6 +150,11 @@ export class LocalLibraryController {
   @HttpCode(204)
   async stopJob(@Param('jobId') jobId: string): Promise<void> {
     await this.library.stopJob(jobId);
+  }
+
+  @Get('stats')
+  stats(@Query('refresh') refresh?: string): Promise<LibraryStatsDto> {
+    return this.library.stats(refresh === '1' || refresh === 'true');
   }
 
   @Get('duplicates')

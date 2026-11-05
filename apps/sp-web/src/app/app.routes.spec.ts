@@ -36,6 +36,7 @@ describe('app routes', () => {
       'tools/organize',
       'tools/jobs',
       'tools/samples',
+      'tools/stats',
       'tools/duplicates',
       'search',
       'scenes',
