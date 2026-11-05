@@ -133,6 +133,21 @@ describe('SettingsAboutPageComponent', () => {
     expect(root.querySelector('[data-status="fail"]')?.textContent).toContain('Whisparr');
   });
 
+  it('mentions how Stash transcodes quietly, with how to use the GPU only behind a tap', async () => {
+    const { root } = await render({
+      about: vi.fn().mockReturnValue(of(about)),
+      health: vi.fn().mockReturnValue(of({ ...health, transcoding: 'cpu' })),
+      update: vi.fn().mockReturnValue(of(behind)),
+    });
+    const line = root.querySelector('[data-testid="transcoding"]') as HTMLDetailsElement;
+    expect(line.tagName).toBe('DETAILS');
+    expect(line.open).toBe(false);
+    expect(line.textContent).toContain('with the CPU');
+    expect(line.textContent).toContain('--device=/dev/dri');
+    // Not a problem: the count of things needing a look doesn't change.
+    expect(root.textContent).toContain('1 thing needs a look');
+  });
+
   it('shows the version before health and the update check have answered', async () => {
     const { root } = await render({
       about: vi.fn().mockReturnValue(of(about)),

@@ -62,6 +62,11 @@ export interface HealthResponse {
   integrations: IntegrationHealth[];
   disks: DiskHealth[];
   jobs: JobHealth[];
+  /**
+   * How Stash transcodes video for the player: with the GPU or the CPU.
+   * Null when Stash isn't set up or reachable, or doesn't have the setting.
+   */
+  transcoding: 'gpu' | 'cpu' | null;
 }
 
 export interface ReleaseNotesResponse {

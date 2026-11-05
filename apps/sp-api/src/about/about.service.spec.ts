@@ -40,7 +40,11 @@ describe('AboutService', () => {
     libraryAutomationSettings: { findUnique: jest.Mock };
     downloadHandoffSettings: { findUnique: jest.Mock };
   };
-  let stash: { testConnection: jest.Mock; getLibraryRoots: jest.Mock };
+  let stash: {
+    testConnection: jest.Mock;
+    getLibraryRoots: jest.Mock;
+    getTranscodeHardwareAcceleration: jest.Mock;
+  };
   let whisparr: { testConnection: jest.Mock };
   let stashdb: { testConnection: jest.Mock };
   let prowlarr: { testConnection: jest.Mock };
@@ -72,6 +76,7 @@ describe('AboutService', () => {
     stash = {
       testConnection: jest.fn().mockResolvedValue(undefined),
       getLibraryRoots: jest.fn().mockResolvedValue(['/data', '/hidden']),
+      getTranscodeHardwareAcceleration: jest.fn().mockResolvedValue(false),
     };
     whisparr = {
       testConnection: jest.fn().mockRejectedValue(new Error('ECONNREFUSED')),
@@ -144,6 +149,25 @@ describe('AboutService', () => {
     expect(prowlarr.testConnection).not.toHaveBeenCalled();
     expect(sabnzbd.testConnection).not.toHaveBeenCalled();
     expect(health.database).toEqual({ ok: true, error: null });
+  });
+
+  it('says whether Stash transcodes with the GPU or the CPU, when it can tell', async () => {
+    await expect(service.health()).resolves.toMatchObject({
+      transcoding: 'cpu',
+    });
+    stash.getTranscodeHardwareAcceleration.mockResolvedValue(true);
+    await expect(service.health()).resolves.toMatchObject({
+      transcoding: 'gpu',
+    });
+    // Older Stash without the setting, or Stash not answering.
+    stash.getTranscodeHardwareAcceleration.mockResolvedValue(null);
+    await expect(service.health()).resolves.toMatchObject({
+      transcoding: null,
+    });
+    stash.getTranscodeHardwareAcceleration.mockRejectedValue(new Error('down'));
+    await expect(service.health()).resolves.toMatchObject({
+      transcoding: null,
+    });
   });
 
   it('shows free space for the data folder and library folders it can see', async () => {

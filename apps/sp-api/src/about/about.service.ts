@@ -102,19 +102,35 @@ export class AboutService {
     );
     const stashConfig = configured.find((config) => config.type === 'STASH');
 
-    const [database, integrations, disks, jobs] = await Promise.all([
-      this.database(),
-      this.integrations(configured),
-      this.disks(stashConfig ? connection(stashConfig) : null),
-      this.jobs(),
-    ]);
+    const [database, integrations, disks, jobs, transcoding] =
+      await Promise.all([
+        this.database(),
+        this.integrations(configured),
+        this.disks(stashConfig ? connection(stashConfig) : null),
+        this.jobs(),
+        this.transcoding(stashConfig ? connection(stashConfig) : null),
+      ]);
     return {
       checkedAt: new Date().toISOString(),
       database,
       integrations,
       disks,
       jobs,
+      transcoding,
     };
+  }
+
+  /** Just information: nothing to fix when there's no GPU. */
+  private async transcoding(
+    stash: StashConfig | null,
+  ): Promise<HealthResponse['transcoding']> {
+    if (!stash) {
+      return null;
+    }
+    const hardware = await withTimeout(
+      this.stash.getTranscodeHardwareAcceleration(stash),
+    ).catch(() => null);
+    return hardware === null ? null : hardware ? 'gpu' : 'cpu';
   }
 
   // ---------- parts ----------

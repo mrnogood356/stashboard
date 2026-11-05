@@ -658,6 +658,33 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
   }
 
   /**
+   * Whether Stash transcodes with the GPU (Settings → System → Transcoding,
+   * hardware encoding). Null when this Stash doesn't have the setting.
+   */
+  async getTranscodeHardwareAcceleration(
+    config: StashAdapterBaseConfig,
+  ): Promise<boolean | null> {
+    try {
+      const payload = (await this.executeQuery(
+        config,
+        `query Transcoding { configuration { general { transcodeHardwareAcceleration } } }`,
+      )) as unknown as {
+        data?: {
+          configuration?: {
+            general?: { transcodeHardwareAcceleration?: unknown };
+          };
+        };
+      };
+      const value =
+        payload.data?.configuration?.general?.transcodeHardwareAcceleration;
+      return typeof value === 'boolean' ? value : null;
+    } catch {
+      // Older Stash: no such field.
+      return null;
+    }
+  }
+
+  /**
    * The folders Stash has galleries in: folder galleries and the folders of
    * zip galleries. Loose images (like a scene's cover .jpg) don't count.
    */

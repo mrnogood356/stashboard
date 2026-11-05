@@ -65,6 +65,8 @@ export interface HealthResponse {
   integrations: IntegrationHealth[];
   disks: DiskHealth[];
   jobs: JobHealth[];
+  /** How Stash transcodes video: GPU or CPU; null when unknown. Older APIs: missing. */
+  transcoding?: 'gpu' | 'cpu' | null;
 }
 
 export interface ReleaseNotes {
