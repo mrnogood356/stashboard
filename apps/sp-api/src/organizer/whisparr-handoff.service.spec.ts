@@ -268,6 +268,22 @@ describe('WhisparrHandoffService', () => {
     expect(whisparr.startManualImport).toHaveBeenCalled();
   });
 
+  it('says so when Whisparr still lists the old file after looking again', async () => {
+    whisparr.refreshMovies = jest.fn().mockResolvedValue(undefined);
+    whisparr.findMovieByStashId = jest
+      .fn()
+      .mockResolvedValue({ movieId: 5, stashId: 'sdb-1', hasFile: true });
+
+    await expect(
+      service.adoptReplacedFile({ baseUrl: 'http://stash' }, scene(), settings),
+    ).resolves.toEqual({
+      status: 'failed',
+      reason:
+        'Whisparr still listed the old file 30 seconds after looking again.',
+    });
+    expect(whisparr.startManualImport).not.toHaveBeenCalled();
+  });
+
   it('leaves Whisparr alone for a scene it doesn’t have', async () => {
     whisparr.findMovieByStashId = jest.fn().mockResolvedValue(null);
     await expect(

@@ -1,6 +1,6 @@
 import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { Observable, firstValueFrom } from 'rxjs';
+import { Observable, Subscription, firstValueFrom } from 'rxjs';
 import {
   LocalLibraryService,
   ProblemKind,
@@ -79,6 +79,8 @@ export class BrokenFilesPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private poll: ReturnType<typeof setTimeout> | null = null;
+  /** The problems request in flight, cancelled with the polling. */
+  private request: Subscription | null = null;
   private polls = 0;
 
   protected readonly lists = signal<ProblemList[]>([]);
@@ -101,7 +103,7 @@ export class BrokenFilesPageComponent implements OnInit {
     this.polls = 0;
     this.loading.set(true);
     this.error.set(false);
-    this.library.problems(refresh).subscribe({
+    this.request = this.library.problems(refresh).subscribe({
       next: (lists) => {
         // Fresh results: anything still listed can be fixed again.
         this.started.set(new Set());
@@ -128,7 +130,7 @@ export class BrokenFilesPageComponent implements OnInit {
     }
     this.polls += 1;
     this.poll = setTimeout(() => {
-      this.library.problems().subscribe({
+      this.request = this.library.problems().subscribe({
         next: (fresh) => {
           // Only the checked list changes; fixes started on the others stay.
           this.lists.set(fresh);
@@ -144,6 +146,8 @@ export class BrokenFilesPageComponent implements OnInit {
       clearTimeout(this.poll);
       this.poll = null;
     }
+    this.request?.unsubscribe();
+    this.request = null;
   }
 
   protected currentUrl(): string {

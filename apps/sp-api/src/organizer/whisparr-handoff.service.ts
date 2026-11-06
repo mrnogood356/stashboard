@@ -691,12 +691,15 @@ export class WhisparrHandoffService {
     if (!movie) {
       return { status: 'skipped', reason: 'Whisparr doesn’t have this scene.' };
     }
+    let stillHasFile = false;
     if (movie.hasFile) {
       // It still points at the old file: have it look again first.
       await this.whisparr.refreshMovies(whisparrConfig, [movie.movieId]);
+      stillHasFile = true;
       for (let tries = 0; tries < 10; tries += 1) {
         await this.sleep(3000);
         if (!(await this.hasFile(whisparrConfig, stashId))) {
+          stillHasFile = false;
           break;
         }
       }
@@ -711,9 +714,11 @@ export class WhisparrHandoffService {
       status: 'failed',
       reason:
         failure ??
-        (skipped
-          ? `Whisparr skipped it (${skipped}).`
-          : 'Whisparr didn’t take it.'),
+        (skipped === 'already-has-file' && stillHasFile
+          ? 'Whisparr still listed the old file 30 seconds after looking again.'
+          : skipped
+            ? `Whisparr skipped it (${skipped}).`
+            : 'Whisparr didn’t take it.'),
     };
   }
 

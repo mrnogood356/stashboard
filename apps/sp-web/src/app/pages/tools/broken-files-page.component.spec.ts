@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { NEVER, Subject, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { LocalLibraryService, ProblemList } from '../../core/api/local-library.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
@@ -148,6 +148,51 @@ describe('BrokenFilesPageComponent', () => {
       ).toContain('2');
       // Done: no more asking.
       vi.advanceTimersByTime(20000);
+      expect(problems).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows the check under way, not a Generate for nothing, while an earlier 0 is checked again', async () => {
+    const { fixture, root } = await render([
+      { kind: 'no-file', count: 1, scenes: scenes(1) },
+      { kind: 'no-marker-preview', count: 0, scenes: [], checking: true },
+    ]);
+    fixture.detectChanges();
+    const panel = root.querySelector('[data-testid="problem-no-marker-preview"]')!;
+    expect(panel.querySelector('[data-testid="checking"]')).not.toBeNull();
+    expect(panel.querySelector('button')).toBeNull();
+    fixture.destroy();
+  });
+
+  it('says how many chapters Stash didn’t answer for', async () => {
+    const { fixture, root } = await render([
+      { kind: 'no-marker-preview', count: 2, scenes: scenes(1), unanswered: 5 },
+    ]);
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="unanswered"]')?.textContent).toContain(
+      'Stash didn’t answer for 5 more chapters',
+    );
+  });
+
+  it('drops a request still under way when the page closes, so polling doesn’t start again', async () => {
+    vi.useFakeTimers();
+    try {
+      const reply = new Subject<ProblemList[]>();
+      const problems = vi
+        .fn()
+        .mockReturnValueOnce(
+          of([{ kind: 'no-marker-preview', count: null, scenes: [], checking: true }]),
+        )
+        .mockReturnValueOnce(reply)
+        .mockReturnValue(NEVER);
+      const { fixture } = await render([], { problems });
+      vi.advanceTimersByTime(5000);
+      expect(problems).toHaveBeenCalledTimes(2);
+      fixture.destroy();
+      expect(reply.observed).toBe(false);
+      vi.advanceTimersByTime(60000);
       expect(problems).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();

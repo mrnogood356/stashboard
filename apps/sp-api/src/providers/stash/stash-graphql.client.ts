@@ -67,18 +67,23 @@ export abstract class StashGraphqlClient {
     }
     try {
       const url = this.resolveProtectedAssetUrl(config.baseUrl, assetUrl);
-      // A short wait each: thousands of these run for Broken files.
+      // A short wait for the whole check: thousands run for Broken files.
+      const deadline = Date.now() + ASSET_CHECK_TIMEOUT_MS;
       let response = await fetchWithTimeout(
         url,
         { method: 'HEAD', headers },
         ASSET_CHECK_TIMEOUT_MS,
       );
       if (response.status === 405 || response.status === 501) {
+        const left = deadline - Date.now();
+        if (left <= 0) {
+          return null;
+        }
         // Some Stash routes answer GET only: ask for one byte instead.
         response = await fetchWithTimeout(
           url,
           { method: 'GET', headers: { ...headers, Range: 'bytes=0-0' } },
-          ASSET_CHECK_TIMEOUT_MS,
+          left,
         );
         await response.body?.cancel().catch(() => undefined);
       }

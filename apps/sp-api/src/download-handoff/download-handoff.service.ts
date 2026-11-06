@@ -1000,12 +1000,6 @@ export class DownloadHandoffService {
   }
 
   /**
-   * Smaller copies: the new download joins the scene it replaces (plays,
-   * chapters and details stay with it), then that scene's other files are
-   * deleted. Only when the new file has a length close to the old one's;
-   * otherwise both are kept and the attempt says why.
-   */
-  /**
    * Adds to Smaller copies' running total: what was deleted minus the copy
    * that replaced it (less than nothing when a copy was upgraded). A failure
    * here only leaves the total short.
@@ -1034,6 +1028,12 @@ export class DownloadHandoffService {
       );
   }
 
+  /**
+   * Smaller copies: the new download joins the scene it replaces (plays,
+   * chapters and details stay with it), then that scene's other files are
+   * deleted. Only when the new file has a length close to the old one's;
+   * otherwise both are kept and the attempt says why.
+   */
   private async replaceOldCopy(
     config: StashAdapterBaseConfig,
     row: DownloadHandoff,

@@ -61,8 +61,38 @@ describe('StashAdapter', () => {
     ).resolves.toEqual({
       missing: 1,
       checked: 2,
+      unanswered: 0,
       scenes: [{ id: '9', title: 'One', path: null, markers: 1 }],
     });
+  });
+
+  it('counts marker clips Stash didn’t answer for apart from missing ones', async () => {
+    fetchMock.mockImplementation((url) => {
+      if (String(url).includes('scene_marker/1/')) {
+        return Promise.reject(new Error('timed out'));
+      }
+      if (String(url).includes('scene_marker/2/')) {
+        return Promise.resolve({ ok: false, status: 500 } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              findSceneMarkers: {
+                scene_markers: [
+                  { id: '1', scene: { id: '9', title: 'One', files: [] } },
+                  { id: '2', scene: { id: '9', title: 'One', files: [] } },
+                ],
+              },
+            },
+          }),
+      } as Response);
+    });
+
+    await expect(
+      adapter.findMarkersWithoutPreview({ baseUrl: 'http://stash.local' }),
+    ).resolves.toEqual({ missing: 0, checked: 2, unanswered: 2, scenes: [] });
   });
 
   it('asks for one byte when Stash won’t answer HEAD for a marker clip', async () => {

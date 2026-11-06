@@ -2406,6 +2406,8 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
   ): Promise<{
     missing: number;
     checked: number;
+    /** Stash didn't answer for these (timed out or an error): not known either way. */
+    unanswered: number;
     scenes: StashProblemScene[];
   }> {
     const payload = (await this.executeQuery(
@@ -2437,6 +2439,7 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
       { scene: Record<string, unknown>; count: number }
     >();
     let next = 0;
+    let unanswered = 0;
     const worker = async () => {
       while (next < markers.length) {
         const marker = markers[next++];
@@ -2444,6 +2447,9 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
           config,
           `/scene/${marker.sceneId}/scene_marker/${marker.id}/stream`,
         );
+        if (exists === null) {
+          unanswered += 1;
+        }
         if (exists === false) {
           const entry = bySceneMissing.get(marker.sceneId) ?? {
             scene: marker.scene,
@@ -2479,7 +2485,7 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
         };
       })
       .sort((a, b) => b.markers - a.markers);
-    return { missing, checked: markers.length, scenes };
+    return { missing, checked: markers.length, unanswered, scenes };
   }
 }
 

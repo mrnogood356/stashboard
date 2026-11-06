@@ -473,6 +473,8 @@ export interface ProblemList {
   scenes: ProblemScene[];
   /** Still being checked (the chapter-clip check runs in the background). */
   checking?: boolean;
+  /** Chapters Stash didn't answer for. */
+  unanswered?: number;
 }
 
 export interface ProblemScene {

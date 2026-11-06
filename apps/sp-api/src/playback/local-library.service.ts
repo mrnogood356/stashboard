@@ -130,6 +130,8 @@ export interface ProblemListDto {
   scenes: StashProblemScene[];
   /** Still being checked (the chapter-clip check runs in the background). */
   checking?: boolean;
+  /** Chapters Stash didn't answer for, so they're not counted either way. */
+  unanswered?: number;
 }
 
 export interface DuplicateGroupDto {
@@ -879,15 +881,27 @@ export class LocalLibraryService {
     this.logger.log('Broken files: checking chapter preview clips in Stash…');
     try {
       const found = await this.stash.findMarkersWithoutPreview(config);
+      // Unanswered checks aren't an all-clear: with nothing found missing,
+      // the count is unknown rather than 0.
       const value: ProblemListDto = {
         kind: 'no-marker-preview',
-        count: found.missing,
+        count:
+          found.missing === 0 && found.unanswered > 0 ? null : found.missing,
         scenes: found.scenes.slice(0, 50),
+        ...(found.unanswered > 0 ? { unanswered: found.unanswered } : {}),
       };
       this.markerCheck = { at: Date.now(), baseUrl: config.baseUrl, value };
-      this.logger.log(
-        `Broken files: ${found.missing} of ${found.checked} chapter(s) have no preview clip (checked in ${Math.round((Date.now() - started) / 1000)}s).`,
-      );
+      const seconds = Math.round((Date.now() - started) / 1000);
+      const unanswered =
+        found.unanswered > 0
+          ? `; Stash didn't answer for ${found.unanswered}`
+          : '';
+      const line = `Broken files: ${found.missing} of ${found.checked} chapter(s) have no preview clip${unanswered} (checked in ${seconds}s).`;
+      if (found.unanswered > 0) {
+        this.logger.warn(line);
+      } else {
+        this.logger.log(line);
+      }
     } catch (error) {
       this.logger.warn(
         `Broken files: the chapter clip check failed: ${error instanceof Error ? error.message : String(error)}`,

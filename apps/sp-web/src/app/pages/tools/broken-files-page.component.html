@@ -39,13 +39,13 @@
                 <h2>{{ info[list.kind].title }}</h2>
                 <p class="muted">{{ info[list.kind].why }}</p>
               </div>
-              @if (list.checking && list.count === null) {
+              @if (list.checking && !list.count) {
                 <span class="spinner" aria-hidden="true"></span>
               } @else {
                 <span class="count-badge">{{ list.count ?? '?' }}</span>
               }
             </div>
-            @if (list.checking && list.count === null) {
+            @if (list.checking && !list.count) {
               <p class="muted" role="status" data-testid="checking">
                 Checking every chapter’s clip in Stash. This can take a few minutes; the list shows
                 here when it’s done.
@@ -73,6 +73,12 @@
                   </li>
                 }
               </ul>
+              @if (list.unanswered) {
+                <p class="muted more" data-testid="unanswered">
+                  Stash didn’t answer for {{ list.unanswered }} more
+                  {{ list.unanswered === 1 ? 'chapter' : 'chapters' }}. Look again to check them.
+                </p>
+              }
               @if (list.kind !== 'no-marker-preview' && (list.count ?? 0) > list.scenes.length) {
                 <p class="muted more">And {{ (list.count ?? 0) - list.scenes.length }} more.</p>
               }
