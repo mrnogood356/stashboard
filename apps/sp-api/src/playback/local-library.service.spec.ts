@@ -180,23 +180,38 @@ describe('LocalLibraryService', () => {
         ? Promise.reject(new Error('nope'))
         : Promise.resolve({ count: kind === 'no-file' ? 2 : 0, scenes: [] }),
     );
+    // The quick lists answer at once; the chapter check runs behind them.
+    let finishMarkers: (value: unknown) => void = () => undefined;
+    stash.findMarkersWithoutPreview.mockImplementationOnce(
+      () => new Promise((resolve) => (finishMarkers = resolve)),
+    );
     const lists = await service.problems();
-    expect(lists.map((list) => [list.kind, list.count])).toEqual([
-      ['no-file', 2],
-      ['no-length', 0],
-      ['no-cover', null],
-      ['no-fingerprint', 0],
-      ['no-marker-preview', 3],
+    expect(
+      lists.map((list) => [list.kind, list.count, list.checking ?? false]),
+    ).toEqual([
+      ['no-file', 2, false],
+      ['no-length', 0, false],
+      ['no-cover', null, false],
+      ['no-fingerprint', 0, false],
+      ['no-marker-preview', null, true],
     ]);
-    // The marker check is kept for a while, unless asked again.
+    // Asking again while it runs starts no second check.
     await service.problems();
     expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(1);
-    await service.problems(true);
-    expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(2);
 
-    // Two asking at once share one check.
-    await Promise.all([service.problems(true), service.problems(true)]);
-    expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(3);
+    finishMarkers({ missing: 3, checked: 10, scenes: [] });
+    await new Promise((resolve) => setImmediate(resolve));
+    const done = await service.problems();
+    expect(done.at(-1)).toMatchObject({
+      kind: 'no-marker-preview',
+      count: 3,
+      checking: false,
+    });
+    // Kept for a while; Look again checks afresh.
+    expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(1);
+    const again = await service.problems(true);
+    expect(again.at(-1)).toMatchObject({ count: null, checking: true });
+    expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(2);
   });
 
   it('keeps Library stats, and a read under way, to the Stash they came from', async () => {

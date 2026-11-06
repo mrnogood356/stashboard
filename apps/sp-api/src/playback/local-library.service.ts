@@ -128,6 +128,8 @@ export interface ProblemListDto {
   kind: StashProblemKind;
   count: number | null;
   scenes: StashProblemScene[];
+  /** Still being checked (the chapter-clip check runs in the background). */
+  checking?: boolean;
 }
 
 export interface DuplicateGroupDto {
@@ -818,28 +820,26 @@ export class LocalLibraryService {
   /** Each kind of problem: how many scenes, and the first 50. Null when Stash couldn't say. */
   async problems(refresh = false): Promise<ProblemListDto[]> {
     const config = await this.playback.getStashConfig();
-    // The chapter check is slow (it asks about each clip): run it alongside.
-    const [lists, markers] = await Promise.all([
-      Promise.all(
-        PROBLEM_KINDS.map(async (kind): Promise<ProblemListDto> => {
-          try {
-            const found = await this.stash.findProblemScenes(config, kind);
-            return { kind, count: found.count, scenes: found.scenes };
-          } catch {
-            return { kind, count: null, scenes: [] };
-          }
-        }),
-      ),
-      this.markerPreviews(config, refresh),
-    ]);
-    return [...lists, markers];
+    const lists = await Promise.all(
+      PROBLEM_KINDS.map(async (kind): Promise<ProblemListDto> => {
+        try {
+          const found = await this.stash.findProblemScenes(config, kind);
+          return { kind, count: found.count, scenes: found.scenes };
+        } catch (error) {
+          this.logger.warn(
+            `Broken files: couldn't ask Stash for "${kind}": ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return { kind, count: null, scenes: [] };
+        }
+      }),
+    );
+    // The chapter check asks Stash about every clip, so it can take minutes:
+    // it runs in the background and the page asks again until it's done.
+    return [...lists, this.markerPreviews(config, refresh)];
   }
 
-  /** A chapter check under way, shared by everyone who asks meanwhile. */
-  private markerRun: {
-    baseUrl: string;
-    value: Promise<ProblemListDto>;
-  } | null = null;
+  /** A chapter check under way. */
+  private markerRun: { baseUrl: string } | null = null;
 
   private markerCheck: {
     at: number;
@@ -847,37 +847,36 @@ export class LocalLibraryService {
     value: ProblemListDto;
   } | null = null;
 
-  /** Markers without a preview clip; asks Stash about each one, so it's kept a while. */
-  private async markerPreviews(
+  /** Chapters without a preview clip: the last result, or "checking" while a check runs. */
+  private markerPreviews(
     config: { baseUrl: string; apiKey?: string | null },
     refresh: boolean,
-  ): Promise<ProblemListDto> {
-    const kept = this.markerCheck;
-    if (
-      !refresh &&
-      kept &&
-      kept.baseUrl === config.baseUrl &&
-      Date.now() - kept.at < MARKER_CHECK_TTL_MS
-    ) {
-      return kept.value;
+  ): ProblemListDto {
+    const kept =
+      this.markerCheck?.baseUrl === config.baseUrl ? this.markerCheck : null;
+    const running = this.markerRun?.baseUrl === config.baseUrl;
+    const fresh = kept && Date.now() - kept.at < MARKER_CHECK_TTL_MS;
+    if (!running && (refresh || !fresh)) {
+      this.markerRun = { baseUrl: config.baseUrl };
+      void this.checkMarkers(config).finally(() => {
+        if (this.markerRun?.baseUrl === config.baseUrl) {
+          this.markerRun = null;
+        }
+      });
     }
-    const running = this.markerRun;
-    if (running && running.baseUrl === config.baseUrl) {
-      return running.value;
+    const checking = this.markerRun?.baseUrl === config.baseUrl;
+    if (kept && !(checking && refresh)) {
+      return { ...kept.value, checking };
     }
-    const value = this.checkMarkers(config).finally(() => {
-      if (this.markerRun?.value === value) {
-        this.markerRun = null;
-      }
-    });
-    this.markerRun = { baseUrl: config.baseUrl, value };
-    return value;
+    return { kind: 'no-marker-preview', count: null, scenes: [], checking };
   }
 
   private async checkMarkers(config: {
     baseUrl: string;
     apiKey?: string | null;
-  }): Promise<ProblemListDto> {
+  }): Promise<void> {
+    const started = Date.now();
+    this.logger.log('Broken files: checking chapter preview clips in Stash…');
     try {
       const found = await this.stash.findMarkersWithoutPreview(config);
       const value: ProblemListDto = {
@@ -886,9 +885,18 @@ export class LocalLibraryService {
         scenes: found.scenes.slice(0, 50),
       };
       this.markerCheck = { at: Date.now(), baseUrl: config.baseUrl, value };
-      return value;
-    } catch {
-      return { kind: 'no-marker-preview', count: null, scenes: [] };
+      this.logger.log(
+        `Broken files: ${found.missing} of ${found.checked} chapter(s) have no preview clip (checked in ${Math.round((Date.now() - started) / 1000)}s).`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Broken files: the chapter clip check failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      this.markerCheck = {
+        at: Date.now(),
+        baseUrl: config.baseUrl,
+        value: { kind: 'no-marker-preview', count: null, scenes: [] },
+      };
     }
   }
 

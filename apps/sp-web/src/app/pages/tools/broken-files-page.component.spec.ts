@@ -121,4 +121,36 @@ describe('BrokenFilesPageComponent', () => {
     ]);
     expect(root.textContent).toContain('Nothing broken');
   });
+
+  it('shows the quick lists at once and the chapter check when it finishes', async () => {
+    vi.useFakeTimers();
+    try {
+      const checking: ProblemList[] = [
+        { kind: 'no-file', count: 1, scenes: scenes(1) },
+        { kind: 'no-marker-preview', count: null, scenes: [], checking: true },
+      ];
+      const done: ProblemList[] = [
+        { kind: 'no-file', count: 1, scenes: scenes(1) },
+        { kind: 'no-marker-preview', count: 2, scenes: scenes(2) },
+      ];
+      const problems = vi.fn().mockReturnValueOnce(of(checking)).mockReturnValue(of(done));
+      const { fixture, root } = await render([], { problems });
+      fixture.detectChanges();
+      expect(root.querySelector('[data-testid="problem-no-file"]')).not.toBeNull();
+      expect(root.querySelector('[data-testid="checking"]')).not.toBeNull();
+
+      vi.advanceTimersByTime(5000);
+      fixture.detectChanges();
+      expect(problems).toHaveBeenCalledTimes(2);
+      expect(root.querySelector('[data-testid="checking"]')).toBeNull();
+      expect(
+        root.querySelector('[data-testid="problem-no-marker-preview"] .count-badge')?.textContent,
+      ).toContain('2');
+      // Done: no more asking.
+      vi.advanceTimersByTime(20000);
+      expect(problems).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

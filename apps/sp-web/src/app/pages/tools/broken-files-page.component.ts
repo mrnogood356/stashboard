@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { Observable, firstValueFrom } from 'rxjs';
 import {
@@ -77,6 +77,9 @@ export class BrokenFilesPageComponent implements OnInit {
   private readonly library = inject(LocalLibraryService);
   private readonly notifications = inject(AppNotificationsService);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
+  private poll: ReturnType<typeof setTimeout> | null = null;
+  private polls = 0;
 
   protected readonly lists = signal<ProblemList[]>([]);
   protected readonly loading = signal(true);
@@ -88,11 +91,14 @@ export class BrokenFilesPageComponent implements OnInit {
   protected readonly info = PROBLEMS;
 
   ngOnInit(): void {
+    this.destroyRef.onDestroy(() => this.stopPolling());
     this.load();
   }
 
   /** `refresh`: Look again also checks every chapter's clip afresh. */
   protected load(refresh = false): void {
+    this.stopPolling();
+    this.polls = 0;
     this.loading.set(true);
     this.error.set(false);
     this.library.problems(refresh).subscribe({
@@ -102,6 +108,7 @@ export class BrokenFilesPageComponent implements OnInit {
         this.confirming.set(null);
         this.lists.set(lists);
         this.loading.set(false);
+        this.pollWhileChecking(lists);
       },
       error: () => {
         this.error.set(true);
@@ -111,7 +118,32 @@ export class BrokenFilesPageComponent implements OnInit {
   }
 
   protected allClear(): boolean {
-    return this.lists().every((list) => list.count === 0);
+    return this.lists().every((list) => list.count === 0 && !list.checking);
+  }
+
+  /** The chapter check runs in Stashboard's background: ask again until it's done. */
+  private pollWhileChecking(lists: ProblemList[]): void {
+    if (!lists.some((list) => list.checking) || this.polls >= 120) {
+      return;
+    }
+    this.polls += 1;
+    this.poll = setTimeout(() => {
+      this.library.problems().subscribe({
+        next: (fresh) => {
+          // Only the checked list changes; fixes started on the others stay.
+          this.lists.set(fresh);
+          this.pollWhileChecking(fresh);
+        },
+        error: () => this.pollWhileChecking(lists),
+      });
+    }, 5000);
+  }
+
+  private stopPolling(): void {
+    if (this.poll) {
+      clearTimeout(this.poll);
+      this.poll = null;
+    }
   }
 
   protected currentUrl(): string {
