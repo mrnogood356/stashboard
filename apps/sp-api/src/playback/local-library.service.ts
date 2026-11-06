@@ -4,8 +4,10 @@ import {
   type SimilarTagGroup,
 } from './tag-cleanup.util';
 import type {
+  StashBackgroundProblemKind,
   StashProblemKind,
   StashProblemScene,
+  StashQuickProblemKind,
 } from '../providers/stash/stash.types';
 import {
   computeLibraryStats,
@@ -117,11 +119,37 @@ export interface SampleSceneDto extends DuplicateSceneDto {
   reason: 'name' | 'short';
 }
 
-export const PROBLEM_KINDS: Array<
-  Exclude<StashProblemKind, 'no-marker-preview'>
-> = ['no-file', 'no-length', 'no-cover', 'no-fingerprint'];
+export const PROBLEM_KINDS: StashQuickProblemKind[] = [
+  'no-file',
+  'no-length',
+  'no-cover',
+  'no-fingerprint',
+];
 
-/** Checking every marker's preview takes a while: kept this long. */
+/** Kinds checked file by file, in the background, in this order on the page. */
+const BACKGROUND_KINDS: StashBackgroundProblemKind[] = [
+  'no-preview',
+  'no-marker-preview',
+];
+
+/** What each background check counts, for the log and the page. */
+const BACKGROUND_LABEL: Record<
+  StashBackgroundProblemKind,
+  { what: string; unit: string; lacking: string }
+> = {
+  'no-preview': {
+    what: 'scene hover previews',
+    unit: 'scene(s)',
+    lacking: 'have no hover preview',
+  },
+  'no-marker-preview': {
+    what: 'chapter preview clips',
+    unit: 'chapter(s)',
+    lacking: 'have no preview clip',
+  },
+};
+
+/** Checking every file takes a while: a result is kept this long. */
 const MARKER_CHECK_TTL_MS = 30 * 60_000;
 
 export interface ProblemListDto {
@@ -837,73 +865,89 @@ export class LocalLibraryService {
         }
       }),
     );
-    // The chapter check asks Stash about every clip, so it can take minutes:
-    // it runs in the background and the page asks again until it's done.
-    return [...lists, this.markerPreviews(config, refresh)];
+    // These ask Stash about every file, so they can take minutes: they run
+    // in the background and the page asks again until they're done.
+    return [
+      ...lists,
+      ...BACKGROUND_KINDS.map((kind) =>
+        this.backgroundList(kind, config, refresh),
+      ),
+    ];
   }
 
-  /** A chapter check under way. */
-  private markerRun: { baseUrl: string } | null = null;
+  /** Background checks under way, by kind: the Stash each is for. */
+  private readonly backgroundRuns = new Map<
+    StashBackgroundProblemKind,
+    string
+  >();
 
-  private markerCheck: {
-    at: number;
-    baseUrl: string;
-    value: ProblemListDto;
-  } | null = null;
+  private readonly backgroundResults = new Map<
+    StashBackgroundProblemKind,
+    { at: number; baseUrl: string; value: ProblemListDto }
+  >();
 
-  /** Chapters without a preview clip: the last result, or "checking" while a check runs. */
-  private markerPreviews(
+  /** A background kind: the last result, or "checking" while a check runs. */
+  private backgroundList(
+    kind: StashBackgroundProblemKind,
     config: { baseUrl: string; apiKey?: string | null },
     refresh: boolean,
   ): ProblemListDto {
-    const kept =
-      this.markerCheck?.baseUrl === config.baseUrl ? this.markerCheck : null;
-    const running = this.markerRun?.baseUrl === config.baseUrl;
+    const result = this.backgroundResults.get(kind);
+    const kept = result?.baseUrl === config.baseUrl ? result : null;
+    const running = this.backgroundRuns.get(kind) === config.baseUrl;
     const fresh = kept && Date.now() - kept.at < MARKER_CHECK_TTL_MS;
     if (!running && (refresh || !fresh)) {
-      this.markerRun = { baseUrl: config.baseUrl };
-      void this.checkMarkers(config).finally(() => {
-        if (this.markerRun?.baseUrl === config.baseUrl) {
-          this.markerRun = null;
+      this.backgroundRuns.set(kind, config.baseUrl);
+      void this.runBackgroundCheck(kind, config).finally(() => {
+        if (this.backgroundRuns.get(kind) === config.baseUrl) {
+          this.backgroundRuns.delete(kind);
         }
       });
     }
-    const checking = this.markerRun?.baseUrl === config.baseUrl;
+    const checking = this.backgroundRuns.get(kind) === config.baseUrl;
     if (kept && !(checking && refresh)) {
       return { ...kept.value, checking };
     }
-    return { kind: 'no-marker-preview', count: null, scenes: [], checking };
+    return { kind, count: null, scenes: [], checking };
   }
 
-  private async checkMarkers(config: {
-    baseUrl: string;
-    apiKey?: string | null;
-  }): Promise<void> {
+  private async runBackgroundCheck(
+    kind: StashBackgroundProblemKind,
+    config: { baseUrl: string; apiKey?: string | null },
+  ): Promise<void> {
+    const label = BACKGROUND_LABEL[kind];
     const started = Date.now();
-    this.logger.log('Broken files: checking chapter preview clips in Stash…');
+    this.logger.log(`Broken files: checking ${label.what} in Stash…`);
     try {
-      const found = await this.stash.findMarkersWithoutPreview(config);
+      const found =
+        kind === 'no-preview'
+          ? await this.stash.findScenesWithoutPreview(config)
+          : await this.stash.findMarkersWithoutPreview(config);
       // Unanswered checks aren't an all-clear: with nothing found missing,
       // the count is unknown rather than 0.
       const value: ProblemListDto = {
-        kind: 'no-marker-preview',
+        kind,
         count:
           found.missing === 0 && found.unanswered > 0 ? null : found.missing,
         scenes: found.scenes.slice(0, 50),
         ...(found.unanswered > 0
           ? {
               unanswered: found.unanswered,
-              note: `Stash didn’t answer for ${found.unanswered} of ${found.checked} chapters${found.unansweredWhy ? ` (${found.unansweredWhy})` : ''}, so they couldn’t be counted.`,
+              note: `Stash didn’t answer for ${found.unanswered} of ${found.checked} ${kind === 'no-preview' ? 'scenes' : 'chapters'}${found.unansweredWhy ? ` (${found.unansweredWhy})` : ''}, so they couldn’t be counted.`,
             }
           : {}),
       };
-      this.markerCheck = { at: Date.now(), baseUrl: config.baseUrl, value };
+      this.backgroundResults.set(kind, {
+        at: Date.now(),
+        baseUrl: config.baseUrl,
+        value,
+      });
       const seconds = Math.round((Date.now() - started) / 1000);
       const unanswered =
         found.unanswered > 0
           ? `; Stash didn't answer for ${found.unanswered}${found.unansweredWhy ? ` (mostly: ${found.unansweredWhy})` : ''}`
           : '';
-      const line = `Broken files: ${found.missing} of ${found.checked} chapter(s) have no preview clip${unanswered} (checked in ${seconds}s).`;
+      const line = `Broken files: ${found.missing} of ${found.checked} ${label.unit} ${label.lacking}${unanswered} (checked in ${seconds}s).`;
       if (found.unanswered > 0) {
         this.logger.warn(line);
       } else {
@@ -912,18 +956,18 @@ export class LocalLibraryService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(
-        `Broken files: the chapter clip check failed: ${message}`,
+        `Broken files: the check for ${label.what} failed: ${message}`,
       );
-      this.markerCheck = {
+      this.backgroundResults.set(kind, {
         at: Date.now(),
         baseUrl: config.baseUrl,
         value: {
-          kind: 'no-marker-preview',
+          kind,
           count: null,
           scenes: [],
           note: `The check failed: ${message.slice(0, 200)}`,
         },
-      };
+      });
     }
   }
 

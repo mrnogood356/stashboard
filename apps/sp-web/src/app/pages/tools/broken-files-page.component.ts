@@ -22,6 +22,8 @@ interface ProblemInfo {
   title: string;
   why: string;
   fixes: Fix[];
+  /** Shown while a background check runs. */
+  checking?: string;
 }
 
 const GENERATE: Fix = { action: 'generate', label: 'Generate' };
@@ -52,10 +54,19 @@ export const PROBLEMS: Record<ProblemKind, ProblemInfo> = {
     why: 'Without one, Duplicates can’t find their copies. Generate makes it.',
     fixes: [GENERATE],
   },
+  'no-preview': {
+    title: 'Scenes without a hover preview',
+    why: 'Generate hasn’t made the short clip that plays when you point at a scene, in Stash and here.',
+    fixes: [GENERATE],
+    checking:
+      'Checking every scene’s hover preview in Stash. This can take a few minutes; the list shows here when it’s done.',
+  },
   'no-marker-preview': {
     title: 'Chapters without a preview clip',
     why: 'Generate hasn’t made the clip that plays for these chapters. The count is chapters, the list is their scenes.',
     fixes: [GENERATE],
+    checking:
+      'Checking every chapter’s clip in Stash. This can take a few minutes; the list shows here when it’s done.',
   },
 };
 

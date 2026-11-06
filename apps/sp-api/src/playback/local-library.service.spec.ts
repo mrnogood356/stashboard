@@ -53,6 +53,12 @@ describe('LocalLibraryService', () => {
     mergeStudios: jest.fn().mockResolvedValue(undefined),
     startLibraryTask: jest.fn().mockResolvedValue('7'),
     findProblemScenes: jest.fn(),
+    findScenesWithoutPreview: jest.fn().mockResolvedValue({
+      missing: 0,
+      checked: 5,
+      unanswered: 0,
+      scenes: [],
+    }),
     findMarkersWithoutPreview: jest.fn().mockResolvedValue({
       missing: 3,
       checked: 10,
@@ -194,6 +200,7 @@ describe('LocalLibraryService', () => {
       ['no-length', 0, false],
       ['no-cover', null, false],
       ['no-fingerprint', 0, false],
+      ['no-preview', null, true],
       ['no-marker-preview', null, true],
     ]);
     // Asking again while it runs starts no second check.
@@ -213,6 +220,26 @@ describe('LocalLibraryService', () => {
     const again = await service.problems(true);
     expect(again.at(-1)).toMatchObject({ count: null, checking: true });
     expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(2);
+  });
+
+  it('lists scenes without a hover preview from the background check', async () => {
+    stash.findProblemScenes.mockResolvedValue({ count: 0, scenes: [] });
+    stash.findScenesWithoutPreview.mockResolvedValueOnce({
+      missing: 2,
+      checked: 40,
+      unanswered: 0,
+      scenes: [
+        { id: '7', title: 'A', path: '/a.mp4' },
+        { id: '8', title: 'B', path: '/b.mp4' },
+      ],
+    });
+    await service.problems(true);
+    await new Promise((resolve) => setImmediate(resolve));
+    const list = (await service.problems()).find(
+      (entry) => entry.kind === 'no-preview',
+    );
+    expect(list).toMatchObject({ count: 2, checking: false });
+    expect(list?.scenes.map((scene) => scene.id)).toEqual(['7', '8']);
   });
 
   it('doesn’t call it all clear when Stash didn’t answer for some chapters', async () => {

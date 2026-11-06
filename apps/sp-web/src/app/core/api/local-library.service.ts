@@ -464,14 +464,14 @@ export interface SimilarTagGroup {
 }
 
 export type ProblemKind =
-  'no-file' | 'no-length' | 'no-cover' | 'no-fingerprint' | 'no-marker-preview';
+  'no-file' | 'no-length' | 'no-cover' | 'no-fingerprint' | 'no-preview' | 'no-marker-preview';
 
 export interface ProblemList {
   kind: ProblemKind;
   /** Null when Stash couldn't say. */
   count: number | null;
   scenes: ProblemScene[];
-  /** Still being checked (the chapter-clip check runs in the background). */
+  /** Still being checked (the hover-preview and chapter-clip checks run in the background). */
   checking?: boolean;
   /** Chapters Stash didn't answer for. */
   unanswered?: number;

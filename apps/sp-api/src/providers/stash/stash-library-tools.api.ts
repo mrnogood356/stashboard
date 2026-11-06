@@ -14,7 +14,7 @@ import {
   type StashJob,
   type StashLibraryTask,
   type StashOrganizerScene,
-  type StashProblemKind,
+  type StashQuickProblemKind,
   type StashProblemScene,
   type StashTagSummary,
   type StashSceneMatchInput,
@@ -2324,13 +2324,10 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
   /** Scenes with one kind of problem: how many, and the first few. */
   async findProblemScenes(
     config: StashAdapterBaseConfig,
-    kind: Exclude<StashProblemKind, 'no-marker-preview'>,
+    kind: StashQuickProblemKind,
     perPage = 50,
   ): Promise<{ count: number; scenes: StashProblemScene[] }> {
-    const filters: Record<
-      Exclude<StashProblemKind, 'no-marker-preview'>,
-      Record<string, unknown>
-    > = {
+    const filters: Record<StashQuickProblemKind, Record<string, unknown>> = {
       'no-file': { file_count: { value: 0, modifier: 'EQUALS' } },
       'no-length': {
         file_count: { value: 0, modifier: 'GREATER_THAN' },
@@ -2436,35 +2433,25 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
       const sceneId = this.normalizeEntityId(idText(scene?.['id']));
       return id && sceneId && scene ? [{ id, sceneId, scene }] : [];
     });
+    const probe = await this.probeAssets(
+      config,
+      markers,
+      (marker) => `/scene/${marker.sceneId}/scene_marker/${marker.id}/stream`,
+    );
     const bySceneMissing = new Map<
       string,
       { scene: Record<string, unknown>; count: number }
     >();
-    let next = 0;
-    let unanswered = 0;
-    const why = new Map<string, number>();
-    const worker = async () => {
-      while (next < markers.length) {
-        const marker = markers[next++];
-        const exists = await this.assetExists(
-          config,
-          `/scene/${marker.sceneId}/scene_marker/${marker.id}/stream`,
-        );
-        if (typeof exists === 'string') {
-          unanswered += 1;
-          why.set(exists, (why.get(exists) ?? 0) + 1);
-        }
-        if (exists === false) {
-          const entry = bySceneMissing.get(marker.sceneId) ?? {
-            scene: marker.scene,
-            count: 0,
-          };
-          entry.count += 1;
-          bySceneMissing.set(marker.sceneId, entry);
-        }
+    markers.forEach((marker, index) => {
+      if (probe.results[index] === false) {
+        const entry = bySceneMissing.get(marker.sceneId) ?? {
+          scene: marker.scene,
+          count: 0,
+        };
+        entry.count += 1;
+        bySceneMissing.set(marker.sceneId, entry);
       }
-    };
-    await Promise.all(Array.from({ length: 8 }, worker));
+    });
     let missing = 0;
     const scenes = [...bySceneMissing.entries()]
       .map(([id, { scene, count }]) => {
@@ -2489,15 +2476,135 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
         };
       })
       .sort((a, b) => b.markers - a.markers);
+    return {
+      missing,
+      checked: markers.length,
+      unanswered: probe.unanswered,
+      ...(probe.unansweredWhy ? { unansweredWhy: probe.unansweredWhy } : {}),
+      scenes,
+    };
+  }
+
+  /**
+   * Scenes whose hover preview (the short clip Stash plays when you point at
+   * a scene) Stash hasn't made: each asked with a HEAD, 8 at a time, newest
+   * first, up to `maxScenes`. Scenes with no file are left to "no-file".
+   */
+  async findScenesWithoutPreview(
+    config: StashAdapterBaseConfig,
+    maxScenes = 20_000,
+  ): Promise<{
+    missing: number;
+    checked: number;
+    unanswered: number;
+    unansweredWhy?: string;
+    /** The first 50 missing, newest first. */
+    scenes: StashProblemScene[];
+  }> {
+    const pageSize = 1000;
+    const rows: Array<{ id: string; scene: Record<string, unknown> }> = [];
+    for (let page = 1; rows.length < maxScenes; page += 1) {
+      const payload = (await this.executeQuery(
+        config,
+        `query PreviewList($filter: FindFilterType) {
+          findScenes(filter: $filter) {
+            scenes { id title files { path basename } }
+          }
+        }`,
+        {
+          filter: {
+            page,
+            per_page: pageSize,
+            sort: 'created_at',
+            direction: 'DESC',
+          },
+        },
+      )) as unknown as {
+        data?: { findScenes?: { scenes?: Array<Record<string, unknown>> } };
+      };
+      const found = payload.data?.findScenes?.scenes ?? [];
+      for (const scene of found) {
+        const id = this.normalizeEntityId(idText(scene['id']));
+        const files = Array.isArray(scene['files']) ? scene['files'] : [];
+        if (id && files.length > 0 && rows.length < maxScenes) {
+          rows.push({ id, scene });
+        }
+      }
+      if (found.length < pageSize) {
+        break;
+      }
+    }
+    const probe = await this.probeAssets(
+      config,
+      rows,
+      (row) => `/scene/${row.id}/preview`,
+    );
+    const missingRows = rows.filter(
+      (_, index) => probe.results[index] === false,
+    );
+    return {
+      missing: missingRows.length,
+      checked: rows.length,
+      unanswered: probe.unanswered,
+      ...(probe.unansweredWhy ? { unansweredWhy: probe.unansweredWhy } : {}),
+      scenes: missingRows.slice(0, 50).map(({ id, scene }) => {
+        const files = scene['files'] as Array<Record<string, unknown>>;
+        const title =
+          typeof scene['title'] === 'string' && scene['title']
+            ? scene['title']
+            : null;
+        const basename =
+          typeof files[0]?.['basename'] === 'string'
+            ? files[0]['basename']
+            : null;
+        return {
+          id,
+          title: title ?? basename ?? `Scene ${id}`,
+          path:
+            typeof files[0]?.['path'] === 'string' ? files[0]['path'] : null,
+        };
+      }),
+    };
+  }
+
+  /**
+   * Asks Stash about each file, 8 at a time: true it has it, false it
+   * doesn't, a string why it didn't say. With the count and most common
+   * reason of those it didn't say.
+   */
+  private async probeAssets<T>(
+    config: StashAdapterBaseConfig,
+    items: T[],
+    urlOf: (item: T) => string,
+  ): Promise<{
+    results: Array<boolean | string>;
+    unanswered: number;
+    unansweredWhy?: string;
+  }> {
+    const results: Array<boolean | string> = new Array<boolean | string>(
+      items.length,
+    );
+    const why = new Map<string, number>();
+    let next = 0;
+    const worker = async () => {
+      while (next < items.length) {
+        const index = next++;
+        const answer = await this.assetExists(config, urlOf(items[index]));
+        results[index] = answer;
+        if (typeof answer === 'string') {
+          why.set(answer, (why.get(answer) ?? 0) + 1);
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: 8 }, worker));
+    const unanswered = [...why.values()].reduce((sum, n) => sum + n, 0);
     const unansweredWhy = [...why.entries()].sort(
       (a, b) => b[1] - a[1],
     )[0]?.[0];
     return {
-      missing,
-      checked: markers.length,
+      results,
       unanswered,
       ...(unansweredWhy ? { unansweredWhy } : {}),
-      scenes,
     };
   }
 }

@@ -463,7 +463,21 @@ export interface StashTagSummary {
 
 /** What Library tools → Broken files lists. */
 export type StashProblemKind =
-  'no-file' | 'no-length' | 'no-cover' | 'no-fingerprint' | 'no-marker-preview';
+  | 'no-file'
+  | 'no-length'
+  | 'no-cover'
+  | 'no-fingerprint'
+  | 'no-preview'
+  | 'no-marker-preview';
+
+/** Kinds Stash can't filter for: each file is asked about, in the background. */
+export type StashBackgroundProblemKind = 'no-preview' | 'no-marker-preview';
+
+/** Kinds Stash answers with one query. */
+export type StashQuickProblemKind = Exclude<
+  StashProblemKind,
+  StashBackgroundProblemKind
+>;
 
 export interface StashProblemScene {
   id: string;

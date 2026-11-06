@@ -166,6 +166,18 @@ describe('BrokenFilesPageComponent', () => {
     fixture.destroy();
   });
 
+  it('lists scenes without a hover preview and generates just those', async () => {
+    const generateFor = vi.fn(() => of({ jobId: '3' }));
+    const { fixture, root } = await render([{ kind: 'no-preview', count: 2, scenes: scenes(2) }], {
+      generateFor,
+    });
+    fixture.detectChanges();
+    const panel = root.querySelector('[data-testid="problem-no-preview"]')!;
+    expect(panel.textContent).toContain('Scenes without a hover preview');
+    (panel.querySelector('[data-testid="fix-no-preview-generate"]') as HTMLButtonElement).click();
+    expect(generateFor).toHaveBeenCalledWith(['1', '2']);
+  });
+
   it('says why a count is unknown', async () => {
     const { fixture, root } = await render([
       {

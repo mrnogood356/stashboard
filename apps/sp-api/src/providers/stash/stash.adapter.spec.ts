@@ -102,6 +102,49 @@ describe('StashAdapter', () => {
     });
   });
 
+  it('finds scenes without a hover preview, leaving out scenes with no file', async () => {
+    const asked: string[] = [];
+    fetchMock.mockImplementation((url) => {
+      const text = String(url);
+      if (text.includes('/preview')) {
+        asked.push(text);
+        return Promise.resolve({
+          ok: !text.includes('/scene/2/'),
+          status: text.includes('/scene/2/') ? 404 : 200,
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              findScenes: {
+                scenes: [
+                  { id: '1', title: 'Has one', files: [{ path: '/1.mp4' }] },
+                  {
+                    id: '2',
+                    title: '',
+                    files: [{ path: '/two.mp4', basename: 'two.mp4' }],
+                  },
+                  { id: '3', title: 'No file', files: [] },
+                ],
+              },
+            },
+          }),
+      } as Response);
+    });
+
+    await expect(
+      adapter.findScenesWithoutPreview({ baseUrl: 'http://stash.local' }),
+    ).resolves.toEqual({
+      missing: 1,
+      checked: 2,
+      unanswered: 0,
+      scenes: [{ id: '2', title: 'two.mp4', path: '/two.mp4' }],
+    });
+    expect(asked).toHaveLength(2);
+  });
+
   it('asks for one byte when Stash won’t answer HEAD for a marker clip', async () => {
     const sent: Array<{ method?: string; range?: string }> = [];
     fetchMock.mockImplementation((url, init) => {
