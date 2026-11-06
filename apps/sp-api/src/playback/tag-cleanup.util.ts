@@ -103,7 +103,7 @@ export function nameKey(name: string): string {
   // stay apart, and their letters stay in.
   return name
     .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/(\p{Script=Latin})[\u0300-\u036f]+/gu, '$1')
     .normalize('NFC')
     .toLowerCase()
     .replace(/&/g, 'and')

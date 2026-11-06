@@ -49,5 +49,9 @@ describe('nameKey', () => {
     expect(nameKey('愛 さん')).toBe('愛さん');
     expect(nameKey('が')).not.toBe(nameKey('か'));
     expect(nameKey('김')).not.toBe('');
+    // Only Latin letters lose their marks: й isn't и.
+    expect(nameKey('й')).not.toBe(nameKey('и'));
+    expect(nameKey('Ёлка')).not.toBe(nameKey('Елка'));
+    expect(nameKey('Zoë')).toBe(nameKey('Zoe'));
   });
 });
