@@ -1445,6 +1445,11 @@ export class DownloadHandoffService {
     row: DownloadHandoff,
     reason: string,
   ): Promise<void> {
+    if (row.finalPath) {
+      // The file is in the library already (only Stash's part failed):
+      // grabbing the same release again would only make another copy.
+      return;
+    }
     const attempt = await this.prisma.smallerCopyAttempt
       .findFirst({ where: { handoffId: row.id } })
       .catch(() => null);

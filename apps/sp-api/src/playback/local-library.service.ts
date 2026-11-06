@@ -13,6 +13,7 @@ import {
 } from './library-stats.util';
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   Logger,
@@ -787,7 +788,21 @@ export class LocalLibraryService {
     if (kind === 'performer') {
       await this.stash.mergePerformers(config, keepId, sources);
     } else {
-      await this.stash.mergeStudios(config, keepId, sources);
+      try {
+        await this.stash.mergeStudios(config, keepId, sources);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(
+          `Merging studios into ${keep.name} stopped: ${message}`,
+        );
+        await this.activity?.record({
+          kind: 'scan',
+          title: `Merging studios into ${keep.name} didn’t finish`,
+          detail: message,
+          status: 'failed',
+        });
+        throw new ConflictException(message);
+      }
     }
     const names = sources.map((id) => all.get(id)!.name);
     this.logger.log(`Merged ${kind}s ${names.join(', ')} into ${keep.name}.`);

@@ -2108,17 +2108,27 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
       );
     }
     const values = mergedValues(keep, sources, 'aliases');
-    await this.executeQuery(
-      config,
-      `mutation KeepStudio($input: StudioUpdateInput!) { studioUpdate(input: $input) { id } }`,
-      {
-        input: {
-          id: keepId,
-          aliases: values.aliases,
-          stash_ids: values.stashIds,
+    try {
+      await this.executeQuery(
+        config,
+        `mutation KeepStudio($input: StudioUpdateInput!) { studioUpdate(input: $input) { id } }`,
+        {
+          input: {
+            id: keepId,
+            aliases: values.aliases,
+            stash_ids: values.stashIds,
+          },
         },
-      },
-    );
+      );
+    } catch (error) {
+      // The merged studios are gone by now: say exactly what to add by hand.
+      const links = values.stashIds.map(
+        (link) => `${link.endpoint} ${link.stash_id}`,
+      );
+      throw new Error(
+        `The scenes were moved and the other studios removed, but their names couldn't be added to ${String(keep['name'])}: ${error instanceof Error ? error.message : String(error)}. Add these in Stash: aliases ${values.aliases.join(', ') || '(none)'}${links.length ? `; StashDB/FansDB links ${links.join(', ')}` : ''}.`,
+      );
+    }
   }
 
   /**
@@ -2224,22 +2234,8 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
         },
       },
     );
-    const plays = strings(from, 'play_history');
-    const os = strings(from, 'o_history');
-    if (plays.length > 0) {
-      await this.executeQuery(
-        config,
-        `mutation CarryPlays($id: ID!, $times: [Timestamp!]) { sceneAddPlay(id: $id, times: $times) { count } }`,
-        { id: toId, times: plays },
-      );
-    }
-    if (os.length > 0) {
-      await this.executeQuery(
-        config,
-        `mutation CarryOs($id: ID!, $times: [Timestamp!]) { sceneAddO(id: $id, times: $times) { count } }`,
-        { id: toId, times: os },
-      );
-    }
+    // Chapters first (already-there ones are skipped), history last: a
+    // retry after a failure then doesn't add the plays twice.
     const length = (scene: Record<string, unknown>) =>
       Math.max(
         0,
@@ -2289,6 +2285,22 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
         );
         chapters += 1;
       }
+    }
+    const plays = strings(from, 'play_history');
+    const os = strings(from, 'o_history');
+    if (plays.length > 0) {
+      await this.executeQuery(
+        config,
+        `mutation CarryPlays($id: ID!, $times: [Timestamp!]) { sceneAddPlay(id: $id, times: $times) { count } }`,
+        { id: toId, times: plays },
+      );
+    }
+    if (os.length > 0) {
+      await this.executeQuery(
+        config,
+        `mutation CarryOs($id: ID!, $times: [Timestamp!]) { sceneAddO(id: $id, times: $times) { count } }`,
+        { id: toId, times: os },
+      );
     }
     return { plays: plays.length, os: os.length, chapters };
   }

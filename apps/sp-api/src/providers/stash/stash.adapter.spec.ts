@@ -1804,8 +1804,8 @@ describe('StashAdapter', () => {
       expect(calls.map((call) => call.name)).toEqual([
         'CarryScenes',
         'CarryDetails',
-        'CarryPlays',
         'CarryChapter',
+        'CarryPlays',
       ]);
       expect(calls[1].variables).toEqual({
         input: {
@@ -1820,7 +1820,7 @@ describe('StashAdapter', () => {
           organized: true,
         },
       });
-      expect(calls[3].variables).toEqual({
+      expect(calls[2].variables).toEqual({
         input: {
           scene_id: '1',
           title: 'Pool',
@@ -1876,6 +1876,44 @@ describe('StashAdapter', () => {
           sceneFilter: {},
         }),
       ).resolves.toEqual({ total: 0, items: [] });
+    });
+
+    it('says what to add by hand when the kept studio can’t take the names', async () => {
+      fetchMock.mockImplementation((_url: unknown, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as { query: string };
+        const name = /(query|mutation) (\w+)/.exec(body.query)?.[2] ?? '?';
+        if (name === 'MergeStudioSources') {
+          return Promise.resolve(
+            ok({
+              findStudios: {
+                studios: [
+                  {
+                    id: '1',
+                    name: 'Brand',
+                    aliases: [],
+                    stash_ids: [],
+                    child_studios: [],
+                  },
+                  {
+                    id: '2',
+                    name: 'Brand Inc',
+                    aliases: [],
+                    stash_ids: [{ endpoint: 'sdb', stash_id: 'x' }],
+                    child_studios: [],
+                  },
+                ],
+              },
+            }),
+          );
+        }
+        if (name === 'KeepStudio') {
+          return Promise.resolve(gqlError('alias taken'));
+        }
+        return Promise.resolve(ok({}));
+      });
+      await expect(adapter.mergeStudios(config, '1', ['2'])).rejects.toThrow(
+        /aliases Brand Inc; StashDB\/FansDB links sdb x/,
+      );
     });
 
     it('saves rating, organized and tags with sceneUpdate', async () => {

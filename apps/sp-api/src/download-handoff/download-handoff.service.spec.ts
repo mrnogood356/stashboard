@@ -625,6 +625,24 @@ describe('DownloadHandoffService', () => {
       });
     });
 
+    it('keeps a smaller copy’s release skipped when the file is already in the library', async () => {
+      const placed = handoff({
+        id: 'h1',
+        replacesStashSceneId: '12',
+        finalPath: '/lib/new.mkv',
+      });
+      rows.push(placed);
+      const update = jest.fn();
+      prisma.smallerCopyAttempt = { findFirst: jest.fn(), update };
+      await (
+        service as unknown as {
+          fail: (row: DownloadHandoff, reason: string) => Promise<void>;
+        }
+      ).fail(placed, 'Stash never found it');
+      expect(prisma.smallerCopyAttempt.findFirst).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
+    });
+
     it('leaves a download moved to another category alone', async () => {
       rows.push(handoff({ id: 'h1' }));
       await write(video());
