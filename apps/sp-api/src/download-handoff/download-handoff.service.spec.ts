@@ -865,6 +865,9 @@ describe('DownloadHandoffService', () => {
         return Promise.resolve();
       });
       stash.removeExtraFile = jest.fn().mockResolvedValue(undefined);
+      organizer.syncReplacedScene = jest
+        .fn()
+        .mockResolvedValue({ status: 'sent' });
     });
 
     it('merges the new scene into the old one and deletes the old file', async () => {
@@ -880,6 +883,25 @@ describe('DownloadHandoffService', () => {
       expect(row().stashSceneId).toBe('12');
       expect(outcome()).toMatchObject({ outcome: 'replaced', newSize: 2e9 });
       expect(outcome().detail).toContain('/lib/old.mkv');
+      // Whisparr is told straight away, not left showing the scene missing.
+      expect(organizer.syncReplacedScene).toHaveBeenCalledWith('12');
+      expect(outcome().detail).toContain('Whisparr has the new file');
+    });
+
+    it('says how to finish when Whisparr doesn’t take the new file', async () => {
+      organizer.syncReplacedScene.mockRejectedValue(
+        new Error('Whisparr is down'),
+      );
+      await replace();
+      expect(outcome().outcome).toBe('replaced');
+      expect(outcome().detail).toContain('Whisparr is down');
+      expect(outcome().detail).toContain('In Stash, not in Whisparr');
+    });
+
+    it('doesn’t touch Whisparr when both files stay', async () => {
+      oldCopy = 'keep';
+      await replace();
+      expect(organizer.syncReplacedScene).not.toHaveBeenCalled();
     });
 
     it('keeps both files on the scene when the rules say to keep the old one', async () => {

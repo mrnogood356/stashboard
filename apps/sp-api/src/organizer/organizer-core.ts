@@ -29,6 +29,7 @@ import {
 } from './folder-cleanup.util';
 import { HANDOFF_SETTINGS_KEY } from '../download-handoff/download-handoff.model';
 import {
+  type AdoptResult,
   HandoffResult,
   WhisparrHandoffService,
 } from './whisparr-handoff.service';
@@ -748,6 +749,23 @@ export abstract class OrganizerCore {
     return count > 0
       ? { batchId: last.batchId, count, at: last.createdAt.toISOString() }
       : null;
+  }
+
+  /**
+   * Smaller copies replaced this scene's file: Whisparr takes the new one
+   * straight away instead of showing the scene missing until "In Stash,
+   * not in Whisparr" runs.
+   */
+  async syncReplacedScene(stashSceneId: string): Promise<AdoptResult> {
+    const config = await this.stashConfig();
+    const [settings, scene] = await Promise.all([
+      this.getSettings(),
+      this.stash.getOrganizerScene(config, stashSceneId),
+    ]);
+    if (!scene) {
+      return { status: 'skipped', reason: 'The scene is gone from Stash.' };
+    }
+    return this.handoff.adoptReplacedFile(config, scene, settings);
   }
 
   protected async handOff(

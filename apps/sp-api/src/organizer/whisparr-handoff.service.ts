@@ -294,10 +294,13 @@ export class WhisparrHandoffService {
       if (has) {
         result.sent.push({ sceneId: entry.scene.id, title });
       } else {
+        const why = entry.item.rejections.filter(Boolean);
         result.failed.push({
           sceneId: entry.scene.id,
           title,
-          reason: `Whisparr ran the import but didn’t take ${entry.item.path}. Whisparr → System → Logs says why.`,
+          reason: why.length
+            ? `Whisparr didn’t take ${entry.item.path}: ${why.join('; ')}.`
+            : `Whisparr ran the import but didn’t take ${entry.item.path}. Whisparr → System → Logs says why.`,
         });
       }
     }
@@ -658,6 +661,60 @@ export class WhisparrHandoffService {
           ]
         : [],
     );
+  }
+
+  /**
+   * After Stashboard swapped a scene's file (Smaller copies): has Whisparr
+   * notice the old file is gone, then take the new one, so it never shows
+   * the scene as missing. Only for scenes Whisparr already has.
+   */
+  async adoptReplacedFile(
+    config: StashAdapterBaseConfig,
+    scene: StashOrganizerScene,
+    settings: OrganizerSettings,
+  ): Promise<AdoptResult> {
+    const whisparrConfig = await this.whisparrConfig();
+    if (!whisparrConfig) {
+      return { status: 'skipped', reason: 'Whisparr isn’t set up.' };
+    }
+    const catalogHost = await this.catalogHost();
+    const stashId = scene.stashIds.find(
+      (entry) => hostOf(entry.endpoint) === catalogHost,
+    )?.stashId;
+    if (!stashId) {
+      return { status: 'skipped', reason: 'Not linked to your main catalog.' };
+    }
+    const movie = await this.whisparr.findMovieByStashId(
+      stashId,
+      whisparrConfig,
+    );
+    if (!movie) {
+      return { status: 'skipped', reason: 'Whisparr doesn’t have this scene.' };
+    }
+    if (movie.hasFile) {
+      // It still points at the old file: have it look again first.
+      await this.whisparr.refreshMovies(whisparrConfig, [movie.movieId]);
+      for (let tries = 0; tries < 10; tries += 1) {
+        await this.sleep(3000);
+        if (!(await this.hasFile(whisparrConfig, stashId))) {
+          break;
+        }
+      }
+    }
+    const result = await this.send(config, [scene], settings);
+    if (result.sent.length > 0) {
+      return { status: 'sent' };
+    }
+    const failure = result.failed[0]?.reason;
+    const skipped = Object.keys(result.skipped)[0];
+    return {
+      status: 'failed',
+      reason:
+        failure ??
+        (skipped
+          ? `Whisparr skipped it (${skipped}).`
+          : 'Whisparr didn’t take it.'),
+    };
   }
 
   /** Has Whisparr look at these scenes' folders again, so it sees files that are gone. */
@@ -1295,3 +1352,7 @@ export function candidateBases(rootFolders: string[]): string[] {
     (left, right) => right.split('/').length - left.split('/').length,
   );
 }
+
+/** What happened when Whisparr was told about a replaced file. */
+export type AdoptResult =
+  { status: 'sent' } | { status: 'skipped' | 'failed'; reason: string };

@@ -1112,9 +1112,28 @@ export class DownloadHandoffService {
         where: { id: row.id },
         data: { stashSceneId: oldSceneId },
       });
+      // Whisparr takes the new file now, rather than showing the scene
+      // missing until "In Stash, not in Whisparr" runs.
+      const whisparr = await this.organizer
+        .syncReplacedScene(oldSceneId)
+        .catch((error: unknown) => ({
+          status: 'failed' as const,
+          reason: messageOf(error),
+        }));
+      const whisparrNote =
+        whisparr.status === 'sent'
+          ? ' Whisparr has the new file.'
+          : whisparr.status === 'failed'
+            ? ` Whisparr didn’t take it yet (${whisparr.reason}); Organizer → “In Stash, not in Whisparr” sends it.`
+            : '';
+      if (whisparr.status === 'failed') {
+        this.logger.warn(
+          `Whisparr didn't take the new file for Stash scene ${oldSceneId}: ${whisparr.reason}`,
+        );
+      }
       await record(
         'replaced',
-        `Deleted ${removed.join(', ') || 'the old file'}.`,
+        `Deleted ${removed.join(', ') || 'the old file'}.${whisparrNote}`,
         newFile.size,
       );
       this.logger.log(
