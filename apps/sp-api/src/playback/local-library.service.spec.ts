@@ -218,6 +218,20 @@ describe('LocalLibraryService', () => {
     expect(stash.findGenerateGaps).toHaveBeenCalledTimes(2);
   });
 
+  it('reads the scene list once for both background checks', async () => {
+    stash.findProblemScenes.mockResolvedValue({ count: 0, scenes: [] });
+    const rows = [{ id: '1', title: 'One', markerIds: [], files: [] }];
+    stash.listScenesForChecks.mockClear();
+    stash.listScenesForChecks.mockResolvedValueOnce(rows);
+    await service.problems(true);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(stash.listScenesForChecks).toHaveBeenCalledTimes(1);
+    expect(stash.findGenerateGaps).toHaveBeenLastCalledWith(
+      expect.anything(),
+      rows,
+    );
+  });
+
   it('doesn’t call it all clear when Stash didn’t answer for some files', async () => {
     stash.findProblemScenes.mockResolvedValue({ count: 0, scenes: [] });
     stash.findGenerateGaps.mockResolvedValueOnce({

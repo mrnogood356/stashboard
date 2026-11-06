@@ -7,6 +7,7 @@ import {
 } from './tag-cleanup.util';
 import type {
   StashBackgroundProblemKind,
+  StashCheckScene,
   StashProblemKind,
   StashProblemScene,
   StashQuickProblemKind,
@@ -922,7 +923,10 @@ export class LocalLibraryService {
     try {
       const found: BackgroundFound =
         kind === 'generate'
-          ? await this.stash.findGenerateGaps(config)
+          ? await this.stash.findGenerateGaps(
+              config,
+              await this.checkRows(config),
+            )
           : await this.checkFilesOnDisk(config);
       // Unanswered checks aren't an all-clear: with nothing found missing,
       // the count is unknown rather than 0.
@@ -977,6 +981,36 @@ export class LocalLibraryService {
     }
   }
 
+  /** The scene list both background checks read, while one is being read. */
+  private checkRowsRun: {
+    baseUrl: string;
+    value: Promise<StashCheckScene[]>;
+  } | null = null;
+
+  /**
+   * The library's scenes for the file-by-file checks. Both checks start
+   * together, so they share one read of the list rather than each asking
+   * Stash for every scene; the next run reads it afresh.
+   */
+  private checkRows(config: {
+    baseUrl: string;
+    apiKey?: string | null;
+  }): Promise<StashCheckScene[]> {
+    if (this.checkRowsRun?.baseUrl !== config.baseUrl) {
+      const value = this.stash.listScenesForChecks(config);
+      const run = { baseUrl: config.baseUrl, value };
+      this.checkRowsRun = run;
+      void value
+        .catch(() => undefined)
+        .finally(() => {
+          if (this.checkRowsRun === run) {
+            this.checkRowsRun = null;
+          }
+        });
+    }
+    return this.checkRowsRun.value;
+  }
+
   /** Swapped in tests. */
   statFile: (path: string) => Promise<{ size: number; mtimeMs: number }> = (
     path,
@@ -993,7 +1027,7 @@ export class LocalLibraryService {
     baseUrl: string;
     apiKey?: string | null;
   }): Promise<BackgroundFound> {
-    const rows = await this.stash.listScenesForChecks(config);
+    const rows = await this.checkRows(config);
     const files = rows.flatMap((row, scene) =>
       row.files.map((file) => ({ scene, file })),
     );

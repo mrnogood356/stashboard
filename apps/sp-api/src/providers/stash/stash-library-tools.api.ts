@@ -2451,7 +2451,8 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
    */
   async findGenerateGaps(
     config: StashAdapterBaseConfig,
-    maxScenes = 20_000,
+    /** The scenes to check; read from Stash when not given. */
+    scenes?: StashCheckScene[],
   ): Promise<{
     missing: number;
     checked: number;
@@ -2460,7 +2461,7 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
     /** Up to 50, those lacking the most first. */
     scenes: StashProblemScene[];
   }> {
-    const rows = await this.listScenesForChecks(config, maxScenes);
+    const rows = scenes ?? (await this.listScenesForChecks(config));
     const coverless = await this.sceneIdsMissing(config, 'cover');
     type Ask = {
       scene: number;
