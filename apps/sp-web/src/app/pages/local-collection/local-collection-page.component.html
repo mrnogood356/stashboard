@@ -86,6 +86,16 @@
               ></i>
               {{ header.favorite ? 'Favorite' : 'Add to favorites' }}
             </button>
+            @if (kind() === 'performer' && playbackOn()) {
+              <a
+                class="action secondary"
+                routerLink="/chapters"
+                [queryParams]="{ performer: id(), name: header.name }"
+              >
+                <i class="pi pi-list" aria-hidden="true"></i>
+                Their chapters
+              </a>
+            }
           </div>
         </div>
       </div>

@@ -576,6 +576,7 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
     pushIfValue('Gender', this.formattedGender(performer.gender));
     pushIfValue('Age', performer.age);
     pushIfValue('Birth Date', performer.birthDate);
+    pushIfValue('Died', performer.deathDate);
     pushIfValue('Country', performer.country);
     pushIfValue('Ethnicity', performer.ethnicity);
     pushIfValue('Eye Color', performer.eyeColor);

@@ -116,6 +116,18 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'tools/merge',
+        loadComponent: () =>
+          import('./pages/tools/merge-page.component').then((m) => m.MergePageComponent),
+      },
+      {
+        path: 'tools/smaller-copies',
+        loadComponent: () =>
+          import('./pages/tools/smaller-copies-page.component').then(
+            (m) => m.SmallerCopiesPageComponent,
+          ),
+      },
+      {
         path: 'tools/schedules',
         loadComponent: () =>
           import('./pages/tools/schedules-page.component').then((m) => m.SchedulesPageComponent),
@@ -139,6 +151,23 @@ export const routes: Routes = [
         path: 'calendar',
         loadComponent: () =>
           import('./pages/calendar/calendar-page.component').then((m) => m.CalendarPageComponent),
+      },
+      {
+        path: 'watch-later',
+        loadComponent: () =>
+          import('./pages/watch-later/watch-later-page.component').then(
+            (m) => m.WatchLaterPageComponent,
+          ),
+      },
+      {
+        path: 'chapters',
+        loadComponent: () =>
+          import('./pages/chapters/chapters-page.component').then((m) => m.ChaptersPageComponent),
+      },
+      {
+        path: 'history',
+        loadComponent: () =>
+          import('./pages/history/history-page.component').then((m) => m.HistoryPageComponent),
       },
       {
         path: 'you-may-enjoy',

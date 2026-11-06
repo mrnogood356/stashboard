@@ -29,6 +29,7 @@ import { MultiSelect } from 'primeng/multiselect';
 import { Select } from 'primeng/select';
 import { LibraryService } from '../../core/api/library.service';
 import { LocalLibraryService } from '../../core/api/local-library.service';
+import { WatchLaterService } from '../../core/api/watch-later.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { SelectionBarComponent } from '../../shared/selection-bar/selection-bar.component';
 import { RuntimeHealthService } from '../../core/api/runtime-health.service';
@@ -41,7 +42,10 @@ import {
   LibraryTagMatchMode,
   LibraryTagOption,
 } from '../../core/api/library.types';
-import { SceneCardComponent } from '../../shared/scene-card/scene-card.component';
+import {
+  SceneCardComponent,
+  type SceneCardMenuAction,
+} from '../../shared/scene-card/scene-card.component';
 import {
   buildReadinessPageAlert,
   firstUseEmptyStateCopy,
@@ -110,6 +114,7 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
   ];
   private readonly libraryService = inject(LibraryService);
   private readonly localLibrary = inject(LocalLibraryService);
+  private readonly watchLater = inject(WatchLaterService);
   private readonly notifications = inject(AppNotificationsService);
 
   // ---------- picking scenes for bulk actions ----------
@@ -298,7 +303,28 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
     };
   });
 
+  /** The card's ⋯ menu: save to, or remove from, Watch later. */
+  protected cardActions(sceneId: string): SceneCardMenuAction[] {
+    return this.watchLater.has(sceneId)
+      ? [{ id: 'watch-later', label: 'Remove from Watch later', icon: 'pi pi-bookmark-fill' }]
+      : [{ id: 'watch-later', label: 'Watch later', icon: 'pi pi-bookmark' }];
+  }
+
+  protected onCardAction(sceneId: string, action: string): void {
+    if (action !== 'watch-later') {
+      return;
+    }
+    const saved = this.watchLater.has(sceneId);
+    this.watchLater.toggle(sceneId).subscribe({
+      next: () =>
+        this.notifications.success(saved ? 'Removed from Watch later' : 'Saved to Watch later'),
+      error: () =>
+        this.notifications.error("Couldn't change Watch later", 'Try again in a moment.'),
+    });
+  }
+
   ngOnInit(): void {
+    this.watchLater.ensureLoaded();
     this.runtimeHealthService.ensureStarted();
     this.setupQuerySearch();
     this.setupStudioSearch();

@@ -20,6 +20,8 @@ import { AppLockService } from '../../core/app-lock/app-lock.service';
 import { ImageObscurationService } from '../../core/preferences/image-obscuration.service';
 import { QuickHideService } from '../../core/quick-hide/quick-hide.service';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
+import { PlayQueueService, type QueueItem } from '../../core/play-queue/play-queue.service';
+import { WatchLaterService } from '../../core/api/watch-later.service';
 import { ClipPreviewComponent } from '../../shared/scene-card/clip-preview.component';
 import {
   FRAME_SECONDS,
@@ -83,6 +85,8 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   protected readonly obscured = inject(ImageObscurationService).isObscured;
   private readonly quickHide = inject(QuickHideService);
   private readonly library = inject(LocalLibraryService);
+  private readonly queue = inject(PlayQueueService);
+  protected readonly watchLater = inject(WatchLaterService);
   /** Settings → Playback: card previews also play each chapter's clip. */
   protected readonly previewsOn = inject(PlaybackSettingsService).previewsEnabled;
 
@@ -130,6 +134,23 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   } | null>(null);
 
   protected readonly chaptersMenuOpen = signal(false);
+  protected readonly moreMenuOpen = signal(false);
+  /** A-B loop: the start, and the end once it's set. */
+  protected readonly loop = signal<{ a: number; b: number | null } | null>(null);
+  /** The picture flipped left to right; kept while the player is open. */
+  protected readonly mirrored = signal(false);
+  protected readonly loopBand = computed(() => {
+    const loop = this.loop();
+    const duration = this.duration();
+    if (!loop || duration <= 0) {
+      return null;
+    }
+    const end = loop.b ?? loop.a;
+    return {
+      left: (loop.a / duration) * 100,
+      width: Math.max(0.4, ((end - loop.a) / duration) * 100),
+    };
+  });
   /** "Add chapter" sheet: title, tag (Stash needs one) and the time it was opened at. */
   protected readonly chapterDraft = signal<{
     seconds: number;
@@ -141,6 +162,10 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   protected readonly chapterError = signal<string | null>(null);
   /** Shown when the scene ends: the next related scene, with a countdown. */
   protected readonly upNext = signal<LocalSceneCard | null>(null);
+  /** "Watch later · 3 of 12" while a list plays. */
+  protected readonly queueLabel = signal<string | null>(null);
+  /** The list item playing now, when one is. */
+  private queued: QueueItem | null = null;
   protected readonly upNextCountdown = signal(UP_NEXT_SECONDS);
   protected readonly markers = computed<SceneMarker[]>(() => this.info()?.markers ?? []);
   protected readonly chapterTicks = computed(() => {
@@ -212,6 +237,7 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
+    this.watchLater.ensureLoaded();
     this.sceneId = this.route.snapshot.paramMap.get('sceneId') ?? '';
     void this.appLock.refresh();
     this.attachVideoListeners();
@@ -249,6 +275,8 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     this.bufferedEnd.set(0);
     this.resumedFrom.set(null);
     this.chaptersMenuOpen.set(false);
+    this.moreMenuOpen.set(false);
+    this.loop.set(null);
     this.load(null);
   }
 
@@ -277,6 +305,21 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     this.error.set(null);
     const sceneId = this.sceneId;
     if (keepTime === null) {
+      if (this.explicitStart() !== null) {
+        // Opened at a set time (a chapter link, From the start): not part of
+        // a list left playing earlier.
+        this.queue.clear();
+      }
+      this.queued = this.queue.currentFor(sceneId);
+      const queued = this.queue.queue();
+      this.queueLabel.set(
+        this.queued && queued ? `${queued.label} · ${this.queue.position()}` : null,
+      );
+    }
+    const fromQueue = this.queued ? this.queue.peekNext() : null;
+    if (keepTime === null && fromQueue) {
+      this.nextCandidate = cardOf(fromQueue);
+    } else if (keepTime === null) {
       // Pick the Up next scene early so it's ready when this one ends.
       this.library
         .related(sceneId)
@@ -527,8 +570,18 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       this.buffering.set(false);
     });
     on('timeupdate', () => {
+      const loop = this.loop();
+      if (loop && loop.b !== null && video.currentTime >= loop.b) {
+        video.currentTime = loop.a;
+      }
       this.currentTime.set(video.currentTime);
       this.trackWatched(video.currentTime);
+      const end = this.queued?.end;
+      if (end !== undefined && !loop && video.currentTime >= end && !video.paused) {
+        // A chapter in a playlist: on to the next one straight away.
+        video.pause();
+        this.finishQueued();
+      }
     });
     on('progress', () => {
       const ranges = video.buffered;
@@ -545,9 +598,21 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       }
     });
     on('ended', () => {
+      const loop = this.loop();
+      if (loop && loop.b !== null) {
+        // A loop that runs to the very end goes round instead of ending.
+        video.currentTime = loop.a;
+        void video.play().catch(() => undefined);
+        return;
+      }
       this.playing.set(false);
       this.saveProgress('ended');
       this.showControls();
+      if (this.queued?.end !== undefined) {
+        this.finishQueued();
+        return;
+      }
+      this.leaveWatchLater();
       this.startUpNext();
     });
     on('play', () => this.cancelUpNext());
@@ -768,6 +833,11 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   }
 
   private requestedStart(): number | null {
+    return this.explicitStart() ?? this.queued?.start ?? null;
+  }
+
+  /** The ?t= time the player was opened with, if any. */
+  private explicitStart(): number | null {
     const raw = this.route.snapshot.queryParamMap.get('t');
     if (raw === null || raw.trim() === '') {
       return null;
@@ -971,7 +1041,67 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     return current;
   }
 
+  // ---------- Loop and mirror ----------
+
+  protected toggleMoreMenu(): void {
+    this.moreMenuOpen.update((open) => !open);
+    this.chaptersMenuOpen.set(false);
+    this.qualityMenuOpen.set(false);
+    this.speedMenuOpen.set(false);
+    this.showControls();
+  }
+
+  /** First press sets where the loop starts, the second where it ends, the third turns it off. */
+  protected stepLoop(): void {
+    const now = this.videoRef?.nativeElement.currentTime ?? this.currentTime();
+    const loop = this.loop();
+    if (!loop) {
+      this.loop.set({ a: now, b: null });
+      this.showHud(`Loop from ${formatTime(now)}: press again at the end`);
+    } else if (loop.b === null) {
+      if (now <= loop.a + 0.5) {
+        this.showHud('The end has to be after the start');
+        return;
+      }
+      this.loop.set({ a: loop.a, b: now });
+      this.showHud(`Looping ${formatTime(loop.a)}–${formatTime(now)}`);
+      this.seekTo(loop.a);
+    } else {
+      this.clearLoop();
+    }
+  }
+
+  protected clearLoop(): void {
+    if (this.loop()) {
+      this.loop.set(null);
+      this.showHud('Loop off');
+    }
+  }
+
+  /** Loops one chapter, from its start to the next chapter (or the end). */
+  protected loopChapter(marker: SceneMarker, event?: Event): void {
+    event?.stopPropagation();
+    const markers = this.markers();
+    const next = markers.find((other) => other.seconds > marker.seconds + 0.25);
+    const end = next?.seconds ?? this.duration();
+    if (!(end > marker.seconds)) {
+      return;
+    }
+    this.loop.set({ a: marker.seconds, b: end });
+    this.chaptersMenuOpen.set(false);
+    this.moreMenuOpen.set(false);
+    this.showHud(`Looping “${marker.title}”`);
+    this.seekTo(marker.seconds);
+    void this.videoRef?.nativeElement.play().catch(() => undefined);
+  }
+
+  protected toggleMirror(): void {
+    this.mirrored.update((on) => !on);
+    this.showHud(this.mirrored() ? 'Mirrored' : 'Not mirrored');
+  }
+
   protected toggleChaptersMenu(): void {
+    this.moreMenuOpen.set(false);
     this.chaptersMenuOpen.update((open) => !open);
     this.qualityMenuOpen.set(false);
     this.speedMenuOpen.set(false);
@@ -1096,11 +1226,64 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     this.upNext.set(null);
   }
 
+  /** A chapter in a playlist reached its end. */
+  private finishQueued(): void {
+    if (this.queue.peekNext()) {
+      this.playUpNext();
+    } else {
+      this.queue.clear();
+      this.queued = null;
+      this.queueLabel.set(null);
+      this.showHud('End of the list');
+    }
+  }
+
+  /** Played to the end from Watch later: it leaves the list. */
+  private leaveWatchLater(): void {
+    if (this.queued && this.queue.queue()?.kind === 'later') {
+      this.watchLater.remove(this.sceneId).subscribe({ error: () => undefined });
+    }
+  }
+
+  protected sceneIdNow(): string {
+    return this.sceneId;
+  }
+
+  protected toggleWatchLater(): void {
+    const saved = this.watchLater.has(this.sceneId);
+    this.watchLater.toggle(this.sceneId).subscribe({
+      next: () => this.showHud(saved ? 'Removed from Watch later' : 'Saved to Watch later'),
+      error: () => this.showHud('Couldn’t change Watch later'),
+    });
+    this.moreMenuOpen.set(false);
+  }
+
   protected playUpNext(): void {
     const next = this.upNext() ?? this.nextCandidate;
     this.cancelUpNext();
     if (!next) {
       return;
+    }
+    if (this.queued) {
+      const item = this.queue.advance();
+      if (item && item.sceneId === next.id) {
+        const returnTo = this.route.snapshot.queryParamMap.get('returnTo');
+        if (item.sceneId === this.sceneId) {
+          // The next chapter is in this scene: just jump there.
+          this.queued = item;
+          this.queueLabel.set(`${this.queue.queue()?.label} · ${this.queue.position()}`);
+          const following = this.queue.peekNext();
+          this.nextCandidate = following ? cardOf(following) : null;
+          this.seekTo(item.start ?? 0);
+          void this.videoRef?.nativeElement.play().catch(() => undefined);
+          return;
+        }
+        void this.router.navigate(['/watch', item.sceneId], {
+          queryParams: returnTo ? { returnTo } : {},
+          replaceUrl: true,
+        });
+        return;
+      }
     }
     const returnTo = this.route.snapshot.queryParamMap.get('returnTo');
     void this.router.navigate(['/watch', next.id], {
@@ -1212,7 +1395,12 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
 
   /** Closes whichever menu is open; true when one was. */
   private closeMenus(): boolean {
-    const open = this.speedMenuOpen() || this.qualityMenuOpen() || this.chaptersMenuOpen();
+    const open =
+      this.speedMenuOpen() ||
+      this.qualityMenuOpen() ||
+      this.chaptersMenuOpen() ||
+      this.moreMenuOpen();
+    this.moreMenuOpen.set(false);
     this.speedMenuOpen.set(false);
     this.qualityMenuOpen.set(false);
     this.chaptersMenuOpen.set(false);
@@ -1382,11 +1570,17 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       case 'help':
         this.setHelpOpen(!this.helpOpen());
         break;
+      case 'loop':
+        this.stepLoop();
+        break;
+      case 'mirror':
+        this.toggleMirror();
+        break;
       case 'escape':
-        if (this.speedMenuOpen() || this.qualityMenuOpen() || this.chaptersMenuOpen()) {
-          this.speedMenuOpen.set(false);
-          this.qualityMenuOpen.set(false);
-          this.chaptersMenuOpen.set(false);
+        if (this.closeMenus()) {
+          // A menu was open; it's closed now.
+        } else if (this.loop()) {
+          this.clearLoop();
         } else if (!document.fullscreenElement) {
           this.goBack();
         }
@@ -1458,4 +1652,23 @@ function isFocusVisible(element: Element): boolean {
   } catch {
     return false;
   }
+}
+
+/** A list item as an Up next card. */
+function cardOf(item: QueueItem): LocalSceneCard {
+  return {
+    id: item.sceneId,
+    title: item.title,
+    imageUrl: item.imageUrl,
+    cardImageUrl: item.imageUrl,
+    studioId: null,
+    studio: null,
+    studioImageUrl: null,
+    releaseDate: null,
+    duration: null,
+    playCount: 0,
+    progress: null,
+    type: 'SCENE',
+    source: 'STASH',
+  };
 }

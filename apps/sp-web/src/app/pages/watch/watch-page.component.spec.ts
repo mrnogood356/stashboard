@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlaybackInfo, PlaybackService } from '../../core/api/playback.service';
 import { LocalLibraryService } from '../../core/api/local-library.service';
 import { AppLockService } from '../../core/app-lock/app-lock.service';
+import { WatchLaterService } from '../../core/api/watch-later.service';
+import { PlayQueueService } from '../../core/play-queue/play-queue.service';
 import { signal, type WritableSignal } from '@angular/core';
 import { WatchPageComponent } from './watch-page.component';
 
@@ -72,6 +74,12 @@ describe('WatchPageComponent', () => {
     searchTags: ReturnType<typeof vi.fn>;
   };
   let router: { navigateByUrl: ReturnType<typeof vi.fn>; navigate: ReturnType<typeof vi.fn> };
+  let watchLater: {
+    ensureLoaded: ReturnType<typeof vi.fn>;
+    has: ReturnType<typeof vi.fn>;
+    toggle: ReturnType<typeof vi.fn>;
+    remove: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     library = {
@@ -84,6 +92,13 @@ describe('WatchPageComponent', () => {
       searchTags: vi.fn().mockReturnValue(of([{ id: '7', name: 'Pool' }])),
     };
     router = { navigateByUrl: vi.fn(), navigate: vi.fn().mockResolvedValue(true) };
+    watchLater = {
+      ensureLoaded: vi.fn(),
+      has: vi.fn().mockReturnValue(false),
+      toggle: vi.fn().mockReturnValue(of([])),
+      remove: vi.fn().mockReturnValue(of([])),
+    };
+    sessionStorage.removeItem('stashboard.playQueue');
   });
 
   afterEach(() => {
@@ -96,6 +111,7 @@ describe('WatchPageComponent', () => {
       sceneIds?: BehaviorSubject<string>;
       locked?: ReturnType<typeof signal<boolean>>;
       returnTo?: string;
+      t?: string;
     } = {},
   ) {
     const sceneIds = options.sceneIds ?? new BehaviorSubject('12');
@@ -104,6 +120,7 @@ describe('WatchPageComponent', () => {
       providers: [
         { provide: PlaybackService, useValue: playback },
         { provide: LocalLibraryService, useValue: library },
+        { provide: WatchLaterService, useValue: watchLater },
         {
           provide: AppLockService,
           useValue: {
@@ -117,7 +134,10 @@ describe('WatchPageComponent', () => {
             paramMap: sceneIds.pipe(map((sceneId) => convertToParamMap({ sceneId }))),
             snapshot: {
               paramMap: convertToParamMap({ sceneId: sceneIds.value }),
-              queryParamMap: convertToParamMap({ returnTo: options.returnTo ?? '/library' }),
+              queryParamMap: convertToParamMap({
+                returnTo: options.returnTo ?? '/library',
+                ...(options.t !== undefined ? { t: options.t } : {}),
+              }),
             },
           },
         },
@@ -271,6 +291,92 @@ describe('WatchPageComponent', () => {
     vi.useRealTimers();
   });
 
+  it('plays a Watch later list in order, and a scene played to the end leaves the list', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    sessionStorage.setItem(
+      'stashboard.playQueue',
+      JSON.stringify({
+        label: 'Watch later',
+        kind: 'later',
+        index: 0,
+        items: [
+          { sceneId: '12', title: 'Evening Scene', imageUrl: null },
+          { sceneId: '40', title: 'Saved Scene', imageUrl: null },
+        ],
+      }),
+    );
+    const fixture = await render();
+    expect(library.related).not.toHaveBeenCalled();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="queue-label"]').textContent,
+    ).toContain('Watch later · 1 of 2');
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+
+    video.dispatchEvent(new Event('ended'));
+    fixture.detectChanges();
+    expect(watchLater.remove).toHaveBeenCalledWith('12');
+    expect(fixture.nativeElement.querySelector('.up-next')?.textContent).toContain('Saved Scene');
+    vi.advanceTimersByTime(8000);
+    expect(router.navigate).toHaveBeenCalledWith(['/watch', '40'], {
+      queryParams: { returnTo: '/library' },
+      replaceUrl: true,
+    });
+    expect(TestBed.inject(PlayQueueService).queue()?.index).toBe(1);
+    vi.useRealTimers();
+  });
+
+  it('plays a chapter list: starts at the chapter, and goes on when it ends', async () => {
+    sessionStorage.setItem(
+      'stashboard.playQueue',
+      JSON.stringify({
+        label: 'Chapters',
+        kind: 'chapters',
+        index: 0,
+        items: [
+          { sceneId: '12', title: 'Beach', imageUrl: null, start: 300, end: 330 },
+          { sceneId: '12', title: 'Pool', imageUrl: null, start: 900, end: 940 },
+          { sceneId: '55', title: 'Roof', imageUrl: null, start: 60, end: 90 },
+        ],
+      }),
+    );
+    const fixture = await render();
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    Object.defineProperty(video, 'paused', { configurable: true, get: () => false });
+    video.dispatchEvent(new Event('loadedmetadata'));
+    expect(video.currentTime).toBe(300);
+    // No resume toast for a chapter.
+    expect(fixture.nativeElement.querySelector('.resume-toast')).toBeNull();
+
+    // The next chapter is in the same scene: it jumps there.
+    video.currentTime = 331;
+    video.dispatchEvent(new Event('timeupdate'));
+    expect(video.currentTime).toBe(900);
+    expect(router.navigate).not.toHaveBeenCalled();
+
+    // Then on to another scene.
+    video.currentTime = 941;
+    video.dispatchEvent(new Event('timeupdate'));
+    expect(router.navigate).toHaveBeenCalledWith(['/watch', '55'], expect.anything());
+  });
+
+  it('opened at a set time, it drops a list left playing earlier', async () => {
+    sessionStorage.setItem(
+      'stashboard.playQueue',
+      JSON.stringify({
+        label: 'Chapters',
+        kind: 'chapters',
+        index: 0,
+        items: [{ sceneId: '12', title: 'Beach', imageUrl: null, start: 300, end: 330 }],
+      }),
+    );
+    const fixture = await render({ t: '125' });
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    video.dispatchEvent(new Event('loadedmetadata'));
+    expect(video.currentTime).toBe(125);
+    expect(fixture.nativeElement.querySelector('[data-testid="queue-label"]')).toBeNull();
+    expect(TestBed.inject(PlayQueueService).queue()).toBeNull();
+  });
+
   it('lets you cancel Up next', async () => {
     library.related.mockReturnValue(
       of([{ id: '13', title: 'Next Scene', cardImageUrl: null, imageUrl: null }]),
@@ -403,6 +509,69 @@ describe('WatchPageComponent', () => {
     expect(hud()).toBe('Volume 40%');
     expect(localStorage.getItem('stashboard.player.volume')).toBe('0.4');
     localStorage.removeItem('stashboard.player.volume');
+  });
+
+  it('loops between two points with A, goes round at the end, and mirrors with X', async () => {
+    const fixture = await render();
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    Object.defineProperty(video, 'duration', { configurable: true, value: 1800 });
+    video.dispatchEvent(new Event('loadedmetadata'));
+    const press = (key: string) => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key }));
+      fixture.detectChanges();
+    };
+    video.currentTime = 100;
+    press('a');
+    video.currentTime = 100.2;
+    press('a');
+    // Too close to the start: still waiting for the end.
+    expect(fixture.nativeElement.querySelector('[data-testid="player-hud"]').textContent).toContain(
+      'after the start',
+    );
+    video.currentTime = 160;
+    press('a');
+    expect(video.currentTime).toBe(100);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="seek-loop"]')).not.toBeNull();
+
+    video.currentTime = 161;
+    video.dispatchEvent(new Event('timeupdate'));
+    expect(video.currentTime).toBe(100);
+
+    // Esc turns the loop off before it would leave the player.
+    press('Escape');
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="seek-loop"]')).toBeNull();
+
+    press('x');
+    expect(video.classList.contains('mirrored')).toBe(true);
+    press('x');
+    expect(video.classList.contains('mirrored')).toBe(false);
+  });
+
+  it('loops a chapter from the chapter list', async () => {
+    playback.getInfo.mockReturnValue(
+      of({
+        ...baseInfo,
+        markers: [
+          { id: 'm1', title: 'Intro', seconds: 0, imageUrl: '/m1' },
+          { id: 'm2', title: 'Beach', seconds: 900, imageUrl: '/m2' },
+          { id: 'm3', title: 'Pool', seconds: 1200, imageUrl: '/m3' },
+        ],
+      }),
+    );
+    const fixture = await render();
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    (fixture.nativeElement.querySelector('[aria-label="Chapters"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    (
+      fixture.nativeElement.querySelector('[aria-label="Loop chapter Beach"]') as HTMLButtonElement
+    ).click();
+    expect(video.currentTime).toBe(900);
+    video.currentTime = 1201;
+    video.dispatchEvent(new Event('timeupdate'));
+    expect(video.currentTime).toBe(900);
   });
 
   it('keeps a muted video muted when you turn the volume down', async () => {

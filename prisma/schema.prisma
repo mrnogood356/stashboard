@@ -516,33 +516,36 @@ model DownloadHandoffSettings {
 /// One release sent to SABnzbd for a catalog scene (or added there by hand
 /// under Stashboard's category), followed until it's in the library.
 model DownloadHandoff {
-  id           String    @id @default(cuid())
+  id                   String    @id @default(cuid())
   /// SABnzbd's id for the download; only these are ever acted on, and each
   /// is brought in once.
-  nzoId        String    @unique
+  nzoId                String    @unique
   /// "stashboard" (sent by Find downloads) or "sabnzbd-manual" (added in
   /// SABnzbd by hand under Stashboard's category, picked up once finished).
-  source       String    @default("stashboard")
+  source               String    @default("stashboard")
   /// The catalog scene it was downloaded for; null when added in SABnzbd.
-  sceneId      String?
+  sceneId              String?
   /// STASHDB or FANSDB; null when added in SABnzbd.
-  provider     String?
-  releaseTitle String
+  provider             String?
+  releaseTitle         String
   /// sent | downloading | completed | imported | failed | ignored
-  status       String    @default("sent")
+  status               String    @default("sent")
   /// Where SABnzbd put the finished download (as SABnzbd sees it).
-  sabPath      String?
+  sabPath              String?
   /// Where the video was moved to (as Stash and Stashboard see it).
-  finalPath    String?
-  stashSceneId String?
-  error        String?
+  finalPath            String?
+  stashSceneId         String?
+  /// Smaller copies: the Stash scene this download replaces. Once imported,
+  /// the new file goes onto that scene and its old file is deleted.
+  replacesStashSceneId String?
+  error                String?
   /// Tries at linking it once moved; gives up after a few.
-  attempts     Int       @default(0)
-  finishedAt   DateTime?
+  attempts             Int       @default(0)
+  finishedAt           DateTime?
   /// Cleared from Downloads by you. Kept, so it's never brought in twice.
-  clearedAt    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  clearedAt            DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@index([status])
   @@index([sceneId])
@@ -684,4 +687,85 @@ model JobSchedule {
   lastRunAt  DateTime?
   lastStatus String?
   updatedAt  DateTime  @updatedAt
+}
+
+/// Smaller copies: what to look for, and how fast. Off until switched on.
+model SmallerCopySettings {
+  key               String   @id @default("GLOBAL")
+  enabled           Boolean  @default(false)
+  /// 2160p | 1080p | 720p: the resolution new copies should be.
+  targetResolution  String   @default("1080p")
+  /// Replace copies above the target (4K when the target is 1080p).
+  replaceHigher     Boolean  @default(true)
+  /// Replace copies below the target with one at it.
+  upgradeLower      Boolean  @default(false)
+  /// At the target already but bigger than this: replace too. Null: never.
+  maxFileSizeGb     Float?
+  /// Leave files smaller than this alone. Null: any size.
+  minFileSizeGb     Float?
+  /// The new copy must be at most this size. Null: any size.
+  maxNewSizeGb      Float?
+  /// The new copy must save at least this much of the old size (not for upgrades).
+  minSavingsPercent Int      @default(10)
+  /// any | prefer-efficient (HEVC or AV1 first) | efficient-only
+  codec             String   @default("any")
+  /// largest (the most picture the rules allow) | smallest
+  prefer            String   @default("largest")
+  /// strong | partial: how sure the release must be the same scene.
+  matchStrength     String   @default("strong")
+  /// all | only | skip: which studios, by name.
+  studioMode        String   @default("all")
+  studioNames       String[] @default([])
+  /// Grab a match by itself, or list it for you to grab.
+  autoGrab          Boolean  @default(true)
+  /// delete | keep: the old file once the new one is in Stash.
+  oldCopy           String   @default("delete")
+  /// At most this many scenes searched for an hour, spread evenly.
+  scenesPerHour     Int      @default(10)
+  /// Search only between these hours (server time); both null: any time.
+  activeFromHour    Int?
+  activeToHour      Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+/// Smaller copies: the last search for each scene, so none is asked twice
+/// in a row.
+model SmallerCopyAttempt {
+  stashSceneId String   @id
+  title        String
+  /// found | grabbed | none-found | no-catalog-id | failed | replaced | kept-both
+  outcome      String
+  /// A match listed for you to grab (when grabbing by itself is off).
+  releaseGuid  String?
+  /// Releases already grabbed for this scene, never grabbed again.
+  grabbedGuids String[] @default([])
+  indexerId    Int?
+  detail       String?
+  releaseTitle String?
+  oldSize      Float?
+  newSize      Float?
+  handoffId    String?
+  searchedAt   DateTime @default(now())
+  /// Not searched again before this.
+  retryAfter   DateTime
+
+  @@index([searchedAt])
+  @@index([retryAfter])
+}
+
+/// Scenes saved to watch later, in the order they'll play.
+model WatchLaterItem {
+  stashSceneId String   @id
+  position     Int
+  addedAt      DateTime @default(now())
+
+  @@index([position])
+}
+
+/// Duplicate sets you said aren't duplicates; a set shows again if its scenes change.
+model DuplicateIgnore {
+  /// The set's Stash scene ids, sorted and joined with commas.
+  sceneKey  String   @id
+  createdAt DateTime @default(now())
 }

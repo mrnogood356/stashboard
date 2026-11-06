@@ -12,7 +12,10 @@ export interface SimilarTagGroup {
  * spelling, case, spacing and a plural ending; "Blonde" and "Blonde hair"
  * stay apart, since they can mean different things.
  */
-export function groupSimilarTags(tags: StashTagSummary[]): SimilarTagGroup[] {
+export function groupSimilarTags(
+  tags: StashTagSummary[],
+  keyOf: (name: string) => string = tagKey,
+): SimilarTagGroup[] {
   const parent = new Map<string, string>();
   const find = (id: string): string => {
     let root = id;
@@ -36,7 +39,7 @@ export function groupSimilarTags(tags: StashTagSummary[]): SimilarTagGroup[] {
   }
   for (const tag of tags) {
     for (const name of [tag.name, ...tag.aliases]) {
-      const key = tagKey(name);
+      const key = keyOf(name);
       if (!key) {
         continue;
       }
@@ -89,4 +92,20 @@ export function tagKey(name: string): string {
     return flat.slice(0, -1);
   }
   return flat;
+}
+
+/**
+ * For performer and studio names: case, accents, spacing and punctuation
+ * only, no plural ending ("Alexis" isn't "Alexi").
+ */
+export function nameKey(name: string): string {
+  // Latin accents go (é → e); other scripts keep their marks, so が and か
+  // stay apart, and their letters stay in.
+  return name
+    .normalize('NFKD')
+    .replace(/(\p{Script=Latin})[\u0300-\u036f]+/gu, '$1')
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, '');
 }

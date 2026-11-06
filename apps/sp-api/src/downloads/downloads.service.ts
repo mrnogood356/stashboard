@@ -175,8 +175,22 @@ export class DownloadsService {
       indexer?: string | null;
     },
     provider?: CatalogProviderKey,
-  ): Promise<{ accepted: true; sentTo: 'prowlarr' | 'sabnzbd' }> {
+    /** Smaller copies: the Stash scene whose file this replaces once imported. */
+    options: { replacesStashSceneId?: string } = {},
+  ): Promise<{
+    accepted: true;
+    sentTo: 'prowlarr' | 'sabnzbd';
+    /** The Finished downloads entry, when it went to SABnzbd. */
+    handoffId?: string;
+  }> {
     const config = await this.requireConfig();
+    const replacing = !!options.replacesStashSceneId;
+    if (replacing && !(this.handoff && (await this.handoff.isActive()))) {
+      // Only Finished downloads can swap the file in; Prowlarr's client can't.
+      throw new ConflictException(
+        'Turn on Finished downloads (with SABnzbd) to replace a file with a smaller copy.',
+      );
+    }
     if (this.handoff && (await this.handoff.isActive())) {
       const found = this.recall(release.indexerId, release.guid);
       if (!found) {
@@ -194,15 +208,21 @@ export class DownloadsService {
           config,
           found.downloadUrl,
         );
-        await this.handoff.send({
+        const sent = await this.handoff.send({
           nzb,
           releaseTitle: found.title,
           scene: { id: scene.id, provider: scene.provider, title: scene.title },
+          replacesStashSceneId: options.replacesStashSceneId,
         });
         this.logger.log(
           `Sent “${found.title}”${found.indexer ? ` from ${found.indexer}` : ''} to SABnzbd for “${scene.title ?? scene.id}”.`,
         );
-        return { accepted: true, sentTo: 'sabnzbd' };
+        return { accepted: true, sentTo: 'sabnzbd', handoffId: sent.id };
+      }
+      if (replacing) {
+        throw new ConflictException(
+          'Only a usenet release with a download link can replace a file. Pick another release.',
+        );
       }
     }
     await this.prowlarrAdapter.grab(config, {

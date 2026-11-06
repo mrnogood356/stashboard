@@ -4,6 +4,7 @@ import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LocalSceneDetails, PlaybackService } from '../../core/api/playback.service';
+import { WatchLaterService } from '../../core/api/watch-later.service';
 import { LocalLibraryService } from '../../core/api/local-library.service';
 import { DiagnosticsApiService } from '../../core/api/diagnostics.service';
 import { LocalScenePageComponent } from './local-scene-page.component';
@@ -79,6 +80,14 @@ describe('LocalScenePageComponent', () => {
         provideRouter([]),
         { provide: PlaybackService, useValue: { getSceneDetails } },
         { provide: LocalLibraryService, useValue: library },
+        {
+          provide: WatchLaterService,
+          useValue: {
+            ensureLoaded: () => undefined,
+            has: (id: string) => id === 'saved',
+            toggle: vi.fn(() => of([])),
+          },
+        },
         { provide: DiagnosticsApiService, useValue: diagnosticsApi },
         { provide: ActivatedRoute, useValue: { paramMap: params, queryParamMap: query } },
       ],

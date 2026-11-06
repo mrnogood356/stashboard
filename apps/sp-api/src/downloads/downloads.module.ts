@@ -5,6 +5,9 @@ import { ProwlarrModule } from '../providers/prowlarr/prowlarr.module';
 import { StashdbModule } from '../providers/stashdb/stashdb.module';
 import { DownloadsController } from './downloads.controller';
 import { DownloadsService } from './downloads.service';
+import { StashModule } from '../providers/stash/stash.module';
+import { SmallerCopiesController } from '../smaller-copies/smaller-copies.controller';
+import { SmallerCopiesService } from '../smaller-copies/smaller-copies.service';
 
 @Module({
   imports: [
@@ -12,8 +15,9 @@ import { DownloadsService } from './downloads.service';
     ProwlarrModule,
     StashdbModule,
     DownloadHandoffModule,
+    StashModule,
   ],
-  controllers: [DownloadsController],
-  providers: [DownloadsService],
+  controllers: [DownloadsController, SmallerCopiesController],
+  providers: [DownloadsService, SmallerCopiesService],
 })
 export class DownloadsModule {}

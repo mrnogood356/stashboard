@@ -1,0 +1,142 @@
+.segmented {
+  margin-bottom: 0.75rem;
+}
+
+.summary {
+  margin: 0.75rem 0;
+}
+
+.by-hand {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.75rem 0;
+  padding: 0.85rem 0.95rem;
+}
+
+.by-hand h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.search {
+  width: 100%;
+  height: 2.6rem;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 70%, transparent);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.matches,
+.sets,
+.rows {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sets {
+  gap: 0.75rem;
+}
+
+.match {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface-elevated);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.match .name {
+  overflow: hidden;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.note {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.set {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.4rem;
+}
+
+.keep {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.row .name {
+  display: grid;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.row small {
+  font-weight: 400;
+  font-size: 0.75rem;
+}
+
+.count {
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.keep-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--success-text);
+}
+
+.fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.unpick {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.group-actions {
+  display: flex;
+  justify-content: flex-end;
+}

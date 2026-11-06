@@ -16,8 +16,40 @@ export interface LocalSceneCard {
   duration: number | null;
   playCount: number;
   progress: number | null;
+  /** When it was last played (history only). */
+  lastPlayedAt?: string | null;
   type: 'SCENE';
   source: 'STASH';
+}
+
+export type MergeKind = 'performers' | 'studios';
+
+export interface MergeCandidate {
+  id: string;
+  name: string;
+  aliases: string[];
+  sceneCount: number;
+  /** A performer's disambiguation, or a studio's parent. */
+  note: string | null;
+  deathDate: string | null;
+}
+
+export interface MergeCandidates {
+  groups: Array<{ keepId: string; items: MergeCandidate[] }>;
+  matches: MergeCandidate[];
+}
+
+/** A chapter (Stash scene marker) from anywhere in the library. */
+export interface Chapter {
+  id: string;
+  title: string;
+  seconds: number;
+  endSeconds: number;
+  tagName: string | null;
+  sceneId: string;
+  sceneTitle: string;
+  imageUrl: string;
+  previewUrl: string;
 }
 
 export interface LocalScenePage {
@@ -35,6 +67,8 @@ export interface LocalPerformer {
   disambiguation: string | null;
   gender: string | null;
   birthdate: string | null;
+  /** When they died, when Stash has it. */
+  deathDate?: string | null;
   country: string | null;
   details: string | null;
   favorite: boolean;
@@ -174,6 +208,28 @@ export class LocalLibraryService {
     });
   }
 
+  /** Chapters across the library, by tag, performer or words. */
+  chapters(filter: { tag?: string; performer?: string; q?: string }): Observable<Chapter[]> {
+    const params: Record<string, string> = {};
+    for (const [key, value] of Object.entries(filter)) {
+      if (value) {
+        params[key] = value;
+      }
+    }
+    return this.http.get<Chapter[]>('/api/local/chapters', { params });
+  }
+
+  chapterTags(): Observable<Array<{ id: string; name: string; count: number }>> {
+    return this.http.get<Array<{ id: string; name: string; count: number }>>(
+      '/api/local/chapters/tags',
+    );
+  }
+
+  /** What you've played, latest first. */
+  history(page = 1): Observable<LocalScenePage> {
+    return this.http.get<LocalScenePage>('/api/local/history', { params: { page } });
+  }
+
   related(sceneId: string): Observable<LocalSceneCard[]> {
     return this.http.get<LocalSceneCard[]>(`/api/local/scenes/${enc(sceneId)}/related`);
   }
@@ -295,8 +351,11 @@ export class LocalLibraryService {
     return this.http.post<void>('/api/local/tags/merge', { destinationId, sourceIds });
   }
 
-  problems(): Observable<ProblemList[]> {
-    return this.http.get<ProblemList[]>('/api/local/problems');
+  /** `refresh`: check every marker's preview again instead of the last check. */
+  problems(refresh = false): Observable<ProblemList[]> {
+    return this.http.get<ProblemList[]>('/api/local/problems', {
+      params: refresh ? new HttpParams().set('refresh', '1') : new HttpParams(),
+    });
   }
 
   stopJob(jobId: string): Observable<void> {
@@ -324,12 +383,45 @@ export class LocalLibraryService {
   }
 
   /** `onlyFile`: refuse a scene with more than one file, whose others would go too. */
-  deleteScene(sceneId: string, deleteFile: boolean, onlyFile = false): Observable<void> {
+  deleteScene(
+    sceneId: string,
+    deleteFile: boolean,
+    onlyFile = false,
+    /** Duplicates: first carry plays, tags, chapters and more to this scene. */
+    carryTo?: string,
+  ): Observable<void> {
     let params = new HttpParams().set('deleteFile', String(deleteFile));
     if (onlyFile) {
       params = params.set('onlyFile', 'true');
     }
+    if (carryTo) {
+      params = params.set('carryTo', carryTo);
+    }
     return this.http.delete<void>(`/api/local/scenes/${enc(sceneId)}`, { params });
+  }
+
+  /** A duplicate set you checked: hidden until its scenes change. */
+  ignoreDuplicates(sceneIds: string[]): Observable<void> {
+    return this.http.post<void>('/api/local/duplicates/ignore', { sceneIds });
+  }
+
+  ignoredDuplicates(): Observable<{ count: number }> {
+    return this.http.get<{ count: number }>('/api/local/duplicates/ignored');
+  }
+
+  clearIgnoredDuplicates(): Observable<void> {
+    return this.http.delete<void>('/api/local/duplicates/ignored');
+  }
+
+  /** Performers or studios entered more than once, and names matching `q`. */
+  mergeCandidates(kind: MergeKind, q = ''): Observable<MergeCandidates> {
+    return this.http.get<MergeCandidates>(`/api/local/merge/${kind}`, {
+      params: q.trim() ? { q: q.trim() } : {},
+    });
+  }
+
+  merge(kind: MergeKind, keepId: string, mergeIds: string[]): Observable<void> {
+    return this.http.post<void>(`/api/local/merge/${kind}`, { keepId, mergeIds });
   }
 
   searchTags(query: string): Observable<Array<{ id: string; name: string }>> {
@@ -371,11 +463,22 @@ export interface SimilarTagGroup {
   tags: TagSummary[];
 }
 
-export type ProblemKind = 'no-file' | 'no-length' | 'no-cover' | 'no-fingerprint';
+export type ProblemKind =
+  'no-file' | 'no-length' | 'no-cover' | 'no-fingerprint' | 'no-marker-preview';
 
 export interface ProblemList {
   kind: ProblemKind;
   /** Null when Stash couldn't say. */
   count: number | null;
-  scenes: Array<{ id: string; title: string; path: string | null }>;
+  scenes: ProblemScene[];
+}
+
+export interface ProblemScene {
+  id: string;
+  title: string;
+  path: string | null;
+  /** Deleting the scene from disk deletes all of its files. */
+  fileCount?: number;
+  /** Markers of this scene without a preview clip. */
+  markers?: number;
 }

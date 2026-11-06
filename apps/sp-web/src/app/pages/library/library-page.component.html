@@ -33,6 +33,21 @@
     </div>
   </header>
 
+  <nav class="library-links" aria-label="Your lists">
+    <a class="filters-toggle" routerLink="/watch-later" data-testid="watch-later-link">
+      <i class="pi pi-bookmark" aria-hidden="true"></i>
+      <span>Watch later</span>
+    </a>
+    <a class="filters-toggle" routerLink="/history">
+      <i class="pi pi-history" aria-hidden="true"></i>
+      <span>History</span>
+    </a>
+    <a class="filters-toggle" routerLink="/chapters">
+      <i class="pi pi-list" aria-hidden="true"></i>
+      <span>Chapters</span>
+    </a>
+  </nav>
+
   @if (pageAlert(); as alert) {
     <section class="page-alert app-page-alert" data-testid="library-degraded-state" role="status">
       <div class="page-alert-copy app-page-alert__copy">
@@ -302,6 +317,8 @@
             studioBadgeRoute="library"
             [playSceneId]="item.id"
             [playQueryParams]="{ returnTo: currentRouteUrl() }"
+            [menuActions]="selecting() ? [] : cardActions(item.id)"
+            (menuAction)="onCardAction(item.id, $event)"
           />
           @if (selecting()) {
             <button

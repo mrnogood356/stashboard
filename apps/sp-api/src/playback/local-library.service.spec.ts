@@ -47,8 +47,17 @@ describe('LocalLibraryService', () => {
     getOrganizerScene: jest.fn(),
     deleteScene: jest.fn().mockResolvedValue(undefined),
     mergeTags: jest.fn().mockResolvedValue(undefined),
+    listForMerge: jest.fn(),
+    findChapters: jest.fn().mockResolvedValue([]),
+    mergePerformers: jest.fn().mockResolvedValue(undefined),
+    mergeStudios: jest.fn().mockResolvedValue(undefined),
     startLibraryTask: jest.fn().mockResolvedValue('7'),
     findProblemScenes: jest.fn(),
+    findMarkersWithoutPreview: jest.fn().mockResolvedValue({
+      missing: 3,
+      checked: 10,
+      scenes: [{ id: '4', title: 'S', path: null, markers: 3 }],
+    }),
   };
   const service = new LocalLibraryService(
     playback as unknown as PlaybackService,
@@ -84,6 +93,73 @@ describe('LocalLibraryService', () => {
     expect(stash.mergeTags).toHaveBeenCalledTimes(1);
   });
 
+  it('passes only plain strings to Stash for chapters and merge searches', async () => {
+    await service.chapters({
+      tagId: ['1', '2'] as unknown as string,
+      performerId: ' 33 ',
+      query: ['a', 'b'] as unknown as string,
+    });
+    expect(stash.findChapters).toHaveBeenCalledWith(expect.anything(), {
+      tagId: null,
+      performerId: '33',
+      query: null,
+      limit: 500,
+    });
+    stash.listForMerge.mockResolvedValue([]);
+    await expect(
+      service.mergeCandidates('performer', ['x'] as unknown as string),
+    ).resolves.toEqual({ groups: [], matches: [] });
+  });
+
+  it('suggests performers entered twice, and merges only ones Stash still has', async () => {
+    const person = (
+      id: string,
+      name: string,
+      sceneCount: number,
+      aliases: string[] = [],
+    ) => ({
+      id,
+      name,
+      aliases,
+      sceneCount,
+      note: null,
+      deathDate: null,
+    });
+    stash.listForMerge.mockResolvedValue([
+      person('1', 'Jane Doe', 3),
+      person('2', 'Jané  Doe', 9),
+      person('3', 'Alexis', 1),
+      person('4', 'Alexi', 1),
+      person('5', 'JD', 2, ['Jane-Doe']),
+    ]);
+
+    const found = await service.mergeCandidates('performer', 'ale');
+    expect(found.groups).toEqual([
+      {
+        keepId: '2',
+        items: [
+          expect.objectContaining({ id: '2' }),
+          expect.objectContaining({ id: '1' }),
+          expect.objectContaining({ id: '5' }),
+        ],
+      },
+    ]);
+    expect(found.matches.map((item) => item.id)).toEqual(['3', '4']);
+
+    await expect(service.merge('performer', '2', ['2'])).rejects.toThrow(
+      'Pick at least one',
+    );
+    await expect(service.merge('performer', '2', ['99'])).rejects.toThrow(
+      'gone from Stash',
+    );
+    await service.merge('performer', '2', ['1', '5', '1']);
+    expect(stash.mergePerformers).toHaveBeenCalledWith(expect.anything(), '2', [
+      '1',
+      '5',
+    ]);
+    expect(stash.mergeStudios).not.toHaveBeenCalled();
+  });
+
   it('generates for the chosen scenes only, and never for the whole library by accident', async () => {
     await expect(service.generateFor(['4', '5'])).resolves.toEqual({
       jobId: '7',
@@ -110,7 +186,17 @@ describe('LocalLibraryService', () => {
       ['no-length', 0],
       ['no-cover', null],
       ['no-fingerprint', 0],
+      ['no-marker-preview', 3],
     ]);
+    // The marker check is kept for a while, unless asked again.
+    await service.problems();
+    expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(1);
+    await service.problems(true);
+    expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(2);
+
+    // Two asking at once share one check.
+    await Promise.all([service.problems(true), service.problems(true)]);
+    expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(3);
   });
 
   it('keeps Library stats, and a read under way, to the Stash they came from', async () => {
@@ -135,7 +221,7 @@ describe('LocalLibraryService', () => {
     expect(stash.listLibraryFiles).toHaveBeenCalledTimes(2);
   });
 
-  it('finds related scenes by performers, then studio, then tags, unwatched first', async () => {
+  it('finds related scenes, most in common first, by performers, studio and tags', async () => {
     stash.getLocalSceneDetails.mockResolvedValue({
       id: '1',
       performers: [{ id: 'p1' }],
@@ -159,9 +245,10 @@ describe('LocalLibraryService', () => {
 
     const related = await service.related('1');
 
-    // Itself is excluded, duplicates removed, a failing query is ignored,
-    // and the watched scene 2 moves after the unwatched ones.
-    expect(related.map((item) => item.id)).toEqual(['3', '4', '2']);
+    // Itself is excluded and a failing query is ignored. 3 shares the
+    // performer and the studio; 2 (played) a performer, which counts more
+    // than 4's studio.
+    expect(related.map((item) => item.id)).toEqual(['3', '2', '4']);
     const tagCall = stash.findLocalScenes.mock.calls.find(
       ([, options]) =>
         (options as { sceneFilter: Record<string, unknown> }).sceneFilter[

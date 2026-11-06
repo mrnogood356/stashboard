@@ -127,8 +127,16 @@
             }
           </article>
         }
-        @if (group.scenes.length > 2) {
-          <div class="group-actions">
+        <div class="group-actions">
+          <button
+            type="button"
+            class="btn small"
+            data-testid="not-duplicates"
+            (click)="notDuplicates(group)"
+          >
+            <i class="pi pi-eye-slash" aria-hidden="true"></i> Not duplicates
+          </button>
+          @if (group.scenes.length > 2) {
             <button
               type="button"
               class="btn small danger"
@@ -138,11 +146,18 @@
               <i class="pi pi-trash" aria-hidden="true"></i> Remove the other
               {{ group.scenes.length - 1 }} copies
             </button>
-          </div>
-        }
+          }
+        </div>
       </section>
     }
   </div>
+
+  @if (hiddenCount() > 0 && !loading()) {
+    <p class="muted hidden-note" data-testid="hidden-note">
+      {{ hiddenCount() }} set{{ hiddenCount() === 1 ? '' : 's' }} hidden as not duplicates.
+      <button type="button" class="link-button" (click)="showHidden()">Show them again</button>
+    </p>
+  }
 
   @if (pending(); as scenes) {
     <div class="sheet-backdrop" (click)="cancelDelete()" aria-hidden="true"></div>
@@ -176,6 +191,13 @@
           </span>
         </p>
       }
+      <label class="carry">
+        <input type="checkbox" name="carryOver" [(ngModel)]="carryOver" [disabled]="deleting()" />
+        <span>
+          Bring its plays, O history, tags, performers and rating over to the copy kept first
+          <small class="muted">Chapters too, when both run the same length.</small>
+        </span>
+      </label>
       @if (progress(); as step) {
         <p class="muted" role="status">Removing {{ step.done + 1 }} of {{ step.total }}…</p>
       }

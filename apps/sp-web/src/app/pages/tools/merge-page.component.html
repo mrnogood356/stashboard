@@ -1,0 +1,183 @@
+<main class="app-page-shell">
+  <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Merge</h1>
+      <p>Performers or studios entered more than once. Merge them into one.</p>
+    </div>
+  </header>
+
+  <div class="segmented" role="tablist" aria-label="What to merge">
+    <button
+      type="button"
+      role="tab"
+      [class.active]="kind() === 'performers'"
+      [attr.aria-selected]="kind() === 'performers'"
+      (click)="setKind('performers')"
+    >
+      Performers
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [class.active]="kind() === 'studios'"
+      [attr.aria-selected]="kind() === 'studios'"
+      (click)="setKind('studios')"
+    >
+      Studios
+    </button>
+  </div>
+
+  <div class="notice">
+    <i class="pi pi-info-circle" aria-hidden="true"></i>
+    <span>
+      @if (kind() === 'performers') {
+        Merging moves every scene, gallery and image onto the performer you keep, adds the others’
+        names as aliases, keeps their StashDB and FansDB links, and deletes them in Stash.
+      } @else {
+        Merging moves every scene, gallery, image, group and sub-studio onto the studio you keep,
+        adds the others’ names as aliases, keeps their StashDB and FansDB links, and deletes them in
+        Stash.
+      }
+      It can’t be undone.
+    </span>
+  </div>
+
+  <section class="panel by-hand">
+    <h2>Pick by hand</h2>
+    <input
+      class="search"
+      type="search"
+      name="q"
+      [placeholder]="'Search ' + noun()"
+      [attr.aria-label]="'Search ' + noun()"
+      [(ngModel)]="query"
+      (ngModelChange)="onType()"
+    />
+    @if (matches().length > 0) {
+      <ul class="matches">
+        @for (item of matches(); track item.id) {
+          <li>
+            <button type="button" class="match" (click)="pick(item)">
+              <i class="pi pi-plus" aria-hidden="true"></i>
+              <span class="name">{{ item.name }}</span>
+              @if (item.note) {
+                <span class="muted note">{{ item.note }}</span>
+              }
+              <span class="muted count">{{ item.sceneCount }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    }
+    @if (manual(); as set) {
+      <ng-container
+        [ngTemplateOutlet]="setTemplate"
+        [ngTemplateOutletContext]="{ $implicit: set, removable: true }"
+      />
+    }
+  </section>
+
+  @if (loading()) {
+    <p class="muted loading" role="status">
+      <span class="spinner" aria-hidden="true"></span> Looking for {{ noun() }} entered twice…
+    </p>
+  } @else if (error()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+      <span>Couldn’t read your {{ noun() }}. Check that Stash is running.</span>
+    </div>
+  } @else if (sets().length === 0) {
+    <div class="empty">
+      <i class="pi pi-check-circle" aria-hidden="true"></i>
+      <p>No {{ noun() }} entered more than once.</p>
+    </div>
+  } @else {
+    <p class="muted summary">
+      {{ sets().length }} {{ noun(sets().length === 1 ? 1 : 2) }} entered more than once
+    </p>
+    <ul class="sets">
+      @for (set of sets(); track set.key) {
+        <li>
+          <ng-container
+            [ngTemplateOutlet]="setTemplate"
+            [ngTemplateOutletContext]="{ $implicit: set, removable: false }"
+          />
+        </li>
+      }
+    </ul>
+  }
+
+  <ng-template #setTemplate let-set let-removable="removable">
+    <div class="set panel" data-testid="merge-set">
+      <ul class="rows">
+        @for (item of set.items; track item.id) {
+          <li class="row" [class.kept]="item.id === set.keepId">
+            <label class="keep">
+              <input
+                type="radio"
+                [name]="'keep-' + set.key"
+                [checked]="item.id === set.keepId"
+                (change)="setKeep(set, item.id)"
+              />
+              <span class="name">
+                {{ item.name }}
+                @if (item.note) {
+                  <small class="muted">{{ item.note }}</small>
+                }
+                @if (item.aliases.length > 0) {
+                  <small class="muted">Also {{ item.aliases.slice(0, 3).join(', ') }}</small>
+                }
+              </span>
+            </label>
+            <span class="muted count"
+              >{{ item.sceneCount }} {{ item.sceneCount === 1 ? 'scene' : 'scenes' }}</span
+            >
+            @if (item.id === set.keepId) {
+              <span class="keep-badge">Keep</span>
+            } @else {
+              <label class="fold">
+                <input
+                  type="checkbox"
+                  [checked]="set.merge.has(item.id)"
+                  (change)="toggle(set, item.id)"
+                />
+                Merge in
+              </label>
+            }
+            @if (removable) {
+              <button
+                type="button"
+                class="unpick"
+                [attr.aria-label]="'Take ' + item.name + ' off the list'"
+                (click)="unpick(item)"
+              >
+                <i class="pi pi-times" aria-hidden="true"></i>
+              </button>
+            }
+          </li>
+        }
+      </ul>
+      <div class="group-actions">
+        <button
+          type="button"
+          class="btn small"
+          [class.danger]="confirming() === set.key"
+          data-testid="merge-button"
+          [disabled]="set.merge.size === 0 || merging() === set.key"
+          (click)="run(set)"
+        >
+          @if (merging() === set.key) {
+            Merging…
+          } @else if (confirming() === set.key) {
+            Tap again to merge {{ set.merge.size }} into {{ keptName(set) }}
+          } @else if (set.items.length < 2) {
+            Pick another to merge
+          } @else {
+            Merge {{ set.merge.size }} into {{ keptName(set) }}
+          }
+        </button>
+      </div>
+    </div>
+  </ng-template>
+</main>

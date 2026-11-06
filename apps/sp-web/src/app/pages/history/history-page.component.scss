@@ -1,0 +1,42 @@
+.day + .day {
+  margin-top: 1.4rem;
+}
+
+.day h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(15rem, 45%), 1fr));
+  gap: 0.9rem;
+}
+
+.cell {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.played {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.2rem;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.notice {
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+  background: var(--surface-elevated);
+}

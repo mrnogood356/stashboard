@@ -47,6 +47,10 @@ export interface LibraryScenePick {
 }
 
 export * from './stash.types';
+export type {
+  StashChapter,
+  StashMergeCandidate,
+} from './stash-library-tools.api';
 
 @Injectable()
 export class StashAdapter extends StashLibraryToolsApi {
@@ -689,12 +693,16 @@ export class StashAdapter extends StashLibraryToolsApi {
       sort: string;
       direction: 'ASC' | 'DESC';
       sceneFilter: Record<string, unknown>;
+      /** Only these scenes. */
+      ids?: string[];
+      /** Throw instead of answering "none" when Stash's answer has no scene list. */
+      strict?: boolean;
     },
   ): Promise<StashLocalScenePage> {
     const payload = (await this.executeQuery(
       config,
-      `query LocalScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {
-        findScenes(filter: $filter, scene_filter: $scene_filter) {
+      `query LocalScenes($filter: FindFilterType, $scene_filter: SceneFilterType, $ids: [ID!]) {
+        findScenes(filter: $filter, scene_filter: $scene_filter, ids: $ids) {
           count
           scenes {
             id
@@ -702,6 +710,7 @@ export class StashAdapter extends StashLibraryToolsApi {
             date
             play_count
             resume_time
+            last_played_at
             paths {
               screenshot
             }
@@ -724,6 +733,7 @@ export class StashAdapter extends StashLibraryToolsApi {
           direction: options.direction,
         },
         scene_filter: options.sceneFilter,
+        ...(options.ids ? { ids: options.ids } : {}),
       },
     )) as unknown as {
       data?: {
@@ -734,12 +744,21 @@ export class StashAdapter extends StashLibraryToolsApi {
       };
     };
     const result = payload.data?.findScenes;
+    if (options.strict && !Array.isArray(result?.scenes)) {
+      throw new Error('Stash answered without a list of scenes.');
+    }
+    const scenes = result?.scenes ?? [];
+    const items = scenes.flatMap((scene) => {
+      const card = this.toLocalSceneCard(scene);
+      return card ? [card] : [];
+    });
+    if (options.strict && items.length !== scenes.length) {
+      // One it couldn't read mustn't look like a scene that's gone.
+      throw new Error('Stash answered with a scene it couldn’t read.');
+    }
     return {
       total: typeof result?.count === 'number' ? result.count : 0,
-      items: (result?.scenes ?? []).flatMap((scene) => {
-        const card = this.toLocalSceneCard(scene);
-        return card ? [card] : [];
-      }),
+      items,
     };
   }
 
@@ -751,7 +770,7 @@ export class StashAdapter extends StashLibraryToolsApi {
     if (!id) {
       return null;
     }
-    const full = `id name disambiguation gender birthdate country details favorite image_path scene_count`;
+    const full = `id name disambiguation gender birthdate death_date country details favorite image_path scene_count`;
     const basic = `id name gender favorite image_path scene_count`;
     const performer = await this.queryWithFallback(
       config,
@@ -774,6 +793,7 @@ export class StashAdapter extends StashLibraryToolsApi {
       disambiguation: str(performer.disambiguation),
       gender: str(performer.gender),
       birthdate: str(performer.birthdate),
+      deathDate: str(performer.death_date),
       country: str(performer.country),
       details: str(performer.details),
       favorite: performer.favorite === true,
@@ -1067,6 +1087,7 @@ export class StashAdapter extends StashLibraryToolsApi {
       duration: typeof duration === 'number' ? duration : null,
       playCount: typeof scene.play_count === 'number' ? scene.play_count : 0,
       resumeTime: typeof scene.resume_time === 'number' ? scene.resume_time : 0,
+      lastPlayedAt: this.normalizeOptionalString(scene.last_played_at),
     };
   }
 

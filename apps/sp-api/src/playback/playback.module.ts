@@ -9,6 +9,8 @@ import { PlaybackSettingsService } from './playback-settings.service';
 import { PlaybackTokenService } from './playback-token.service';
 import { PlaybackController } from './playback.controller';
 import { PlaybackService } from './playback.service';
+import { WatchLaterController } from './watch-later.controller';
+import { WatchLaterService } from './watch-later.service';
 
 @Module({
   imports: [StashModule, OrganizerModule],
@@ -16,6 +18,7 @@ import { PlaybackService } from './playback.service';
     PlaybackSettingsController,
     PlaybackController,
     LocalLibraryController,
+    WatchLaterController,
   ],
   providers: [
     PlaybackService,
@@ -23,6 +26,7 @@ import { PlaybackService } from './playback.service';
     LocalLibraryService,
     PlaybackSettingsService,
     PlaybackFeatureGuard,
+    WatchLaterService,
   ],
   exports: [LocalLibraryService, PlaybackSettingsService],
 })

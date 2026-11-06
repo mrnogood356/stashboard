@@ -11,6 +11,7 @@ import {
   IsOptional,
   IsString,
   Max,
+  Matches,
   MaxLength,
   Min,
   ValidateIf,
@@ -166,6 +167,56 @@ export class DeleteSceneQueryDto {
   @IsOptional()
   @IsIn(['true', 'false'])
   onlyFile?: 'true' | 'false';
+
+  /** Duplicates: first carry plays, tags, chapters and more to this scene. */
+  @IsOptional()
+  @Matches(/^\d{1,12}$/)
+  carryTo?: string;
+}
+
+/** Library → Chapters. One value each: a repeated parameter is refused. */
+export class ChaptersQueryDto {
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{1,12}$/)
+  tag?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{1,12}$/)
+  performer?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  q?: string;
+}
+
+export class MergeQueryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  q?: string;
+}
+
+export class IgnoreDuplicatesDto {
+  @IsArray()
+  @ArrayMinSize(2)
+  @ArrayMaxSize(50)
+  @Matches(/^\d{1,12}$/, { each: true })
+  sceneIds!: string[];
+}
+
+export class MergeEntitiesDto {
+  @IsString()
+  @Matches(/^\d{1,12}$/)
+  keepId!: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(20)
+  @Matches(/^\d{1,12}$/, { each: true })
+  mergeIds!: string[];
 }
 
 export class MergeTagsDto {

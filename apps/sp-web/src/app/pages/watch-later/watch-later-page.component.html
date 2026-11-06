@@ -1,0 +1,90 @@
+<main class="app-page-shell">
+  <app-section-back />
+  <header class="page-head-compact">
+    <div class="page-head-compact__title">
+      <h1>Watch later</h1>
+      <p>Scenes you saved. Each one leaves the list once you’ve played it to the end from here.</p>
+    </div>
+  </header>
+
+  @if (items(); as list) {
+    @if (list.length === 0) {
+      <div class="empty">
+        <i class="pi pi-bookmark" aria-hidden="true"></i>
+        <p>
+          Nothing saved yet. Save a scene from its page, its card’s ⋯ menu, or the player’s ⋯ menu.
+        </p>
+        <a class="app-btn" routerLink="/library">Open Library</a>
+      </div>
+    } @else {
+      <div class="actions">
+        <button type="button" class="app-btn app-btn--primary" (click)="play()">
+          <i class="pi pi-play" aria-hidden="true"></i> Play all
+        </button>
+        <button type="button" class="app-btn" (click)="play(0, true)">
+          <i class="pi pi-sort-alt-slash" aria-hidden="true"></i> Shuffle
+        </button>
+        <span class="count">{{ list.length }} scene{{ list.length === 1 ? '' : 's' }}</span>
+        <button type="button" class="app-btn clear" (click)="clear()">
+          {{ confirmingClear() ? 'Tap again to clear' : 'Clear' }}
+        </button>
+      </div>
+      <ol class="list">
+        @for (item of list; track item.id; let i = $index; let last = $last) {
+          <li class="row" [attr.data-testid]="'later-' + item.id">
+            <button
+              type="button"
+              class="thumb"
+              [attr.aria-label]="'Play from ' + item.title"
+              (click)="play(i)"
+            >
+              @if (item.cardImageUrl ?? item.imageUrl; as art) {
+                <img [src]="art" alt="" loading="lazy" decoding="async" />
+              }
+              <i class="pi pi-play" aria-hidden="true"></i>
+            </button>
+            <div class="copy">
+              <a class="title" [routerLink]="['/library/scene', item.id]">{{ item.title }}</a>
+              <p class="meta">
+                {{ item.studio ?? '' }}{{ item.studio && item.duration ? ' · ' : ''
+                }}{{ duration(item.duration) }}
+              </p>
+            </div>
+            <div class="row-actions">
+              <button
+                type="button"
+                class="icon"
+                [disabled]="i === 0"
+                [attr.aria-label]="'Move ' + item.title + ' up'"
+                (click)="move(i, -1)"
+              >
+                <i class="pi pi-chevron-up" aria-hidden="true"></i>
+              </button>
+              <button
+                type="button"
+                class="icon"
+                [disabled]="last"
+                [attr.aria-label]="'Move ' + item.title + ' down'"
+                (click)="move(i, 1)"
+              >
+                <i class="pi pi-chevron-down" aria-hidden="true"></i>
+              </button>
+              <button
+                type="button"
+                class="icon"
+                [attr.aria-label]="'Remove ' + item.title"
+                (click)="remove(item)"
+              >
+                <i class="pi pi-times" aria-hidden="true"></i>
+              </button>
+            </div>
+          </li>
+        }
+      </ol>
+    }
+  } @else if (error()) {
+    <div class="notice" role="alert">Couldn’t read Watch later right now.</div>
+  } @else {
+    <p class="muted" role="status">Loading…</p>
+  }
+</main>

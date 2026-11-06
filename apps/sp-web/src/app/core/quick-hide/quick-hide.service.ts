@@ -36,7 +36,7 @@ const IDLE_CHECK_MS = 15_000;
 
 /**
  * Quick hide: one gesture covers the screen, pauses anything playing and
- * obscures images; a tap brings the app back, still obscured. Also obscures
+ * obscures images; a tap brings the app back as it was. Also obscures
  * images on open or after a while idle, if asked.
  */
 @Injectable({ providedIn: 'root' })
@@ -49,6 +49,7 @@ export class QuickHideService {
   readonly hidden = signal(false);
 
   private started = false;
+  private blurredBefore = false;
   private lastActivity = Date.now();
   private escAt = 0;
   private taps: Array<{ at: number; x: number; y: number }> = [];
@@ -84,6 +85,10 @@ export class QuickHideService {
 
   /** Cover the screen now. */
   hide(): void {
+    if (!this.hidden()) {
+      // How pictures were before, so coming back puts them back as they were.
+      this.blurredBefore = this.obscuration.isObscured();
+    }
     this.obscuration.setMode('obscured');
     for (const media of Array.from(this.document.querySelectorAll('video, audio'))) {
       (media as HTMLMediaElement).pause?.();
@@ -91,9 +96,15 @@ export class QuickHideService {
     this.hidden.set(true);
   }
 
-  /** Back to the app; images stay obscured until the eye is turned off. */
+  /**
+   * Back to the app, with pictures as they were before hiding: clear if they
+   * were clear, still blurred if they were blurred already.
+   */
   reveal(): void {
     this.hidden.set(false);
+    if (!this.blurredBefore) {
+      this.obscuration.setMode('clear');
+    }
     this.touch();
   }
 

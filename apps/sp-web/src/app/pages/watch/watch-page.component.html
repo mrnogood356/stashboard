@@ -3,6 +3,7 @@
   <video
     #video
     class="video"
+    [class.mirrored]="mirrored()"
     playsinline
     webkit-playsinline
     x-webkit-airplay="allow"
@@ -107,7 +108,7 @@
         <span class="up-next-count" aria-live="polite">{{ upNextCountdown() }}</span>
       </div>
       <div class="up-next-copy">
-        <p class="up-next-label">Up next</p>
+        <p class="up-next-label">Up next{{ queueLabel() ? ' · ' + queueLabel() : '' }}</p>
         <p class="up-next-title">{{ next.title }}</p>
         <div class="up-next-actions">
           <button type="button" class="pill primary" (click)="playUpNext()">
@@ -186,7 +187,9 @@
     </button>
     <div class="titles">
       <h1>{{ info()?.title ?? (error() ? 'Unavailable' : 'Loading…') }}</h1>
-      @if (info()?.studio; as studio) {
+      @if (queueLabel(); as list) {
+        <p data-testid="queue-label">{{ list }}</p>
+      } @else if (info()?.studio; as studio) {
         <p>{{ studio }}</p>
       }
     </div>
@@ -250,6 +253,15 @@
       <div class="seek-track">
         <div class="seek-buffered" [style.width.%]="bufferedPercent()"></div>
         <div class="seek-played" [style.width.%]="progressPercent()"></div>
+        @if (loopBand(); as band) {
+          <span
+            class="seek-loop"
+            data-testid="seek-loop"
+            [style.left.%]="band.left"
+            [style.width.%]="band.width"
+            aria-hidden="true"
+          ></span>
+        }
         @for (tick of chapterTicks(); track tick.id) {
           <span class="seek-chapter" [style.left.%]="tick.left" aria-hidden="true"></span>
         }
@@ -350,6 +362,14 @@
                     </button>
                     <button
                       type="button"
+                      class="chapter-delete chapter-loop"
+                      [attr.aria-label]="'Loop chapter ' + marker.title"
+                      (click)="loopChapter(marker, $event)"
+                    >
+                      <i class="pi pi-replay" aria-hidden="true"></i>
+                    </button>
+                    <button
+                      type="button"
                       class="chapter-delete"
                       [attr.aria-label]="'Delete chapter ' + marker.title"
                       (click)="deleteChapter(marker, $event)"
@@ -362,6 +382,70 @@
             }
           </div>
         }
+
+        <div class="quality">
+          <button
+            type="button"
+            class="icon-button"
+            data-testid="more-button"
+            [class.is-on]="!!loop() || mirrored()"
+            (click)="toggleMoreMenu()"
+            aria-label="More options"
+            [attr.aria-expanded]="moreMenuOpen()"
+          >
+            <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+          </button>
+          @if (moreMenuOpen()) {
+            <ul class="quality-menu more-menu" role="menu" aria-label="More options">
+              <li>
+                <button type="button" role="menuitem" data-testid="loop-step" (click)="stepLoop()">
+                  @if (loop(); as l) {
+                    @if (l.b === null) {
+                      Set the loop’s end here (from {{ formatTime(l.a) }})
+                    } @else {
+                      Loop off ({{ formatTime(l.a) }}–{{ formatTime(l.b) }})
+                    }
+                  } @else {
+                    Loop from here
+                  }
+                </button>
+              </li>
+              @if (currentChapter(); as chapter) {
+                <li>
+                  <button type="button" role="menuitem" (click)="loopChapter(chapter)">
+                    Loop this chapter
+                  </button>
+                </li>
+              }
+              <li>
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  data-testid="watch-later-toggle"
+                  [attr.aria-checked]="watchLater.has(sceneIdNow())"
+                  [class.active]="watchLater.has(sceneIdNow())"
+                  (click)="toggleWatchLater()"
+                >
+                  {{
+                    watchLater.has(sceneIdNow()) ? 'Saved to Watch later' : 'Save to Watch later'
+                  }}
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  data-testid="mirror-toggle"
+                  [attr.aria-checked]="mirrored()"
+                  [class.active]="mirrored()"
+                  (click)="toggleMirror()"
+                >
+                  Mirror the picture
+                </button>
+              </li>
+            </ul>
+          }
+        </div>
 
         <div class="quality">
           <button

@@ -128,6 +128,8 @@ export interface StashLocalSceneCard {
   duration: number | null;
   playCount: number;
   resumeTime: number;
+  /** When it was last played, when Stash says. */
+  lastPlayedAt?: string | null;
 }
 
 export interface StashJob {
@@ -178,6 +180,8 @@ export interface StashLocalPerformer {
   disambiguation: string | null;
   gender: string | null;
   birthdate: string | null;
+  /** When they died, when Stash has it. */
+  deathDate?: string | null;
   country: string | null;
   details: string | null;
   favorite: boolean;
@@ -459,10 +463,14 @@ export interface StashTagSummary {
 
 /** What Library tools → Broken files lists. */
 export type StashProblemKind =
-  'no-file' | 'no-length' | 'no-cover' | 'no-fingerprint';
+  'no-file' | 'no-length' | 'no-cover' | 'no-fingerprint' | 'no-marker-preview';
 
 export interface StashProblemScene {
   id: string;
   title: string;
   path: string | null;
+  /** How many files the scene has (deleting it from disk deletes all of them). */
+  fileCount?: number;
+  /** Markers without a preview clip, for that kind. */
+  markers?: number;
 }

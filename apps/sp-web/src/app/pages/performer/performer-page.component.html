@@ -85,6 +85,12 @@
           @if (performer.disambiguation) {
             <p class="subheading">{{ performer.disambiguation }}</p>
           }
+          @if (performer.deathDate) {
+            <p class="passed-away" data-testid="passed-away">
+              <i class="pi pi-moon" aria-hidden="true"></i> Passed away
+              {{ performer.deathDate }}
+            </p>
+          }
 
           @if (performer.aliases.length > 0) {
             <p class="aliases">Also known as: {{ performer.aliases.join(', ') }}</p>

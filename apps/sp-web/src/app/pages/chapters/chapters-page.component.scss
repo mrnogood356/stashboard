@@ -1,0 +1,141 @@
+.filters {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.search {
+  width: 100%;
+  max-width: 28rem;
+  height: 2.6rem;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 70%, transparent);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.1rem;
+  padding: 0 0.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  justify-self: start;
+}
+
+.chip.on {
+  background: var(--accent-soft, color-mix(in srgb, var(--accent) 14%, transparent));
+  color: var(--accent);
+}
+
+.count {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.total {
+  margin-left: auto;
+  font-size: 0.85rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(14rem, 45%), 1fr));
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chapter {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.art {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--surface-elevated);
+}
+
+.art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.art img.is-failed {
+  visibility: hidden;
+}
+
+.length {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 65%);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.name {
+  overflow: hidden;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.scene {
+  overflow: hidden;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.notice {
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+  background: var(--surface-elevated);
+}

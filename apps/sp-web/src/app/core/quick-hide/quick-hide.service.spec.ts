@@ -57,7 +57,15 @@ describe('QuickHideService', () => {
 
     service.reveal();
     expect(service.hidden()).toBe(false);
-    // Pictures stay blurred until the eye is turned off.
+    // Back as it was: pictures were clear before hiding.
+    expect(obscured()).toBe(false);
+  });
+
+  it('keeps pictures blurred on the way back when they were blurred before', () => {
+    const { service, obscured } = start();
+    TestBed.inject(ImageObscurationService).setMode('obscured');
+    service.hide();
+    service.reveal();
     expect(obscured()).toBe(true);
   });
 

@@ -189,6 +189,7 @@ describe('Library tools', () => {
         ]),
       ),
       deleteScene: vi.fn().mockReturnValue(of(undefined)),
+      ignoredDuplicates: () => of({ count: 0 }),
     };
     const { fixture, root } = await render(DuplicatesPageComponent, library);
 
@@ -202,7 +203,7 @@ describe('Library tools', () => {
     }
     fixture.detectChanges();
 
-    expect(library.deleteScene).toHaveBeenCalledWith('b', true, true);
+    expect(library.deleteScene).toHaveBeenCalledWith('b', true, true, 'a');
     expect(root.textContent).toContain('No duplicates found.');
   });
 
@@ -214,6 +215,7 @@ describe('Library tools', () => {
     const library = {
       duplicates: vi.fn((accuracy: string) => answers[accuracy] ?? of([])),
       deleteScene: vi.fn(),
+      ignoredDuplicates: () => of({ count: 0 }),
     };
     const { fixture } = await render(DuplicatesPageComponent, library);
     const component = fixture.componentInstance as any;

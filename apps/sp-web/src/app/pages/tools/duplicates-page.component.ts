@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { Router, RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import {
   DuplicateGroup,
   DuplicateScene,
@@ -22,7 +23,7 @@ const ACCURACY: Array<{ value: Accuracy; label: string }> = [
  */
 @Component({
   selector: 'app-duplicates-page',
-  imports: [RouterLink],
+  imports: [RouterLink, FormsModule],
   templateUrl: './duplicates-page.component.html',
   styleUrls: ['./tools-shared.scss', './duplicates-page.component.scss'],
 })
@@ -41,6 +42,13 @@ export class DuplicatesPageComponent implements OnInit {
   /** While several are removed: how many are done. */
   protected readonly progress = signal<{ done: number; total: number } | null>(null);
   protected readonly deleting = signal(false);
+  /** Bring plays, tags, chapters and more over to the copy kept first. */
+  protected carryOver = true;
+  protected readonly hiddenCount = signal(0);
+  /** For each copy, the copy kept in its set. */
+  private keeperOf = new Map<string, string>();
+  /** Sets being hidden, so a second tap doesn't count one twice. */
+  private readonly hiding = new Set<string>();
   private loadRequest = 0;
 
   ngOnInit(): void {
@@ -55,6 +63,10 @@ export class DuplicatesPageComponent implements OnInit {
   }
 
   protected load(): void {
+    this.library.ignoredDuplicates().subscribe({
+      next: ({ count }) => this.hiddenCount.set(count),
+      error: () => this.hiddenCount.set(0),
+    });
     this.loading.set(true);
     this.error.set(null);
     // Only the latest accuracy counts: files are deleted from these groups.
@@ -65,6 +77,13 @@ export class DuplicatesPageComponent implements OnInit {
           return;
         }
         this.groups.set(groups);
+        this.keeperOf = new Map(
+          groups.flatMap((group) =>
+            group.scenes
+              .filter((scene) => scene.id !== group.suggestedKeepId)
+              .map((scene) => [scene.id, group.suggestedKeepId] as const),
+          ),
+        );
         this.loading.set(false);
       },
       error: () => {
@@ -96,6 +115,34 @@ export class DuplicatesPageComponent implements OnInit {
   }
 
   protected readonly extraCount = () => this.groups().flatMap(extras).length;
+
+  /** You checked these and they aren't copies: hidden until the set changes. */
+  protected notDuplicates(group: DuplicateGroup): void {
+    const key = group.scenes.map((scene) => scene.id).join(',');
+    if (this.hiding.has(key)) {
+      return;
+    }
+    this.hiding.add(key);
+    this.library.ignoreDuplicates(group.scenes.map((scene) => scene.id)).subscribe({
+      next: () => {
+        this.hiding.delete(key);
+        this.groups.update((groups) => groups.filter((other) => other !== group));
+        this.hiddenCount.update((count) => count + 1);
+        this.notifications.success('Hidden', 'It shows again if a copy is added or removed.');
+      },
+      error: () => {
+        this.hiding.delete(key);
+        this.notifications.error("Couldn't hide that set", 'Try again in a moment.');
+      },
+    });
+  }
+
+  protected showHidden(): void {
+    this.library.clearIgnoredDuplicates().subscribe({
+      next: () => this.load(),
+      error: () => this.notifications.error("Couldn't show them again", 'Try again in a moment.'),
+    });
+  }
 
   protected cancelDelete(): void {
     if (!this.deleting()) {
@@ -133,7 +180,14 @@ export class DuplicatesPageComponent implements OnInit {
         continue;
       }
       try {
-        await firstValueFrom(this.library.deleteScene(scene.id, deleteFile, deleteFile));
+        await firstValueFrom(
+          this.library.deleteScene(
+            scene.id,
+            deleteFile,
+            deleteFile,
+            this.carryOver ? this.keeperOf.get(scene.id) : undefined,
+          ),
+        );
         removed.add(scene.id);
         this.progress.update((value) => (value ? { ...value, done: value.done + 1 } : value));
       } catch {

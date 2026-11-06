@@ -1,4 +1,8 @@
-import { groupSimilarTags, type SimilarTagGroup } from './tag-cleanup.util';
+import {
+  groupSimilarTags,
+  nameKey,
+  type SimilarTagGroup,
+} from './tag-cleanup.util';
 import type {
   StashProblemKind,
   StashProblemScene,
@@ -9,6 +13,7 @@ import {
 } from './library-stats.util';
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   Logger,
@@ -26,6 +31,7 @@ import {
   type StashJob,
   type StashLibraryTask,
   type StashLocalSceneCard,
+  type StashMergeCandidate,
   type StashLocalSceneUpdate,
 } from '../providers/stash/stash.adapter';
 import type {
@@ -53,8 +59,29 @@ export interface LocalSceneCardDto {
   playCount: number;
   /** How far through the scene playback got, 0 to 1. */
   progress: number | null;
+  /** When it was last played. */
+  lastPlayedAt?: string | null;
   type: 'SCENE';
   source: 'STASH';
+}
+
+export interface ChapterDto {
+  id: string;
+  title: string;
+  seconds: number;
+  endSeconds: number;
+  tagName: string | null;
+  sceneId: string;
+  sceneTitle: string;
+  imageUrl: string;
+  previewUrl: string;
+}
+
+export interface MergeCandidatesDto {
+  /** Entered more than once; keepId is the one with the most scenes. */
+  groups: Array<{ keepId: string; items: StashMergeCandidate[] }>;
+  /** Names matching the search. */
+  matches: StashMergeCandidate[];
 }
 
 export interface LocalScenePageDto {
@@ -70,6 +97,7 @@ export interface LocalPerformerDto {
   disambiguation: string | null;
   gender: string | null;
   birthdate: string | null;
+  deathDate?: string | null;
   country: string | null;
   details: string | null;
   favorite: boolean;
@@ -89,12 +117,12 @@ export interface SampleSceneDto extends DuplicateSceneDto {
   reason: 'name' | 'short';
 }
 
-export const PROBLEM_KINDS: StashProblemKind[] = [
-  'no-file',
-  'no-length',
-  'no-cover',
-  'no-fingerprint',
-];
+export const PROBLEM_KINDS: Array<
+  Exclude<StashProblemKind, 'no-marker-preview'>
+> = ['no-file', 'no-length', 'no-cover', 'no-fingerprint'];
+
+/** Checking every marker's preview takes a while: kept this long. */
+const MARKER_CHECK_TTL_MS = 30 * 60_000;
 
 export interface ProblemListDto {
   kind: StashProblemKind;
@@ -285,19 +313,98 @@ export class LocalLibraryService {
         : Promise.resolve([]),
     ]);
 
-    const seen = new Set([scene.id]);
-    const merged: StashLocalSceneCard[] = [];
-    for (const item of [...byPerformers, ...byStudio, ...byTags]) {
-      if (!seen.has(item.id)) {
-        seen.add(item.id);
-        merged.push(item);
-      }
+    return rankRelated(scene.id, [
+      { items: byPerformers, weight: 3 },
+      { items: byStudio, weight: 2 },
+      { items: byTags, weight: 1 },
+    ])
+      .slice(0, RELATED_LIMIT)
+      .map(toCard);
+  }
+
+  /** Chapters across the library, for chapter playlists. */
+  async chapters(options: {
+    tagId?: string | null;
+    performerId?: string | null;
+    query?: string | null;
+  }): Promise<ChapterDto[]> {
+    const config = await this.playback.getStashConfig();
+    // Only plain strings reach Stash, whatever the request held.
+    const id = (value: unknown) =>
+      typeof value === 'string' && /^\d{1,12}$/.test(value.trim())
+        ? value.trim()
+        : null;
+    const words =
+      typeof options.query === 'string' ? options.query.slice(0, 100) : null;
+    const chapters = await this.stash.findChapters(config, {
+      tagId: id(options.tagId),
+      performerId: id(options.performerId),
+      query: words,
+      limit: 500,
+    });
+    return chapters.map((chapter) => {
+      const scene = encodeURIComponent(chapter.sceneId);
+      const marker = encodeURIComponent(chapter.id);
+      return {
+        ...chapter,
+        imageUrl: `/api/media/stash/scenes/${scene}/markers/${marker}/screenshot`,
+        previewUrl: `/api/playback/scenes/${scene}/markers/${marker}/preview`,
+      };
+    });
+  }
+
+  async chapterTags(): Promise<
+    Array<{ id: string; name: string; count: number }>
+  > {
+    const config = await this.playback.getStashConfig();
+    return this.stash.listChapterTags(config);
+  }
+
+  /** What you've played, latest first. */
+  async history(page: number): Promise<LocalScenePageDto> {
+    const config = await this.playback.getStashConfig();
+    const current = Math.max(1, Math.floor(page) || 1);
+    const perPage = 40;
+    const result = await this.stash.findLocalScenes(config, {
+      page: current,
+      perPage,
+      sort: 'last_played_at',
+      direction: 'DESC',
+      sceneFilter: { play_count: { value: 0, modifier: 'GREATER_THAN' } },
+    });
+    return {
+      total: result.total,
+      page: current,
+      hasMore: current * perPage < result.total,
+      items: result.items.map(toCard),
+    };
+  }
+
+  /** Cards for these scenes, in the order given; ones gone from Stash are left out. */
+  async cardsFor(ids: string[]): Promise<LocalSceneCardDto[]> {
+    if (ids.length === 0) {
+      return [];
     }
-    // Stable sort keeps the relevance order within watched/unwatched groups.
-    merged.sort(
-      (left, right) => Number(left.playCount > 0) - Number(right.playCount > 0),
-    );
-    return merged.slice(0, RELATED_LIMIT).map(toCard);
+    const config = await this.playback.getStashConfig();
+    const found = new Map<string, StashLocalSceneCard>();
+    for (let start = 0; start < ids.length; start += 100) {
+      const chunk = ids.slice(start, start + 100);
+      const result = await this.stash.findLocalScenes(config, {
+        page: 1,
+        perPage: 100,
+        sort: 'id',
+        direction: 'ASC',
+        sceneFilter: {},
+        ids: chunk,
+        // A malformed answer mustn't read as "all gone" (Watch later deletes those).
+        strict: true,
+      });
+      result.items.forEach((item) => found.set(item.id, item));
+    }
+    return ids.flatMap((id) => {
+      const item = found.get(id);
+      return item ? [toCard(item)] : [];
+    });
   }
 
   async performer(performerId: string): Promise<LocalPerformerDto> {
@@ -613,21 +720,176 @@ export class LocalLibraryService {
     });
   }
 
+  // ---------- merge performers and studios ----------
+
+  /**
+   * Performers or studios entered more than once (the same name or alias,
+   * ignoring case, accents, spacing and punctuation), and, with `query`,
+   * those whose name or an alias has those words, for picking by hand.
+   */
+  async mergeCandidates(
+    kind: 'performer' | 'studio',
+    query?: string,
+  ): Promise<MergeCandidatesDto> {
+    const config = await this.playback.getStashConfig();
+    const all = await this.stash.listForMerge(config, kind);
+    const byId = new Map(all.map((item) => [item.id, item]));
+    const groups = groupSimilarTags(
+      all.map(({ id, name, aliases, sceneCount }) => ({
+        id,
+        name,
+        aliases,
+        sceneCount,
+      })),
+      nameKey,
+    ).map((group) => ({
+      keepId: group.keepId,
+      items: group.tags.map((tag) => byId.get(tag.id)!),
+    }));
+    const words = nameKey(typeof query === 'string' ? query.slice(0, 100) : '');
+    const matches = words
+      ? all
+          .filter((item) =>
+            [item.name, ...item.aliases].some((name) =>
+              nameKey(name).includes(words),
+            ),
+          )
+          .sort((a, b) => b.sceneCount - a.sceneCount)
+          .slice(0, 30)
+      : [];
+    return { groups, matches };
+  }
+
+  /** Merges performers or studios into the one kept, after you pick them. */
+  async merge(
+    kind: 'performer' | 'studio',
+    keepId: string,
+    mergeIds: string[],
+  ): Promise<void> {
+    const sources = [...new Set(mergeIds)].filter((id) => id !== keepId);
+    if (sources.length === 0) {
+      throw new BadRequestException(
+        `Pick at least one other ${kind} to merge.`,
+      );
+    }
+    const config = await this.playback.getStashConfig();
+    const all = new Map(
+      (await this.stash.listForMerge(config, kind)).map((item) => [
+        item.id,
+        item,
+      ]),
+    );
+    const keep = all.get(keepId);
+    if (!keep || sources.some((id) => !all.has(id))) {
+      throw new BadRequestException(
+        `One of those ${kind}s is gone from Stash. Look again.`,
+      );
+    }
+    if (kind === 'performer') {
+      await this.stash.mergePerformers(config, keepId, sources);
+    } else {
+      try {
+        await this.stash.mergeStudios(config, keepId, sources);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(
+          `Merging studios into ${keep.name} stopped: ${message}`,
+        );
+        await this.activity?.record({
+          kind: 'scan',
+          title: `Merging studios into ${keep.name} didn’t finish`,
+          detail: message,
+          status: 'failed',
+        });
+        throw new ConflictException(message);
+      }
+    }
+    const names = sources.map((id) => all.get(id)!.name);
+    this.logger.log(`Merged ${kind}s ${names.join(', ')} into ${keep.name}.`);
+    await this.activity?.record({
+      kind: 'scan',
+      title: `Merged ${names.length} ${kind}${names.length === 1 ? '' : 's'} into ${keep.name}.`,
+      detail: `${names.join(', ')}: their scenes are now ${keep.name}'s, and their names are aliases.`,
+    });
+  }
+
   // ---------- broken files ----------
 
   /** Each kind of problem: how many scenes, and the first 50. Null when Stash couldn't say. */
-  async problems(): Promise<ProblemListDto[]> {
+  async problems(refresh = false): Promise<ProblemListDto[]> {
     const config = await this.playback.getStashConfig();
-    return Promise.all(
-      PROBLEM_KINDS.map(async (kind) => {
-        try {
-          const found = await this.stash.findProblemScenes(config, kind);
-          return { kind, count: found.count, scenes: found.scenes };
-        } catch {
-          return { kind, count: null, scenes: [] };
-        }
-      }),
-    );
+    // The chapter check is slow (it asks about each clip): run it alongside.
+    const [lists, markers] = await Promise.all([
+      Promise.all(
+        PROBLEM_KINDS.map(async (kind): Promise<ProblemListDto> => {
+          try {
+            const found = await this.stash.findProblemScenes(config, kind);
+            return { kind, count: found.count, scenes: found.scenes };
+          } catch {
+            return { kind, count: null, scenes: [] };
+          }
+        }),
+      ),
+      this.markerPreviews(config, refresh),
+    ]);
+    return [...lists, markers];
+  }
+
+  /** A chapter check under way, shared by everyone who asks meanwhile. */
+  private markerRun: {
+    baseUrl: string;
+    value: Promise<ProblemListDto>;
+  } | null = null;
+
+  private markerCheck: {
+    at: number;
+    baseUrl: string;
+    value: ProblemListDto;
+  } | null = null;
+
+  /** Markers without a preview clip; asks Stash about each one, so it's kept a while. */
+  private async markerPreviews(
+    config: { baseUrl: string; apiKey?: string | null },
+    refresh: boolean,
+  ): Promise<ProblemListDto> {
+    const kept = this.markerCheck;
+    if (
+      !refresh &&
+      kept &&
+      kept.baseUrl === config.baseUrl &&
+      Date.now() - kept.at < MARKER_CHECK_TTL_MS
+    ) {
+      return kept.value;
+    }
+    const running = this.markerRun;
+    if (running && running.baseUrl === config.baseUrl) {
+      return running.value;
+    }
+    const value = this.checkMarkers(config).finally(() => {
+      if (this.markerRun?.value === value) {
+        this.markerRun = null;
+      }
+    });
+    this.markerRun = { baseUrl: config.baseUrl, value };
+    return value;
+  }
+
+  private async checkMarkers(config: {
+    baseUrl: string;
+    apiKey?: string | null;
+  }): Promise<ProblemListDto> {
+    try {
+      const found = await this.stash.findMarkersWithoutPreview(config);
+      const value: ProblemListDto = {
+        kind: 'no-marker-preview',
+        count: found.missing,
+        scenes: found.scenes.slice(0, 50),
+      };
+      this.markerCheck = { at: Date.now(), baseUrl: config.baseUrl, value };
+      return value;
+    } catch {
+      return { kind: 'no-marker-preview', count: null, scenes: [] };
+    }
   }
 
   async stopJob(jobId: string): Promise<void> {
@@ -642,9 +904,19 @@ export class LocalLibraryService {
     accuracy: keyof typeof DUPLICATE_DISTANCE = 'exact',
   ): Promise<DuplicateGroupDto[]> {
     const config = await this.playback.getStashConfig();
-    const groups = await this.stash.findDuplicateScenes(
+    const found = await this.stash.findDuplicateScenes(
       config,
       DUPLICATE_DISTANCE[accuracy],
+    );
+    const ignored = new Set(
+      (
+        (await this.prisma?.duplicateIgnore
+          .findMany({ select: { sceneKey: true } })
+          .catch(() => [])) ?? []
+      ).map((row) => row.sceneKey),
+    );
+    const groups = found.filter(
+      (group) => !ignored.has(duplicateKey(group.map((scene) => scene.id))),
     );
     return groups.map((group) => ({
       scenes: group.map(({ screenshotVersion, ...scene }) => ({
@@ -661,6 +933,42 @@ export class LocalLibraryService {
         pickKeeperWithReason(group),
       ),
     }));
+  }
+
+  /** A set you checked and found aren't copies: hidden until its scenes change. */
+  async ignoreDuplicates(sceneIds: string[]): Promise<void> {
+    const ids = [...new Set(sceneIds)];
+    if (ids.length < 2 || !this.prisma) {
+      throw new BadRequestException('Pick a set of at least two scenes.');
+    }
+    const sceneKey = duplicateKey(ids);
+    await this.prisma.duplicateIgnore.upsert({
+      where: { sceneKey },
+      create: { sceneKey },
+      update: {},
+    });
+  }
+
+  /** How many sets are hidden as not duplicates. */
+  async ignoredDuplicateCount(): Promise<number> {
+    return (await this.prisma?.duplicateIgnore.count().catch(() => 0)) ?? 0;
+  }
+
+  /** Shows every hidden set again. */
+  async clearIgnoredDuplicates(): Promise<void> {
+    await this.prisma?.duplicateIgnore.deleteMany({});
+  }
+
+  /** Before a copy is removed: its plays, tags, chapters and more go to the copy kept. */
+  async carryDetails(fromId: string, toId: string): Promise<void> {
+    if (fromId === toId) {
+      throw new BadRequestException('A copy can’t be carried into itself.');
+    }
+    const config = await this.playback.getStashConfig();
+    const carried = await this.stash.carrySceneDetails(config, fromId, toId);
+    this.logger.log(
+      `Carried Stash scene ${fromId}'s details to ${toId}: ${carried.plays} plays, ${carried.os} Os, ${carried.chapters} chapters.`,
+    );
   }
 
   // ---------- stats ----------
@@ -883,6 +1191,50 @@ function seedFrom(value: string): number {
   return hash || 1;
 }
 
+/**
+ * Related scenes, most in common first: sharing performers counts most, then
+ * the studio, then the tags, adding up when a scene shares more than one.
+ * Unplayed ones come before played ones with the same score.
+ */
+export function rankRelated(
+  selfId: string,
+  groups: Array<{ items: StashLocalSceneCard[]; weight: number }>,
+): StashLocalSceneCard[] {
+  const scored = new Map<
+    string,
+    { item: StashLocalSceneCard; score: number; order: number }
+  >();
+  let order = 0;
+  for (const { items, weight } of groups) {
+    for (const item of items) {
+      if (item.id === selfId) {
+        continue;
+      }
+      const seen = scored.get(item.id);
+      if (seen) {
+        seen.score += weight;
+      } else {
+        scored.set(item.id, { item, score: weight, order: order++ });
+      }
+    }
+  }
+  return [...scored.values()]
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        Number(left.item.playCount > 0) - Number(right.item.playCount > 0) ||
+        left.order - right.order,
+    )
+    .map((entry) => entry.item);
+}
+
+/** The same key for the same set of scenes, in any order. */
+export function duplicateKey(sceneIds: string[]): string {
+  return [...new Set(sceneIds)]
+    .sort((a, b) => Number(a) - Number(b) || a.localeCompare(b))
+    .join(',');
+}
+
 export function toCard(scene: StashLocalSceneCard): LocalSceneCardDto {
   const screenshotPath = `scenes/${encodeURIComponent(scene.id)}/screenshot`;
   const screenshot = scene.screenshotVersion
@@ -911,6 +1263,7 @@ export function toCard(scene: StashLocalSceneCard): LocalSceneCardDto {
     duration: scene.duration,
     playCount: scene.playCount,
     progress,
+    lastPlayedAt: scene.lastPlayedAt ?? null,
     type: 'SCENE',
     source: 'STASH',
   };
