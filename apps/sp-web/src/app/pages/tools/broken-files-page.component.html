@@ -51,7 +51,9 @@
                 here when it’s done.
               </p>
             } @else if (list.count === null) {
-              <p class="muted">Stash couldn’t answer this one.</p>
+              <p class="muted" data-testid="unknown">
+                {{ list.note ?? 'Stash couldn’t answer this one.' }}
+              </p>
             } @else {
               <ul class="scenes">
                 @for (scene of list.scenes; track scene.id) {

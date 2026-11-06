@@ -56,11 +56,14 @@ export abstract class StashGraphqlClient {
     throw lastError;
   }
 
-  /** Whether Stash has this file (a HEAD, nothing downloaded); null when Stash couldn't say. */
+  /**
+   * Whether Stash has this file (a HEAD, nothing downloaded). A string when
+   * Stash couldn't say, saying why (a timeout, an HTTP status, an error).
+   */
   protected async assetExists(
     config: StashAdapterBaseConfig,
     assetUrl: string,
-  ): Promise<boolean | null> {
+  ): Promise<boolean | string> {
     const headers: Record<string, string> = {};
     if (config.apiKey?.trim()) {
       headers.ApiKey = config.apiKey.trim();
@@ -77,7 +80,7 @@ export abstract class StashGraphqlClient {
       if (response.status === 405 || response.status === 501) {
         const left = deadline - Date.now();
         if (left <= 0) {
-          return null;
+          return 'timed out';
         }
         // Some Stash routes answer GET only: ask for one byte instead.
         response = await fetchWithTimeout(
@@ -87,9 +90,14 @@ export abstract class StashGraphqlClient {
         );
         await response.body?.cancel().catch(() => undefined);
       }
-      return response.ok ? true : response.status === 404 ? false : null;
-    } catch {
-      return null;
+      return response.ok
+        ? true
+        : response.status === 404
+          ? false
+          : `HTTP ${response.status}`;
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error);
+      return /abort|timed? ?out/i.test(text) ? 'timed out' : text.slice(0, 80);
     }
   }
 

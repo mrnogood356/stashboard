@@ -132,6 +132,8 @@ export interface ProblemListDto {
   checking?: boolean;
   /** Chapters Stash didn't answer for, so they're not counted either way. */
   unanswered?: number;
+  /** Why the count is unknown, in plain words (the check failed, or Stash didn't answer). */
+  note?: string;
 }
 
 export interface DuplicateGroupDto {
@@ -888,13 +890,18 @@ export class LocalLibraryService {
         count:
           found.missing === 0 && found.unanswered > 0 ? null : found.missing,
         scenes: found.scenes.slice(0, 50),
-        ...(found.unanswered > 0 ? { unanswered: found.unanswered } : {}),
+        ...(found.unanswered > 0
+          ? {
+              unanswered: found.unanswered,
+              note: `Stash didn’t answer for ${found.unanswered} of ${found.checked} chapters${found.unansweredWhy ? ` (${found.unansweredWhy})` : ''}, so they couldn’t be counted.`,
+            }
+          : {}),
       };
       this.markerCheck = { at: Date.now(), baseUrl: config.baseUrl, value };
       const seconds = Math.round((Date.now() - started) / 1000);
       const unanswered =
         found.unanswered > 0
-          ? `; Stash didn't answer for ${found.unanswered}`
+          ? `; Stash didn't answer for ${found.unanswered}${found.unansweredWhy ? ` (mostly: ${found.unansweredWhy})` : ''}`
           : '';
       const line = `Broken files: ${found.missing} of ${found.checked} chapter(s) have no preview clip${unanswered} (checked in ${seconds}s).`;
       if (found.unanswered > 0) {
@@ -903,13 +910,19 @@ export class LocalLibraryService {
         this.logger.log(line);
       }
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(
-        `Broken files: the chapter clip check failed: ${error instanceof Error ? error.message : String(error)}`,
+        `Broken files: the chapter clip check failed: ${message}`,
       );
       this.markerCheck = {
         at: Date.now(),
         baseUrl: config.baseUrl,
-        value: { kind: 'no-marker-preview', count: null, scenes: [] },
+        value: {
+          kind: 'no-marker-preview',
+          count: null,
+          scenes: [],
+          note: `The check failed: ${message.slice(0, 200)}`,
+        },
       };
     }
   }

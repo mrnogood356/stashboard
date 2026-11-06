@@ -221,6 +221,7 @@ describe('LocalLibraryService', () => {
       missing: 0,
       checked: 10,
       unanswered: 4,
+      unansweredWhy: 'HTTP 401',
       scenes: [],
     });
     await service.problems(true);
@@ -229,6 +230,7 @@ describe('LocalLibraryService', () => {
       kind: 'no-marker-preview',
       count: null,
       unanswered: 4,
+      note: 'Stash didn’t answer for 4 of 10 chapters (HTTP 401), so they couldn’t be counted.',
     });
   });
 

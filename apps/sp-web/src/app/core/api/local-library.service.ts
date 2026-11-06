@@ -475,6 +475,8 @@ export interface ProblemList {
   checking?: boolean;
   /** Chapters Stash didn't answer for. */
   unanswered?: number;
+  /** Why the count is unknown, in plain words. */
+  note?: string;
 }
 
 export interface ProblemScene {

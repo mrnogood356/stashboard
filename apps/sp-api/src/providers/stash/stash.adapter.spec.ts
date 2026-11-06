@@ -71,7 +71,7 @@ describe('StashAdapter', () => {
       if (String(url).includes('scene_marker/1/')) {
         return Promise.reject(new Error('timed out'));
       }
-      if (String(url).includes('scene_marker/2/')) {
+      if (String(url).includes('scene_marker/')) {
         return Promise.resolve({ ok: false, status: 500 } as Response);
       }
       return Promise.resolve({
@@ -83,6 +83,7 @@ describe('StashAdapter', () => {
                 scene_markers: [
                   { id: '1', scene: { id: '9', title: 'One', files: [] } },
                   { id: '2', scene: { id: '9', title: 'One', files: [] } },
+                  { id: '3', scene: { id: '9', title: 'One', files: [] } },
                 ],
               },
             },
@@ -92,7 +93,13 @@ describe('StashAdapter', () => {
 
     await expect(
       adapter.findMarkersWithoutPreview({ baseUrl: 'http://stash.local' }),
-    ).resolves.toEqual({ missing: 0, checked: 2, unanswered: 2, scenes: [] });
+    ).resolves.toEqual({
+      missing: 0,
+      checked: 3,
+      unanswered: 3,
+      unansweredWhy: 'HTTP 500',
+      scenes: [],
+    });
   });
 
   it('asks for one byte when Stash won’t answer HEAD for a marker clip', async () => {

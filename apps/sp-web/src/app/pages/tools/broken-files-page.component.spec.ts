@@ -166,6 +166,20 @@ describe('BrokenFilesPageComponent', () => {
     fixture.destroy();
   });
 
+  it('says why a count is unknown', async () => {
+    const { fixture, root } = await render([
+      {
+        kind: 'no-marker-preview',
+        count: null,
+        scenes: [],
+        unanswered: 9,
+        note: 'Stash didn’t answer for 9 of 9 chapters (HTTP 401), so they couldn’t be counted.',
+      },
+    ]);
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="unknown"]')?.textContent).toContain('(HTTP 401)');
+  });
+
   it('says how many chapters Stash didn’t answer for', async () => {
     const { fixture, root } = await render([
       { kind: 'no-marker-preview', count: 2, scenes: scenes(1), unanswered: 5 },

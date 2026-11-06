@@ -2408,6 +2408,8 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
     checked: number;
     /** Stash didn't answer for these (timed out or an error): not known either way. */
     unanswered: number;
+    /** The most common reason, when some went unanswered. */
+    unansweredWhy?: string;
     scenes: StashProblemScene[];
   }> {
     const payload = (await this.executeQuery(
@@ -2440,6 +2442,7 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
     >();
     let next = 0;
     let unanswered = 0;
+    const why = new Map<string, number>();
     const worker = async () => {
       while (next < markers.length) {
         const marker = markers[next++];
@@ -2447,8 +2450,9 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
           config,
           `/scene/${marker.sceneId}/scene_marker/${marker.id}/stream`,
         );
-        if (exists === null) {
+        if (typeof exists === 'string') {
           unanswered += 1;
+          why.set(exists, (why.get(exists) ?? 0) + 1);
         }
         if (exists === false) {
           const entry = bySceneMissing.get(marker.sceneId) ?? {
@@ -2485,7 +2489,16 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
         };
       })
       .sort((a, b) => b.markers - a.markers);
-    return { missing, checked: markers.length, unanswered, scenes };
+    const unansweredWhy = [...why.entries()].sort(
+      (a, b) => b[1] - a[1],
+    )[0]?.[0];
+    return {
+      missing,
+      checked: markers.length,
+      unanswered,
+      ...(unansweredWhy ? { unansweredWhy } : {}),
+      scenes,
+    };
   }
 }
 
