@@ -8,6 +8,7 @@ import {
 import { Interval } from '@nestjs/schedule';
 import type { SmallerCopyAttempt, SmallerCopySettings } from '@prisma/client';
 import { DownloadHandoffService } from '../download-handoff/download-handoff.service';
+import { OPEN_HANDOFF_STATUSES } from '../download-handoff/download-handoff.model';
 import { DownloadsService } from '../downloads/downloads.service';
 import type { StatsFile } from '../playback/library-stats.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -515,7 +516,22 @@ export class SmallerCopiesService {
       where: { retryAfter: { gt: new Date(this.now()) } },
       select: { stashSceneId: true },
     });
-    const skip = new Set(waiting.map((row) => row.stashSceneId));
+    // A replacement still on its way: no new search until it lands or fails.
+    const onTheWay = await this.prisma.downloadHandoff
+      .findMany({
+        where: {
+          replacesStashSceneId: { not: null },
+          status: { in: OPEN_HANDOFF_STATUSES },
+        },
+        select: { replacesStashSceneId: true },
+      })
+      .catch(() => [] as Array<{ replacesStashSceneId: string | null }>);
+    const skip = new Set([
+      ...waiting.map((row) => row.stashSceneId),
+      ...onTheWay.flatMap((row) =>
+        row.replacesStashSceneId ? [row.replacesStashSceneId] : [],
+      ),
+    ]);
     return candidates.filter((candidate) => !skip.has(candidate.file.sceneId));
   }
 }

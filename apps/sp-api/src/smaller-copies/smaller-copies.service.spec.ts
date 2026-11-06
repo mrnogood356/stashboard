@@ -142,6 +142,7 @@ describe('SmallerCopiesService', () => {
         ),
       },
       downloadHandoff: {
+        findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn().mockResolvedValue({ id: 'h9' }),
       },
     };
@@ -369,6 +370,23 @@ describe('SmallerCopiesService', () => {
       expect.objectContaining({ guid: 'g1' }),
       expect.anything(),
       expect.anything(),
+    );
+  });
+
+  it('searches no more for a scene while its replacement is still downloading', async () => {
+    prisma.downloadHandoff.findMany.mockResolvedValue([
+      { replacesStashSceneId: '2' },
+    ]);
+    await service.tick(true);
+    // Scene 2 is skipped (its copy is on its way); the next one is searched.
+    expect(downloads.searchReleases).toHaveBeenCalledTimes(1);
+    expect(downloads.searchReleases).toHaveBeenCalledWith('cat-1', 'STASHDB');
+    expect(prisma.downloadHandoff.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: ['sent', 'downloading', 'completed'] },
+        }) as unknown,
+      }),
     );
   });
 });
