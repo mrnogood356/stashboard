@@ -62,6 +62,19 @@ export class SmallerCopiesPageComponent implements OnInit {
     return bytes ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : '';
   }
 
+  /** The running total, or nothing before the first replacement. */
+  protected savedText(saved: SmallerCopies['saved'] | undefined): string {
+    if (!saved || saved.scenes <= 0) {
+      return '';
+    }
+    const scenes = `${saved.scenes} scene${saved.scenes === 1 ? '' : 's'}`;
+    const size = (bytes: number) =>
+      bytes >= 1024 ** 4 ? `${(bytes / 1024 ** 4).toFixed(2)} TB` : this.gb(bytes) || '0 GB';
+    return saved.bytes >= 0
+      ? `Given back ${size(saved.bytes)} so far, across ${scenes} replaced.`
+      : `${scenes} replaced so far, using ${size(-saved.bytes)} more than before (upgrades are bigger).`;
+  }
+
   protected when(iso: string | null): string {
     if (!iso) {
       return '';

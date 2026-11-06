@@ -23,6 +23,11 @@
           {{ info.due }} to look at.
         </p>
       }
+      @if (savedText(info.saved); as saved) {
+        <p class="saved" data-testid="smaller-saved">
+          <i class="pi pi-database" aria-hidden="true"></i> {{ saved }}
+        </p>
+      }
       <p class="muted small">
         Up to {{ info.settings.scenesPerHour }} search{{
           info.settings.scenesPerHour === 1 ? '' : 'es'

@@ -25,6 +25,17 @@
   color: var(--text-muted);
 }
 
+.saved {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.saved i {
+  color: var(--success-text);
+}
+
 .status-actions,
 .save-row {
   display: flex;

@@ -2,6 +2,9 @@ import { BadGatewayException, Logger } from '@nestjs/common';
 import { RuntimeHealthServiceKey } from '@prisma/client';
 import { RuntimeHealthService } from '../../runtime-health/runtime-health.service';
 import { fetchWithTimeout } from '../fetch-with-timeout';
+
+/** How long one clip check may take. */
+const ASSET_CHECK_TIMEOUT_MS = 8_000;
 import {
   describeErrorResponse,
   ProviderResponseError,
@@ -64,13 +67,24 @@ export abstract class StashGraphqlClient {
     }
     try {
       const url = this.resolveProtectedAssetUrl(config.baseUrl, assetUrl);
-      let response = await fetchWithTimeout(url, { method: 'HEAD', headers });
+      // A short wait for the whole check: thousands run for Broken files.
+      const deadline = Date.now() + ASSET_CHECK_TIMEOUT_MS;
+      let response = await fetchWithTimeout(
+        url,
+        { method: 'HEAD', headers },
+        ASSET_CHECK_TIMEOUT_MS,
+      );
       if (response.status === 405 || response.status === 501) {
+        const left = deadline - Date.now();
+        if (left <= 0) {
+          return null;
+        }
         // Some Stash routes answer GET only: ask for one byte instead.
-        response = await fetchWithTimeout(url, {
-          method: 'GET',
-          headers: { ...headers, Range: 'bytes=0-0' },
-        });
+        response = await fetchWithTimeout(
+          url,
+          { method: 'GET', headers: { ...headers, Range: 'bytes=0-0' } },
+          left,
+        );
         await response.body?.cancel().catch(() => undefined);
       }
       return response.ok ? true : response.status === 404 ? false : null;

@@ -1000,6 +1000,35 @@ export class DownloadHandoffService {
   }
 
   /**
+   * Adds to Smaller copies' running total: what was deleted minus the copy
+   * that replaced it (less than nothing when a copy was upgraded). A failure
+   * here only leaves the total short.
+   */
+  private async countSaved(removedBytes: number, newBytes: number) {
+    if (removedBytes <= 0) {
+      return;
+    }
+    await this.prisma.smallerCopySettings
+      .upsert({
+        where: { key: 'GLOBAL' },
+        create: {
+          key: 'GLOBAL',
+          savedBytes: removedBytes - newBytes,
+          replacedCount: 1,
+        },
+        update: {
+          savedBytes: { increment: removedBytes - newBytes },
+          replacedCount: { increment: 1 },
+        },
+      })
+      .catch((error: unknown) =>
+        this.logger.warn(
+          `Couldn't add to Smaller copies' space saved: ${messageOf(error)}`,
+        ),
+      );
+  }
+
+  /**
    * Smaller copies: the new download joins the scene it replaces (plays,
    * chapters and details stay with it), then that scene's other files are
    * deleted. Only when the new file has a length close to the old one's;
@@ -1097,6 +1126,7 @@ export class DownloadHandoffService {
         return;
       }
       const removed: string[] = [];
+      let removedBytes = 0;
       for (const file of merged.files) {
         if (file.id !== keep.id) {
           await this.stash.removeExtraFile(
@@ -1106,15 +1136,36 @@ export class DownloadHandoffService {
             file.id,
           );
           removed.push(file.path);
+          removedBytes += file.size ?? 0;
         }
       }
+      await this.countSaved(removedBytes, keep.size ?? newFile.size ?? 0);
       await this.prisma.downloadHandoff.update({
         where: { id: row.id },
         data: { stashSceneId: oldSceneId },
       });
+      // Whisparr takes the new file now, rather than showing the scene
+      // missing until "In Stash, not in Whisparr" runs.
+      const whisparr = await this.organizer
+        .syncReplacedScene(oldSceneId)
+        .catch((error: unknown) => ({
+          status: 'failed' as const,
+          reason: messageOf(error),
+        }));
+      const whisparrNote =
+        whisparr.status === 'sent'
+          ? ' Whisparr has the new file.'
+          : whisparr.status === 'failed'
+            ? ` Whisparr didn’t take it yet (${whisparr.reason}); Organizer → “In Stash, not in Whisparr” sends it.`
+            : '';
+      if (whisparr.status === 'failed') {
+        this.logger.warn(
+          `Whisparr didn't take the new file for Stash scene ${oldSceneId}: ${whisparr.reason}`,
+        );
+      }
       await record(
         'replaced',
-        `Deleted ${removed.join(', ') || 'the old file'}.`,
+        `Deleted ${removed.join(', ') || 'the old file'}.${whisparrNote}`,
         newFile.size,
       );
       this.logger.log(

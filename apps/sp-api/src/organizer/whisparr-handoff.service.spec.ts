@@ -248,6 +248,77 @@ describe('WhisparrHandoffService', () => {
     );
   });
 
+  it('after a smaller copy, has Whisparr drop the old file and take the new one', async () => {
+    whisparr.listMovies = jest
+      .fn()
+      .mockResolvedValue([{ id: 5, path: '/mnt/user/media/whisparr/Summer' }]);
+    whisparr.refreshMovies = jest.fn().mockResolvedValue(undefined);
+    // Still points at the old file, sees it gone after the refresh, then has the new one.
+    whisparr.findMovieByStashId = jest
+      .fn()
+      .mockResolvedValueOnce({ movieId: 5, stashId: 'sdb-1', hasFile: true })
+      .mockResolvedValueOnce({ movieId: 5, stashId: 'sdb-1', hasFile: false })
+      .mockResolvedValueOnce({ movieId: 5, stashId: 'sdb-1', hasFile: false })
+      .mockResolvedValue({ movieId: 5, stashId: 'sdb-1', hasFile: true });
+
+    await expect(
+      service.adoptReplacedFile({ baseUrl: 'http://stash' }, scene(), settings),
+    ).resolves.toEqual({ status: 'sent' });
+    expect(whisparr.refreshMovies).toHaveBeenCalledWith(expect.anything(), [5]);
+    expect(whisparr.startManualImport).toHaveBeenCalled();
+  });
+
+  it('says so when Whisparr still lists the old file after looking again', async () => {
+    whisparr.refreshMovies = jest.fn().mockResolvedValue(undefined);
+    whisparr.findMovieByStashId = jest
+      .fn()
+      .mockResolvedValue({ movieId: 5, stashId: 'sdb-1', hasFile: true });
+
+    await expect(
+      service.adoptReplacedFile({ baseUrl: 'http://stash' }, scene(), settings),
+    ).resolves.toEqual({
+      status: 'failed',
+      reason:
+        'Whisparr still listed the old file 30 seconds after looking again.',
+    });
+    expect(whisparr.startManualImport).not.toHaveBeenCalled();
+  });
+
+  it('leaves Whisparr alone for a scene it doesn’t have', async () => {
+    whisparr.findMovieByStashId = jest.fn().mockResolvedValue(null);
+    await expect(
+      service.adoptReplacedFile({ baseUrl: 'http://stash' }, scene(), settings),
+    ).resolves.toEqual({
+      status: 'skipped',
+      reason: 'Whisparr doesn’t have this scene.',
+    });
+    expect(whisparr.startManualImport).not.toHaveBeenCalled();
+  });
+
+  it('says why Whisparr turned an import down, in its own words', async () => {
+    whisparr.listMovies = jest.fn().mockResolvedValue([]);
+    whisparr.findMovieByStashId = jest
+      .fn()
+      .mockResolvedValue({ movieId: 5, stashId: 'sdb-1', hasFile: false });
+    whisparr.getManualImportItems = jest.fn().mockResolvedValue([
+      {
+        path: '/mnt/user/media/inbox/a.mp4',
+        quality: { q: 1 },
+        languages: [],
+        releaseGroup: null,
+        rejections: ['Not an upgrade for existing movie file(s)'],
+      },
+    ]);
+    const result = await service.send(
+      { baseUrl: 'http://stash' },
+      [scene()],
+      settings,
+    );
+    expect(result.failed[0]?.reason).toContain(
+      'Not an upgrade for existing movie file(s)',
+    );
+  });
+
   it('skips scenes Whisparr already has, doesn’t know, or that aren’t from StashDB', async () => {
     whisparr.findMovieByStashId
       .mockReset()

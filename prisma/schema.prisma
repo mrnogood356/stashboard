@@ -725,6 +725,10 @@ model SmallerCopySettings {
   /// Search only between these hours (server time); both null: any time.
   activeFromHour    Int?
   activeToHour      Int?
+  /// Space given back so far: deleted files minus the copies that replaced them.
+  savedBytes        Float    @default(0)
+  /// Scenes whose file was replaced so far.
+  replacedCount     Int      @default(0)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
