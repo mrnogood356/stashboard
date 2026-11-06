@@ -747,12 +747,18 @@ export class StashAdapter extends StashLibraryToolsApi {
     if (options.strict && !Array.isArray(result?.scenes)) {
       throw new Error('Stash answered without a list of scenes.');
     }
+    const scenes = result?.scenes ?? [];
+    const items = scenes.flatMap((scene) => {
+      const card = this.toLocalSceneCard(scene);
+      return card ? [card] : [];
+    });
+    if (options.strict && items.length !== scenes.length) {
+      // One it couldn't read mustn't look like a scene that's gone.
+      throw new Error('Stash answered with a scene it couldn’t read.');
+    }
     return {
       total: typeof result?.count === 'number' ? result.count : 0,
-      items: (result?.scenes ?? []).flatMap((scene) => {
-        const card = this.toLocalSceneCard(scene);
-        return card ? [card] : [];
-      }),
+      items,
     };
   }
 

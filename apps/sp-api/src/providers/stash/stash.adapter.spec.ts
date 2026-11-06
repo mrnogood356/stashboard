@@ -1852,6 +1852,21 @@ describe('StashAdapter', () => {
           strict: true,
         }),
       ).rejects.toThrow('list of scenes');
+      fetchMock.mockResolvedValue(
+        ok({ findScenes: { count: 1, scenes: [{ id: 1 }] } }),
+      );
+      await expect(
+        adapter.findLocalScenes(config, {
+          page: 1,
+          perPage: 10,
+          sort: 'id',
+          direction: 'ASC',
+          sceneFilter: {},
+          ids: ['1'],
+          strict: true,
+        }),
+      ).rejects.toThrow('couldn’t read');
+      fetchMock.mockResolvedValue(ok({}));
       await expect(
         adapter.findLocalScenes(config, {
           page: 1,
