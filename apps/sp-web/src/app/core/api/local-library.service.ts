@@ -472,8 +472,10 @@ export interface ProblemList {
   scenes: ProblemScene[];
   /** Still being checked (the file-by-file checks run in the background). */
   checking?: boolean;
-  /** Chapters Stash didn't answer for. */
+  /** Files Stash didn't answer for. */
   unanswered?: number;
+  /** Why, mostly: timed out, an HTTP status, an error. */
+  unansweredWhy?: string;
   /** Why the count is unknown, in plain words. */
   note?: string;
 }

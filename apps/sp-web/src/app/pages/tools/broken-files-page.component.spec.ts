@@ -206,11 +206,11 @@ describe('BrokenFilesPageComponent', () => {
 
   it('says how many chapters Stash didn’t answer for', async () => {
     const { fixture, root } = await render([
-      { kind: 'generate', count: 2, scenes: scenes(1), unanswered: 5 },
+      { kind: 'generate', count: 2, scenes: scenes(1), unanswered: 5, unansweredWhy: 'timed out' },
     ]);
     fixture.detectChanges();
     expect(root.querySelector('[data-testid="unanswered"]')?.textContent).toContain(
-      '5 more files couldn’t be checked',
+      '5 more files couldn’t be checked (timed out)',
     );
   });
 

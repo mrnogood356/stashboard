@@ -100,7 +100,9 @@ export abstract class StashGraphqlClient {
         ? true
         : response.status === 404
           ? false
-          : `HTTP ${response.status}`;
+          : response.status === 403
+            ? 'HTTP 403: Stash refused to serve the file'
+            : `HTTP ${response.status}`;
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       return /abort|timed? ?out/i.test(text) ? 'timed out' : text.slice(0, 80);

@@ -78,7 +78,8 @@
               @if (list.unanswered) {
                 <p class="muted more" data-testid="unanswered">
                   {{ list.unanswered }} more {{ list.unanswered === 1 ? 'file' : 'files' }} couldn’t
-                  be checked. Look again to try them.
+                  be checked{{ list.unansweredWhy ? ' (' + list.unansweredWhy + ')' : '' }}. Look
+                  again to try them.
                 </p>
               }
               @if ((list.count ?? 0) > list.scenes.length) {

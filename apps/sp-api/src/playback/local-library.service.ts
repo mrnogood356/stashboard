@@ -160,8 +160,10 @@ export interface ProblemListDto {
   scenes: StashProblemScene[];
   /** Still being checked (the chapter-clip check runs in the background). */
   checking?: boolean;
-  /** Chapters Stash didn't answer for, so they're not counted either way. */
+  /** Files Stash (or the disk) didn't answer for, so they're not counted either way. */
   unanswered?: number;
+  /** The most common reason they weren't answered (timed out, an HTTP status, an error). */
+  unansweredWhy?: string;
   /** Why the count is unknown, in plain words (the check failed, or Stash didn't answer). */
   note?: string;
 }
@@ -941,6 +943,9 @@ export class LocalLibraryService {
         ...(found.unanswered > 0 && !found.note
           ? {
               unanswered: found.unanswered,
+              ...(found.unansweredWhy
+                ? { unansweredWhy: found.unansweredWhy }
+                : {}),
               note: `${kind === 'generate' ? 'Stash' : 'The disk'} didn’t answer for ${found.unanswered} ${found.unanswered === 1 ? 'file' : 'files'} across ${found.checked} scenes${found.unansweredWhy ? ` (${found.unansweredWhy})` : ''}, so they couldn’t be checked.`,
             }
           : {}),
@@ -953,7 +958,7 @@ export class LocalLibraryService {
       const seconds = Math.round((Date.now() - started) / 1000);
       const unanswered =
         found.unanswered > 0
-          ? `; Stash didn't answer for ${found.unanswered}${found.unansweredWhy ? ` (mostly: ${found.unansweredWhy})` : ''}`
+          ? `; Stash didn't answer for ${found.unanswered}${found.unansweredWhy ? ` (mostly: ${found.unansweredWhy}${found.unansweredExample ? `, e.g. ${found.unansweredExample}` : ''})` : ''}`
           : '';
       const line = found.note
         ? `Broken files: couldn't check ${label.what}: ${found.note}`
@@ -1639,6 +1644,8 @@ interface BackgroundFound {
   checked: number;
   unanswered: number;
   unansweredWhy?: string;
+  /** One address that wasn't answered, for the log. */
+  unansweredExample?: string;
   /** Why it couldn't check at all; the count is then unknown. */
   note?: string;
   scenes: StashProblemScene[];

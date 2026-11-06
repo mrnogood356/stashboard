@@ -141,8 +141,51 @@ describe('StashAdapter', () => {
       checked: 1,
       unanswered: 2,
       unansweredWhy: 'HTTP 500',
+      unansweredExample: '/scene/1/preview',
       scenes: [],
     });
+  });
+
+  it('says in words when Stash refuses a file, with one address to try', async () => {
+    stashWith([{ id: '1', title: 'One', files: [file('/1.mp4')] }], [], () => ({
+      ok: false,
+      status: 403,
+    }));
+    const found = await adapter.findGenerateGaps({
+      baseUrl: 'http://stash.local',
+    });
+    expect(found.unanswered).toBe(2);
+    expect(found.unansweredWhy).toBe(
+      'HTTP 403: Stash refused to serve the file',
+    );
+    expect(found.unansweredExample).toBe('/scene/1/preview');
+  });
+
+  it('asks once more about files Stash didn’t answer for the first time', async () => {
+    const asked = new Map<string, number>();
+    stashWith(
+      [{ id: '1', title: 'One', files: [file('/1.mp4')] }],
+      [],
+      (url) => {
+        const times = (asked.get(url) ?? 0) + 1;
+        asked.set(url, times);
+        // Busy the first time; the preview is then found missing.
+        if (times === 1) {
+          return { ok: false, status: 503 };
+        }
+        return url.endsWith('/preview')
+          ? { ok: false, status: 404 }
+          : { ok: true, status: 200 };
+      },
+    );
+    const found = await adapter.findGenerateGaps({
+      baseUrl: 'http://stash.local',
+    });
+    expect(found.unanswered).toBe(0);
+    expect(found.scenes[0].problems).toEqual([
+      'No hover preview: nothing plays when you point at it.',
+    ]);
+    expect([...asked.values()].every((times) => times === 2)).toBe(true);
   });
 
   it('asks for one byte when Stash won’t answer HEAD', async () => {
