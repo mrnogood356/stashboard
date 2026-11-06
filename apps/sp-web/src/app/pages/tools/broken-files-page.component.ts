@@ -22,6 +22,8 @@ interface ProblemInfo {
   title: string;
   why: string;
   fixes: Fix[];
+  /** Shown while a background check runs. */
+  checking?: string;
 }
 
 const GENERATE: Fix = { action: 'generate', label: 'Generate' };
@@ -42,20 +44,27 @@ export const PROBLEMS: Record<ProblemKind, ProblemInfo> = {
       { action: 'delete-files', label: 'Delete the files', confirm: 'Tap again to delete' },
     ],
   },
-  'no-cover': {
-    title: 'Scenes without a cover',
-    why: 'Generate hasn’t made their picture yet.',
-    fixes: [GENERATE],
+  unreadable: {
+    title: 'Files Stash can’t read as video',
+    why: 'Stash found no video in them: the file is damaged, unfinished, or not really a video. Scan again in case it was misread; if it stays, delete it and get it again.',
+    fixes: [
+      { action: 'scan', label: 'Scan again' },
+      { action: 'delete-files', label: 'Delete the files', confirm: 'Tap again to delete' },
+    ],
   },
-  'no-fingerprint': {
-    title: 'Scenes without a fingerprint',
-    why: 'Without one, Duplicates can’t find their copies. Generate makes it.',
-    fixes: [GENERATE],
+  'file-check': {
+    title: 'Files missing, damaged or changed on disk',
+    why: 'Each file compared with what Stash recorded when it scanned it. Each scene says what’s wrong.',
+    fixes: [{ action: 'scan', label: 'Scan again' }],
+    checking:
+      'Checking every file on disk against what Stash scanned. This can take a few minutes; the list shows here when it’s done.',
   },
-  'no-marker-preview': {
-    title: 'Chapters without a preview clip',
-    why: 'Generate hasn’t made the clip that plays for these chapters. The count is chapters, the list is their scenes.',
+  generate: {
+    title: 'Missing what Generate makes',
+    why: 'Covers, fingerprints, hover previews, scrubber thumbnails and chapter clips. Each scene says what it lacks; Generate makes them.',
     fixes: [GENERATE],
+    checking:
+      'Checking everything Generate makes for each scene in Stash. This can take a few minutes; the list shows here when it’s done.',
   },
 };
 
@@ -186,10 +195,7 @@ export class BrokenFilesPageComponent implements OnInit {
     }
     // Every affected scene listed: Generate for just them. More: for the library
     // (Stash skips what it has already made).
-    const everyScene =
-      list.kind === 'no-marker-preview'
-        ? list.scenes.length < GENERATE_FOR_LISTED
-        : (list.count ?? 0) <= GENERATE_FOR_LISTED;
+    const everyScene = (list.count ?? 0) <= GENERATE_FOR_LISTED;
     const run: Observable<{ jobId: string | null }> =
       fix.action === 'generate' && everyScene
         ? this.library.generateFor(list.scenes.map((scene) => scene.id))

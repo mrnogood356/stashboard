@@ -1,11 +1,16 @@
+import { promises as fs } from 'node:fs';
+import { basename } from 'node:path';
 import {
   groupSimilarTags,
   nameKey,
   type SimilarTagGroup,
 } from './tag-cleanup.util';
 import type {
+  StashBackgroundProblemKind,
+  StashCheckScene,
   StashProblemKind,
   StashProblemScene,
+  StashQuickProblemKind,
 } from '../providers/stash/stash.types';
 import {
   computeLibraryStats,
@@ -117,11 +122,36 @@ export interface SampleSceneDto extends DuplicateSceneDto {
   reason: 'name' | 'short';
 }
 
-export const PROBLEM_KINDS: Array<
-  Exclude<StashProblemKind, 'no-marker-preview'>
-> = ['no-file', 'no-length', 'no-cover', 'no-fingerprint'];
+export const PROBLEM_KINDS: StashQuickProblemKind[] = [
+  'no-file',
+  'no-length',
+  'unreadable',
+];
 
-/** Checking every marker's preview takes a while: kept this long. */
+/** Kinds checked file by file, in the background, in this order on the page. */
+const BACKGROUND_KINDS: StashBackgroundProblemKind[] = [
+  'file-check',
+  'generate',
+];
+
+/** What each background check counts, for the log and the page. */
+const BACKGROUND_LABEL: Record<
+  StashBackgroundProblemKind,
+  { what: string; unit: string; lacking: string }
+> = {
+  generate: {
+    what: 'what Generate makes (covers, fingerprints, previews, thumbnails, chapter clips)',
+    unit: 'scene(s)',
+    lacking: 'are missing something Generate makes',
+  },
+  'file-check': {
+    what: 'the files on disk against what Stash scanned',
+    unit: 'scene(s)',
+    lacking: 'have a file that is missing, damaged or changed',
+  },
+};
+
+/** Checking every file takes a while: a result is kept this long. */
 const MARKER_CHECK_TTL_MS = 30 * 60_000;
 
 export interface ProblemListDto {
@@ -132,6 +162,8 @@ export interface ProblemListDto {
   checking?: boolean;
   /** Chapters Stash didn't answer for, so they're not counted either way. */
   unanswered?: number;
+  /** Why the count is unknown, in plain words (the check failed, or Stash didn't answer). */
+  note?: string;
 }
 
 export interface DuplicateGroupDto {
@@ -835,83 +867,286 @@ export class LocalLibraryService {
         }
       }),
     );
-    // The chapter check asks Stash about every clip, so it can take minutes:
-    // it runs in the background and the page asks again until it's done.
-    return [...lists, this.markerPreviews(config, refresh)];
+    // These ask Stash about every file, so they can take minutes: they run
+    // in the background and the page asks again until they're done.
+    return [
+      ...lists,
+      ...BACKGROUND_KINDS.map((kind) =>
+        this.backgroundList(kind, config, refresh),
+      ),
+    ];
   }
 
-  /** A chapter check under way. */
-  private markerRun: { baseUrl: string } | null = null;
+  /** Background checks under way, by kind: the Stash each is for. */
+  private readonly backgroundRuns = new Map<
+    StashBackgroundProblemKind,
+    string
+  >();
 
-  private markerCheck: {
-    at: number;
-    baseUrl: string;
-    value: ProblemListDto;
-  } | null = null;
+  private readonly backgroundResults = new Map<
+    StashBackgroundProblemKind,
+    { at: number; baseUrl: string; value: ProblemListDto }
+  >();
 
-  /** Chapters without a preview clip: the last result, or "checking" while a check runs. */
-  private markerPreviews(
+  /** A background kind: the last result, or "checking" while a check runs. */
+  private backgroundList(
+    kind: StashBackgroundProblemKind,
     config: { baseUrl: string; apiKey?: string | null },
     refresh: boolean,
   ): ProblemListDto {
-    const kept =
-      this.markerCheck?.baseUrl === config.baseUrl ? this.markerCheck : null;
-    const running = this.markerRun?.baseUrl === config.baseUrl;
+    const result = this.backgroundResults.get(kind);
+    const kept = result?.baseUrl === config.baseUrl ? result : null;
+    const running = this.backgroundRuns.get(kind) === config.baseUrl;
     const fresh = kept && Date.now() - kept.at < MARKER_CHECK_TTL_MS;
     if (!running && (refresh || !fresh)) {
-      this.markerRun = { baseUrl: config.baseUrl };
-      void this.checkMarkers(config).finally(() => {
-        if (this.markerRun?.baseUrl === config.baseUrl) {
-          this.markerRun = null;
+      this.backgroundRuns.set(kind, config.baseUrl);
+      void this.runBackgroundCheck(kind, config).finally(() => {
+        if (this.backgroundRuns.get(kind) === config.baseUrl) {
+          this.backgroundRuns.delete(kind);
         }
       });
     }
-    const checking = this.markerRun?.baseUrl === config.baseUrl;
+    const checking = this.backgroundRuns.get(kind) === config.baseUrl;
     if (kept && !(checking && refresh)) {
       return { ...kept.value, checking };
     }
-    return { kind: 'no-marker-preview', count: null, scenes: [], checking };
+    return { kind, count: null, scenes: [], checking };
   }
 
-  private async checkMarkers(config: {
-    baseUrl: string;
-    apiKey?: string | null;
-  }): Promise<void> {
+  private async runBackgroundCheck(
+    kind: StashBackgroundProblemKind,
+    config: { baseUrl: string; apiKey?: string | null },
+  ): Promise<void> {
+    const label = BACKGROUND_LABEL[kind];
     const started = Date.now();
-    this.logger.log('Broken files: checking chapter preview clips in Stash…');
+    this.logger.log(`Broken files: checking ${label.what} in Stash…`);
     try {
-      const found = await this.stash.findMarkersWithoutPreview(config);
+      const found: BackgroundFound =
+        kind === 'generate'
+          ? await this.stash.findGenerateGaps(
+              config,
+              await this.checkRows(config),
+            )
+          : await this.checkFilesOnDisk(config);
       // Unanswered checks aren't an all-clear: with nothing found missing,
       // the count is unknown rather than 0.
       const value: ProblemListDto = {
-        kind: 'no-marker-preview',
+        kind,
         count:
-          found.missing === 0 && found.unanswered > 0 ? null : found.missing,
-        scenes: found.scenes.slice(0, 50),
-        ...(found.unanswered > 0 ? { unanswered: found.unanswered } : {}),
+          found.note || (found.missing === 0 && found.unanswered > 0)
+            ? null
+            : found.missing,
+        scenes: found.note ? [] : found.scenes.slice(0, 50),
+        ...(found.note ? { note: found.note } : {}),
+        ...(found.unanswered > 0 && !found.note
+          ? {
+              unanswered: found.unanswered,
+              note: `${kind === 'generate' ? 'Stash' : 'The disk'} didn’t answer for ${found.unanswered} ${found.unanswered === 1 ? 'file' : 'files'} across ${found.checked} scenes${found.unansweredWhy ? ` (${found.unansweredWhy})` : ''}, so they couldn’t be checked.`,
+            }
+          : {}),
       };
-      this.markerCheck = { at: Date.now(), baseUrl: config.baseUrl, value };
+      this.backgroundResults.set(kind, {
+        at: Date.now(),
+        baseUrl: config.baseUrl,
+        value,
+      });
       const seconds = Math.round((Date.now() - started) / 1000);
       const unanswered =
         found.unanswered > 0
-          ? `; Stash didn't answer for ${found.unanswered}`
+          ? `; Stash didn't answer for ${found.unanswered}${found.unansweredWhy ? ` (mostly: ${found.unansweredWhy})` : ''}`
           : '';
-      const line = `Broken files: ${found.missing} of ${found.checked} chapter(s) have no preview clip${unanswered} (checked in ${seconds}s).`;
-      if (found.unanswered > 0) {
+      const line = found.note
+        ? `Broken files: couldn't check ${label.what}: ${found.note}`
+        : `Broken files: ${found.missing} of ${found.checked} ${label.unit} ${label.lacking}${unanswered} (checked in ${seconds}s).`;
+      if (found.unanswered > 0 || found.note) {
         this.logger.warn(line);
       } else {
         this.logger.log(line);
       }
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(
-        `Broken files: the chapter clip check failed: ${error instanceof Error ? error.message : String(error)}`,
+        `Broken files: the check for ${label.what} failed: ${message}`,
       );
-      this.markerCheck = {
+      this.backgroundResults.set(kind, {
         at: Date.now(),
         baseUrl: config.baseUrl,
-        value: { kind: 'no-marker-preview', count: null, scenes: [] },
+        value: {
+          kind,
+          count: null,
+          scenes: [],
+          note: `The check failed: ${message.slice(0, 200)}`,
+        },
+      });
+    }
+  }
+
+  /** The scene list both background checks read, while one is being read. */
+  private checkRowsRun: {
+    baseUrl: string;
+    value: Promise<StashCheckScene[]>;
+  } | null = null;
+
+  /**
+   * The library's scenes for the file-by-file checks. Both checks start
+   * together, so they share one read of the list rather than each asking
+   * Stash for every scene; the next run reads it afresh.
+   */
+  private checkRows(config: {
+    baseUrl: string;
+    apiKey?: string | null;
+  }): Promise<StashCheckScene[]> {
+    if (this.checkRowsRun?.baseUrl !== config.baseUrl) {
+      const value = this.stash.listScenesForChecks(config);
+      const run = { baseUrl: config.baseUrl, value };
+      this.checkRowsRun = run;
+      void value
+        .catch(() => undefined)
+        .finally(() => {
+          if (this.checkRowsRun === run) {
+            this.checkRowsRun = null;
+          }
+        });
+    }
+    return this.checkRowsRun.value;
+  }
+
+  /** Swapped in tests. */
+  statFile: (path: string) => Promise<{ size: number; mtimeMs: number }> = (
+    path,
+  ) => fs.stat(path);
+
+  /**
+   * Each scene's files on disk against what Stash scanned: gone, unreadable,
+   * or a different size. A size change with the same date is what disk
+   * damage or a cut-off copy looks like; with a new date, the file was
+   * simply changed and needs scanning again. Needs Stashboard to see the
+   * media at the same paths as Stash.
+   */
+  private async checkFilesOnDisk(config: {
+    baseUrl: string;
+    apiKey?: string | null;
+  }): Promise<BackgroundFound> {
+    const rows = await this.checkRows(config);
+    const files = rows.flatMap((row, scene) =>
+      row.files.map((file) => ({ scene, file })),
+    );
+    type Seen =
+      | { kind: 'ok' }
+      | { kind: 'gone' | 'denied' | 'io' }
+      | { kind: 'stat'; size: number; mtimeMs: number }
+      | { kind: 'unknown'; why: string };
+    const seen: Seen[] = new Array<Seen>(files.length);
+    let next = 0;
+    const worker = async () => {
+      while (next < files.length) {
+        const index = next++;
+        try {
+          const stat = await this.statFile(files[index].file.path);
+          seen[index] = {
+            kind: 'stat',
+            size: stat.size,
+            mtimeMs: stat.mtimeMs,
+          };
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code ?? '';
+          seen[index] =
+            code === 'ENOENT' || code === 'ENOTDIR'
+              ? { kind: 'gone' }
+              : code === 'EACCES' || code === 'EPERM'
+                ? { kind: 'denied' }
+                : code === 'EIO'
+                  ? { kind: 'io' }
+                  : { kind: 'unknown', why: code || 'error' };
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: 16 }, worker));
+    const gone = seen.filter((entry) => entry.kind === 'gone').length;
+    if (files.length > 0 && gone === files.length) {
+      return {
+        missing: 0,
+        checked: rows.length,
+        unanswered: 0,
+        note: 'Stashboard can’t see any of your media. Mount the same media folder into Stashboard as Stash uses, at the same path (for example /data), so it can check the files.',
+        scenes: [],
       };
     }
+    const why = new Map<string, number>();
+    const problems = rows.map(
+      () => [] as Array<{ line: string; weight: number }>,
+    );
+    files.forEach(({ scene, file }, index) => {
+      const entry = seen[index];
+      const name =
+        rows[scene].files.length > 1 ? `${basename(file.path)}: ` : '';
+      const add = (line: string, weight: number) =>
+        problems[scene].push({ line: name + line, weight });
+      if (entry.kind === 'gone') {
+        add(
+          'The file isn’t there. Stash still lists it, so it was moved or deleted outside Stash. Scan again to find it, or remove the scene.',
+          2,
+        );
+      } else if (entry.kind === 'denied') {
+        add(
+          'Stashboard isn’t allowed to read it. Check the file’s owner and permissions (PUID/PGID).',
+          1,
+        );
+      } else if (entry.kind === 'io') {
+        add(
+          'The disk couldn’t read it (an I/O error): a sign the disk or the file is damaged.',
+          3,
+        );
+      } else if (entry.kind === 'unknown') {
+        why.set(entry.why, (why.get(entry.why) ?? 0) + 1);
+      } else if (entry.kind === 'stat' && file.size !== null) {
+        if (entry.size !== file.size) {
+          const changedDate =
+            file.modTime !== null &&
+            Math.abs(entry.mtimeMs - Date.parse(file.modTime)) > 2000;
+          const diff = `${sizeText(Math.abs(entry.size - file.size))} ${entry.size < file.size ? 'smaller' : 'bigger'}`;
+          if (entry.size === 0) {
+            add(
+              'The file is empty (0 bytes): its contents are gone. Get it again, or remove the scene.',
+              3,
+            );
+          } else if (changedDate) {
+            add(
+              `It changed since Stash scanned it (${diff} and a newer date). Scan again so Stash reads it afresh.`,
+              1,
+            );
+          } else {
+            add(
+              `It’s ${diff} than when Stash scanned it, but its date hasn’t changed: what disk damage or a cut-off copy looks like. Play it to check, and get it again if it’s broken.`,
+              3,
+            );
+          }
+        }
+      }
+    });
+    const listed = rows.flatMap((row, index) =>
+      problems[index].length > 0 ? [{ row, found: problems[index] }] : [],
+    );
+    const weightOf = (found: Array<{ weight: number }>) =>
+      Math.max(...found.map((entry) => entry.weight));
+    listed.sort((a, b) => weightOf(b.found) - weightOf(a.found));
+    const unanswered = [...why.values()].reduce((sum, n) => sum + n, 0);
+    const unansweredWhy = [...why.entries()].sort(
+      (a, b) => b[1] - a[1],
+    )[0]?.[0];
+    return {
+      missing: listed.length,
+      checked: rows.length,
+      unanswered,
+      ...(unansweredWhy ? { unansweredWhy } : {}),
+      scenes: listed.slice(0, 50).map(({ row, found }) => ({
+        id: row.id,
+        title: row.title,
+        path: row.files[0]?.path ?? null,
+        fileCount: row.files.length,
+        problems: found.map((entry) => entry.line),
+      })),
+    };
   }
 
   async stopJob(jobId: string): Promise<void> {
@@ -1397,3 +1632,25 @@ const JOB_NAMES: Record<StashLibraryTask, string> = {
   'auto-tag': 'Auto Tag',
   clean: 'Clean (removes scenes whose files are gone)',
 };
+
+/** What a background check found. */
+interface BackgroundFound {
+  missing: number;
+  checked: number;
+  unanswered: number;
+  unansweredWhy?: string;
+  /** Why it couldn't check at all; the count is then unknown. */
+  note?: string;
+  scenes: StashProblemScene[];
+}
+
+/** A size in plain words: 1.4 GB, 320 MB, 12 KB. */
+function sizeText(bytes: number): string {
+  if (bytes >= 1024 ** 3) {
+    return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+  }
+  if (bytes >= 1024 ** 2) {
+    return `${Math.round(bytes / 1024 ** 2)} MB`;
+  }
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}

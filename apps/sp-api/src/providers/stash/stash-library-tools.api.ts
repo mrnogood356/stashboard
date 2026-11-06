@@ -14,7 +14,8 @@ import {
   type StashJob,
   type StashLibraryTask,
   type StashOrganizerScene,
-  type StashProblemKind,
+  type StashCheckScene,
+  type StashQuickProblemKind,
   type StashProblemScene,
   type StashTagSummary,
   type StashSceneMatchInput,
@@ -2324,22 +2325,19 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
   /** Scenes with one kind of problem: how many, and the first few. */
   async findProblemScenes(
     config: StashAdapterBaseConfig,
-    kind: Exclude<StashProblemKind, 'no-marker-preview'>,
+    kind: StashQuickProblemKind,
     perPage = 50,
   ): Promise<{ count: number; scenes: StashProblemScene[] }> {
-    const filters: Record<
-      Exclude<StashProblemKind, 'no-marker-preview'>,
-      Record<string, unknown>
-    > = {
+    const filters: Record<StashQuickProblemKind, Record<string, unknown>> = {
       'no-file': { file_count: { value: 0, modifier: 'EQUALS' } },
       'no-length': {
         file_count: { value: 0, modifier: 'GREATER_THAN' },
         duration: { value: 1, modifier: 'LESS_THAN' },
       },
-      'no-cover': { is_missing: 'cover' },
-      'no-fingerprint': {
+      // Stash read no video stream at all: no codec, so it can't be played.
+      unreadable: {
         file_count: { value: 0, modifier: 'GREATER_THAN' },
-        is_missing: 'phash',
+        video_codec: { value: '', modifier: 'IS_NULL' },
       },
     };
     const payload = (await this.executeQuery(
@@ -2396,96 +2394,226 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
   }
 
   /**
-   * Markers whose preview clip Stash hasn't made: each is asked with a HEAD
-   * (nothing downloaded), 8 at a time, up to `maxMarkers`. Returns the scenes
-   * they belong to, most missing first, and how many markers were checked.
+   * The library's scenes for the file-by-file checks: each scene's files
+   * (path, size, date, fingerprints) and chapters, newest first, up to
+   * `maxScenes`. Scenes with no file are left to "no-file".
    */
-  async findMarkersWithoutPreview(
+  async listScenesForChecks(
     config: StashAdapterBaseConfig,
-    maxMarkers = 3000,
+    maxScenes = 20_000,
+  ): Promise<StashCheckScene[]> {
+    const pageSize = 1000;
+    const rows: StashCheckScene[] = [];
+    for (let page = 1; rows.length < maxScenes; page += 1) {
+      const payload = (await this.executeQuery(
+        config,
+        `query CheckList($filter: FindFilterType) {
+          findScenes(filter: $filter) {
+            scenes {
+              id title
+              files { id path basename size mod_time fingerprints { type value } }
+              scene_markers { id }
+            }
+          }
+        }`,
+        {
+          filter: {
+            page,
+            per_page: pageSize,
+            sort: 'created_at',
+            direction: 'DESC',
+          },
+        },
+      )) as unknown as {
+        data?: { findScenes?: { scenes?: Array<Record<string, unknown>> } };
+      };
+      const found = payload.data?.findScenes?.scenes ?? [];
+      for (const scene of found) {
+        const row = checkSceneOf(scene, (value) =>
+          this.normalizeEntityId(idText(value)),
+        );
+        if (row && rows.length < maxScenes) {
+          rows.push(row);
+        }
+      }
+      if (found.length < pageSize) {
+        break;
+      }
+    }
+    return rows;
+  }
+
+  /**
+   * What Stash's Generate makes and a scene lacks: its cover, fingerprint
+   * (phash), hover preview, scrubber thumbnails, and each chapter's clip and
+   * picture. Files are asked about with a HEAD, 8 at a time; nothing is
+   * downloaded. Each scene listed says what it lacks.
+   */
+  async findGenerateGaps(
+    config: StashAdapterBaseConfig,
+    /** The scenes to check; read from Stash when not given. */
+    scenes?: StashCheckScene[],
   ): Promise<{
     missing: number;
     checked: number;
-    /** Stash didn't answer for these (timed out or an error): not known either way. */
     unanswered: number;
+    unansweredWhy?: string;
+    /** Up to 50, those lacking the most first. */
     scenes: StashProblemScene[];
   }> {
+    const rows = scenes ?? (await this.listScenesForChecks(config));
+    const coverless = await this.sceneIdsMissing(config, 'cover');
+    type Ask = {
+      scene: number;
+      what: 'preview' | 'sprite' | 'clip' | 'picture';
+    };
+    const asks: Array<Ask & { url: string; placeholder?: string }> = [];
+    rows.forEach((row, scene) => {
+      asks.push({ scene, what: 'preview', url: `/scene/${row.id}/preview` });
+      asks.push({ scene, what: 'sprite', url: `/scene/${row.id}/vtt/sprite` });
+      for (const marker of row.markerIds) {
+        const base = `/scene/${row.id}/scene_marker/${marker}`;
+        asks.push({ scene, what: 'clip', url: `${base}/stream` });
+        // A missing picture is answered with Stash's PNG placeholder.
+        asks.push({
+          scene,
+          what: 'picture',
+          url: `${base}/screenshot`,
+          placeholder: 'image/png',
+        });
+      }
+    });
+    const probe = await this.probeAssets(
+      config,
+      asks,
+      (ask) => ask.url,
+      (ask) => ask.placeholder,
+    );
+    const lacking = rows.map(() => ({
+      preview: false,
+      sprite: false,
+      clips: 0,
+      pictures: 0,
+    }));
+    asks.forEach((ask, index) => {
+      if (probe.results[index] !== false) {
+        return;
+      }
+      const entry = lacking[ask.scene];
+      if (ask.what === 'preview') entry.preview = true;
+      if (ask.what === 'sprite') entry.sprite = true;
+      if (ask.what === 'clip') entry.clips += 1;
+      if (ask.what === 'picture') entry.pictures += 1;
+    });
+    const listed = rows.flatMap((row, index) => {
+      const gaps = lacking[index];
+      const chapters = row.markerIds.length;
+      const problems = [
+        ...(coverless.has(row.id) ? ['No cover picture.'] : []),
+        ...(row.files.some((file) => !file.phash)
+          ? ['No fingerprint (phash), so Duplicates can’t compare it.']
+          : []),
+        ...(gaps.preview
+          ? ['No hover preview: nothing plays when you point at it.']
+          : []),
+        ...(gaps.sprite
+          ? ['No scrubber thumbnails: the seek bar shows no pictures.']
+          : []),
+        ...(gaps.clips > 0
+          ? [
+              `${gaps.clips} of ${chapters} chapter${chapters === 1 ? '' : 's'} have no preview clip.`,
+            ]
+          : []),
+        ...(gaps.pictures > 0
+          ? [
+              `${gaps.pictures} of ${chapters} chapter${chapters === 1 ? '' : 's'} have no picture.`,
+            ]
+          : []),
+      ];
+      return problems.length > 0 ? [{ row, problems }] : [];
+    });
+    listed.sort((a, b) => b.problems.length - a.problems.length);
+    return {
+      missing: listed.length,
+      checked: rows.length,
+      unanswered: probe.unanswered,
+      ...(probe.unansweredWhy ? { unansweredWhy: probe.unansweredWhy } : {}),
+      scenes: listed.slice(0, 50).map(({ row, problems }) => ({
+        id: row.id,
+        title: row.title,
+        path: row.files[0]?.path ?? null,
+        fileCount: row.files.length,
+        problems,
+      })),
+    };
+  }
+
+  /** Ids of every scene Stash says is missing this (one query, ids only). */
+  private async sceneIdsMissing(
+    config: StashAdapterBaseConfig,
+    what: string,
+  ): Promise<Set<string>> {
     const payload = (await this.executeQuery(
       config,
-      `query MarkerList($filter: FindFilterType) {
-        findSceneMarkers(filter: $filter) {
-          scene_markers { id scene { id title files { path basename } } }
-        }
+      `query Missing($scene_filter: SceneFilterType, $filter: FindFilterType) {
+        findScenes(scene_filter: $scene_filter, filter: $filter) { scenes { id } }
       }`,
-      {
-        filter: { per_page: maxMarkers, sort: 'created_at', direction: 'DESC' },
-      },
+      { scene_filter: { is_missing: what }, filter: { per_page: -1 } },
     )) as unknown as {
-      data?: {
-        findSceneMarkers?: { scene_markers?: Array<Record<string, unknown>> };
-      };
+      data?: { findScenes?: { scenes?: Array<Record<string, unknown>> } };
     };
-    const markers = (
-      payload.data?.findSceneMarkers?.scene_markers ?? []
-    ).flatMap((marker) => {
-      const id = this.normalizeEntityId(idText(marker['id']));
-      const scene = marker['scene'] as
-        Record<string, unknown> | null | undefined;
-      const sceneId = this.normalizeEntityId(idText(scene?.['id']));
-      return id && sceneId && scene ? [{ id, sceneId, scene }] : [];
-    });
-    const bySceneMissing = new Map<
-      string,
-      { scene: Record<string, unknown>; count: number }
-    >();
+    return new Set(
+      (payload.data?.findScenes?.scenes ?? []).flatMap((scene) => {
+        const id = this.normalizeEntityId(idText(scene['id']));
+        return id ? [id] : [];
+      }),
+    );
+  }
+
+  /**
+   * Asks Stash about each file, 8 at a time: true it has it, false it
+   * doesn't, a string why it didn't say. With the count and most common
+   * reason of those it didn't say.
+   */
+  private async probeAssets<T>(
+    config: StashAdapterBaseConfig,
+    items: T[],
+    urlOf: (item: T) => string,
+    placeholderOf: (item: T) => string | undefined = () => undefined,
+  ): Promise<{
+    results: Array<boolean | string>;
+    unanswered: number;
+    unansweredWhy?: string;
+  }> {
+    const results: Array<boolean | string> = new Array<boolean | string>(
+      items.length,
+    );
+    const why = new Map<string, number>();
     let next = 0;
-    let unanswered = 0;
     const worker = async () => {
-      while (next < markers.length) {
-        const marker = markers[next++];
-        const exists = await this.assetExists(
+      while (next < items.length) {
+        const index = next++;
+        const answer = await this.assetExists(
           config,
-          `/scene/${marker.sceneId}/scene_marker/${marker.id}/stream`,
+          urlOf(items[index]),
+          placeholderOf(items[index]),
         );
-        if (exists === null) {
-          unanswered += 1;
-        }
-        if (exists === false) {
-          const entry = bySceneMissing.get(marker.sceneId) ?? {
-            scene: marker.scene,
-            count: 0,
-          };
-          entry.count += 1;
-          bySceneMissing.set(marker.sceneId, entry);
+        results[index] = answer;
+        if (typeof answer === 'string') {
+          why.set(answer, (why.get(answer) ?? 0) + 1);
         }
       }
     };
     await Promise.all(Array.from({ length: 8 }, worker));
-    let missing = 0;
-    const scenes = [...bySceneMissing.entries()]
-      .map(([id, { scene, count }]) => {
-        missing += count;
-        const files = Array.isArray(scene['files'])
-          ? (scene['files'] as Array<Record<string, unknown>>)
-          : [];
-        const title =
-          typeof scene['title'] === 'string' && scene['title']
-            ? scene['title']
-            : null;
-        const basename =
-          typeof files[0]?.['basename'] === 'string'
-            ? files[0]['basename']
-            : null;
-        return {
-          id,
-          title: title ?? basename ?? `Scene ${id}`,
-          path:
-            typeof files[0]?.['path'] === 'string' ? files[0]['path'] : null,
-          markers: count,
-        };
-      })
-      .sort((a, b) => b.markers - a.markers);
-    return { missing, checked: markers.length, unanswered, scenes };
+    const unanswered = [...why.values()].reduce((sum, n) => sum + n, 0);
+    const unansweredWhy = [...why.entries()].sort(
+      (a, b) => b[1] - a[1],
+    )[0]?.[0];
+    return {
+      results,
+      unanswered,
+      ...(unansweredWhy ? { unansweredWhy } : {}),
+    };
   }
 }
 
@@ -2515,6 +2643,61 @@ const STASH_GENDERS = new Set([
 ]);
 
 /** Stash sends ids as strings; anything else reads as no id. */
+/** A scene from the check list, or null when it has no id or no file. */
+function checkSceneOf(
+  scene: Record<string, unknown>,
+  normalize: (value: unknown) => string | null,
+): StashCheckScene | null {
+  const id = normalize(scene['id']);
+  const files = Array.isArray(scene['files'])
+    ? (scene['files'] as Array<Record<string, unknown>>)
+    : [];
+  if (!id || files.length === 0) {
+    return null;
+  }
+  const text = (value: unknown) =>
+    typeof value === 'string' && value ? value : null;
+  const checkFiles = files.flatMap((file) => {
+    const path = text(file['path']);
+    if (!path) {
+      return [];
+    }
+    const prints = Array.isArray(file['fingerprints'])
+      ? (file['fingerprints'] as Array<Record<string, unknown>>)
+      : [];
+    const print = (type: string) =>
+      text(prints.find((entry) => entry['type'] === type)?.['value']);
+    const size = Number(file['size']);
+    return [
+      {
+        id: idText(file['id']),
+        path,
+        size: Number.isFinite(size) ? size : null,
+        modTime: text(file['mod_time']),
+        oshash: print('oshash'),
+        md5: print('md5'),
+        phash: print('phash'),
+      },
+    ];
+  });
+  if (checkFiles.length === 0) {
+    return null;
+  }
+  const markers = Array.isArray(scene['scene_markers'])
+    ? (scene['scene_markers'] as Array<Record<string, unknown>>)
+    : [];
+  return {
+    id,
+    title:
+      text(scene['title']) ?? text(files[0]?.['basename']) ?? `Scene ${id}`,
+    files: checkFiles,
+    markerIds: markers.flatMap((marker) => {
+      const markerId = normalize(marker['id']);
+      return markerId ? [markerId] : [];
+    }),
+  };
+}
+
 function idText(value: unknown): string {
   return typeof value === 'string' || typeof value === 'number'
     ? String(value)

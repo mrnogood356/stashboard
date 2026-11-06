@@ -300,6 +300,13 @@
 }
 
 .layout.mobile-shell .content {
+  /*
+   * Anything still wider than the screen (a long name with no spaces) is cut
+   * off at its edge rather than widening the page: iPhone Safari zooms the
+   * whole app out to fit the widest thing, which shrinks every screen.
+   * clip, not hidden: no scroll box, so sticky headers keep working.
+   */
+  overflow-x: clip;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: calc(var(--shell-mobile-nav-offset) + 1rem);
 }

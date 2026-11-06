@@ -53,12 +53,15 @@ describe('LocalLibraryService', () => {
     mergeStudios: jest.fn().mockResolvedValue(undefined),
     startLibraryTask: jest.fn().mockResolvedValue('7'),
     findProblemScenes: jest.fn(),
-    findMarkersWithoutPreview: jest.fn().mockResolvedValue({
+    findGenerateGaps: jest.fn().mockResolvedValue({
       missing: 3,
       checked: 10,
       unanswered: 0,
-      scenes: [{ id: '4', title: 'S', path: null, markers: 3 }],
+      scenes: [
+        { id: '4', title: 'S', path: null, problems: ['No cover picture.'] },
+      ],
     }),
+    listScenesForChecks: jest.fn().mockResolvedValue([]),
   };
   const service = new LocalLibraryService(
     playback as unknown as PlaybackService,
@@ -177,14 +180,14 @@ describe('LocalLibraryService', () => {
 
   it('lists each kind of broken file, and says when Stash couldn’t answer one', async () => {
     stash.findProblemScenes.mockImplementation((_config, kind: string) =>
-      kind === 'no-cover'
+      kind === 'unreadable'
         ? Promise.reject(new Error('nope'))
         : Promise.resolve({ count: kind === 'no-file' ? 2 : 0, scenes: [] }),
     );
-    // The quick lists answer at once; the chapter check runs behind them.
-    let finishMarkers: (value: unknown) => void = () => undefined;
-    stash.findMarkersWithoutPreview.mockImplementationOnce(
-      () => new Promise((resolve) => (finishMarkers = resolve)),
+    // The quick lists answer at once; the file-by-file checks run behind them.
+    let finishGenerate: (value: unknown) => void = () => undefined;
+    stash.findGenerateGaps.mockImplementationOnce(
+      () => new Promise((resolve) => (finishGenerate = resolve)),
     );
     const lists = await service.problems();
     expect(
@@ -192,43 +195,140 @@ describe('LocalLibraryService', () => {
     ).toEqual([
       ['no-file', 2, false],
       ['no-length', 0, false],
-      ['no-cover', null, false],
-      ['no-fingerprint', 0, false],
-      ['no-marker-preview', null, true],
+      ['unreadable', null, false],
+      ['file-check', null, true],
+      ['generate', null, true],
     ]);
     // Asking again while it runs starts no second check.
     await service.problems();
-    expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(1);
+    expect(stash.findGenerateGaps).toHaveBeenCalledTimes(1);
 
-    finishMarkers({ missing: 3, checked: 10, unanswered: 0, scenes: [] });
+    finishGenerate({ missing: 3, checked: 10, unanswered: 0, scenes: [] });
     await new Promise((resolve) => setImmediate(resolve));
     const done = await service.problems();
     expect(done.at(-1)).toMatchObject({
-      kind: 'no-marker-preview',
+      kind: 'generate',
       count: 3,
       checking: false,
     });
     // Kept for a while; Look again checks afresh.
-    expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(1);
+    expect(stash.findGenerateGaps).toHaveBeenCalledTimes(1);
     const again = await service.problems(true);
     expect(again.at(-1)).toMatchObject({ count: null, checking: true });
-    expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(2);
+    expect(stash.findGenerateGaps).toHaveBeenCalledTimes(2);
   });
 
-  it('doesn’t call it all clear when Stash didn’t answer for some chapters', async () => {
+  it('reads the scene list once for both background checks', async () => {
     stash.findProblemScenes.mockResolvedValue({ count: 0, scenes: [] });
-    stash.findMarkersWithoutPreview.mockResolvedValueOnce({
+    const rows = [{ id: '1', title: 'One', markerIds: [], files: [] }];
+    stash.listScenesForChecks.mockClear();
+    stash.listScenesForChecks.mockResolvedValueOnce(rows);
+    await service.problems(true);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(stash.listScenesForChecks).toHaveBeenCalledTimes(1);
+    expect(stash.findGenerateGaps).toHaveBeenLastCalledWith(
+      expect.anything(),
+      rows,
+    );
+  });
+
+  it('doesn’t call it all clear when Stash didn’t answer for some files', async () => {
+    stash.findProblemScenes.mockResolvedValue({ count: 0, scenes: [] });
+    stash.findGenerateGaps.mockResolvedValueOnce({
       missing: 0,
       checked: 10,
       unanswered: 4,
+      unansweredWhy: 'HTTP 401',
       scenes: [],
     });
     await service.problems(true);
     await new Promise((resolve) => setImmediate(resolve));
     expect((await service.problems()).at(-1)).toMatchObject({
-      kind: 'no-marker-preview',
+      kind: 'generate',
       count: null,
       unanswered: 4,
+      note: 'Stash didn’t answer for 4 files across 10 scenes (HTTP 401), so they couldn’t be checked.',
+    });
+  });
+
+  describe('files on disk', () => {
+    const scene = (id: string, files: Array<Record<string, unknown>>) => ({
+      id,
+      title: `Scene ${id}`,
+      markerIds: [],
+      files: files.map((file, index) => ({
+        id: `${id}-${index}`,
+        size: 1000,
+        modTime: '2026-01-01T00:00:00.000Z',
+        oshash: null,
+        md5: null,
+        phash: 'p',
+        ...file,
+      })),
+    });
+    const at = Date.parse('2026-01-01T00:00:00.000Z');
+    const errno = (code: string) => Object.assign(new Error(code), { code });
+
+    const check = async () => {
+      stash.findProblemScenes.mockResolvedValue({ count: 0, scenes: [] });
+      await service.problems(true);
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+      return (await service.problems()).find(
+        (list) => list.kind === 'file-check',
+      )!;
+    };
+
+    it('explains files that are gone, damaged, empty, unreadable or changed', async () => {
+      stash.listScenesForChecks.mockResolvedValueOnce([
+        scene('1', [{ path: '/ok.mp4' }]),
+        scene('2', [{ path: '/gone.mp4' }]),
+        scene('3', [{ path: '/cut.mp4' }]),
+        scene('4', [{ path: '/changed.mp4' }]),
+        scene('5', [{ path: '/empty.mp4' }]),
+        scene('6', [{ path: '/io.mp4' }]),
+      ]);
+      service.statFile = (path) => {
+        switch (path) {
+          case '/gone.mp4':
+            return Promise.reject(errno('ENOENT'));
+          case '/io.mp4':
+            return Promise.reject(errno('EIO'));
+          case '/cut.mp4':
+            return Promise.resolve({ size: 400, mtimeMs: at });
+          case '/changed.mp4':
+            return Promise.resolve({ size: 2000, mtimeMs: at + 60_000 });
+          case '/empty.mp4':
+            return Promise.resolve({ size: 0, mtimeMs: at });
+          default:
+            return Promise.resolve({ size: 1000, mtimeMs: at });
+        }
+      };
+      const list = await check();
+      expect(list.count).toBe(5);
+      const why = Object.fromEntries(
+        list.scenes.map((entry) => [entry.id, entry.problems?.[0] ?? '']),
+      );
+      expect(why['2']).toContain('The file isn’t there');
+      expect(why['3']).toContain(
+        'smaller than when Stash scanned it, but its date hasn’t changed',
+      );
+      expect(why['4']).toContain('Scan again');
+      expect(why['5']).toContain('empty (0 bytes)');
+      expect(why['6']).toContain('I/O error');
+      // Damage first.
+      expect(['3', '5', '6']).toContain(list.scenes[0].id);
+    });
+
+    it('says when Stashboard can’t see the media at all', async () => {
+      stash.listScenesForChecks.mockResolvedValueOnce([
+        scene('1', [{ path: '/data/a.mp4' }]),
+        scene('2', [{ path: '/data/b.mp4' }]),
+      ]);
+      service.statFile = () => Promise.reject(errno('ENOENT'));
+      const list = await check();
+      expect(list.count).toBeNull();
+      expect(list.note).toContain('can’t see any of your media');
     });
   });
 

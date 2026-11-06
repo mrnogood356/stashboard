@@ -463,18 +463,19 @@ export interface SimilarTagGroup {
   tags: TagSummary[];
 }
 
-export type ProblemKind =
-  'no-file' | 'no-length' | 'no-cover' | 'no-fingerprint' | 'no-marker-preview';
+export type ProblemKind = 'no-file' | 'no-length' | 'unreadable' | 'file-check' | 'generate';
 
 export interface ProblemList {
   kind: ProblemKind;
   /** Null when Stash couldn't say. */
   count: number | null;
   scenes: ProblemScene[];
-  /** Still being checked (the chapter-clip check runs in the background). */
+  /** Still being checked (the file-by-file checks run in the background). */
   checking?: boolean;
   /** Chapters Stash didn't answer for. */
   unanswered?: number;
+  /** Why the count is unknown, in plain words. */
+  note?: string;
 }
 
 export interface ProblemScene {
@@ -483,6 +484,6 @@ export interface ProblemScene {
   path: string | null;
   /** Deleting the scene from disk deletes all of its files. */
   fileCount?: number;
-  /** Markers of this scene without a preview clip. */
-  markers?: number;
+  /** What's wrong with it, in plain words, one line each. */
+  problems?: string[];
 }
