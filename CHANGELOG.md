@@ -1,5 +1,52 @@
 # Changelog
 
+## [1.6.1](https://github.com/mrnogood356/stashboard/compare/v1.6.0...v1.6.1) (2026-11-06)
+
+
+### Features
+
+* 1.6.1 — Smaller copies, Watch later, chapter playlists, merge, loop and Broken files fixes ([271eb0c](https://github.com/mrnogood356/stashboard/commit/271eb0cdee1be6701ad9675aa59e5bfd473e08c4))
+* **library:** chapter playlists, played back to back or shuffled ([cf1947c](https://github.com/mrnogood356/stashboard/commit/cf1947c6d82e68b5a30e64749fbd9451b1927237))
+* **library:** Watch later with a play queue, a History page, and better related scenes ([0363475](https://github.com/mrnogood356/stashboard/commit/0363475ece0657fef3bfe4ff4247a223e7684721))
+* **player:** loop a part or a chapter, and mirror the picture ([a5ae993](https://github.com/mrnogood356/stashboard/commit/a5ae993a9d6ecd1db0d75dec5d3903ffc42813d1))
+* **tools:** Broken files checks files on disk and everything Generate makes, saying what's wrong with each ([fe3018f](https://github.com/mrnogood356/stashboard/commit/fe3018f3ac99673842ffe097787d47016489308f))
+* **tools:** Broken files checks files on disk and everything Generate makes; phone screens keep their width ([bee4c8d](https://github.com/mrnogood356/stashboard/commit/bee4c8d96fd516de30615c9ace06ce26d49a8076))
+* **tools:** Broken files finds scenes without a hover preview ([cd9179d](https://github.com/mrnogood356/stashboard/commit/cd9179d6a14800809621e2936970e8e9702ac323))
+* **tools:** merge performers and studios, keep details from removed duplicates, and mark performers who've died ([ddd5aec](https://github.com/mrnogood356/stashboard/commit/ddd5aecb4a77a4a7722b4b22d4f0c80f8469eb4a))
+* **tools:** Smaller copies hands off to Whisparr and shows space given back; Broken files lists again ([dfc0f62](https://github.com/mrnogood356/stashboard/commit/dfc0f62876ae2ad8dafee83975c0fecfc84b9d20))
+* **tools:** Smaller copies shows how much space it has given back ([2eb814f](https://github.com/mrnogood356/stashboard/commit/2eb814f80f0a5674777800760c80151184740943))
+* **tools:** Smaller copies swaps big files for smaller ones, a few scenes an hour ([507a9be](https://github.com/mrnogood356/stashboard/commit/507a9be59c586b15a214c033fe0d838c5e68b8e6))
+* **tools:** Whisparr takes a smaller copy's new file straight away ([0a4a10c](https://github.com/mrnogood356/stashboard/commit/0a4a10c616fcd98747c05b0931c9c11fa870c72b))
+
+
+### Bug Fixes
+
+* **api:** a stuck library sync can no longer leave every page waiting ([d9ecfdd](https://github.com/mrnogood356/stashboard/commit/d9ecfdde5f24fad0633ac38c63e3e87ab7129c77))
+* **api:** a stuck library sync can no longer leave every page waiting; a silent server shows "Can't reach Stashboard" ([3cac64f](https://github.com/mrnogood356/stashboard/commit/3cac64f7d108f678cbb1aaee3404c2db1fd1c954))
+* **downloads:** a smaller copy that fails in SABnzbd can be tried again ([fcd17dc](https://github.com/mrnogood356/stashboard/commit/fcd17dc06d460cb8c3cb7e894cf03159eb466836))
+* **library:** chapter and merge searches take one value per parameter ([545d4a0](https://github.com/mrnogood356/stashboard/commit/545d4a06599d69d8e8e111207ee06fcaba692390))
+* **library:** Watch later keeps its list when Stash sends a scene it can't read ([c64d20c](https://github.com/mrnogood356/stashboard/commit/c64d20c4ed3ff84d8a3360ecb0a0d6ec93de3ee4))
+* **privacy:** coming back from Quick hide puts pictures back as they were ([2497d89](https://github.com/mrnogood356/stashboard/commit/2497d894055abcc1753af08089dfaf47ce0d1913))
+* review fixes for Smaller copies, Watch later, Merge, Chapters and the player ([11fd179](https://github.com/mrnogood356/stashboard/commit/11fd179c298a1ee723108d62824e885be64422e5))
+* review fixes for smaller-copy failures, studio merges and duplicate carry-over ([c411622](https://github.com/mrnogood356/stashboard/commit/c411622e19b4986fcd26acdb46ed9cab2a47af89))
+* Smaller copies never grabs the same release twice, and Watch later keeps its list on a bad answer ([370b52a](https://github.com/mrnogood356/stashboard/commit/370b52a807c691bfda7c82b855a84814a48cdb5a))
+* **tools:** a failed smaller copy frees its release before it shows as failed ([7e4ccde](https://github.com/mrnogood356/stashboard/commit/7e4ccde1da6ddf62b8ae3a583b73942ddb638726))
+* **tools:** Broken files asks again about files Stash didn't answer, and says why ([6b5c8ce](https://github.com/mrnogood356/stashboard/commit/6b5c8cea288f394f2b5c1363953f9732b806d03e))
+* **tools:** Broken files asks Stash again about files it didn't answer, and says why ([b0aa60f](https://github.com/mrnogood356/stashboard/commit/b0aa60f0d7817740ed94ad70dbee58bc2baac4b2))
+* **tools:** Broken files can fix every kind it lists, and finds chapters without a preview clip ([458f140](https://github.com/mrnogood356/stashboard/commit/458f14002880b00af42777d1c7184e2fb2a92ed0))
+* **tools:** Broken files doesn't call unanswered chapter checks all clear ([7f7b8ed](https://github.com/mrnogood356/stashboard/commit/7f7b8eddf34a042c0a3086501710c2a518677485))
+* **tools:** Broken files lists at once again, and checks chapter clips in the background ([59dfdd9](https://github.com/mrnogood356/stashboard/commit/59dfdd93d925c46cef3827c87ed949f75986c254))
+* **tools:** Broken files logs one file Stash didn't answer for, so it can be tried by hand ([a5088b0](https://github.com/mrnogood356/stashboard/commit/a5088b0c0398f5cea3081d45f0a577e2c65c4734))
+* **tools:** Broken files reads the library from Stash once for both background checks ([e2ce277](https://github.com/mrnogood356/stashboard/commit/e2ce277e8c7e435a0aaf75bc851d3efd88c7819f))
+* **tools:** Broken files says when Stash isn't allowed to read its own generated files ([0ffaf19](https://github.com/mrnogood356/stashboard/commit/0ffaf1978a67851a90fb469a6824137fcc2f927f))
+* **tools:** Broken files says why it couldn't count chapter clips ([d820a2a](https://github.com/mrnogood356/stashboard/commit/d820a2a36795c2c8251099fcaae26ae151ab6626))
+* **tools:** Broken files' test gives the page every notice it uses ([fe50e1e](https://github.com/mrnogood356/stashboard/commit/fe50e1ecf67bc63d664137d04e06fcac02b8a591))
+* **tools:** Merge keeps the marks on non-Latin letters, so й and и stay apart ([9f9cc18](https://github.com/mrnogood356/stashboard/commit/9f9cc183a3839cd11d963c15b8ffefca24ae06e9))
+* **tools:** Smaller copies doesn't search again while a replacement is still downloading ([d249e5b](https://github.com/mrnogood356/stashboard/commit/d249e5bf48c8c470eb7213ab22c94c613008fca7))
+* **tools:** Smaller copies fits a phone screen again ([b7ee1c5](https://github.com/mrnogood356/stashboard/commit/b7ee1c59d9005e52e9d02557bc190b8347d17337))
+* **ui:** a server that doesn't answer shows "Can't reach Stashboard", not a blank screen ([86c3c71](https://github.com/mrnogood356/stashboard/commit/86c3c71d53c6b50284be41c28cfea171702aec94))
+* **ui:** nothing can make a phone screen wider than the phone ([975f44a](https://github.com/mrnogood356/stashboard/commit/975f44a5f1d35237d8f69ce84a6dbf1bed167a7c))
+
 ## [1.6.0](https://github.com/mrnogood356/stashboard/compare/v1.5.1...v1.6.0) (2026-11-05)
 
 
