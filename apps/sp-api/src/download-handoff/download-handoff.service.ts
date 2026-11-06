@@ -1430,6 +1430,38 @@ export class DownloadHandoffService {
       detail: reason,
       status: 'failed',
     });
+    if (row.replacesStashSceneId) {
+      await this.freeSmallerCopyRelease(row, reason);
+    }
+  }
+
+  /**
+   * A smaller copy that failed after SABnzbd took it: Smaller copies may
+   * try that release again (it only skips releases that got through).
+   */
+  private async freeSmallerCopyRelease(
+    row: DownloadHandoff,
+    reason: string,
+  ): Promise<void> {
+    const attempt = await this.prisma.smallerCopyAttempt
+      .findFirst({ where: { handoffId: row.id } })
+      .catch(() => null);
+    if (!attempt) {
+      return;
+    }
+    await this.prisma.smallerCopyAttempt
+      .update({
+        where: { stashSceneId: attempt.stashSceneId },
+        data: {
+          outcome: 'failed',
+          detail: `The download failed: ${reason}`.slice(0, 300),
+          grabbedGuids: attempt.grabbedGuids.filter(
+            (guid) => guid !== attempt.releaseGuid,
+          ),
+          retryAfter: new Date(Date.now() + 24 * 60 * 60_000),
+        },
+      })
+      .catch(() => undefined);
   }
 
   private async setStatus(

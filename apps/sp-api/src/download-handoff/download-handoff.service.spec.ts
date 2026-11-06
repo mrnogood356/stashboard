@@ -586,6 +586,41 @@ describe('DownloadHandoffService', () => {
       expect(stash.scanLibraryFolders).not.toHaveBeenCalled();
     });
 
+    it('lets Smaller copies try a release again when its download fails in SABnzbd', async () => {
+      rows.push(handoff({ id: 'h1', replacesStashSceneId: '12' }));
+      const attempt = {
+        stashSceneId: '12',
+        releaseGuid: 'g1',
+        grabbedGuids: ['g0', 'g1'],
+        outcome: 'grabbed',
+      };
+      const update = jest.fn().mockResolvedValue(undefined);
+      prisma.smallerCopyAttempt = {
+        findFirst: jest.fn().mockResolvedValue(attempt),
+        update,
+      };
+      sabnzbd.history.mockResolvedValue([
+        historyEntry({
+          status: 'Failed',
+          storage: null,
+          failMessage: 'Out of retention',
+        }),
+      ]);
+
+      await service.checkOpen();
+
+      expect(prisma.smallerCopyAttempt.findFirst).toHaveBeenCalledWith({
+        where: { handoffId: 'h1' },
+      });
+      expect(update).toHaveBeenCalledWith({
+        where: { stashSceneId: '12' },
+        data: expect.objectContaining({
+          outcome: 'failed',
+          grabbedGuids: ['g0'],
+        }) as unknown,
+      });
+    });
+
     it('leaves a download moved to another category alone', async () => {
       rows.push(handoff({ id: 'h1' }));
       await write(video());
