@@ -25,8 +25,8 @@
     <div class="empty">
       <i class="pi pi-check-circle" aria-hidden="true"></i>
       <p>
-        Nothing broken. Every scene has its file, a length, a cover, a fingerprint and a hover
-        preview, and every chapter its clip.
+        Nothing broken. Every file is where Stash says, readable and unchanged, and Generate has
+        made everything for every scene.
       </p>
     </div>
   } @else {
@@ -62,25 +62,26 @@
                       [queryParams]="{ returnTo: currentUrl() }"
                       >{{ scene.title }}</a
                     >
-                    @if (scene.markers) {
-                      <span class="muted path"
-                        >{{ scene.markers }}
-                        {{ scene.markers === 1 ? 'chapter' : 'chapters' }}</span
-                      >
-                    }
                     @if (scene.path) {
                       <span class="muted path" [title]="scene.path">{{ scene.path }}</span>
+                    }
+                    @if (scene.problems?.length) {
+                      <ul class="why" [attr.data-testid]="'why-' + scene.id">
+                        @for (line of scene.problems; track line) {
+                          <li>{{ line }}</li>
+                        }
+                      </ul>
                     }
                   </li>
                 }
               </ul>
               @if (list.unanswered) {
                 <p class="muted more" data-testid="unanswered">
-                  Stash didn’t answer for {{ list.unanswered }} more
-                  {{ list.unanswered === 1 ? 'chapter' : 'chapters' }}. Look again to check them.
+                  {{ list.unanswered }} more {{ list.unanswered === 1 ? 'file' : 'files' }} couldn’t
+                  be checked. Look again to try them.
                 </p>
               }
-              @if (list.kind !== 'no-marker-preview' && (list.count ?? 0) > list.scenes.length) {
+              @if ((list.count ?? 0) > list.scenes.length) {
                 <p class="muted more">And {{ (list.count ?? 0) - list.scenes.length }} more.</p>
               }
               <div class="problem-actions">

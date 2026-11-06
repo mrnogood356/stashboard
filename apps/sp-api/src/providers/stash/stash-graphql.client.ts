@@ -63,6 +63,8 @@ export abstract class StashGraphqlClient {
   protected async assetExists(
     config: StashAdapterBaseConfig,
     assetUrl: string,
+    /** Stash answers some missing files with a placeholder of this type. */
+    placeholderType?: string,
   ): Promise<boolean | string> {
     const headers: Record<string, string> = {};
     if (config.apiKey?.trim()) {
@@ -89,6 +91,10 @@ export abstract class StashGraphqlClient {
           left,
         );
         await response.body?.cancel().catch(() => undefined);
+      }
+      const type = response.headers?.get?.('content-type') ?? '';
+      if (response.ok && placeholderType && type.startsWith(placeholderType)) {
+        return false;
       }
       return response.ok
         ? true

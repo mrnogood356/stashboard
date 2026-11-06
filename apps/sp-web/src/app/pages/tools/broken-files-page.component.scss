@@ -37,7 +37,7 @@
 .scenes {
   display: grid;
   gap: 0.35rem;
-  max-height: 16rem;
+  max-height: 28rem;
   overflow-y: auto;
   font-size: 0.86rem;
 }
@@ -52,6 +52,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.why {
+  margin: 0.15rem 0 0.25rem;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.why li + li {
+  margin-top: 0.1rem;
 }
 
 .more {

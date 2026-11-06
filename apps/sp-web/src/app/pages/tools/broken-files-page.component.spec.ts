@@ -41,12 +41,11 @@ describe('BrokenFilesPageComponent', () => {
       [
         { kind: 'no-file', count: 2, scenes: scenes(2) },
         { kind: 'no-length', count: 0, scenes: [] },
-        { kind: 'no-cover', count: 3, scenes: scenes(3) },
-        { kind: 'no-fingerprint', count: 120, scenes: scenes(50) },
+        { kind: 'unreadable', count: 120, scenes: scenes(50) },
         {
-          kind: 'no-marker-preview',
-          count: 7,
-          scenes: [{ id: '9', title: 'Chaptered', path: null, markers: 7 }],
+          kind: 'generate',
+          count: 3,
+          scenes: scenes(3).map((scene) => ({ ...scene, problems: ['No hover preview.'] })),
         },
       ],
       { startJob, generateFor },
@@ -55,27 +54,25 @@ describe('BrokenFilesPageComponent', () => {
 
     expect(root.querySelector('[data-testid="problem-no-length"]')).toBeNull();
     expect(root.textContent).toContain('And 70 more.');
-    expect(root.textContent).toContain('7 chapters');
+    expect(root.querySelector('[data-testid="why-2"]')?.textContent).toContain('No hover preview.');
 
-    // A few scenes: Generate for just them. Many: for the library.
-    button('fix-no-cover-generate').click();
+    // A few scenes: Generate for just them.
+    button('fix-generate-generate').click();
     expect(generateFor).toHaveBeenCalledWith(['1', '2', '3']);
-    button('fix-no-fingerprint-generate').click();
-    expect(startJob).toHaveBeenCalledWith('generate');
-    button('fix-no-marker-preview-generate').click();
-    expect(generateFor).toHaveBeenCalledWith(['9']);
+    button('fix-unreadable-scan').click();
+    expect(startJob).toHaveBeenCalledWith('scan');
 
     fixture.detectChanges();
-    expect(button('fix-no-cover-generate').textContent).toContain('Started');
+    expect(button('fix-generate-generate').textContent).toContain('Started');
     expect(startJob).not.toHaveBeenCalledWith('clean');
 
     // Look again: anything still listed can be fixed again.
-    button('fix-no-cover-generate')
+    button('fix-generate-generate')
       .closest('main')!
       .querySelector<HTMLButtonElement>('.head-action')!
       .click();
     fixture.detectChanges();
-    expect(button('fix-no-cover-generate').disabled).toBe(false);
+    expect(button('fix-generate-generate').disabled).toBe(false);
   });
 
   it('removes scenes with no file from Stash after a second tap, and deletes broken files but never a scene with more files', async () => {
@@ -115,9 +112,9 @@ describe('BrokenFilesPageComponent', () => {
     const { root } = await render([
       { kind: 'no-file', count: 0, scenes: [] },
       { kind: 'no-length', count: 0, scenes: [] },
-      { kind: 'no-cover', count: 0, scenes: [] },
-      { kind: 'no-fingerprint', count: 0, scenes: [] },
-      { kind: 'no-marker-preview', count: 0, scenes: [] },
+      { kind: 'unreadable', count: 0, scenes: [] },
+      { kind: 'file-check', count: 0, scenes: [] },
+      { kind: 'generate', count: 0, scenes: [] },
     ]);
     expect(root.textContent).toContain('Nothing broken');
   });
@@ -127,11 +124,11 @@ describe('BrokenFilesPageComponent', () => {
     try {
       const checking: ProblemList[] = [
         { kind: 'no-file', count: 1, scenes: scenes(1) },
-        { kind: 'no-marker-preview', count: null, scenes: [], checking: true },
+        { kind: 'generate', count: null, scenes: [], checking: true },
       ];
       const done: ProblemList[] = [
         { kind: 'no-file', count: 1, scenes: scenes(1) },
-        { kind: 'no-marker-preview', count: 2, scenes: scenes(2) },
+        { kind: 'generate', count: 2, scenes: scenes(2) },
       ];
       const problems = vi.fn().mockReturnValueOnce(of(checking)).mockReturnValue(of(done));
       const { fixture, root } = await render([], { problems });
@@ -144,7 +141,7 @@ describe('BrokenFilesPageComponent', () => {
       expect(problems).toHaveBeenCalledTimes(2);
       expect(root.querySelector('[data-testid="checking"]')).toBeNull();
       expect(
-        root.querySelector('[data-testid="problem-no-marker-preview"] .count-badge')?.textContent,
+        root.querySelector('[data-testid="problem-generate"] .count-badge')?.textContent,
       ).toContain('2');
       // Done: no more asking.
       vi.advanceTimersByTime(20000);
@@ -157,31 +154,46 @@ describe('BrokenFilesPageComponent', () => {
   it('shows the check under way, not a Generate for nothing, while an earlier 0 is checked again', async () => {
     const { fixture, root } = await render([
       { kind: 'no-file', count: 1, scenes: scenes(1) },
-      { kind: 'no-marker-preview', count: 0, scenes: [], checking: true },
+      { kind: 'generate', count: 0, scenes: [], checking: true },
     ]);
     fixture.detectChanges();
-    const panel = root.querySelector('[data-testid="problem-no-marker-preview"]')!;
+    const panel = root.querySelector('[data-testid="problem-generate"]')!;
     expect(panel.querySelector('[data-testid="checking"]')).not.toBeNull();
     expect(panel.querySelector('button')).toBeNull();
     fixture.destroy();
   });
 
-  it('lists scenes without a hover preview and generates just those', async () => {
-    const generateFor = vi.fn(() => of({ jobId: '3' }));
-    const { fixture, root } = await render([{ kind: 'no-preview', count: 2, scenes: scenes(2) }], {
-      generateFor,
-    });
+  it('says what’s wrong with each file on disk, with Scan again', async () => {
+    const startJob = vi.fn(() => of({ jobId: '3' }));
+    const { fixture, root } = await render(
+      [
+        {
+          kind: 'file-check',
+          count: 1,
+          scenes: [
+            {
+              id: '5',
+              title: 'Cut off',
+              path: '/data/cut.mp4',
+              problems: ['It’s 1.2 GB smaller than when Stash scanned it.'],
+            },
+          ],
+        },
+      ],
+      { startJob },
+    );
     fixture.detectChanges();
-    const panel = root.querySelector('[data-testid="problem-no-preview"]')!;
-    expect(panel.textContent).toContain('Scenes without a hover preview');
-    (panel.querySelector('[data-testid="fix-no-preview-generate"]') as HTMLButtonElement).click();
-    expect(generateFor).toHaveBeenCalledWith(['1', '2']);
+    const panel = root.querySelector('[data-testid="problem-file-check"]')!;
+    expect(panel.textContent).toContain('Files missing, damaged or changed on disk');
+    expect(panel.querySelector('[data-testid="why-5"]')?.textContent).toContain('1.2 GB smaller');
+    (panel.querySelector('[data-testid="fix-file-check-scan"]') as HTMLButtonElement).click();
+    expect(startJob).toHaveBeenCalledWith('scan');
   });
 
   it('says why a count is unknown', async () => {
     const { fixture, root } = await render([
       {
-        kind: 'no-marker-preview',
+        kind: 'generate',
         count: null,
         scenes: [],
         unanswered: 9,
@@ -194,11 +206,11 @@ describe('BrokenFilesPageComponent', () => {
 
   it('says how many chapters Stash didn’t answer for', async () => {
     const { fixture, root } = await render([
-      { kind: 'no-marker-preview', count: 2, scenes: scenes(1), unanswered: 5 },
+      { kind: 'generate', count: 2, scenes: scenes(1), unanswered: 5 },
     ]);
     fixture.detectChanges();
     expect(root.querySelector('[data-testid="unanswered"]')?.textContent).toContain(
-      'Stash didn’t answer for 5 more chapters',
+      '5 more files couldn’t be checked',
     );
   });
 
@@ -208,9 +220,7 @@ describe('BrokenFilesPageComponent', () => {
       const reply = new Subject<ProblemList[]>();
       const problems = vi
         .fn()
-        .mockReturnValueOnce(
-          of([{ kind: 'no-marker-preview', count: null, scenes: [], checking: true }]),
-        )
+        .mockReturnValueOnce(of([{ kind: 'generate', count: null, scenes: [], checking: true }]))
         .mockReturnValueOnce(reply)
         .mockReturnValue(NEVER);
       const { fixture } = await render([], { problems });

@@ -463,15 +463,10 @@ export interface StashTagSummary {
 
 /** What Library tools → Broken files lists. */
 export type StashProblemKind =
-  | 'no-file'
-  | 'no-length'
-  | 'no-cover'
-  | 'no-fingerprint'
-  | 'no-preview'
-  | 'no-marker-preview';
+  'no-file' | 'no-length' | 'unreadable' | 'generate' | 'file-check';
 
 /** Kinds Stash can't filter for: each file is asked about, in the background. */
-export type StashBackgroundProblemKind = 'no-preview' | 'no-marker-preview';
+export type StashBackgroundProblemKind = 'generate' | 'file-check';
 
 /** Kinds Stash answers with one query. */
 export type StashQuickProblemKind = Exclude<
@@ -485,6 +480,23 @@ export interface StashProblemScene {
   path: string | null;
   /** How many files the scene has (deleting it from disk deletes all of them). */
   fileCount?: number;
-  /** Markers without a preview clip, for that kind. */
-  markers?: number;
+  /** What's wrong with it, in plain words, one line each. */
+  problems?: string[];
+}
+
+/** A scene as the file-by-file checks see it. */
+export interface StashCheckScene {
+  id: string;
+  title: string;
+  files: Array<{
+    id: string;
+    path: string;
+    size: number | null;
+    /** When Stash last saw the file change (ISO). */
+    modTime: string | null;
+    oshash: string | null;
+    md5: string | null;
+    phash: string | null;
+  }>;
+  markerIds: string[];
 }

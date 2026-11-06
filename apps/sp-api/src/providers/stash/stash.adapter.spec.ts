@@ -31,157 +31,142 @@ describe('StashAdapter', () => {
     );
   });
 
-  it('finds markers without a preview clip by asking Stash about each one', async () => {
+  /** Stash answering the check list, the coverless ids and each file. */
+  const stashWith = (
+    scenes: unknown[],
+    coverless: string[],
+    asset: (url: string, method?: string) => Partial<Response>,
+  ) =>
     fetchMock.mockImplementation((url, init) => {
-      if (init?.method === 'HEAD') {
-        const missing = String(url).includes('scene_marker/2/');
-        return Promise.resolve({
-          ok: !missing,
-          status: missing ? 404 : 200,
-        } as Response);
-      }
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            data: {
-              findSceneMarkers: {
-                scene_markers: [
-                  { id: '1', scene: { id: '9', title: 'One', files: [] } },
-                  { id: '2', scene: { id: '9', title: 'One', files: [] } },
-                ],
-              },
-            },
-          }),
-      } as Response);
-    });
-
-    await expect(
-      adapter.findMarkersWithoutPreview({ baseUrl: 'http://stash.local' }),
-    ).resolves.toEqual({
-      missing: 1,
-      checked: 2,
-      unanswered: 0,
-      scenes: [{ id: '9', title: 'One', path: null, markers: 1 }],
-    });
-  });
-
-  it('counts marker clips Stash didn’t answer for apart from missing ones', async () => {
-    fetchMock.mockImplementation((url) => {
-      if (String(url).includes('scene_marker/1/')) {
-        return Promise.reject(new Error('timed out'));
-      }
-      if (String(url).includes('scene_marker/')) {
-        return Promise.resolve({ ok: false, status: 500 } as Response);
-      }
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            data: {
-              findSceneMarkers: {
-                scene_markers: [
-                  { id: '1', scene: { id: '9', title: 'One', files: [] } },
-                  { id: '2', scene: { id: '9', title: 'One', files: [] } },
-                  { id: '3', scene: { id: '9', title: 'One', files: [] } },
-                ],
-              },
-            },
-          }),
-      } as Response);
-    });
-
-    await expect(
-      adapter.findMarkersWithoutPreview({ baseUrl: 'http://stash.local' }),
-    ).resolves.toEqual({
-      missing: 0,
-      checked: 3,
-      unanswered: 3,
-      unansweredWhy: 'HTTP 500',
-      scenes: [],
-    });
-  });
-
-  it('finds scenes without a hover preview, leaving out scenes with no file', async () => {
-    const asked: string[] = [];
-    fetchMock.mockImplementation((url) => {
       const text = String(url);
-      if (text.includes('/preview')) {
-        asked.push(text);
+      if (!text.includes('/graphql')) {
         return Promise.resolve({
-          ok: !text.includes('/scene/2/'),
-          status: text.includes('/scene/2/') ? 404 : 200,
+          headers: new Headers(),
+          body: null,
+          ...asset(text, init?.method),
         } as Response);
       }
+      const body = String(init?.body ?? '');
       return Promise.resolve({
         ok: true,
         json: () =>
           Promise.resolve({
             data: {
               findScenes: {
-                scenes: [
-                  { id: '1', title: 'Has one', files: [{ path: '/1.mp4' }] },
-                  {
-                    id: '2',
-                    title: '',
-                    files: [{ path: '/two.mp4', basename: 'two.mp4' }],
-                  },
-                  { id: '3', title: 'No file', files: [] },
-                ],
+                scenes: body.includes('query Missing')
+                  ? coverless.map((id) => ({ id }))
+                  : scenes,
               },
             },
           }),
       } as Response);
     });
 
-    await expect(
-      adapter.findScenesWithoutPreview({ baseUrl: 'http://stash.local' }),
-    ).resolves.toEqual({
-      missing: 1,
-      checked: 2,
-      unanswered: 0,
-      scenes: [{ id: '2', title: 'two.mp4', path: '/two.mp4' }],
-    });
-    expect(asked).toHaveLength(2);
+  const file = (path: string, phash: string | null = 'p') => ({
+    id: `f${path}`,
+    path,
+    basename: path.slice(1),
+    size: 100,
+    mod_time: '2026-01-01T00:00:00Z',
+    fingerprints: phash ? [{ type: 'phash', value: phash }] : [],
   });
 
-  it('asks for one byte when Stash won’t answer HEAD for a marker clip', async () => {
-    const sent: Array<{ method?: string; range?: string }> = [];
-    fetchMock.mockImplementation((url, init) => {
-      if (String(url).includes('scene_marker')) {
-        const headers = (init?.headers ?? {}) as Record<string, string>;
-        sent.push({ method: init?.method, range: headers['Range'] });
-        if (init?.method === 'HEAD') {
-          return Promise.resolve({ ok: false, status: 405 } as Response);
+  it('says what Generate hasn’t made for each scene', async () => {
+    stashWith(
+      [
+        {
+          id: '1',
+          title: 'Complete',
+          files: [file('/1.mp4')],
+          scene_markers: [{ id: '10' }],
+        },
+        {
+          id: '2',
+          title: 'Gaps',
+          files: [file('/2.mp4', null)],
+          scene_markers: [{ id: '20' }, { id: '21' }],
+        },
+        { id: '3', title: 'No cover', files: [file('/3.mp4')] },
+        { id: '4', title: 'No file', files: [] },
+      ],
+      ['3'],
+      (url) => {
+        const scene2 = url.includes('/scene/2/');
+        if (url.endsWith('/screenshot')) {
+          // Stash's placeholder for a picture it hasn't made.
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({
+              'content-type': url.includes('/21/') ? 'image/png' : 'image/jpeg',
+            }),
+          };
         }
-        return Promise.resolve({
-          ok: false,
-          status: 404,
-          body: null,
-        } as Response);
-      }
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            data: {
-              findSceneMarkers: {
-                scene_markers: [
-                  { id: '1', scene: { id: '9', title: 'One', files: [] } },
-                ],
-              },
-            },
-          }),
-      } as Response);
-    });
+        const gone =
+          scene2 &&
+          (url.endsWith('/preview') ||
+            url.endsWith('/vtt/sprite') ||
+            url.includes('/20/stream'));
+        return { ok: !gone, status: gone ? 404 : 200 };
+      },
+    );
 
-    await expect(
-      adapter.findMarkersWithoutPreview({ baseUrl: 'http://stash.local' }),
-    ).resolves.toMatchObject({ missing: 1, checked: 1 });
-    expect(sent).toEqual([
-      { method: 'HEAD', range: undefined },
-      { method: 'GET', range: 'bytes=0-0' },
+    const found = await adapter.findGenerateGaps({
+      baseUrl: 'http://stash.local',
+    });
+    expect(found).toMatchObject({ missing: 2, checked: 3, unanswered: 0 });
+    expect(found.scenes[0]).toMatchObject({ id: '2', path: '/2.mp4' });
+    expect(found.scenes[0].problems).toEqual([
+      'No fingerprint (phash), so Duplicates can’t compare it.',
+      'No hover preview: nothing plays when you point at it.',
+      'No scrubber thumbnails: the seek bar shows no pictures.',
+      '1 of 2 chapters have no preview clip.',
+      '1 of 2 chapters have no picture.',
     ]);
+    expect(found.scenes[1]).toMatchObject({
+      id: '3',
+      problems: ['No cover picture.'],
+    });
+  });
+
+  it('counts files Stash didn’t answer for apart from missing ones, with the reason', async () => {
+    stashWith([{ id: '1', title: 'One', files: [file('/1.mp4')] }], [], () => ({
+      ok: false,
+      status: 500,
+    }));
+    await expect(
+      adapter.findGenerateGaps({ baseUrl: 'http://stash.local' }),
+    ).resolves.toEqual({
+      missing: 0,
+      checked: 1,
+      unanswered: 2,
+      unansweredWhy: 'HTTP 500',
+      scenes: [],
+    });
+  });
+
+  it('asks for one byte when Stash won’t answer HEAD', async () => {
+    const sent: Array<{ method?: string }> = [];
+    fetchMock.mockReset();
+    stashWith(
+      [{ id: '1', title: 'One', files: [file('/1.mp4')] }],
+      [],
+      (url, method) => {
+        if (url.endsWith('/preview')) {
+          sent.push({ method });
+        }
+        return method === 'HEAD'
+          ? { ok: false, status: 405 }
+          : { ok: false, status: 404 };
+      },
+    );
+    const found = await adapter.findGenerateGaps({
+      baseUrl: 'http://stash.local',
+    });
+    expect(found.scenes[0].problems).toContain(
+      'No hover preview: nothing plays when you point at it.',
+    );
+    expect(sent).toEqual([{ method: 'HEAD' }, { method: 'GET' }]);
   });
 
   it('returns empty list when there are no matching scenes', async () => {
