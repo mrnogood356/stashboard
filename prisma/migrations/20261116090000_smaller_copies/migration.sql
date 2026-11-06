@@ -34,6 +34,7 @@ CREATE TABLE "SmallerCopyAttempt" (
     "title" TEXT NOT NULL,
     "outcome" TEXT NOT NULL,
     "releaseGuid" TEXT,
+    "grabbedGuids" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "indexerId" INTEGER,
     "detail" TEXT,
     "releaseTitle" TEXT,

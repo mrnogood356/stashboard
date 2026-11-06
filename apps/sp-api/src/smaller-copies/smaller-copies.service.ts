@@ -327,13 +327,9 @@ export class SmallerCopiesService {
       const before = await this.prisma.smallerCopyAttempt
         .findUnique({ where: { stashSceneId: file.sceneId } })
         .catch(() => null);
-      const taken =
-        before?.releaseGuid &&
-        ['grabbed', 'replaced', 'kept-both'].includes(before.outcome)
-          ? before.releaseGuid
-          : null;
+      const taken = new Set(before?.grabbedGuids ?? []);
       const release = pickRelease(
-        found.releases.filter((candidate) => candidate.guid !== taken),
+        found.releases.filter((candidate) => !taken.has(candidate.guid)),
         { size: file.size ?? 0 },
         reason,
         rules,
@@ -406,6 +402,25 @@ export class SmallerCopiesService {
     },
   ): Promise<void> {
     const settings = await this.getSettings();
+    if (grab.releaseGuid) {
+      // Kept for good, whatever later searches find.
+      await this.prisma.smallerCopyAttempt
+        .update({
+          where: { stashSceneId },
+          data: { grabbedGuids: { push: grab.releaseGuid } },
+        })
+        .catch(() =>
+          this.prisma.smallerCopyAttempt.create({
+            data: {
+              stashSceneId,
+              title: grab.title,
+              outcome: 'grabbed',
+              grabbedGuids: [grab.releaseGuid!],
+              retryAfter: new Date(this.now() + LONG_WAIT),
+            },
+          }),
+        );
+    }
     await this.note(stashSceneId, {
       ...grab,
       outcome: 'grabbed',

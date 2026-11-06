@@ -695,6 +695,8 @@ export class StashAdapter extends StashLibraryToolsApi {
       sceneFilter: Record<string, unknown>;
       /** Only these scenes. */
       ids?: string[];
+      /** Throw instead of answering "none" when Stash's answer has no scene list. */
+      strict?: boolean;
     },
   ): Promise<StashLocalScenePage> {
     const payload = (await this.executeQuery(
@@ -742,6 +744,9 @@ export class StashAdapter extends StashLibraryToolsApi {
       };
     };
     const result = payload.data?.findScenes;
+    if (options.strict && !Array.isArray(result?.scenes)) {
+      throw new Error('Stash answered without a list of scenes.');
+    }
     return {
       total: typeof result?.count === 'number' ? result.count : 0,
       items: (result?.scenes ?? []).flatMap((scene) => {

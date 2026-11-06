@@ -738,6 +738,8 @@ model SmallerCopyAttempt {
   outcome      String
   /// A match listed for you to grab (when grabbing by itself is off).
   releaseGuid  String?
+  /// Releases already grabbed for this scene, never grabbed again.
+  grabbedGuids String[] @default([])
   indexerId    Int?
   detail       String?
   releaseTitle String?

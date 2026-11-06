@@ -80,6 +80,29 @@ describe('SmallerCopiesService', () => {
         }),
       },
       smallerCopyAttempt: {
+        update: jest.fn(
+          ({
+            where,
+            data,
+          }: {
+            where: { stashSceneId: string };
+            data: { grabbedGuids: { push: string } };
+          }) => {
+            const row = attempts.get(where.stashSceneId);
+            if (!row) {
+              return Promise.reject(new Error('not found'));
+            }
+            row.grabbedGuids = [
+              ...((row.grabbedGuids as string[]) ?? []),
+              data.grabbedGuids.push,
+            ];
+            return Promise.resolve();
+          },
+        ),
+        create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
+          attempts.set(data.stashSceneId as string, data);
+          return Promise.resolve();
+        }),
         upsert: jest.fn(
           ({
             where,
@@ -89,6 +112,8 @@ describe('SmallerCopiesService', () => {
             update: Record<string, unknown>;
           }) => {
             attempts.set(where.stashSceneId, {
+              grabbedGuids: [],
+              ...attempts.get(where.stashSceneId),
               stashSceneId: where.stashSceneId,
               ...update,
             });
@@ -297,6 +322,7 @@ describe('SmallerCopiesService', () => {
       stashSceneId: '2',
       outcome: 'kept-both',
       releaseGuid: 'g1',
+      grabbedGuids: ['g1'],
       retryAfter: new Date(now - 1),
     });
     downloads.searchReleases.mockResolvedValue({
@@ -316,5 +342,33 @@ describe('SmallerCopiesService', () => {
       outcome: 'grabbed',
       releaseGuid: 'g2',
     });
+  });
+
+  it('remembers a grabbed release through later searches that find nothing', async () => {
+    downloads.searchReleases.mockResolvedValue({ releases: [release()] });
+    await service.tick(true);
+    expect(attempts.get('2')).toMatchObject({
+      outcome: 'grabbed',
+      grabbedGuids: ['g1'],
+    });
+
+    // A month on, only the same release is out there: nothing new to grab.
+    now += 31 * 24 * 3600_000;
+    downloads.grabRelease.mockClear();
+    await service.tick(true);
+    expect(attempts.get('2')).toMatchObject({
+      outcome: 'none-found',
+      grabbedGuids: ['g1'],
+    });
+
+    // A week after that, still not grabbed again.
+    now += 8 * 24 * 3600_000;
+    await service.tick(true);
+    expect(downloads.grabRelease).not.toHaveBeenCalledWith(
+      'cat-2',
+      expect.objectContaining({ guid: 'g1' }),
+      expect.anything(),
+      expect.anything(),
+    );
   });
 });

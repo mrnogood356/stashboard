@@ -395,6 +395,8 @@ export class LocalLibraryService {
         direction: 'ASC',
         sceneFilter: {},
         ids: chunk,
+        // A malformed answer mustn't read as "all gone" (Watch later deletes those).
+        strict: true,
       });
       result.items.forEach((item) => found.set(item.id, item));
     }

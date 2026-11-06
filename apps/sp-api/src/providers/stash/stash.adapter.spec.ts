@@ -1839,6 +1839,30 @@ describe('StashAdapter', () => {
       expect(calls.some((call) => call.name === 'CarryChapter')).toBe(false);
     });
 
+    it('refuses an answer with no scene list when asked to be strict', async () => {
+      fetchMock.mockResolvedValue(ok({}));
+      await expect(
+        adapter.findLocalScenes(config, {
+          page: 1,
+          perPage: 10,
+          sort: 'id',
+          direction: 'ASC',
+          sceneFilter: {},
+          ids: ['1'],
+          strict: true,
+        }),
+      ).rejects.toThrow('list of scenes');
+      await expect(
+        adapter.findLocalScenes(config, {
+          page: 1,
+          perPage: 10,
+          sort: 'id',
+          direction: 'ASC',
+          sceneFilter: {},
+        }),
+      ).resolves.toEqual({ total: 0, items: [] });
+    });
+
     it('saves rating, organized and tags with sceneUpdate', async () => {
       fetchMock.mockResolvedValue(ok({ sceneUpdate: { id: '5' } }));
 

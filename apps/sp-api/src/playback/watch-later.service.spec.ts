@@ -120,4 +120,13 @@ describe('WatchLaterService', () => {
     expect((await service.add('7')).length).toBe(500);
     await expect(service.add('9999')).rejects.toThrow('up to 500');
   });
+
+  it('keeps the list when Stash can’t give a proper answer', async () => {
+    await service.add('1');
+    cards.mockRejectedValueOnce(
+      new Error('Stash answered without a list of scenes.'),
+    );
+    await expect(service.list()).rejects.toThrow('list of scenes');
+    expect(await service.ids()).toEqual(['1']);
+  });
 });
