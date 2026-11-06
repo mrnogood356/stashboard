@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, firstValueFrom, tap } from 'rxjs';
+import { Observable, firstValueFrom, tap, timeout } from 'rxjs';
 import { AuthStateStore } from './auth-state.store';
 import {
   type AuthStatusResponse,
@@ -8,6 +8,9 @@ import {
   type ChangePasswordPayload,
   type LoginPayload,
 } from './auth.types';
+
+/** How long a page waits for the server to say who's signed in. */
+const STATUS_TIMEOUT_MS = 20_000;
 
 @Injectable({
   providedIn: 'root',
@@ -19,9 +22,12 @@ export class AuthService {
   readonly status = this.authStateStore.status;
 
   refreshStatus(): Observable<AuthStatusResponse> {
-    return this.http
-      .get<AuthStatusResponse>('/api/auth/status')
-      .pipe(tap((status) => this.authStateStore.sync(status)));
+    // Every page waits on this: a server that never answers (its database
+    // stuck, say) shows the "can't reach" page instead of a blank screen.
+    return this.http.get<AuthStatusResponse>('/api/auth/status').pipe(
+      timeout(STATUS_TIMEOUT_MS),
+      tap((status) => this.authStateStore.sync(status)),
+    );
   }
 
   bootstrap(payload: BootstrapAdminPayload): Observable<AuthStatusResponse> {
