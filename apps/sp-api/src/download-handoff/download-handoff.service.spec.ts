@@ -612,6 +612,10 @@ describe('DownloadHandoffService', () => {
       expect(prisma.smallerCopyAttempt.findFirst).toHaveBeenCalledWith({
         where: { handoffId: 'h1' },
       });
+      // The release is freed before the download shows as failed.
+      expect(update.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.downloadHandoff.update.mock.invocationCallOrder.at(-1)!,
+      );
       expect(update).toHaveBeenCalledWith({
         where: { stashSceneId: '12' },
         data: expect.objectContaining({

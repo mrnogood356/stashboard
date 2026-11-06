@@ -389,4 +389,10 @@ describe('SmallerCopiesService', () => {
       }),
     );
   });
+
+  it('searches nothing when it can’t tell which replacements are on their way', async () => {
+    prisma.downloadHandoff.findMany.mockRejectedValue(new Error('db down'));
+    await service.tick(true);
+    expect(downloads.searchReleases).not.toHaveBeenCalled();
+  });
 });

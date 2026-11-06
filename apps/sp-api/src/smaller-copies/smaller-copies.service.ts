@@ -517,15 +517,14 @@ export class SmallerCopiesService {
       select: { stashSceneId: true },
     });
     // A replacement still on its way: no new search until it lands or fails.
-    const onTheWay = await this.prisma.downloadHandoff
-      .findMany({
-        where: {
-          replacesStashSceneId: { not: null },
-          status: { in: OPEN_HANDOFF_STATUSES },
-        },
-        select: { replacesStashSceneId: true },
-      })
-      .catch(() => [] as Array<{ replacesStashSceneId: string | null }>);
+    // If this can't be read, nothing is due: better no search than a second one.
+    const onTheWay = await this.prisma.downloadHandoff.findMany({
+      where: {
+        replacesStashSceneId: { not: null },
+        status: { in: OPEN_HANDOFF_STATUSES },
+      },
+      select: { replacesStashSceneId: true },
+    });
     const skip = new Set([
       ...waiting.map((row) => row.stashSceneId),
       ...onTheWay.flatMap((row) =>

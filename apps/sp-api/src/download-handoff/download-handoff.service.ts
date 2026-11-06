@@ -1419,6 +1419,11 @@ export class DownloadHandoffService {
     this.logger.error(
       `Couldn't bring “${row.releaseTitle}” into the library: ${reason}`,
     );
+    if (row.replacesStashSceneId) {
+      // Before the status changes, so Smaller copies can't search this scene
+      // in between and lose track of the release.
+      await this.freeSmallerCopyRelease(row, reason);
+    }
     await this.setStatus(row, 'failed', {
       ...extra,
       error: reason,
@@ -1430,9 +1435,6 @@ export class DownloadHandoffService {
       detail: reason,
       status: 'failed',
     });
-    if (row.replacesStashSceneId) {
-      await this.freeSmallerCopyRelease(row, reason);
-    }
   }
 
   /**
