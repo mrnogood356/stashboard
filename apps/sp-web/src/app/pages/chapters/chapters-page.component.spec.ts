@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { LocalLibraryService, type Chapter } from '../../core/api/local-library.service';
 import { PlayQueueService } from '../../core/play-queue/play-queue.service';
@@ -72,5 +72,21 @@ describe('ChaptersPageComponent', () => {
       q: undefined,
     });
     expect(root.textContent).toContain('Jane');
+  });
+
+  it('shows the answer for the filter picked last, whichever comes back first', async () => {
+    const { fixture, root, library } = await render();
+    const first = new Subject<Chapter[]>();
+    const second = new Subject<Chapter[]>();
+    library.chapters.mockReturnValueOnce(first).mockReturnValueOnce(second);
+    const chip = root.querySelector('.chips .chip') as HTMLButtonElement;
+    chip.click();
+    chip.click();
+    second.next([chapter('9', '5', 1, 2)]);
+    first.next([chapter('7', '5', 1, 2), chapter('8', '5', 1, 2)]);
+    fixture.detectChanges();
+    expect(
+      Array.from(root.querySelectorAll('.chapter')).map((el) => el.getAttribute('data-testid')),
+    ).toEqual(['chapter-9']);
   });
 });

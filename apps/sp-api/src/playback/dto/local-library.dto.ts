@@ -192,6 +192,13 @@ export class ChaptersQueryDto {
   q?: string;
 }
 
+export class MergeQueryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  q?: string;
+}
+
 export class IgnoreDuplicatesDto {
   @IsArray()
   @ArrayMinSize(2)

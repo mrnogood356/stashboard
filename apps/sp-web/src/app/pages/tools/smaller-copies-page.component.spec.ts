@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { SmallerCopies, SmallerCopiesApiService } from '../../core/api/smaller-copies.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
@@ -113,5 +113,27 @@ describe('SmallerCopiesPageComponent', () => {
     const status = root.querySelector('[data-testid="smaller-status"]')!;
     expect(status.textContent).toContain('Off.');
     expect((status.querySelector('button') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('keeps each Grab off until its own answer, so nothing is sent twice', async () => {
+    const two = {
+      ...DATA,
+      recent: [DATA.recent[0], { ...DATA.recent[0], stashSceneId: '5', title: 'Other' }],
+    };
+    const { fixture, root, api } = await render(two);
+    const pending = new Subject<SmallerCopies>();
+    api.grab.mockReturnValueOnce(pending).mockReturnValueOnce(new Subject<SmallerCopies>());
+    const buttonFor = (id: string) =>
+      root.querySelector(`[data-testid="attempt-${id}"] button`) as HTMLButtonElement;
+    buttonFor('2').click();
+    fixture.detectChanges();
+    buttonFor('5').click();
+    fixture.detectChanges();
+    expect(buttonFor('2').disabled).toBe(true);
+    buttonFor('2').click();
+    expect(api.grab).toHaveBeenCalledTimes(2);
+    pending.next(two);
+    fixture.detectChanges();
+    expect(buttonFor('2').disabled).toBe(false);
   });
 });

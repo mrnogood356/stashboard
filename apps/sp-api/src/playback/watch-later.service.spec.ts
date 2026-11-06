@@ -15,6 +15,11 @@ describe('WatchLaterService', () => {
         findMany: jest.fn(() => Promise.resolve(sorted())),
         findFirst: jest.fn(() => Promise.resolve(sorted().at(-1) ?? null)),
         count: jest.fn(() => Promise.resolve(rows.length)),
+        findUnique: jest.fn(({ where }: { where: { stashSceneId: string } }) =>
+          Promise.resolve(
+            rows.find((row) => row.stashSceneId === where.stashSceneId) ?? null,
+          ),
+        ),
         upsert: jest.fn(
           ({
             create,
@@ -98,5 +103,21 @@ describe('WatchLaterService', () => {
       '2',
     ]);
     expect(await service.ids()).toEqual(['1', '2']);
+  });
+
+  it('drops every saved scene when none is in Stash any more', async () => {
+    await service.add('404');
+    expect((await service.list()).items).toEqual([]);
+    expect(await service.ids()).toEqual([]);
+  });
+
+  it('saving a scene already on a full list leaves it as it is', async () => {
+    rows = Array.from({ length: 500 }, (_, i) => ({
+      stashSceneId: String(i + 1),
+      position: i,
+      addedAt: new Date(),
+    }));
+    expect((await service.add('7')).length).toBe(500);
+    await expect(service.add('9999')).rejects.toThrow('up to 500');
   });
 });

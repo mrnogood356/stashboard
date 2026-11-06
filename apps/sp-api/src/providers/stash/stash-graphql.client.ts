@@ -63,10 +63,16 @@ export abstract class StashGraphqlClient {
       headers.ApiKey = config.apiKey.trim();
     }
     try {
-      const response = await fetchWithTimeout(
-        this.resolveProtectedAssetUrl(config.baseUrl, assetUrl),
-        { method: 'HEAD', headers },
-      );
+      const url = this.resolveProtectedAssetUrl(config.baseUrl, assetUrl);
+      let response = await fetchWithTimeout(url, { method: 'HEAD', headers });
+      if (response.status === 405 || response.status === 501) {
+        // Some Stash routes answer GET only: ask for one byte instead.
+        response = await fetchWithTimeout(url, {
+          method: 'GET',
+          headers: { ...headers, Range: 'bytes=0-0' },
+        });
+        await response.body?.cancel().catch(() => undefined);
+      }
       return response.ok ? true : response.status === 404 ? false : null;
     } catch {
       return null;

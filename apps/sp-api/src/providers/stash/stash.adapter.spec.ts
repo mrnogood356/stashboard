@@ -65,6 +65,45 @@ describe('StashAdapter', () => {
     });
   });
 
+  it('asks for one byte when Stash won’t answer HEAD for a marker clip', async () => {
+    const sent: Array<{ method?: string; range?: string }> = [];
+    fetchMock.mockImplementation((url, init) => {
+      if (String(url).includes('scene_marker')) {
+        const headers = (init?.headers ?? {}) as Record<string, string>;
+        sent.push({ method: init?.method, range: headers['Range'] });
+        if (init?.method === 'HEAD') {
+          return Promise.resolve({ ok: false, status: 405 } as Response);
+        }
+        return Promise.resolve({
+          ok: false,
+          status: 404,
+          body: null,
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              findSceneMarkers: {
+                scene_markers: [
+                  { id: '1', scene: { id: '9', title: 'One', files: [] } },
+                ],
+              },
+            },
+          }),
+      } as Response);
+    });
+
+    await expect(
+      adapter.findMarkersWithoutPreview({ baseUrl: 'http://stash.local' }),
+    ).resolves.toMatchObject({ missing: 1, checked: 1 });
+    expect(sent).toEqual([
+      { method: 'HEAD', range: undefined },
+      { method: 'GET', range: 'bytes=0-0' },
+    ]);
+  });
+
   it('returns empty list when there are no matching scenes', async () => {
     fetchMock.mockResolvedValue({
       ok: true,

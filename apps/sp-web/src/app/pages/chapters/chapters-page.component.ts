@@ -36,6 +36,7 @@ export class ChaptersPageComponent implements OnInit {
   protected query = '';
   protected readonly formatTime = formatTime;
   private readonly typed = new Subject<void>();
+  private request = 0;
 
   constructor() {
     this.typed.pipe(debounceTime(300), takeUntilDestroyed()).subscribe(() => this.load());
@@ -97,6 +98,8 @@ export class ChaptersPageComponent implements OnInit {
   }
 
   private load(): void {
+    // Only the latest filter's answer counts, whichever comes back last.
+    const request = ++this.request;
     this.chapters.set(null);
     this.error.set(false);
     this.library
@@ -106,8 +109,16 @@ export class ChaptersPageComponent implements OnInit {
         q: this.query.trim() || undefined,
       })
       .subscribe({
-        next: (chapters) => this.chapters.set(chapters),
-        error: () => this.error.set(true),
+        next: (chapters) => {
+          if (request === this.request) {
+            this.chapters.set(chapters);
+          }
+        },
+        error: () => {
+          if (request === this.request) {
+            this.error.set(true);
+          }
+        },
       });
   }
 }

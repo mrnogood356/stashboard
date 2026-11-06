@@ -317,10 +317,10 @@
               <button
                 type="button"
                 class="btn small primary"
-                [disabled]="grabbing() === row.stashSceneId"
+                [disabled]="isGrabbing(row.stashSceneId)"
                 (click)="grab(row.stashSceneId)"
               >
-                {{ grabbing() === row.stashSceneId ? 'Grabbing…' : 'Grab' }}
+                {{ isGrabbing(row.stashSceneId) ? 'Grabbing…' : 'Grab' }}
               </button>
             }
           </li>

@@ -801,18 +801,28 @@ export class LocalLibraryService {
   /** Each kind of problem: how many scenes, and the first 50. Null when Stash couldn't say. */
   async problems(refresh = false): Promise<ProblemListDto[]> {
     const config = await this.playback.getStashConfig();
-    const lists = await Promise.all(
-      PROBLEM_KINDS.map(async (kind): Promise<ProblemListDto> => {
-        try {
-          const found = await this.stash.findProblemScenes(config, kind);
-          return { kind, count: found.count, scenes: found.scenes };
-        } catch {
-          return { kind, count: null, scenes: [] };
-        }
-      }),
-    );
-    return [...lists, await this.markerPreviews(config, refresh)];
+    // The chapter check is slow (it asks about each clip): run it alongside.
+    const [lists, markers] = await Promise.all([
+      Promise.all(
+        PROBLEM_KINDS.map(async (kind): Promise<ProblemListDto> => {
+          try {
+            const found = await this.stash.findProblemScenes(config, kind);
+            return { kind, count: found.count, scenes: found.scenes };
+          } catch {
+            return { kind, count: null, scenes: [] };
+          }
+        }),
+      ),
+      this.markerPreviews(config, refresh),
+    ]);
+    return [...lists, markers];
   }
+
+  /** A chapter check under way, shared by everyone who asks meanwhile. */
+  private markerRun: {
+    baseUrl: string;
+    value: Promise<ProblemListDto>;
+  } | null = null;
 
   private markerCheck: {
     at: number;
@@ -834,6 +844,23 @@ export class LocalLibraryService {
     ) {
       return kept.value;
     }
+    const running = this.markerRun;
+    if (running && running.baseUrl === config.baseUrl) {
+      return running.value;
+    }
+    const value = this.checkMarkers(config).finally(() => {
+      if (this.markerRun?.value === value) {
+        this.markerRun = null;
+      }
+    });
+    this.markerRun = { baseUrl: config.baseUrl, value };
+    return value;
+  }
+
+  private async checkMarkers(config: {
+    baseUrl: string;
+    apiKey?: string | null;
+  }): Promise<ProblemListDto> {
     try {
       const found = await this.stash.findMarkersWithoutPreview(config);
       const value: ProblemListDto = {

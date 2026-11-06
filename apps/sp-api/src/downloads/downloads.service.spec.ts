@@ -245,6 +245,30 @@ describe('DownloadsService', () => {
       expect(result.releases[0]).not.toHaveProperty('downloadUrl');
     });
 
+    it('refuses a smaller-copy grab that couldn’t go through Finished downloads', async () => {
+      const torrent = release({
+        guid: 't',
+        indexerId: 7,
+        title: 'x',
+        protocol: 'torrent',
+      });
+      search.mockResolvedValue([torrent]);
+      await service.searchReleases('scene-1', 'FANSDB');
+      await expect(
+        service.grabRelease('scene-1', { guid: 't', indexerId: 7 }, 'FANSDB', {
+          replacesStashSceneId: '12',
+        }),
+      ).rejects.toThrow('usenet');
+
+      handoff.isActive.mockResolvedValue(false);
+      await expect(
+        service.grabRelease('scene-1', { guid: 't', indexerId: 7 }, 'FANSDB', {
+          replacesStashSceneId: '12',
+        }),
+      ).rejects.toThrow('Finished downloads');
+      expect(grab).not.toHaveBeenCalled();
+    });
+
     it('sends a usenet release’s NZB to SABnzbd for the exact scene', async () => {
       search.mockResolvedValue([usenet]);
       await service.searchReleases('scene-1', 'FANSDB');
@@ -255,7 +279,11 @@ describe('DownloadsService', () => {
           { guid: 'u', indexerId: 7, title: 'whatever the page said' },
           'FANSDB',
         ),
-      ).resolves.toEqual({ accepted: true, sentTo: 'sabnzbd' });
+      ).resolves.toEqual({
+        accepted: true,
+        sentTo: 'sabnzbd',
+        handoffId: 'h1',
+      });
 
       expect(fetchNzb).toHaveBeenCalledWith(
         { baseUrl: 'http://prowlarr:9696', apiKey: 'key' },

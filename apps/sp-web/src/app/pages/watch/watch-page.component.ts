@@ -305,6 +305,11 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     this.error.set(null);
     const sceneId = this.sceneId;
     if (keepTime === null) {
+      if (this.explicitStart() !== null) {
+        // Opened at a set time (a chapter link, From the start): not part of
+        // a list left playing earlier.
+        this.queue.clear();
+      }
       this.queued = this.queue.currentFor(sceneId);
       const queued = this.queue.queue();
       this.queueLabel.set(
@@ -828,9 +833,11 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   }
 
   private requestedStart(): number | null {
-    if (this.queued?.start !== undefined) {
-      return this.queued.start;
-    }
+    return this.explicitStart() ?? this.queued?.start ?? null;
+  }
+
+  /** The ?t= time the player was opened with, if any. */
+  private explicitStart(): number | null {
     const raw = this.route.snapshot.queryParamMap.get('t');
     if (raw === null || raw.trim() === '') {
       return null;

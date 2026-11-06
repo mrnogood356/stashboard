@@ -33,7 +33,8 @@ export class WatchLaterService {
     // Scenes gone from Stash leave the list.
     const kept = new Set(items.map((item) => item.id));
     const gone = ids.filter((id) => !kept.has(id));
-    if (gone.length > 0 && items.length > 0) {
+    // cardsFor throws when Stash can't be asked, so an empty answer is a real one.
+    if (gone.length > 0) {
       await this.prisma.watchLaterItem.deleteMany({
         where: { stashSceneId: { in: gone } },
       });
@@ -43,6 +44,12 @@ export class WatchLaterService {
 
   async add(stashSceneId: string): Promise<string[]> {
     const id = sceneIdOf(stashSceneId);
+    const already = await this.prisma.watchLaterItem.findUnique({
+      where: { stashSceneId: id },
+    });
+    if (already) {
+      return this.ids();
+    }
     const count = await this.prisma.watchLaterItem.count();
     if (count >= MAX_ITEMS) {
       throw new BadRequestException(

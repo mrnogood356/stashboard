@@ -36,7 +36,8 @@ export class SmallerCopiesPageComponent implements OnInit {
   protected readonly error = signal(false);
   protected readonly saving = signal(false);
   protected readonly searching = signal(false);
-  protected readonly grabbing = signal<string | null>(null);
+  /** Scenes with a grab on its way; each button stays off until its own answer. */
+  protected readonly grabbing = signal<ReadonlySet<string>>(new Set());
   /** The form's copy, saved with Save. */
   protected form: SmallerCopySettings | null = null;
   protected studios = '';
@@ -115,16 +116,29 @@ export class SmallerCopiesPageComponent implements OnInit {
     });
   }
 
+  protected isGrabbing(stashSceneId: string): boolean {
+    return this.grabbing().has(stashSceneId);
+  }
+
   protected grab(stashSceneId: string): void {
-    this.grabbing.set(stashSceneId);
+    if (this.grabbing().has(stashSceneId)) {
+      return;
+    }
+    const done = () =>
+      this.grabbing.update((set) => {
+        const next = new Set(set);
+        next.delete(stashSceneId);
+        return next;
+      });
+    this.grabbing.update((set) => new Set(set).add(stashSceneId));
     this.api.grab(stashSceneId).subscribe({
       next: (data) => {
-        this.grabbing.set(null);
+        done();
         this.data.set(data);
         this.notifications.success('Grabbed', 'Sent to SABnzbd.');
       },
       error: (error: { error?: { message?: string } }) => {
-        this.grabbing.set(null);
+        done();
         this.notifications.error(
           "Couldn't grab it",
           error.error?.message ?? 'Try again in a moment.',

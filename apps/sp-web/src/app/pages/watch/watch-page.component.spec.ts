@@ -111,6 +111,7 @@ describe('WatchPageComponent', () => {
       sceneIds?: BehaviorSubject<string>;
       locked?: ReturnType<typeof signal<boolean>>;
       returnTo?: string;
+      t?: string;
     } = {},
   ) {
     const sceneIds = options.sceneIds ?? new BehaviorSubject('12');
@@ -133,7 +134,10 @@ describe('WatchPageComponent', () => {
             paramMap: sceneIds.pipe(map((sceneId) => convertToParamMap({ sceneId }))),
             snapshot: {
               paramMap: convertToParamMap({ sceneId: sceneIds.value }),
-              queryParamMap: convertToParamMap({ returnTo: options.returnTo ?? '/library' }),
+              queryParamMap: convertToParamMap({
+                returnTo: options.returnTo ?? '/library',
+                ...(options.t !== undefined ? { t: options.t } : {}),
+              }),
             },
           },
         },
@@ -353,6 +357,24 @@ describe('WatchPageComponent', () => {
     video.currentTime = 941;
     video.dispatchEvent(new Event('timeupdate'));
     expect(router.navigate).toHaveBeenCalledWith(['/watch', '55'], expect.anything());
+  });
+
+  it('opened at a set time, it drops a list left playing earlier', async () => {
+    sessionStorage.setItem(
+      'stashboard.playQueue',
+      JSON.stringify({
+        label: 'Chapters',
+        kind: 'chapters',
+        index: 0,
+        items: [{ sceneId: '12', title: 'Beach', imageUrl: null, start: 300, end: 330 }],
+      }),
+    );
+    const fixture = await render({ t: '125' });
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    video.dispatchEvent(new Event('loadedmetadata'));
+    expect(video.currentTime).toBe(125);
+    expect(fixture.nativeElement.querySelector('[data-testid="queue-label"]')).toBeNull();
+    expect(TestBed.inject(PlayQueueService).queue()).toBeNull();
   });
 
   it('lets you cancel Up next', async () => {

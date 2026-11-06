@@ -30,6 +30,7 @@ import {
   MergeEntitiesDto,
   IgnoreDuplicatesDto,
   ChaptersQueryDto,
+  MergeQueryDto,
   LocalBulkScenesDto,
   LIBRARY_TASKS,
   FavoriteDto,
@@ -240,9 +241,9 @@ export class LocalLibraryController {
   @Get('merge/:kind')
   mergeCandidates(
     @Param('kind') kind: string,
-    @Query('q') q?: string,
+    @Query() query: MergeQueryDto,
   ): Promise<MergeCandidatesDto> {
-    return this.library.mergeCandidates(mergeKind(kind), q);
+    return this.library.mergeCandidates(mergeKind(kind), query.q);
   }
 
   @Post('merge/:kind')

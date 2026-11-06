@@ -227,7 +227,7 @@ export class SmallerCopiesService {
       .providerKey;
     // The grab needs a fresh search result to find the release by.
     await this.downloads.searchReleases(index.linkedStashId, provider);
-    await this.downloads.grabRelease(
+    const sent = await this.downloads.grabRelease(
       index.linkedStashId,
       {
         guid: row.releaseGuid,
@@ -237,13 +237,14 @@ export class SmallerCopiesService {
       provider,
       { replacesStashSceneId: stashSceneId },
     );
-    await this.markGrabbed(
-      stashSceneId,
-      row.title,
-      row.releaseTitle,
-      row.newSize,
-      row.oldSize,
-    );
+    await this.markGrabbed(stashSceneId, {
+      title: row.title,
+      releaseTitle: row.releaseTitle,
+      releaseGuid: row.releaseGuid,
+      newSize: row.newSize,
+      oldSize: row.oldSize,
+      handoffId: sent.handoffId ?? null,
+    });
     return this.status();
   }
 
@@ -321,8 +322,18 @@ export class SmallerCopiesService {
       .providerKey;
     try {
       const found = await this.downloads.searchReleases(catalogId, provider);
+      // A release already grabbed for this scene isn't grabbed again (with
+      // both files kept, the old one still fits the rules).
+      const before = await this.prisma.smallerCopyAttempt
+        .findUnique({ where: { stashSceneId: file.sceneId } })
+        .catch(() => null);
+      const taken =
+        before?.releaseGuid &&
+        ['grabbed', 'replaced', 'kept-both'].includes(before.outcome)
+          ? before.releaseGuid
+          : null;
       const release = pickRelease(
-        found.releases,
+        found.releases.filter((candidate) => candidate.guid !== taken),
         { size: file.size ?? 0 },
         reason,
         rules,
@@ -349,7 +360,7 @@ export class SmallerCopiesService {
         });
         return true;
       }
-      await this.downloads.grabRelease(
+      const sent = await this.downloads.grabRelease(
         catalogId,
         {
           guid: release.guid,
@@ -359,13 +370,14 @@ export class SmallerCopiesService {
         provider,
         { replacesStashSceneId: file.sceneId },
       );
-      await this.markGrabbed(
-        file.sceneId,
-        base.title,
-        release.title,
-        release.size,
-        base.oldSize,
-      );
+      await this.markGrabbed(file.sceneId, {
+        title: base.title,
+        releaseTitle: release.title,
+        releaseGuid: release.guid,
+        newSize: release.size,
+        oldSize: base.oldSize,
+        handoffId: sent.handoffId ?? null,
+      });
       this.logger.log(
         `Smaller copies: grabbed “${release.title}” to replace Stash scene ${file.sceneId}.`,
       );
@@ -383,31 +395,24 @@ export class SmallerCopiesService {
 
   private async markGrabbed(
     stashSceneId: string,
-    title: string,
-    releaseTitle: string | null,
-    newSize: number | null,
-    oldSize: number | null,
+    grab: {
+      title: string;
+      releaseTitle: string | null;
+      releaseGuid: string | null;
+      newSize: number | null;
+      oldSize: number | null;
+      /** The Finished downloads entry the grab made. */
+      handoffId: string | null;
+    },
   ): Promise<void> {
-    const [handoff, settings] = await Promise.all([
-      this.prisma.downloadHandoff
-        .findFirst({
-          where: { replacesStashSceneId: stashSceneId },
-          orderBy: { createdAt: 'desc' },
-        })
-        .catch(() => null),
-      this.getSettings(),
-    ]);
+    const settings = await this.getSettings();
     await this.note(stashSceneId, {
-      title,
+      ...grab,
       outcome: 'grabbed',
       detail:
         settings.oldCopy === 'delete'
           ? 'Sent to SABnzbd. The old file is deleted once the new one is in Stash.'
           : 'Sent to SABnzbd. Both files stay on the scene once the new one is in Stash.',
-      releaseTitle,
-      newSize,
-      oldSize,
-      handoffId: handoff?.id ?? null,
       retryAfter: new Date(this.now() + LONG_WAIT),
     });
   }

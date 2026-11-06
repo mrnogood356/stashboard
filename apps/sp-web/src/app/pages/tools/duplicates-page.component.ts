@@ -47,6 +47,8 @@ export class DuplicatesPageComponent implements OnInit {
   protected readonly hiddenCount = signal(0);
   /** For each copy, the copy kept in its set. */
   private keeperOf = new Map<string, string>();
+  /** Sets being hidden, so a second tap doesn't count one twice. */
+  private readonly hiding = new Set<string>();
   private loadRequest = 0;
 
   ngOnInit(): void {
@@ -116,13 +118,22 @@ export class DuplicatesPageComponent implements OnInit {
 
   /** You checked these and they aren't copies: hidden until the set changes. */
   protected notDuplicates(group: DuplicateGroup): void {
+    const key = group.scenes.map((scene) => scene.id).join(',');
+    if (this.hiding.has(key)) {
+      return;
+    }
+    this.hiding.add(key);
     this.library.ignoreDuplicates(group.scenes.map((scene) => scene.id)).subscribe({
       next: () => {
+        this.hiding.delete(key);
         this.groups.update((groups) => groups.filter((other) => other !== group));
         this.hiddenCount.update((count) => count + 1);
         this.notifications.success('Hidden', 'It shows again if a copy is added or removed.');
       },
-      error: () => this.notifications.error("Couldn't hide that set", 'Try again in a moment.'),
+      error: () => {
+        this.hiding.delete(key);
+        this.notifications.error("Couldn't hide that set", 'Try again in a moment.');
+      },
     });
   }
 

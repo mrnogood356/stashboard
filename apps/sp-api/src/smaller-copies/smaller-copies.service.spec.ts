@@ -122,9 +122,11 @@ describe('SmallerCopiesService', () => {
     };
     downloads = {
       searchReleases: jest.fn().mockResolvedValue({ releases: [release()] }),
-      grabRelease: jest
-        .fn()
-        .mockResolvedValue({ accepted: true, sentTo: 'sabnzbd' }),
+      grabRelease: jest.fn().mockResolvedValue({
+        accepted: true,
+        sentTo: 'sabnzbd',
+        handoffId: 'h9',
+      }),
     };
     handoff = {
       stashConfig: jest
@@ -287,6 +289,32 @@ describe('SmallerCopiesService', () => {
       activeFromHour: 23,
       codec: 'any',
       studioNames: ['A'],
+    });
+  });
+
+  it('never grabs the same release again for a scene, so a kept old file isn’t replaced twice', async () => {
+    attempts.set('2', {
+      stashSceneId: '2',
+      outcome: 'kept-both',
+      releaseGuid: 'g1',
+      retryAfter: new Date(now - 1),
+    });
+    downloads.searchReleases.mockResolvedValue({
+      releases: [
+        release(),
+        release({ guid: 'g2', title: 'Studio.Scene.1080p.HEVC' }),
+      ],
+    });
+    await service.tick();
+    expect(downloads.grabRelease).toHaveBeenCalledWith(
+      'cat-2',
+      expect.objectContaining({ guid: 'g2' }),
+      'STASHDB',
+      { replacesStashSceneId: '2' },
+    );
+    expect(attempts.get('2')).toMatchObject({
+      outcome: 'grabbed',
+      releaseGuid: 'g2',
     });
   });
 });

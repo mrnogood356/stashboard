@@ -99,10 +99,13 @@ export function tagKey(name: string): string {
  * only, no plural ending ("Alexis" isn't "Alexi").
  */
 export function nameKey(name: string): string {
+  // Latin accents go (é → e); other scripts keep their marks, so が and か
+  // stay apart, and their letters stay in.
   return name
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFC')
     .toLowerCase()
     .replace(/&/g, 'and')
-    .replace(/[^a-z0-9]+/g, '');
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, '');
 }

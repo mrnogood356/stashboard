@@ -141,8 +141,11 @@ export class BrokenFilesPageComponent implements OnInit {
     }
     this.confirming.set(null);
     if (fix.action === 'remove' || fix.action === 'delete-files') {
-      await this.removeListed(list, fix.action === 'delete-files');
-      this.started.update((set) => new Set(set).add(key));
+      // After a failure the button stays, to try the rest again. (Scenes
+      // skipped for having more than one file would only be skipped again.)
+      if (await this.removeListed(list, fix.action === 'delete-files')) {
+        this.started.update((set) => new Set(set).add(key));
+      }
       return;
     }
     // Every affected scene listed: Generate for just them. More: for the library
@@ -172,7 +175,8 @@ export class BrokenFilesPageComponent implements OnInit {
    * One at a time. Deleting files skips a scene with more than one file,
    * whose other files would go too.
    */
-  private async removeListed(list: ProblemList, deleteFiles: boolean): Promise<void> {
+  /** False when one failed and the rest weren't tried. */
+  private async removeListed(list: ProblemList, deleteFiles: boolean): Promise<boolean> {
     const key = `${list.kind}:${deleteFiles ? 'delete-files' : 'remove'}`;
     this.busy.set(key);
     const done = new Set<string>();
@@ -220,5 +224,6 @@ export class BrokenFilesPageComponent implements OnInit {
         `Stopped at ${failed.title}. Check that Stash is running and try again.`,
       );
     }
+    return failed === null;
   }
 }

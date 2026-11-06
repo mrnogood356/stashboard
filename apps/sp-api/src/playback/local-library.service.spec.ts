@@ -193,6 +193,10 @@ describe('LocalLibraryService', () => {
     expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(1);
     await service.problems(true);
     expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(2);
+
+    // Two asking at once share one check.
+    await Promise.all([service.problems(true), service.problems(true)]);
+    expect(stash.findMarkersWithoutPreview).toHaveBeenCalledTimes(3);
   });
 
   it('keeps Library stats, and a read under way, to the Stash they came from', async () => {
