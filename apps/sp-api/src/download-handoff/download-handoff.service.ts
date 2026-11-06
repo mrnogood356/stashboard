@@ -1005,6 +1005,35 @@ export class DownloadHandoffService {
    * deleted. Only when the new file has a length close to the old one's;
    * otherwise both are kept and the attempt says why.
    */
+  /**
+   * Adds to Smaller copies' running total: what was deleted minus the copy
+   * that replaced it (less than nothing when a copy was upgraded). A failure
+   * here only leaves the total short.
+   */
+  private async countSaved(removedBytes: number, newBytes: number) {
+    if (removedBytes <= 0) {
+      return;
+    }
+    await this.prisma.smallerCopySettings
+      .upsert({
+        where: { key: 'GLOBAL' },
+        create: {
+          key: 'GLOBAL',
+          savedBytes: removedBytes - newBytes,
+          replacedCount: 1,
+        },
+        update: {
+          savedBytes: { increment: removedBytes - newBytes },
+          replacedCount: { increment: 1 },
+        },
+      })
+      .catch((error: unknown) =>
+        this.logger.warn(
+          `Couldn't add to Smaller copies' space saved: ${messageOf(error)}`,
+        ),
+      );
+  }
+
   private async replaceOldCopy(
     config: StashAdapterBaseConfig,
     row: DownloadHandoff,
@@ -1097,6 +1126,7 @@ export class DownloadHandoffService {
         return;
       }
       const removed: string[] = [];
+      let removedBytes = 0;
       for (const file of merged.files) {
         if (file.id !== keep.id) {
           await this.stash.removeExtraFile(
@@ -1106,8 +1136,10 @@ export class DownloadHandoffService {
             file.id,
           );
           removed.push(file.path);
+          removedBytes += file.size ?? 0;
         }
       }
+      await this.countSaved(removedBytes, keep.size ?? newFile.size ?? 0);
       await this.prisma.downloadHandoff.update({
         where: { id: row.id },
         data: { stashSceneId: oldSceneId },

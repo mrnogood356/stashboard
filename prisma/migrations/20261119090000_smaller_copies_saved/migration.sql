@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "SmallerCopySettings" ADD COLUMN     "replacedCount" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "savedBytes" DOUBLE PRECISION NOT NULL DEFAULT 0;

@@ -46,6 +46,8 @@ export interface SmallerCopies {
   candidates: number;
   due: number;
   lastSearchAt: string | null;
+  /** Space given back so far (less than nothing after upgrades), and scenes replaced. */
+  saved: { bytes: number; scenes: number };
   recent: SmallerCopyAttempt[];
 }
 

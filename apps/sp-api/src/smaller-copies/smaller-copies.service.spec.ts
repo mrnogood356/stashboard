@@ -64,6 +64,8 @@ describe('SmallerCopiesService', () => {
       scenesPerHour: 10,
       activeFromHour: null,
       activeToHour: null,
+      savedBytes: 0,
+      replacedCount: 0,
     };
     attempts = new Map();
     files = [
@@ -261,6 +263,15 @@ describe('SmallerCopiesService', () => {
 
     await service.tick(true);
     expect(downloads.searchReleases).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the space given back so far', async () => {
+    settings.savedBytes = 12.5e9;
+    settings.replacedCount = 3;
+    expect((await service.status()).saved).toEqual({
+      bytes: 12.5e9,
+      scenes: 3,
+    });
   });
 
   it('does nothing while off or without Finished downloads, saying why', async () => {

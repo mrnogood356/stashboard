@@ -60,6 +60,8 @@ export interface SmallerCopiesDto {
   candidates: number;
   due: number;
   lastSearchAt: string | null;
+  /** Space given back so far (deleted minus new; can be negative after upgrades), and scenes replaced. */
+  saved: { bytes: number; scenes: number };
   recent: Array<{
     stashSceneId: string;
     title: string;
@@ -189,6 +191,7 @@ export class SmallerCopiesService {
       lastSearchAt: this.lastSearchAt
         ? new Date(this.lastSearchAt).toISOString()
         : null,
+      saved: { bytes: settings.savedBytes, scenes: settings.replacedCount },
       recent: recent.map((row) => ({
         stashSceneId: row.stashSceneId,
         title: row.title,

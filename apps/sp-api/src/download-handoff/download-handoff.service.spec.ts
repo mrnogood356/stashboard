@@ -846,6 +846,7 @@ describe('DownloadHandoffService', () => {
       prisma.smallerCopyAttempt = { updateMany: attempts };
       prisma.smallerCopySettings = {
         findUnique: jest.fn(() => Promise.resolve({ oldCopy })),
+        upsert: jest.fn().mockResolvedValue({}),
       };
       const scenes: Record<
         string,
@@ -868,6 +869,27 @@ describe('DownloadHandoffService', () => {
       organizer.syncReplacedScene = jest
         .fn()
         .mockResolvedValue({ status: 'sent' });
+    });
+
+    it('adds the space given back to the running total', async () => {
+      await replace();
+
+      expect(prisma.smallerCopySettings.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: {
+            savedBytes: { increment: 7e9 },
+            replacedCount: { increment: 1 },
+          },
+        }),
+      );
+    });
+
+    it('still replaces when the total can’t be saved', async () => {
+      prisma.smallerCopySettings.upsert.mockRejectedValue(new Error('db'));
+
+      await replace();
+
+      expect(outcome().outcome).toBe('replaced');
     });
 
     it('merges the new scene into the old one and deletes the old file', async () => {
@@ -902,6 +924,7 @@ describe('DownloadHandoffService', () => {
       oldCopy = 'keep';
       await replace();
       expect(organizer.syncReplacedScene).not.toHaveBeenCalled();
+      expect(prisma.smallerCopySettings.upsert).not.toHaveBeenCalled();
     });
 
     it('keeps both files on the scene when the rules say to keep the old one', async () => {

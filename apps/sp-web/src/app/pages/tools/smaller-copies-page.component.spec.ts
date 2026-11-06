@@ -31,6 +31,7 @@ const DATA: SmallerCopies = {
   candidates: 12,
   due: 9,
   lastSearchAt: null,
+  saved: { bytes: 0, scenes: 0 },
   recent: [
     {
       stashSceneId: '2',
@@ -93,6 +94,17 @@ describe('SmallerCopiesPageComponent', () => {
     (found.querySelector('button') as HTMLButtonElement).click();
     expect(api.grab).toHaveBeenCalledWith('2');
     expect(root.querySelector('[data-testid="attempt-3"] button')).toBeNull();
+  });
+
+  it('shows the space given back once something was replaced', async () => {
+    const before = await render();
+    expect(before.root.querySelector('[data-testid="smaller-saved"]')).toBeNull();
+    TestBed.resetTestingModule();
+
+    const { root } = await render({ ...DATA, saved: { bytes: 12.5 * 1024 ** 3, scenes: 3 } });
+    expect(root.querySelector('[data-testid="smaller-saved"]')!.textContent).toContain(
+      'Given back 12.5 GB so far, across 3 scenes replaced.',
+    );
   });
 
   it('saves every rule, with the studios one per line', async () => {
