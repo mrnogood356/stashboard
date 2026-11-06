@@ -145,6 +145,20 @@ describe('StashAdapter', () => {
     });
   });
 
+  it('says in words when Stash isn’t allowed to read its own files', async () => {
+    stashWith([{ id: '1', title: 'One', files: [file('/1.mp4')] }], [], () => ({
+      ok: false,
+      status: 403,
+    }));
+    const found = await adapter.findGenerateGaps({
+      baseUrl: 'http://stash.local',
+    });
+    expect(found.unanswered).toBe(2);
+    expect(found.unansweredWhy).toContain(
+      'Stash isn’t allowed to read the file',
+    );
+  });
+
   it('asks once more about files Stash didn’t answer for the first time', async () => {
     const asked = new Map<string, number>();
     stashWith(

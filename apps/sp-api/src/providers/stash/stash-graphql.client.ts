@@ -100,7 +100,11 @@ export abstract class StashGraphqlClient {
         ? true
         : response.status === 404
           ? false
-          : `HTTP ${response.status}`;
+          : response.status === 403
+            ? // Stash's file server answers 403 when it may not read the
+              // file it generated: wrong owner or permissions.
+              'HTTP 403: Stash isn’t allowed to read the file; check the owner and permissions of its generated folder'
+            : `HTTP ${response.status}`;
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       return /abort|timed? ?out/i.test(text) ? 'timed out' : text.slice(0, 80);
