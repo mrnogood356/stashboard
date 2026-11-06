@@ -958,7 +958,7 @@ export class LocalLibraryService {
       const seconds = Math.round((Date.now() - started) / 1000);
       const unanswered =
         found.unanswered > 0
-          ? `; Stash didn't answer for ${found.unanswered}${found.unansweredWhy ? ` (mostly: ${found.unansweredWhy})` : ''}`
+          ? `; Stash didn't answer for ${found.unanswered}${found.unansweredWhy ? ` (mostly: ${found.unansweredWhy}${found.unansweredExample ? `, e.g. ${found.unansweredExample}` : ''})` : ''}`
           : '';
       const line = found.note
         ? `Broken files: couldn't check ${label.what}: ${found.note}`
@@ -1644,6 +1644,8 @@ interface BackgroundFound {
   checked: number;
   unanswered: number;
   unansweredWhy?: string;
+  /** One address that wasn't answered, for the log. */
+  unansweredExample?: string;
   /** Why it couldn't check at all; the count is then unknown. */
   note?: string;
   scenes: StashProblemScene[];

@@ -141,11 +141,12 @@ describe('StashAdapter', () => {
       checked: 1,
       unanswered: 2,
       unansweredWhy: 'HTTP 500',
+      unansweredExample: '/scene/1/preview',
       scenes: [],
     });
   });
 
-  it('says in words when Stash isn’t allowed to read its own files', async () => {
+  it('says in words when Stash refuses a file, with one address to try', async () => {
     stashWith([{ id: '1', title: 'One', files: [file('/1.mp4')] }], [], () => ({
       ok: false,
       status: 403,
@@ -154,9 +155,10 @@ describe('StashAdapter', () => {
       baseUrl: 'http://stash.local',
     });
     expect(found.unanswered).toBe(2);
-    expect(found.unansweredWhy).toContain(
-      'Stash isn’t allowed to read the file',
+    expect(found.unansweredWhy).toBe(
+      'HTTP 403: Stash refused to serve the file',
     );
+    expect(found.unansweredExample).toBe('/scene/1/preview');
   });
 
   it('asks once more about files Stash didn’t answer for the first time', async () => {

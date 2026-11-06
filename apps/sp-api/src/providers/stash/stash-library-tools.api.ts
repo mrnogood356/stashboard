@@ -2458,6 +2458,7 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
     checked: number;
     unanswered: number;
     unansweredWhy?: string;
+    unansweredExample?: string;
     /** Up to 50, those lacking the most first. */
     scenes: StashProblemScene[];
   }> {
@@ -2538,6 +2539,9 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
       checked: rows.length,
       unanswered: probe.unanswered,
       ...(probe.unansweredWhy ? { unansweredWhy: probe.unansweredWhy } : {}),
+      ...(probe.unansweredExample
+        ? { unansweredExample: probe.unansweredExample }
+        : {}),
       scenes: listed.slice(0, 50).map(({ row, problems }) => ({
         id: row.id,
         title: row.title,
@@ -2584,6 +2588,8 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
     results: Array<boolean | string>;
     unanswered: number;
     unansweredWhy?: string;
+    /** One address Stash didn't answer for, for the most common reason. */
+    unansweredExample?: string;
   }> {
     const results: Array<boolean | string> = new Array<boolean | string>(
       items.length,
@@ -2615,11 +2621,15 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
       await ask(retry, 2);
     }
     const why = new Map<string, number>();
-    for (const answer of results) {
+    const example = new Map<string, string>();
+    results.forEach((answer, index) => {
       if (typeof answer === 'string') {
         why.set(answer, (why.get(answer) ?? 0) + 1);
+        if (!example.has(answer)) {
+          example.set(answer, urlOf(items[index]));
+        }
       }
-    }
+    });
     const unanswered = [...why.values()].reduce((sum, n) => sum + n, 0);
     const unansweredWhy = [...why.entries()].sort(
       (a, b) => b[1] - a[1],
@@ -2627,7 +2637,12 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
     return {
       results,
       unanswered,
-      ...(unansweredWhy ? { unansweredWhy } : {}),
+      ...(unansweredWhy
+        ? {
+            unansweredWhy,
+            unansweredExample: example.get(unansweredWhy),
+          }
+        : {}),
     };
   }
 }
