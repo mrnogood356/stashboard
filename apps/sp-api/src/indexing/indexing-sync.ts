@@ -889,9 +889,13 @@ export abstract class IndexingSync extends IndexingCore {
       return 0;
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      for (const item of items) {
-        await tx.librarySceneIndex.upsert({
+    // One batch per page: the writes go together, without an interactive
+    // transaction holding a connection open across awaits (one that broke
+    // mid-page kept its connection, and once they were all taken every
+    // request waited).
+    await this.prisma.$transaction(
+      items.map((item) =>
+        this.prisma.librarySceneIndex.upsert({
           where: {
             stashSceneId: item.id,
           },
@@ -944,9 +948,9 @@ export abstract class IndexingSync extends IndexingCore {
             hasFavoriteTag: item.hasFavoriteTag,
             lastSyncedAt: syncedAt,
           },
-        });
-      }
-    }, this.indexWriteTransactionOptions());
+        }),
+      ),
+    );
 
     return items.length;
   }

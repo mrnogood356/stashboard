@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 import {
   SECRET_FIELDS,
   SECRET_PREFIX,
@@ -16,6 +17,11 @@ import {
 import { secretFieldsExtension } from './secret-fields.extension';
 
 type Row = Record<string, unknown>;
+
+/** Connections to the database at most. */
+const POOL_MAX = 20;
+/** How often the pool is checked for being used up. */
+const POOL_CHECK_MS = 30_000;
 type Delegate = {
   findMany(args?: unknown): Promise<Row[]>;
   update(args: unknown): Promise<unknown>;
@@ -32,9 +38,14 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   private readonly logger = new Logger('Secrets');
+  private readonly poolLogger = new Logger('Database');
   private readonly secrets: SecretBox;
   /** This client without the extension: values exactly as stored. */
   private readonly unextended: PrismaClient;
+  private readonly pool: Pool;
+  private poolCheck: ReturnType<typeof setInterval> | null = null;
+  /** Checks in a row that found every connection in use with requests waiting. */
+  private poolFullChecks = 0;
 
   constructor() {
     const connectionString = process.env.DATABASE_URL;
@@ -43,9 +54,21 @@ export class PrismaService
       throw new Error('DATABASE_URL is not set');
     }
 
-    const adapter = new PrismaPg({ connectionString });
+    const pool = new Pool({
+      connectionString,
+      max: POOL_MAX,
+      // A request waits this long for a free connection, then fails with an
+      // error instead of waiting for ever (which left every page blank).
+      connectionTimeoutMillis: 15_000,
+      idleTimeoutMillis: 30_000,
+      // Postgres ends a transaction left open and idle, so its row locks and
+      // its connection don't stay taken.
+      options: '-c idle_in_transaction_session_timeout=300000',
+    });
+    const adapter = new PrismaPg(pool);
 
     super({ adapter });
+    this.pool = pool;
     const secrets = new SecretBox(loadSecretKey());
     this.secrets = secrets;
     this.unextended = this;
@@ -66,10 +89,46 @@ export class PrismaService
   async onModuleInit(): Promise<void> {
     await this.$connect();
     await this.encryptStoredSecrets();
+    this.poolCheck = setInterval(() => this.checkPool(), POOL_CHECK_MS);
+    this.poolCheck.unref?.();
   }
 
   async onModuleDestroy(): Promise<void> {
+    if (this.poolCheck) {
+      clearInterval(this.poolCheck);
+    }
     await this.$disconnect();
+  }
+
+  /** How the connections are being used, for the log and health checks. */
+  poolStats(): { total: number; idle: number; waiting: number; max: number } {
+    return {
+      total: this.pool.totalCount,
+      idle: this.pool.idleCount,
+      waiting: this.pool.waitingCount,
+      max: POOL_MAX,
+    };
+  }
+
+  /** Says so in the log while every connection is taken and requests wait. */
+  checkPool(): void {
+    const stats = this.poolStats();
+    const full =
+      stats.total >= stats.max && stats.idle === 0 && stats.waiting > 0;
+    if (!full) {
+      if (this.poolFullChecks > 0) {
+        this.poolLogger.log('Database connections are free again.');
+      }
+      this.poolFullChecks = 0;
+      return;
+    }
+    this.poolFullChecks += 1;
+    // Once, then about every five minutes while it lasts.
+    if (this.poolFullChecks === 1 || this.poolFullChecks % 10 === 0) {
+      this.poolLogger.error(
+        `Every database connection is in use (${stats.total} of ${stats.max}) and ${stats.waiting} request(s) are waiting. Pages may not load; restarting Stashboard frees them.`,
+      );
+    }
   }
 
   /**

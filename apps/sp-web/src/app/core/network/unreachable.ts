@@ -2,10 +2,15 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Router, UrlTree } from '@angular/router';
 
 /**
- * No answer from Stashboard itself: offline, or the server restarting behind
- * a proxy (502–504). Not a reason to sign in again or to redo setup.
+ * No answer from Stashboard itself: offline, the server restarting behind a
+ * proxy (502–504), or no answer in time. Not a reason to sign in again or to
+ * redo setup.
  */
 export function isUnreachableError(error: unknown): boolean {
+  // No answer in time counts too: the server is up but stuck.
+  if (error instanceof Error && error.name === 'TimeoutError') {
+    return true;
+  }
   return (
     error instanceof HttpErrorResponse &&
     (error.status === 0 || error.status === 502 || error.status === 503 || error.status === 504)

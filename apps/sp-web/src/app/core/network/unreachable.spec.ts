@@ -7,6 +7,8 @@ describe('unreachable', () => {
     expect(isUnreachableError(new HttpErrorResponse({ status: 504 }))).toBe(true);
     expect(isUnreachableError(new HttpErrorResponse({ status: 401 }))).toBe(false);
     expect(isUnreachableError(new HttpErrorResponse({ status: 500 }))).toBe(false);
+    // The server is up but never answered in time.
+    expect(isUnreachableError(Object.assign(new Error('x'), { name: 'TimeoutError' }))).toBe(true);
     expect(isUnreachableError(new Error('nope'))).toBe(false);
   });
 
