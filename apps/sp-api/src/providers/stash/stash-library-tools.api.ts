@@ -2588,23 +2588,38 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
     const results: Array<boolean | string> = new Array<boolean | string>(
       items.length,
     );
-    const why = new Map<string, number>();
-    let next = 0;
-    const worker = async () => {
-      while (next < items.length) {
-        const index = next++;
-        const answer = await this.assetExists(
-          config,
-          urlOf(items[index]),
-          placeholderOf(items[index]),
-        );
-        results[index] = answer;
-        if (typeof answer === 'string') {
-          why.set(answer, (why.get(answer) ?? 0) + 1);
+    const ask = async (indexes: number[], workers: number) => {
+      let next = 0;
+      const worker = async () => {
+        while (next < indexes.length) {
+          const index = indexes[next++];
+          results[index] = await this.assetExists(
+            config,
+            urlOf(items[index]),
+            placeholderOf(items[index]),
+          );
         }
-      }
+      };
+      await Promise.all(Array.from({ length: workers }, worker));
     };
-    await Promise.all(Array.from({ length: 8 }, worker));
+    await ask(
+      items.map((_, index) => index),
+      8,
+    );
+    // Those Stash didn't answer (busy, timed out) get one more try, two at a
+    // time, once the rush is over.
+    const retry = results.flatMap((answer, index) =>
+      typeof answer === 'string' ? [index] : [],
+    );
+    if (retry.length > 0) {
+      await ask(retry, 2);
+    }
+    const why = new Map<string, number>();
+    for (const answer of results) {
+      if (typeof answer === 'string') {
+        why.set(answer, (why.get(answer) ?? 0) + 1);
+      }
+    }
     const unanswered = [...why.values()].reduce((sum, n) => sum + n, 0);
     const unansweredWhy = [...why.entries()].sort(
       (a, b) => b[1] - a[1],
