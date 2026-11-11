@@ -55,12 +55,6 @@ import {
 /** Scenes asked for per page, newest first. */
 const PAGE_SIZE = 40;
 /**
- * A check reads until it reaches the cutoff (at most a year back). This only
- * stops a feed that never gets there, such as one that keeps coming back
- * undated: 10,000 scenes.
- */
-const MAX_PAGES = 250;
-/**
  * After a check has read back to a follow's start, later ones look back only
  * this far before it, for scenes the catalog adds with an earlier date.
  */
@@ -538,7 +532,7 @@ export class FollowsService {
         continue;
       }
       try {
-        const { scenes: candidates, complete } = await this.findNewScenes(
+        const candidates = await this.findNewScenes(
           follow,
           shownTags.map((tag) => tag.id),
         );
@@ -563,7 +557,8 @@ export class FollowsService {
             requested: outcome.state === FollowedSceneState.REQUESTED,
           });
         }
-        await this.noteChecked(follow, null, complete);
+        // Read back to its cutoff: later checks need only look back from here.
+        await this.noteChecked(follow, null, true);
       } catch (error) {
         summary.errors += 1;
         const message = errorMessage(error);
@@ -603,7 +598,7 @@ export class FollowsService {
   private async findNewScenes(
     follow: Follow,
     tagIds: string[],
-  ): Promise<{ scenes: CandidateScene[]; complete: boolean }> {
+  ): Promise<CandidateScene[]> {
     const knownRows = await this.prisma.followedScene.findMany({
       where: { followId: follow.id },
       select: { sceneId: true },
@@ -611,9 +606,11 @@ export class FollowsService {
     const known = new Set(knownRows.map((row) => row.sceneId));
     const cutoff = checkCutoff(follow);
     const fresh: CandidateScene[] = [];
-    let complete = false;
 
-    for (let page = 1; page <= MAX_PAGES; page += 1) {
+    // Every page back to the cutoff, which is at most a year back. The feed's
+    // hasMore comes from its total, so the pages run out; a page can be short
+    // or even empty (hidden scenes are left out of it) and still have more after.
+    for (let page = 1; ; page += 1) {
       const feed = await runWithRequestedCatalogProvider(null, () =>
         follow.kind === FollowKind.PERFORMER
           ? this.performers.getPerformerScenes(
@@ -641,17 +638,11 @@ export class FollowsService {
       const picked = pickNewScenes(feed.items, cutoff, known);
       fresh.push(...picked.fresh);
       if (picked.reachedSince || !feed.hasMore) {
-        complete = true;
         break;
       }
     }
-    if (!complete) {
-      this.logger.warn(
-        `“${follow.name}” has more than ${MAX_PAGES * PAGE_SIZE} scenes since ${cutoff}; only the newest ${MAX_PAGES * PAGE_SIZE} are checked.`,
-      );
-    }
     // Oldest first, so notifications and the log read in release order.
-    return { scenes: fresh.reverse(), complete };
+    return fresh.reverse();
   }
 
   /**

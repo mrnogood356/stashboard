@@ -812,6 +812,24 @@ describe('FollowsService', () => {
       expect(follows[0].fullyCheckedAt).toEqual(service.now());
     });
 
+    it('reads on past empty pages, however many it takes', async () => {
+      const { service, follows, performers } = setup();
+      // 260 pages; hidden scenes leave most of them empty, and one scene
+      // that counts is on page 255.
+      performers.getPerformerScenes.mockImplementation(
+        (_id: string, page: number) =>
+          Promise.resolve({
+            hasMore: page < 260,
+            items: page === 255 ? [feedScene('deep', '2026-06-01')] : [],
+          }),
+      );
+      await service.follow({ kind: 'PERFORMER', entityId: 'p1', name: 'K' });
+      follows[0].since = '2025-11-11';
+      const summary = await service.checkAll();
+      expect(summary.found).toBe(1);
+      expect(performers.getPerformerScenes).toHaveBeenCalledTimes(260);
+    });
+
     it('leaves nothing behind that a check adds just after a tag change', async () => {
       const { service, follows, scenes, performers, prisma } = setup();
       await service.follow({ kind: 'PERFORMER', entityId: 'p1', name: 'K' });
