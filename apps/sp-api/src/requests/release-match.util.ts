@@ -53,10 +53,15 @@ export function matchRelease(
   const performers = scene.performers
     .map((name) => words(name).filter((word) => word.length >= 2))
     .filter((parts) => parts.length > 0);
+  // The studio's own name in the release says nothing about the title.
+  const studioWords = new Set(words(scene.studio ?? ''));
   const titleWords = [
     ...new Set(
       words(scene.title ?? '').filter(
-        (word) => word.length >= 3 && !TITLE_STOPWORDS.has(word),
+        (word) =>
+          word.length >= 3 &&
+          !TITLE_STOPWORDS.has(word) &&
+          !studioWords.has(word),
       ),
     ),
   ];

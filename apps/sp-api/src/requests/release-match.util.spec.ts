@@ -41,14 +41,25 @@ describe('matchRelease', () => {
   });
 
   it('reads full-year and day-first dates', () => {
+    for (const release of [
+      'Brazzers Exxtra 2024-03-15 Jane Doe 1080p',
+      'Brazzers Exxtra 15.03.2024 Jane Doe 1080p',
+    ]) {
+      const match = matchRelease(release, scene);
+      expect(match?.strength).toBe('strong');
+      expect(match?.matched).toContain('date');
+    }
+  });
+
+  it('doesn’t count the studio’s name as the title', () => {
     expect(
-      matchRelease('Brazzers Exxtra 2024-03-15 Jane Doe 1080p', scene)
-        ?.strength,
-    ).toBe('strong');
-    expect(
-      matchRelease('Brazzers Exxtra 15.03.2024 Jane Doe 1080p', scene)
-        ?.strength,
-    ).toBe('strong');
+      matchRelease('Evil.Angel.25.03.19.Khloe.Kingsley.XXX.1080p', {
+        title: 'Angel',
+        studio: 'Evil Angel',
+        releaseDate: '2025-03-19',
+        performers: ['Sabien DeMonia'],
+      }),
+    ).toEqual({ strength: 'partial', matched: ['studio', 'date'] });
   });
 
   it('is partial with only one thing in common besides the studio', () => {
