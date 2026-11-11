@@ -81,6 +81,13 @@ interface FoundScene {
 export class FollowsService {
   private readonly logger = new Logger(FollowsService.name);
   private running: Promise<FollowCheckSummary> | null = null;
+  /**
+   * Per follow: saving its settings and acting on one of its scenes take
+   * turns, so a scene is never requested from settings changed meanwhile.
+   * A save waits at most for one Whisparr call. (One API process, so this
+   * lives in memory.)
+   */
+  private readonly followLocks = new Map<string, Promise<void>>();
   /** Swapped in tests. */
   now: () => Date = () => new Date();
 
@@ -202,7 +209,14 @@ export class FollowsService {
     return toFollowDto(follow, 0);
   }
 
-  async update(id: string, dto: UpdateFollowDto): Promise<FollowDto> {
+  update(id: string, dto: UpdateFollowDto): Promise<FollowDto> {
+    return this.withFollowLock(id, () => this.applyUpdate(id, dto));
+  }
+
+  private async applyUpdate(
+    id: string,
+    dto: UpdateFollowDto,
+  ): Promise<FollowDto> {
     const existing = await this.requireFollow(id);
     const since =
       dto.since === undefined
@@ -246,10 +260,33 @@ export class FollowsService {
     return toFollowDto(follow, counts.get(id) ?? 0);
   }
 
-  async unfollow(id: string): Promise<void> {
-    const follow = await this.requireFollow(id);
-    await this.prisma.follow.delete({ where: { id } });
-    this.logger.log(`Stopped following “${follow.name}”.`);
+  unfollow(id: string): Promise<void> {
+    return this.withFollowLock(id, async () => {
+      const follow = await this.requireFollow(id);
+      await this.prisma.follow.delete({ where: { id } });
+      this.logger.log(`Stopped following “${follow.name}”.`);
+    });
+  }
+
+  /** Runs `work` once the follow's earlier save or scene is done. */
+  private async withFollowLock<T>(
+    id: string,
+    work: () => Promise<T>,
+  ): Promise<T> {
+    const before = this.followLocks.get(id) ?? Promise.resolve();
+    let release!: () => void;
+    const mine = new Promise<void>((resolve) => (release = resolve));
+    const queued = before.then(() => mine);
+    this.followLocks.set(id, queued);
+    try {
+      await before;
+      return await work();
+    } finally {
+      release();
+      if (this.followLocks.get(id) === queued) {
+        this.followLocks.delete(id);
+      }
+    }
   }
 
   /**
@@ -653,7 +690,18 @@ export class FollowsService {
    * everywhere); still waiting there, a follow that requests on its own
    * requests it now. Otherwise it's requested now, or left for review.
    */
-  private async record(
+  private record(
+    follow: Follow,
+    scene: CandidateScene,
+    getDefaults: () => Promise<SubmitSceneRequestDto>,
+  ): Promise<{ state: FollowedSceneState } | null> {
+    // From reading the follow to saving the scene, its settings can't change.
+    return this.withFollowLock(follow.id, () =>
+      this.recordScene(follow, scene, getDefaults),
+    );
+  }
+
+  private async recordScene(
     follow: Follow,
     scene: CandidateScene,
     getDefaults: () => Promise<SubmitSceneRequestDto>,
@@ -672,6 +720,16 @@ export class FollowsService {
       where: { sceneId: scene.id },
       orderBy: { foundAt: 'asc' },
     });
+    const releaseDay = scene.releaseDate?.slice(0, 10) ?? null;
+    // A follow a restore added lists what came out by the restore for review:
+    // which of those you'd passed on isn't in the backup.
+    const requestsOnItsOwn =
+      current.autoRequest &&
+      !(
+        current.reviewThrough &&
+        releaseDay !== null &&
+        releaseDay <= current.reviewThrough
+      );
     const base = {
       followId: follow.id,
       sceneId: scene.id,
@@ -679,12 +737,12 @@ export class FollowsService {
       imageUrl: scene.imageUrl,
       studioId: scene.studioId,
       studioName: scene.studio,
-      releaseDate: scene.releaseDate?.slice(0, 10) ?? null,
+      releaseDate: releaseDay,
       duration: scene.duration,
     };
 
     if (elsewhere) {
-      if (!current.autoRequest || elsewhere.state !== FollowedSceneState.NEW) {
+      if (!requestsOnItsOwn || elsewhere.state !== FollowedSceneState.NEW) {
         await this.prisma.followedScene.create({
           data: { ...base, state: elsewhere.state, detail: elsewhere.detail },
         });
@@ -700,7 +758,7 @@ export class FollowsService {
       return { state: outcome.state };
     }
 
-    const outcome = current.autoRequest
+    const outcome = requestsOnItsOwn
       ? await this.requestScene(current, scene, getDefaults)
       : { state: FollowedSceneState.NEW, detail: null };
     await this.prisma.followedScene.create({ data: { ...base, ...outcome } });
@@ -748,9 +806,9 @@ export class FollowsService {
    * Makes the follows the backup's: adds and updates those in it, removes the
    * rest. A follow already here keeps what it found; one whose start or tags
    * change is read again, as when changed by hand. One added by the restore
-   * starts from today (or its later start): which of its earlier scenes you
-   * passed on isn't in the backup, so they aren't offered (or requested)
-   * again.
+   * starts from today (or its later start), and what came out by today is
+   * listed for review even if it requests on its own: which of those scenes
+   * you passed on isn't in the backup, so none is requested again.
    */
   async restoreFromBackup(values: {
     follows: FollowBackupItemDto[];
@@ -780,31 +838,39 @@ export class FollowsService {
             ...key,
             ...data,
             since: savedSince > today ? savedSince : today,
+            reviewThrough: today,
           },
         });
         keep.push(created.id);
         continue;
       }
-      const tagsChanged = !sameFollowTags(tags, readFollowTags(existing.tags));
-      const sinceChanged = savedSince !== existing.since;
-      await this.prisma.follow.update({
-        where: { id: existing.id },
-        data: {
-          ...data,
-          since: savedSince,
-          ...(tagsChanged || sinceChanged ? { fullyCheckedAt: null } : {}),
-        },
-      });
-      if (tagsChanged || sinceChanged) {
-        // What's waiting may not match the restored settings; the next check
-        // finds what does. Requested and dismissed scenes stay.
-        await this.prisma.followedScene.deleteMany({
-          where: {
-            followId: existing.id,
-            state: { in: [FollowedSceneState.NEW, FollowedSceneState.FAILED] },
+      await this.withFollowLock(existing.id, async () => {
+        const tagsChanged = !sameFollowTags(
+          tags,
+          readFollowTags(existing.tags),
+        );
+        const sinceChanged = savedSince !== existing.since;
+        await this.prisma.follow.update({
+          where: { id: existing.id },
+          data: {
+            ...data,
+            since: savedSince,
+            ...(tagsChanged || sinceChanged ? { fullyCheckedAt: null } : {}),
           },
         });
-      }
+        if (tagsChanged || sinceChanged) {
+          // What's waiting may not match the restored settings; the next check
+          // finds what does. Requested and dismissed scenes stay.
+          await this.prisma.followedScene.deleteMany({
+            where: {
+              followId: existing.id,
+              state: {
+                in: [FollowedSceneState.NEW, FollowedSceneState.FAILED],
+              },
+            },
+          });
+        }
+      });
       keep.push(existing.id);
     }
     await this.prisma.follow.deleteMany({ where: { id: { notIn: keep } } });

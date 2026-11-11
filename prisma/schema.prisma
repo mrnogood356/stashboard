@@ -801,6 +801,8 @@ model Follow {
   since         String
   /// Send new scenes straight to Whisparr instead of listing them for review.
   autoRequest   Boolean         @default(false)
+  /// Scenes released on or before this day (YYYY-MM-DD) are listed for review even when requesting automatically. Set on follows a restore adds: what was passed on before isn't in the backup.
+  reviewThrough String?
   /// Only scenes with at least one of these catalog tags: [{ id, name }]. Empty is every scene.
   tags          Json            @default("[]")
   lastCheckedAt DateTime?

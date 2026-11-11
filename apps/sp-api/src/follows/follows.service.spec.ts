@@ -830,7 +830,7 @@ describe('FollowsService', () => {
       expect(performers.getPerformerScenes).toHaveBeenCalledTimes(260);
     });
 
-    it('leaves nothing behind that a check adds just after a tag change', async () => {
+    it('makes a tag change wait for the scene being saved, then tidies it', async () => {
       const { service, follows, scenes, performers, prisma } = setup();
       await service.follow({ kind: 'PERFORMER', entityId: 'p1', name: 'K' });
       follows[0].since = '2026-11-01';
@@ -838,23 +838,98 @@ describe('FollowsService', () => {
         hasMore: false,
         items: [feedScene('untagged', '2026-11-10')],
       });
-      // The tags change (and the change is saved) after the check has
-      // re-read the follow, just before it saves the scene.
+      // The tags are changed while the check is saving a scene.
+      const pending: { save?: Promise<unknown> } = {};
+      let savedWhileRecording = false;
       const findFirst = prisma.followedScene.findFirst.getMockImplementation()!;
       prisma.followedScene.findFirst.mockImplementationOnce(async (args) => {
         performers.getPerformerScenes.mockResolvedValue({
           hasMore: false,
           items: [],
         });
-        await service.update(follows[0].id, {
+        pending.save = service.update(follows[0].id, {
           tags: [{ id: 't-anal', name: 'Anal' }],
         });
+        void pending.save.then(() => {
+          savedWhileRecording = !scenes.some(
+            (row) => row.sceneId === 'untagged',
+          );
+        });
+        // Give the save every chance to jump in.
+        await new Promise((resolve) => setImmediate(resolve));
         return findFirst(args);
       });
       await service.checkAll();
-      // Then the follow's own re-check, queued by the change, runs.
+      await pending.save;
+      // It waited for the scene, then its re-check removed it.
+      expect(savedWhileRecording).toBe(false);
       await idle(service);
       expect(scenes.map((row) => row.sceneId)).toEqual([]);
+    });
+
+    it('requests nothing more once automatic requests are turned off mid-check', async () => {
+      const { service, follows, performers, requests } = setup();
+      await service.follow({
+        kind: 'PERFORMER',
+        entityId: 'p1',
+        name: 'K',
+        autoRequest: true,
+      });
+      follows[0].since = '2026-11-01';
+      performers.getPerformerScenes.mockResolvedValue({
+        hasMore: false,
+        items: [feedScene('a', '2026-11-10'), feedScene('b', '2026-11-09')],
+      });
+      // While the first scene's request is with Whisparr, it's switched off.
+      const pending: { save?: Promise<unknown> } = {};
+      let offBeforeRequestDone = false;
+      let requestDone = false;
+      requests.submitSceneRequest.mockImplementationOnce(async () => {
+        pending.save = service.update(follows[0].id, { autoRequest: false });
+        void pending.save.then(() => (offBeforeRequestDone = !requestDone));
+        await new Promise((resolve) => setImmediate(resolve));
+        requestDone = true;
+        return { accepted: true };
+      });
+      const summary = await service.checkAll();
+      await pending.save;
+      // The save waited for that request; the next scene wasn't requested.
+      expect(offBeforeRequestDone).toBe(false);
+      expect(requests.submitSceneRequest).toHaveBeenCalledTimes(1);
+      expect(summary.requested).toBe(1);
+      expect(summary.found).toBe(2);
+    });
+
+    it('lists for review what a restored follow finds from by the restore day', async () => {
+      const { service, follows, performers, requests, scenes } = setup();
+      await service.restoreFromBackup({
+        follows: [
+          {
+            kind: 'PERFORMER',
+            provider: 'STASHDB',
+            entityId: 'p1',
+            name: 'K',
+            since: '2026-11-01',
+            autoRequest: true,
+          },
+        ],
+      });
+      expect(follows[0].reviewThrough).toBe('2026-11-11');
+      performers.getPerformerScenes.mockResolvedValue({
+        hasMore: false,
+        items: [
+          feedScene('tomorrow', '2026-11-12'),
+          // Perhaps passed on before the restore: not requested again.
+          feedScene('today', '2026-11-11'),
+        ],
+      });
+      await service.checkAll();
+      expect(
+        requests.submitSceneRequest.mock.calls.map((call) => call[0]),
+      ).toEqual(['tomorrow']);
+      expect(
+        Object.fromEntries(scenes.map((row) => [row.sceneId, row.state])),
+      ).toEqual({ today: 'NEW', tomorrow: 'REQUESTED' });
     });
   });
 });
