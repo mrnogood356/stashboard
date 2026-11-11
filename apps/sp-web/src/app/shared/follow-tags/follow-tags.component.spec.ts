@@ -24,8 +24,13 @@ describe('FollowTagsComponent', () => {
     const input = root.querySelector('[data-testid="tag-search"]') as HTMLInputElement;
     input.value = text;
     input.dispatchEvent(new Event('input'));
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    fixture.detectChanges();
+    // Until the search has answered, however long the wait before it takes.
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      const results = root.querySelector('.results');
+      expect(results).toBeTruthy();
+      expect(results?.textContent).not.toContain('Searching');
+    });
   }
 
   it('says every scene counts until a tag is chosen', async () => {

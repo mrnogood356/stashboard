@@ -146,8 +146,11 @@ describe('FollowingPageComponent', () => {
     const search = root.querySelector('[data-testid="tag-search"]') as HTMLInputElement;
     search.value = 'an';
     search.dispatchEvent(new Event('input'));
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    fixture.detectChanges();
+    // Until the search has answered, however long the wait before it takes.
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(root.querySelector('[data-testid="add-tag-t-anal"]')).toBeTruthy();
+    });
     (root.querySelector('[data-testid="add-tag-t-anal"]') as HTMLButtonElement).click();
     fixture.detectChanges();
 
