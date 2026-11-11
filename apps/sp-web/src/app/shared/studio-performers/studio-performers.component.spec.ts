@@ -116,11 +116,20 @@ describe('StudioPerformersComponent', () => {
       24,
       expect.objectContaining({ studioId: 'studio-2' }),
     );
-    const calls = getPerformersFeed.mock.calls.length;
     const search = root.querySelector(
       '[data-testid="studio-performer-search"]',
     ) as HTMLInputElement;
-    search.value = ' ';
+    // A search with no results, so "Loading…" would show if it stuck.
+    getPerformersFeed.mockReturnValueOnce(
+      of({ total: 0, page: 1, perPage: 24, hasMore: false, items: [] }),
+    );
+    search.value = 'nobody';
+    search.dispatchEvent(new Event('input'));
+    await settle();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('No performer by that name');
+    const calls = getPerformersFeed.mock.calls.length;
+    search.value = 'nobody ';
     search.dispatchEvent(new Event('input'));
     await settle();
     fixture.detectChanges();

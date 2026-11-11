@@ -1,6 +1,15 @@
 import { Component, DestroyRef, Input, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
+import {
+  Subject,
+  catchError,
+  debounceTime,
+  defer,
+  distinctUntilChanged,
+  map,
+  of,
+  switchMap,
+} from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DiscoverService } from '../../core/api/discover.service';
 import { PerformerFeedItem, PerformerFeedResponse } from '../../core/api/discover.types';
@@ -70,17 +79,18 @@ export class StudioPerformersComponent implements OnInit {
     this.requests
       .pipe(
         switchMap((request) =>
-          this.discover
-            .getPerformersFeed(request.page, PAGE_SIZE, {
+          // Deferred, so even a request that throws ends as "couldn't load".
+          defer(() =>
+            this.discover.getPerformersFeed(request.page, PAGE_SIZE, {
               name: request.name || undefined,
               studioId: request.studioId,
               sort: 'SCENE_COUNT',
               direction: 'DESC',
-            })
-            .pipe(
-              map((response) => ({ request, response })),
-              catchError(() => of({ request, response: null as PerformerFeedResponse | null })),
-            ),
+            }),
+          ).pipe(
+            map((response) => ({ request, response })),
+            catchError(() => of({ request, response: null as PerformerFeedResponse | null })),
+          ),
         ),
         takeUntilDestroyed(this.destroyRef),
       )
