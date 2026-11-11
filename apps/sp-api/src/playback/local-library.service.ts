@@ -61,6 +61,9 @@ export interface LocalSceneCardDto {
   studioImageUrl: string | null;
   releaseDate: string | null;
   duration: number | null;
+  /** The main file's picture size, for its quality (4K, 1080p…). */
+  width: number | null;
+  height: number | null;
   playCount: number;
   /** How far through the scene playback got, 0 to 1. */
   progress: number | null;
@@ -1411,7 +1414,12 @@ export class LocalLibraryService {
     seed: number,
   ): Promise<LocalScenePageDto> {
     const config = await this.playback.getStashConfig();
-    const { stashSort, direction } = toStashSort(sort, seed);
+    // Production date only exists from Stash 0.32: older ones sort by release date.
+    const usable =
+      sort === 'PRODUCED' && !(await this.stash.supportsProductionDate(config))
+        ? 'DATE'
+        : sort;
+    const { stashSort, direction } = toStashSort(usable, seed);
     const result = await this.stash.findLocalScenes(config, {
       page,
       perPage: PAGE_SIZE,
@@ -1433,6 +1441,8 @@ function toStashSort(
   seed: number,
 ): { stashSort: string; direction: 'ASC' | 'DESC' } {
   switch (sort) {
+    case 'PRODUCED':
+      return { stashSort: 'production_date', direction: 'DESC' };
     case 'ADDED':
       return { stashSort: 'created_at', direction: 'DESC' };
     case 'PLAYS':
@@ -1525,6 +1535,8 @@ export function toCard(scene: StashLocalSceneCard): LocalSceneCardDto {
       : null,
     releaseDate: scene.date,
     duration: scene.duration,
+    width: scene.width ?? null,
+    height: scene.height ?? null,
     playCount: scene.playCount,
     progress,
     lastPlayedAt: scene.lastPlayedAt ?? null,

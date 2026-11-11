@@ -113,17 +113,23 @@ describe('HomeRowsEditorComponent', () => {
     Array.from(settings.querySelectorAll('button[role="radio"]'))
       .find((b) => b.textContent?.includes('Poster'))!
       .dispatchEvent(new Event('click'));
-    const length = Array.from(settings.querySelectorAll('label.chip'))
-      .find((l) => l.textContent?.includes('Length'))!
+    const date = Array.from(settings.querySelectorAll('label.chip'))
+      .find((l) => l.textContent?.includes('Date'))!
       .querySelector('input') as HTMLInputElement;
-    length.checked = true;
-    length.dispatchEvent(new Event('change'));
+    date.checked = false;
+    date.dispatchEvent(new Event('change'));
     const name = settings.querySelector('input[type="text"]') as HTMLInputElement;
     name.value = 'Fresh';
     name.dispatchEvent(new Event('change'));
 
     expect(updateRowDisplay).toHaveBeenCalledWith('a', { style: 'poster' });
-    expect(updateRowDisplay).toHaveBeenCalledWith('a', { showDuration: true });
+    expect(updateRowDisplay).toHaveBeenCalledWith('a', { showDate: false });
+    // The length is always on the picture now, so there's no switch for it.
+    expect(
+      Array.from(settings.querySelectorAll('label.chip')).some((l) =>
+        l.textContent?.includes('Length'),
+      ),
+    ).toBe(false);
     expect(updateRowDisplay).toHaveBeenCalledWith('a', { title: 'Fresh' });
     expect(changed).toHaveBeenCalledTimes(3);
   });

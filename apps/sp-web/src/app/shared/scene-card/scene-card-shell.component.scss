@@ -313,6 +313,38 @@ img.thumbnail.is-failed {
   }
 }
 
+/* Quality and length on the picture, like Stash's cards. */
+.media-specs {
+  position: absolute;
+  right: 0.55rem;
+  bottom: 0.45rem;
+  z-index: 3;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  color: #fff;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-shadow:
+    0 0 3px rgb(0 0 0 / 85%),
+    0 1px 2px rgb(0 0 0 / 70%);
+  pointer-events: none;
+}
+
+.media-specs.above-progress {
+  bottom: 1.05rem;
+}
+
+.media-quality {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.media-length {
+  font-weight: 500;
+}
+
 .watch-progress {
   position: absolute;
   inset: auto 0.6rem 0.55rem;

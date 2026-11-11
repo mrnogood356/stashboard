@@ -81,7 +81,6 @@ export class SceneCardComponent implements OnInit {
   /** Which details the card shows under its title (Home rows can turn them off). */
   @Input() showStudio = true;
   @Input() showDate = true;
-  @Input() showDuration = false;
   /** Request, Find and status on the card. */
   @Input() showActions = true;
   /** Extra actions in a ⋯ menu on the picture (e.g. Continue Watching). */
@@ -146,15 +145,11 @@ export class SceneCardComponent implements OnInit {
     return this.showStudio ? (this.item.studio ?? null) : null;
   }
 
-  /** The date and length, as they're turned on and known. */
+  /** The date, when it's turned on and known. The length is on the picture. */
   protected metaParts(): Array<{ text: string; date?: string }> {
     const parts: Array<{ text: string; date?: string }> = [];
     if (this.showDate && this.item.releaseDate) {
       parts.push({ text: this.formatDate(this.item.releaseDate), date: this.item.releaseDate });
-    }
-    const duration = this.item.duration;
-    if (this.showDuration && duration && duration > 0) {
-      parts.push({ text: `${Math.max(1, Math.round(duration / 60))} min` });
     }
     return parts;
   }

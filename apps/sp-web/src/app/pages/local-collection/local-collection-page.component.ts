@@ -29,6 +29,7 @@ interface CollectionHeader {
 
 const SORTS: Array<{ value: LocalSceneSort; label: string }> = [
   { value: 'DATE', label: 'Newest' },
+  { value: 'PRODUCED', label: 'Filmed (newest)' },
   { value: 'ADDED', label: 'Recently added' },
   { value: 'PLAYS', label: 'Most played' },
   { value: 'TITLE', label: 'A–Z' },

@@ -72,6 +72,8 @@ export interface LocalSceneDetailsDto {
   code: string | null;
   details: string | null;
   date: string | null;
+  /** When it was filmed (Stash 0.32 and later). */
+  productionDate: string | null;
   rating100: number | null;
   oCounter: number;
   playCount: number;
@@ -179,6 +181,7 @@ export class PlaybackService {
       code: scene.code,
       details: scene.details,
       date: scene.date,
+      productionDate: scene.productionDate ?? null,
       rating100: scene.rating100,
       oCounter: scene.oCounter,
       playCount: scene.playCount,

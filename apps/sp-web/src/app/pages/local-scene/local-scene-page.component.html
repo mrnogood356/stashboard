@@ -83,6 +83,11 @@
             @if (formatDate(scene.date); as date) {
               <span>{{ date }}</span>
             }
+            @if (scene.productionDate && scene.productionDate !== scene.date) {
+              @if (formatDate(scene.productionDate); as produced) {
+                <span title="Production date">Filmed {{ produced }}</span>
+              }
+            }
             @if (formatDuration(scene.duration); as duration) {
               <span>{{ duration }}</span>
             }

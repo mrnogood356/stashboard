@@ -87,7 +87,15 @@ export interface StashLocalLibrarySceneItem {
   tagIds: string[];
   tagNames: string[];
   releaseDate: string | null;
+  /**
+   * When it was filmed (Stash 0.32 and later): null when not set, undefined
+   * when Stash wasn't asked (older, or its version unknown).
+   */
+  productionDate?: string | null;
   duration: number | null;
+  /** The main file's picture size, for its quality (4K, 1080p…). */
+  width: number | null;
+  height: number | null;
   viewUrl: string;
   createdAt: Date | null;
   updatedAt: Date | null;
@@ -126,6 +134,9 @@ export interface StashLocalSceneCard {
   screenshotVersion: string | null;
   studio: { id: string; name: string; imageVersion: string | null } | null;
   duration: number | null;
+  /** The main file's picture size, for its quality (4K, 1080p…). */
+  width?: number | null;
+  height?: number | null;
   playCount: number;
   resumeTime: number;
   /** When it was last played, when Stash says. */
@@ -215,6 +226,8 @@ export interface StashLocalSceneDetails {
   code: string | null;
   details: string | null;
   date: string | null;
+  /** When it was filmed (Stash 0.32 and later). */
+  productionDate?: string | null;
   rating100: number | null;
   oCounter: number;
   playCount: number;
@@ -296,6 +309,9 @@ export interface StashLocalSceneFeedItem {
   studioImageUrl: string | null;
   releaseDate: string | null;
   duration: number | null;
+  /** The main file's picture size, for its quality (4K, 1080p…). */
+  width?: number | null;
+  height?: number | null;
   viewUrl: string;
 }
 
@@ -330,6 +346,8 @@ export interface StashLocalSceneRecord {
   title?: unknown;
   details?: unknown;
   date?: unknown;
+  /** Stash 0.32 and later: when the scene was filmed. */
+  production_date?: unknown;
   created_at?: unknown;
   updated_at?: unknown;
   stash_ids?: Array<{

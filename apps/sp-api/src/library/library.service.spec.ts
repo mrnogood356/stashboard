@@ -13,7 +13,10 @@ const librarySceneListSelect = {
   studioImageUrl: true,
   performerNames: true,
   releaseDate: true,
+  productionDate: true,
   duration: true,
+  width: true,
+  height: true,
   viewUrl: true,
   localCreatedAt: true,
 };
@@ -34,7 +37,10 @@ function buildLibraryRow(overrides: Record<string, unknown> = {}) {
     tagIds: ['tag-1', 'tag-2'],
     tagNames: ['Tag One', 'Tag Two'],
     releaseDate: '2026-03-24',
+    productionDate: '2025-11-02',
     duration: 1800,
+    width: 3840,
+    height: 2160,
     viewUrl: 'http://stash.local/scenes/411',
     localCreatedAt: new Date('2026-03-23T00:00:00.000Z'),
     localUpdatedAt: new Date('2026-03-24T00:00:00.000Z'),
@@ -97,7 +103,10 @@ describe('LibraryService', () => {
         studioImageUrl: '/api/media/stash/studios/studio-1/logo?v=1711000001',
         performerNames: ['Performer One'],
         releaseDate: '2026-03-24',
+        productionDate: '2025-11-02',
         duration: 1800,
+        width: 3840,
+        height: 2160,
         localCreatedAt: new Date('2026-03-23T00:00:00.000Z'),
         type: 'SCENE',
         source: 'STASH',
@@ -156,7 +165,10 @@ describe('LibraryService', () => {
         studioImageUrl: '/api/media/stash/studios/studio-1/logo?v=1711000001',
         performerNames: ['Performer One'],
         releaseDate: '2026-03-24',
+        productionDate: '2025-11-02',
         duration: 1800,
+        width: 3840,
+        height: 2160,
         localCreatedAt: new Date('2026-03-23T00:00:00.000Z'),
         type: 'SCENE',
         source: 'STASH',
@@ -260,6 +272,21 @@ describe('LibraryService', () => {
         orderBy: [{ title: 'asc' }, { stashSceneId: 'asc' }],
         skip: 10,
         take: 10,
+      }),
+    );
+  });
+
+  it('sorts by production date, with scenes without one last', async () => {
+    await service.getScenesFeed(1, 10, 'PRODUCTION_DATE', 'DESC');
+
+    expect(librarySceneIndexFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [
+          { productionDate: { sort: 'desc', nulls: 'last' } },
+          { releaseDate: { sort: 'desc', nulls: 'last' } },
+          { title: 'asc' },
+          { stashSceneId: 'asc' },
+        ],
       }),
     );
   });
