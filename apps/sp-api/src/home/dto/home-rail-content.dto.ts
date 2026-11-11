@@ -13,6 +13,9 @@ export class HomeRailItemDto {
   studioImageUrl!: string | null;
   releaseDate!: string | null;
   duration!: number | null;
+  /** A library scene's picture size, for its quality (4K, 1080p…). */
+  width?: number | null;
+  height?: number | null;
   type!: 'SCENE';
   /** STASH for library scenes, otherwise the catalog the scene came from. */
   source!: HomeRailSource | CatalogProviderKey;

@@ -10,7 +10,12 @@ export class LibrarySceneFeedItemDto {
   studioImageUrl!: string | null;
   performerNames!: string[];
   releaseDate!: string | null;
+  /** When it was filmed (Stash 0.32 and later). */
+  productionDate!: string | null;
   duration!: number | null;
+  /** The main file's picture size, for its quality (4K, 1080p…). */
+  width!: number | null;
+  height!: number | null;
   localCreatedAt!: Date | null;
   type!: 'SCENE';
   source!: 'STASH';

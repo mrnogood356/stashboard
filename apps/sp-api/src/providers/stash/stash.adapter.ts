@@ -62,6 +62,36 @@ export class StashAdapter extends StashLibraryToolsApi {
     await this.checkConnection(config, false);
   }
 
+  /** What each Stash can do, by its version; read again every 10 minutes. */
+  private readonly features = new Map<
+    string,
+    { at: number; productionDate: boolean }
+  >();
+
+  /**
+   * Whether this Stash has scenes' Production Date (0.32 and later). Asking an
+   * older one for it would fail the whole query, so it's only asked when there.
+   */
+  async supportsProductionDate(
+    config: StashAdapterBaseConfig,
+  ): Promise<boolean> {
+    const cached = this.features.get(config.baseUrl);
+    if (cached && Date.now() - cached.at < 10 * 60_000) {
+      return cached.productionDate;
+    }
+    let version: string | null;
+    try {
+      version = await this.getVersion(config);
+    } catch {
+      // Not known this time: not asked for, and not remembered, so the next
+      // request asks Stash again.
+      return false;
+    }
+    const productionDate = stashVersionAtLeast(version, 0, 32);
+    this.features.set(config.baseUrl, { at: Date.now(), productionDate });
+    return productionDate;
+  }
+
   async probeConnection(config: StashAdapterBaseConfig): Promise<void> {
     await this.checkConnection(config, true);
   }
@@ -442,6 +472,7 @@ export class StashAdapter extends StashLibraryToolsApi {
       return null;
     }
 
+    const productionDate = await this.supportsProductionDate(config);
     const query = `
       query LocalSceneDetails($id: ID!) {
         findScene(id: $id) {
@@ -450,6 +481,7 @@ export class StashAdapter extends StashLibraryToolsApi {
           code
           details
           date
+          ${productionDate ? 'production_date' : ''}
           rating100
           o_counter
           play_count
@@ -530,6 +562,7 @@ export class StashAdapter extends StashLibraryToolsApi {
       code: str(scene.code),
       details: str(scene.details),
       date: str(scene.date),
+      productionDate: str(scene.production_date),
       rating100: num(scene.rating100),
       oCounter: num(scene.o_counter) ?? 0,
       playCount: num(scene.play_count) ?? 0,
@@ -721,6 +754,8 @@ export class StashAdapter extends StashLibraryToolsApi {
             }
             files {
               duration
+              width
+              height
             }
           }
         }
@@ -1074,9 +1109,11 @@ export class StashAdapter extends StashLibraryToolsApi {
     const files = Array.isArray(scene.files)
       ? (scene.files as Array<Record<string, unknown>>)
       : [];
-    const duration = files.find(
-      (file) => typeof file?.duration === 'number',
-    )?.duration;
+    // The main file: Stash plays (and shows) the first one.
+    const main = files.find((file) => typeof file?.duration === 'number');
+    const duration = main?.duration;
+    const size = (value: unknown) =>
+      typeof value === 'number' && value > 0 ? value : null;
     return {
       id,
       title: this.normalizeOptionalString(scene.title) ?? `Scene #${id}`,
@@ -1093,6 +1130,8 @@ export class StashAdapter extends StashLibraryToolsApi {
             }
           : null,
       duration: typeof duration === 'number' ? duration : null,
+      width: size(main?.width),
+      height: size(main?.height),
       playCount: typeof scene.play_count === 'number' ? scene.play_count : 0,
       resumeTime: typeof scene.resume_time === 'number' ? scene.resume_time : 0,
       lastPlayedAt: this.normalizeOptionalString(scene.last_played_at),
@@ -1278,6 +1317,7 @@ export class StashAdapter extends StashLibraryToolsApi {
     const page = this.normalizePositiveInteger(pageConfig.page, 1);
     const perPage = this.normalizePositiveInteger(pageConfig.perPage, 100);
 
+    const productionDate = await this.supportsProductionDate(config);
     const query = `
       query FindScenes($filter: FindFilterType) {
         findScenes(filter: $filter) {
@@ -1287,6 +1327,7 @@ export class StashAdapter extends StashLibraryToolsApi {
             title
             details
             date
+            ${productionDate ? 'production_date' : ''}
             created_at
             updated_at
             stash_ids {
@@ -1314,6 +1355,8 @@ export class StashAdapter extends StashLibraryToolsApi {
             }
             files {
               duration
+              width
+              height
               fingerprints {
                 type
                 value
@@ -1629,6 +1672,7 @@ export class StashAdapter extends StashLibraryToolsApi {
       studioImageUrl,
       releaseDate,
       duration,
+      ...this.pickFirstSize(scene.files ?? []),
       viewUrl: this.resolveSceneViewUrl(baseUrl, scene.id),
     };
   }
@@ -1691,7 +1735,14 @@ export class StashAdapter extends StashLibraryToolsApi {
       tagIds: tags.ids,
       tagNames: tags.names,
       releaseDate: this.normalizeOptionalString(scene.date),
+      // Not asked (an older Stash, or its version unknown): left out, so the
+      // library index keeps the date it has rather than clearing it.
+      productionDate:
+        'production_date' in scene
+          ? this.normalizeOptionalString(scene.production_date)
+          : undefined,
       duration,
+      ...this.pickFirstSize(scene.files ?? []),
       viewUrl: this.resolveSceneViewUrl(baseUrl, id),
       createdAt: this.parseOptionalDate(scene.created_at),
       updatedAt: this.parseOptionalDate(scene.updated_at),
@@ -1980,4 +2031,18 @@ export class StashAdapter extends StashLibraryToolsApi {
     )) as unknown as { data?: { version?: { version?: unknown } } };
     return this.normalizeOptionalString(payload.data?.version?.version);
   }
+}
+
+/** "v0.32.0", "v0.32.0-12-gabc" and "0.32.1" all read as 0.32; unknown is false. */
+export function stashVersionAtLeast(
+  version: string | null,
+  major: number,
+  minor: number,
+): boolean {
+  const match = /(\d+)\.(\d+)/.exec(version ?? '');
+  if (!match) {
+    return false;
+  }
+  const [have, haveMinor] = [Number(match[1]), Number(match[2])];
+  return have > major || (have === major && haveMinor >= minor);
 }

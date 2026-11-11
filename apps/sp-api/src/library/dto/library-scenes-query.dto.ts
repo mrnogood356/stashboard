@@ -13,6 +13,7 @@ export const LIBRARY_SCENE_SORT_VALUES = [
   'UPDATED_AT',
   'TITLE',
   'RELEASE_DATE',
+  'PRODUCTION_DATE',
 ] as const;
 export type LibrarySceneSort = (typeof LIBRARY_SCENE_SORT_VALUES)[number];
 

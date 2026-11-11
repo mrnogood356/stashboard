@@ -50,6 +50,7 @@ export class FavoriteDto {
 
 export const LOCAL_SCENE_SORTS = [
   'DATE',
+  'PRODUCED',
   'ADDED',
   'PLAYS',
   'TITLE',

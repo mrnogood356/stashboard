@@ -1,6 +1,7 @@
 import { BadGatewayException } from '@nestjs/common';
 import { RuntimeHealthService } from '../../runtime-health/runtime-health.service';
-import { StashAdapter } from './stash.adapter';
+import { withStashAccessHint } from './stash-graphql.client';
+import { StashAdapter, stashVersionAtLeast } from './stash.adapter';
 
 describe('StashAdapter', () => {
   let adapter: StashAdapter;
@@ -29,6 +30,8 @@ describe('StashAdapter', () => {
     adapter = new StashAdapter(
       runtimeHealthService as unknown as RuntimeHealthService,
     );
+    // An older Stash by default; the tests for 0.32 say so.
+    jest.spyOn(adapter, 'supportsProductionDate').mockResolvedValue(false);
   });
 
   /** Stash answering the check list, the coverless ids and each file. */
@@ -782,6 +785,8 @@ describe('StashAdapter', () => {
         {
           id: '411',
           title: 'Fresh Library Scene',
+          width: 1920,
+          height: 1080,
           description: 'Recently scanned into the local library.',
           imageUrl: 'http://stash.local/images/411.jpg',
           cardImageUrl: 'http://stash.local/images/411.jpg',
@@ -924,6 +929,8 @@ describe('StashAdapter', () => {
           tagNames: ['Tag One', 'Tag Two'],
           releaseDate: '2026-03-24',
           duration: 1800,
+          width: null,
+          height: null,
           viewUrl: 'http://stash.local/scenes/411',
           createdAt: new Date('2026-03-23T11:00:00.000Z'),
           updatedAt: new Date('2026-03-24T12:00:00.000Z'),
@@ -948,6 +955,98 @@ describe('StashAdapter', () => {
     expect(String(body.query)).toContain('tags');
     expect(String(body.query)).toContain('created_at');
     expect(String(body.query)).toContain('updated_at');
+  });
+
+  it('reads production date and picture size from a Stash 0.32 or later, and asks an older one without it', async () => {
+    const config = { baseUrl: 'http://stash.local' };
+    const page = (productionDate: boolean) => {
+      jest
+        .spyOn(adapter, 'supportsProductionDate')
+        .mockResolvedValue(productionDate);
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              findScenes: {
+                count: 1,
+                scenes: [
+                  {
+                    id: '9',
+                    title: 'Filmed',
+                    date: '2026-01-10',
+                    ...(productionDate
+                      ? { production_date: '2025-08-01' }
+                      : {}),
+                    files: [{ duration: 600, width: 2560, height: 1440 }],
+                  },
+                ],
+              },
+            },
+          }),
+      } as Response);
+      return adapter.getLocalLibraryScenePage(config, { page: 1, perPage: 10 });
+    };
+    const query = () =>
+      String(JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body)).query);
+
+    const newer = await page(true);
+    expect(newer.items[0]).toMatchObject({
+      productionDate: '2025-08-01',
+      width: 2560,
+      height: 1440,
+    });
+    expect(query()).toContain('production_date');
+
+    const older = await page(false);
+    // Not asked: left out, so the library index keeps the date it has.
+    expect(older.items[0].productionDate).toBeUndefined();
+    expect(older.items[0]).toMatchObject({ width: 2560 });
+    expect(query()).not.toContain('production_date');
+  });
+
+  it('says how to let Stashboard in when Stash 0.32 refuses it with a 403', () => {
+    expect(withStashAccessHint('Stash provider returned 403', 403)).toContain(
+      'public_whitelist',
+    );
+    expect(withStashAccessHint('Stash provider returned 500', 500)).toBe(
+      'Stash provider returned 500',
+    );
+  });
+
+  it('knows 0.32 and later have production dates, from the version Stash reports', async () => {
+    const fresh = new StashAdapter(
+      runtimeHealthService as unknown as RuntimeHealthService,
+    );
+    const config = { baseUrl: 'http://stash.version.test' };
+    const getVersion = jest
+      .spyOn(fresh, 'getVersion')
+      .mockResolvedValueOnce('v0.32.0')
+      .mockResolvedValueOnce('v0.31.1');
+    await expect(fresh.supportsProductionDate(config)).resolves.toBe(true);
+    // Remembered for a while: Stash isn't asked again straight away.
+    await expect(fresh.supportsProductionDate(config)).resolves.toBe(true);
+    expect(getVersion).toHaveBeenCalledTimes(1);
+    await expect(
+      fresh.supportsProductionDate({ baseUrl: 'http://other.test' }),
+    ).resolves.toBe(false);
+
+    // A failed check isn't remembered: Stash is asked again next time.
+    const flaky = new StashAdapter(
+      runtimeHealthService as unknown as RuntimeHealthService,
+    );
+    const flakyVersion = jest
+      .spyOn(flaky, 'getVersion')
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce('v0.32.1');
+    await expect(flaky.supportsProductionDate(config)).resolves.toBe(false);
+    await expect(flaky.supportsProductionDate(config)).resolves.toBe(true);
+    expect(flakyVersion).toHaveBeenCalledTimes(2);
+
+    expect(stashVersionAtLeast('v0.32.0-21-gabcdef', 0, 32)).toBe(true);
+    expect(stashVersionAtLeast('v1.0.0', 0, 32)).toBe(true);
+    expect(stashVersionAtLeast('v0.31.9', 0, 32)).toBe(false);
+    expect(stashVersionAtLeast(null, 0, 32)).toBe(false);
   });
 
   it('fingerprints the library from its size and most recently changed scene', async () => {
@@ -1246,6 +1345,8 @@ describe('StashAdapter', () => {
         {
           id: '812',
           title: 'Scene #812',
+          width: null,
+          height: null,
           description: null,
           imageUrl: null,
           cardImageUrl: null,
@@ -1608,7 +1709,7 @@ describe('StashAdapter', () => {
                   paths: {
                     screenshot: 'http://stash.local/scene/5/screenshot',
                   },
-                  files: [{ duration: 1200 }],
+                  files: [{ duration: 1200, width: 1920, height: 1080 }],
                 },
               ],
             },
@@ -1622,7 +1723,13 @@ describe('StashAdapter', () => {
     );
 
     expect(scenes).toEqual([
-      expect.objectContaining({ id: '5', resumeTime: 300, duration: 1200 }),
+      expect.objectContaining({
+        id: '5',
+        resumeTime: 300,
+        duration: 1200,
+        width: 1920,
+        height: 1080,
+      }),
     ]);
     const body = JSON.parse(
       (fetchMock.mock.calls[0][1] as RequestInit).body as string,
@@ -1959,6 +2066,42 @@ describe('StashAdapter', () => {
       expect(calls.some((call) => call.name === 'CarryChapter')).toBe(false);
     });
 
+    it('gives each card its main file’s picture size, for its quality', async () => {
+      fetchMock.mockResolvedValue(
+        ok({
+          findScenes: {
+            count: 1,
+            scenes: [
+              {
+                id: '1',
+                title: 'Pool',
+                files: [
+                  { duration: 2451, width: 3840, height: 2160 },
+                  { duration: 2451, width: 1280, height: 720 },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+      const page = await adapter.findLocalScenes(config, {
+        page: 1,
+        perPage: 10,
+        sort: 'id',
+        direction: 'ASC',
+        sceneFilter: {},
+      });
+      expect(page.items[0]).toMatchObject({
+        duration: 2451,
+        width: 3840,
+        height: 2160,
+      });
+      const body = JSON.parse(
+        (fetchMock.mock.calls[0][1] as RequestInit).body as string,
+      );
+      expect(body.query).toMatch(/files \{\s*duration\s*width\s*height/);
+    });
+
     it('refuses an answer with no scene list when asked to be strict', async () => {
       fetchMock.mockResolvedValue(ok({}));
       await expect(
@@ -2126,6 +2269,8 @@ describe('StashAdapter', () => {
             screenshotVersion: '1',
             studio: { id: '3', name: 'Studio', imageVersion: null },
             duration: 600,
+            width: null,
+            height: null,
             playCount: 2,
             resumeTime: 30,
             lastPlayedAt: null,
