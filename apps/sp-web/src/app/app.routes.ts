@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { libraryStudioRedirectGuard } from './core/guards/library-studio-redirect.guard';
+import { libraryPerformerRedirectGuard } from './core/guards/library-performer-redirect.guard';
 import {
   bootstrapOnlyWhenRequiredGuard,
   loginOnlyWhenLoggedOutGuard,
@@ -198,6 +199,12 @@ export const routes: Routes = [
           import('./pages/local-scene/local-scene-page.component').then(
             (m) => m.LocalScenePageComponent,
           ),
+      },
+      {
+        // From a library scene's performer: their catalog page when they're linked, else their library page.
+        path: 'library/performer/:id/all',
+        canActivate: [libraryPerformerRedirectGuard],
+        children: [],
       },
       {
         path: 'library/performer/:id',

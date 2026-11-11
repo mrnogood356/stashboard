@@ -231,7 +231,7 @@
             @for (performer of scene.performers; track performer.id) {
               <a
                 class="performer"
-                [routerLink]="['/library/performer', performer.id]"
+                [routerLink]="['/library/performer', performer.id, 'all']"
                 [queryParams]="{ returnTo: currentUrl() }"
                 [attr.aria-label]="'More scenes with ' + performer.name"
               >

@@ -770,7 +770,7 @@ export class StashAdapter extends StashLibraryToolsApi {
     if (!id) {
       return null;
     }
-    const full = `id name disambiguation gender birthdate death_date country details favorite image_path scene_count`;
+    const full = `id name disambiguation gender birthdate death_date country details favorite image_path scene_count stash_ids { stash_id }`;
     const basic = `id name gender favorite image_path scene_count`;
     const performer = await this.queryWithFallback(
       config,
@@ -800,6 +800,14 @@ export class StashAdapter extends StashLibraryToolsApi {
       imageVersion: stashImageVersion(performer.image_path, { realOnly: true }),
       sceneCount:
         typeof performer.scene_count === 'number' ? performer.scene_count : 0,
+      catalogIds: Array.isArray(performer.stash_ids)
+        ? performer.stash_ids.flatMap((entry) => {
+            const stashId = this.normalizeOptionalString(
+              (entry as { stash_id?: unknown } | null)?.stash_id,
+            );
+            return stashId ? [stashId] : [];
+          })
+        : [],
     };
   }
 
