@@ -16,16 +16,17 @@ const performer = (id: string, name: string) => ({
 });
 
 async function render() {
-  const getPerformersFeed = vi.fn((page: number, _per: number, filters: { name?: string }) =>
-    of({
-      total: filters.name ? 1 : 30,
-      page,
-      perPage: 24,
-      hasMore: !filters.name && page === 1,
-      items: filters.name
-        ? [performer('k', 'Khloe Kingsley')]
-        : [performer(`p${page}`, `Performer ${page}`)],
-    }),
+  const getPerformersFeed = vi.fn(
+    (page: number, _per: number, filters: { name?: string; studioId?: string }) =>
+      of({
+        total: filters.name ? 1 : 30,
+        page,
+        perPage: 24,
+        hasMore: !filters.name && page === 1,
+        items: filters.name
+          ? [performer('k', 'Khloe Kingsley')]
+          : [performer(`p${page}`, `Performer ${page}`)],
+      }),
   );
   TestBed.resetTestingModule();
   await TestBed.configureTestingModule({
