@@ -79,7 +79,14 @@ export class StashAdapter extends StashLibraryToolsApi {
     if (cached && Date.now() - cached.at < 10 * 60_000) {
       return cached.productionDate;
     }
-    const version = await this.getVersion(config).catch(() => null);
+    let version: string | null;
+    try {
+      version = await this.getVersion(config);
+    } catch {
+      // Not known this time: not asked for, and not remembered, so the next
+      // request asks Stash again.
+      return false;
+    }
     const productionDate = stashVersionAtLeast(version, 0, 32);
     this.features.set(config.baseUrl, { at: Date.now(), productionDate });
     return productionDate;
@@ -1728,7 +1735,12 @@ export class StashAdapter extends StashLibraryToolsApi {
       tagIds: tags.ids,
       tagNames: tags.names,
       releaseDate: this.normalizeOptionalString(scene.date),
-      productionDate: this.normalizeOptionalString(scene.production_date),
+      // Not asked (an older Stash, or its version unknown): left out, so the
+      // library index keeps the date it has rather than clearing it.
+      productionDate:
+        'production_date' in scene
+          ? this.normalizeOptionalString(scene.production_date)
+          : undefined,
       duration,
       ...this.pickFirstSize(scene.files ?? []),
       viewUrl: this.resolveSceneViewUrl(baseUrl, id),

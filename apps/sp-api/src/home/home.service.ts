@@ -1318,6 +1318,8 @@ export class HomeService {
       studioImageUrl: item.studioImageUrl,
       releaseDate: item.releaseDate,
       duration: item.duration,
+      width: item.width,
+      height: item.height,
       type: 'SCENE',
       source: 'STASH',
       status: { state: 'AVAILABLE' },

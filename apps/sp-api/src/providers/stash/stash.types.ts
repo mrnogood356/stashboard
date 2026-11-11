@@ -87,8 +87,11 @@ export interface StashLocalLibrarySceneItem {
   tagIds: string[];
   tagNames: string[];
   releaseDate: string | null;
-  /** When it was filmed (Stash 0.32 and later); null when not set or older. */
-  productionDate: string | null;
+  /**
+   * When it was filmed (Stash 0.32 and later): null when not set, undefined
+   * when Stash wasn't asked (older, or its version unknown).
+   */
+  productionDate?: string | null;
   duration: number | null;
   /** The main file's picture size, for its quality (4K, 1080p…). */
   width: number | null;

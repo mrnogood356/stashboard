@@ -928,7 +928,6 @@ describe('StashAdapter', () => {
           tagIds: ['tag-1', 'tag-2'],
           tagNames: ['Tag One', 'Tag Two'],
           releaseDate: '2026-03-24',
-          productionDate: null,
           duration: 1800,
           width: null,
           height: null,
@@ -976,7 +975,9 @@ describe('StashAdapter', () => {
                     id: '9',
                     title: 'Filmed',
                     date: '2026-01-10',
-                    production_date: productionDate ? '2025-08-01' : undefined,
+                    ...(productionDate
+                      ? { production_date: '2025-08-01' }
+                      : {}),
                     files: [{ duration: 600, width: 2560, height: 1440 }],
                   },
                 ],
@@ -998,7 +999,9 @@ describe('StashAdapter', () => {
     expect(query()).toContain('production_date');
 
     const older = await page(false);
-    expect(older.items[0]).toMatchObject({ productionDate: null, width: 2560 });
+    // Not asked: left out, so the library index keeps the date it has.
+    expect(older.items[0].productionDate).toBeUndefined();
+    expect(older.items[0]).toMatchObject({ width: 2560 });
     expect(query()).not.toContain('production_date');
   });
 
@@ -1027,6 +1030,18 @@ describe('StashAdapter', () => {
     await expect(
       fresh.supportsProductionDate({ baseUrl: 'http://other.test' }),
     ).resolves.toBe(false);
+
+    // A failed check isn't remembered: Stash is asked again next time.
+    const flaky = new StashAdapter(
+      runtimeHealthService as unknown as RuntimeHealthService,
+    );
+    const flakyVersion = jest
+      .spyOn(flaky, 'getVersion')
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce('v0.32.1');
+    await expect(flaky.supportsProductionDate(config)).resolves.toBe(false);
+    await expect(flaky.supportsProductionDate(config)).resolves.toBe(true);
+    expect(flakyVersion).toHaveBeenCalledTimes(2);
 
     expect(stashVersionAtLeast('v0.32.0-21-gabcdef', 0, 32)).toBe(true);
     expect(stashVersionAtLeast('v1.0.0', 0, 32)).toBe(true);

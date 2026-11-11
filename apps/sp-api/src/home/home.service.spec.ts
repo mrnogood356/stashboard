@@ -929,6 +929,8 @@ describe('HomeService', () => {
         studioImageUrl: '/api/media/stash/studios/studio-1/logo',
         releaseDate: '2026-03-24',
         duration: 1800,
+        width: 3840,
+        height: 2160,
         type: 'SCENE',
         source: 'STASH',
         viewUrl: 'http://stash.local/scenes/411',
@@ -958,6 +960,8 @@ describe('HomeService', () => {
         expect.objectContaining({
           id: '411',
           source: 'STASH',
+          width: 3840,
+          height: 2160,
           requestable: false,
           imageUrl: '/api/media/stash/scenes/411/screenshot',
           cardImageUrl: '/api/media/stash/scenes/411/screenshot',
