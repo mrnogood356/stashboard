@@ -649,6 +649,18 @@ describe('StashAdapter', () => {
       expect(mutations()).toBe(1);
     });
 
+    it('forgets the oldest jobs rather than remembering every one for ever', async () => {
+      const first = await adapter.startLibraryTask(config, 'generate', ['0']);
+      for (let scene = 1; scene <= 200; scene += 1) {
+        await adapter.startLibraryTask(config, 'generate', [String(scene)]);
+      }
+      queue = [{ id: first!, status: 'READY' }];
+      // The first was pushed out, so asking again queues a new job.
+      await expect(
+        adapter.startLibraryTask(config, 'generate', ['0']),
+      ).resolves.not.toBe(first);
+    });
+
     it('keeps different scenes’ previews apart', async () => {
       const one = await adapter.startLibraryTask(config, 'generate', ['1']);
       queue = [{ id: one!, status: 'READY' }];

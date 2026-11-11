@@ -65,8 +65,38 @@ export class HealthHistoryService
     }
   }
 
+  /** The most memory seen so far (MB), and when the process started using it. */
+  private memoryHigh: number | null = null;
+  /** Swapped in tests. */
+  memoryUsage: () => { rss: number; heapUsed: number } = () =>
+    process.memoryUsage();
+
+  /**
+   * Logs Stashboard's memory each time it reaches a new high, 50 MB above
+   * the last one, so steady growth shows in the log with when it happened.
+   */
+  noteMemory(): void {
+    const usage = this.memoryUsage();
+    const rss = Math.round(usage.rss / 1024 / 1024);
+    const heap = Math.round(usage.heapUsed / 1024 / 1024);
+    if (this.memoryHigh === null) {
+      this.memoryHigh = rss;
+      this.logger.log(
+        `Memory: ${rss} MB in use (${heap} MB of it JavaScript).`,
+      );
+      return;
+    }
+    if (rss >= this.memoryHigh + 50) {
+      this.logger.warn(
+        `Memory: ${rss} MB in use (${heap} MB of it JavaScript), up from ${this.memoryHigh} MB.`,
+      );
+      this.memoryHigh = rss;
+    }
+  }
+
   @Interval(SAMPLE_EVERY_MS)
   async record(): Promise<void> {
+    this.noteMemory();
     if (this.running || !this.about) {
       return;
     }

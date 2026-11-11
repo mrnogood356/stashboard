@@ -88,4 +88,29 @@ describe('health history', () => {
     );
     await expect(history.record()).resolves.toBeUndefined();
   });
+
+  it('logs memory at start and each time it climbs 50 MB past the last high', () => {
+    const history = new HealthHistoryService({} as never);
+    const logger = (
+      history as unknown as { logger: { log: jest.Mock; warn: jest.Mock } }
+    ).logger;
+    logger.log = jest.fn();
+    logger.warn = jest.fn();
+    const mb = 1024 * 1024;
+    let rss = 300;
+    history.memoryUsage = () => ({ rss: rss * mb, heapUsed: 120 * mb });
+
+    history.noteMemory();
+    expect(logger.log).toHaveBeenCalledWith(
+      'Memory: 300 MB in use (120 MB of it JavaScript).',
+    );
+    rss = 340;
+    history.noteMemory();
+    expect(logger.warn).not.toHaveBeenCalled();
+    rss = 360;
+    history.noteMemory();
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Memory: 360 MB in use (120 MB of it JavaScript), up from 300 MB.',
+    );
+  });
 });
