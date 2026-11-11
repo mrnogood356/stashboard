@@ -119,10 +119,10 @@ export class FollowsApiService {
 
 /** Where a follow starts from, as the choices the follow sheet offers. */
 export const SINCE_OPTIONS = [
-  { days: 0, label: 'New scenes only' },
-  { days: 30, label: 'Last 30 days too' },
-  { days: 90, label: 'Last 90 days too' },
-  { days: 365, label: 'Last year too' },
+  { days: 0, label: 'Today (new scenes only)' },
+  { days: 30, label: '30 days ago' },
+  { days: 90, label: '90 days ago' },
+  { days: 365, label: 'A year ago' },
 ] as const;
 
 /** YYYY-MM-DD, `days` before `now` (UTC, like the catalog's dates). */
@@ -143,10 +143,28 @@ export function sinceOptionFor(since: string, now = new Date()): number | null {
   return match ? match.days : null;
 }
 
-/** "From 2 Oct 2026", for a start none of the choices matches. */
+/** "2 Oct 2026", for a start none of the choices matches. */
 export function sinceDayLabel(since: string): string {
   const day = new Date(`${since}T00:00:00Z`);
   return Number.isNaN(day.getTime())
-    ? `From ${since}`
-    : `From ${day.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}`;
+    ? since
+    : day.toLocaleDateString(undefined, {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'UTC',
+      });
+}
+
+/**
+ * One line about a follow, for lists: "3 new · Anal, Outdoor · Requests
+ * automatically". Empty parts are left out; with none, "Every new scene".
+ */
+export function describeFollow(follow: Follow): string {
+  const parts = [
+    follow.newCount > 0 ? `${follow.newCount} new` : null,
+    follow.tags.length > 0 ? follow.tags.map((tag) => tag.name).join(', ') : null,
+    follow.autoRequest ? 'Requests automatically' : null,
+  ].filter((part): part is string => part !== null);
+  return parts.length > 0 ? parts.join(' · ') : 'Every new scene';
 }

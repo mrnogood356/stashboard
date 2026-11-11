@@ -137,106 +137,46 @@
             <h2 class="group-title">{{ group.label }}</h2>
             <ul class="follow-list">
               @for (follow of group.items; track follow.id) {
-                <li class="follow-row" [attr.data-testid]="'follow-' + follow.entityId">
-                  <a class="avatar" [routerLink]="entityRoute(follow.kind, follow.entityId)">
-                    @if (follow.imageUrl) {
-                      <img [src]="follow.imageUrl" alt="" loading="lazy" decoding="async" />
-                    } @else {
-                      <i
-                        class="pi"
-                        [class.pi-user]="follow.kind === 'PERFORMER'"
-                        [class.pi-building]="follow.kind === 'STUDIO'"
-                        aria-hidden="true"
-                      ></i>
-                    }
-                  </a>
-                  <div class="follow-copy">
-                    <a class="name" [routerLink]="entityRoute(follow.kind, follow.entityId)">{{
-                      follow.name
-                    }}</a>
-                    <p class="meta">
-                      @if (follow.newCount > 0) {
-                        <span class="new">{{ follow.newCount }} new</span> ·
-                      }
-                      @if (follow.lastCheckedAt) {
-                        Checked {{ follow.lastCheckedAt | date: 'MMM d, HH:mm' }}
+                <li>
+                  <button
+                    type="button"
+                    class="follow-row"
+                    aria-haspopup="dialog"
+                    [attr.aria-label]="follow.name + ': options'"
+                    [attr.data-testid]="'follow-' + follow.entityId"
+                    (click)="openSheet(follow)"
+                  >
+                    <span class="avatar" aria-hidden="true">
+                      @if (follow.imageUrl) {
+                        <img [src]="follow.imageUrl" alt="" loading="lazy" decoding="async" />
                       } @else {
-                        Not checked yet
+                        <i
+                          class="pi"
+                          [class.pi-user]="follow.kind === 'PERFORMER'"
+                          [class.pi-building]="follow.kind === 'STUDIO'"
+                        ></i>
                       }
-                    </p>
-                    <p class="tags-line">
-                      @if (follow.tags.length > 0) {
-                        Only tagged {{ tagSummary(follow) }}
+                    </span>
+                    <span class="follow-copy">
+                      <span class="name">{{ follow.name }}</span>
+                      <span class="summary">{{ describe(follow) }}</span>
+                      @if (follow.lastError) {
+                        <span class="failed">
+                          <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                          {{ follow.lastError }}
+                        </span>
                       } @else {
-                        Every tag
+                        <span class="checked">
+                          @if (follow.lastCheckedAt) {
+                            Checked {{ follow.lastCheckedAt | date: 'MMM d, HH:mm' }}
+                          } @else {
+                            Not checked yet
+                          }
+                        </span>
                       }
-                      ·
-                      <button
-                        type="button"
-                        class="edit-tags"
-                        [attr.aria-expanded]="editingTagsId() === follow.id"
-                        [attr.data-testid]="'edit-tags-' + follow.entityId"
-                        (click)="toggleTags(follow)"
-                      >
-                        {{ editingTagsId() === follow.id ? 'Done' : 'Edit tags' }}
-                      </button>
-                    </p>
-                    @if (follow.lastError) {
-                      <p class="failed">
-                        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-                        {{ follow.lastError }}
-                      </p>
-                    }
-                  </div>
-                  <div class="follow-controls">
-                    <select
-                      [disabled]="isSaving(follow)"
-                      [attr.aria-label]="'How far back to look for ' + follow.name"
-                      (change)="setSince(follow, $any($event.target))"
-                    >
-                      @if (sinceChoice(follow) === null) {
-                        <option value="custom" disabled selected>
-                          {{ sinceDayLabel(follow.since) }}
-                        </option>
-                      }
-                      @for (option of sinceOptions; track option.days) {
-                        <option
-                          [value]="option.days"
-                          [selected]="sinceChoice(follow) === option.days"
-                        >
-                          {{ option.label }}
-                        </option>
-                      }
-                    </select>
-                    <label class="auto">
-                      <input
-                        type="checkbox"
-                        [checked]="follow.autoRequest"
-                        [disabled]="isSaving(follow)"
-                        [attr.data-testid]="'auto-' + follow.entityId"
-                        (change)="setAutoRequest(follow, $any($event.target))"
-                      />
-                      Request automatically
-                    </label>
-                    <button
-                      type="button"
-                      class="unfollow"
-                      [disabled]="isSaving(follow)"
-                      [attr.aria-label]="'Unfollow ' + follow.name"
-                      (click)="unfollow(follow)"
-                    >
-                      Unfollow
-                    </button>
-                  </div>
-                  @if (editingTagsId() === follow.id) {
-                    <div class="tags-editor">
-                      <app-follow-tags
-                        [tags]="follow.tags"
-                        [disabled]="isSaving(follow)"
-                        (tagsChange)="setTags(follow, $event)"
-                      />
-                    </div>
-                  }
+                    </span>
+                    <i class="pi pi-chevron-right chevron" aria-hidden="true"></i>
+                  </button>
                 </li>
               }
             </ul>
@@ -260,6 +200,15 @@
     }
   }
 </main>
+
+<app-follow-sheet
+  [open]="sheetFollow() !== null"
+  [follow]="sheetFollow()"
+  showPageLink
+  (closed)="closeSheet()"
+  (saved)="onSheetSaved($event.follow, $event.changes)"
+  (unfollowed)="onUnfollowed($event)"
+/>
 
 <app-scene-request-modal
   [open]="requestContext() !== null"
