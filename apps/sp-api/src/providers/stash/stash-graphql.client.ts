@@ -287,7 +287,10 @@ export abstract class StashGraphqlClient {
     }
 
     if (!response.ok) {
-      const message = await describeErrorResponse(response, 'Stash provider');
+      const message = withStashAccessHint(
+        await describeErrorResponse(response, 'Stash provider'),
+        response.status,
+      );
       this.logger.warn(
         `Stash answered ${response.status} to ${operation}: ${message}`,
       );
@@ -392,4 +395,15 @@ export abstract class StashGraphqlClient {
 function operationName(query: string): string {
   const match = /\b(query|mutation)\s+(\w+)/.exec(query);
   return match ? `${match[1]} ${match[2]}` : 'request';
+}
+
+/**
+ * Stash 0.32 refuses requests from public addresses when it has no login set
+ * (it used to shut down instead), with a 403. Says how to let Stashboard in.
+ */
+export function withStashAccessHint(message: string, status: number): string {
+  if (status !== 403) {
+    return message;
+  }
+  return `${message}. Stash refuses addresses outside your local network when it has no username and password. In Stash, set a username and password and give Stashboard its API key, or add Stashboard's address to public_whitelist in Stash's config.yml (for example 203.0.113.5/32).`;
 }
