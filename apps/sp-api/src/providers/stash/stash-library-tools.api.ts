@@ -2598,6 +2598,74 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
     };
   }
 
+  /**
+   * Rescans these scenes' files with hover previews made as part of the
+   * scan. Some Stash builds (0.32 development builds before the fix for
+   * Stash issue #7341) make no previews from Generate at all; the scan
+   * makes them. Nothing else is generated, and nothing is overwritten.
+   */
+  async rescanForPreviews(
+    config: StashAdapterBaseConfig,
+    sceneIds: string[],
+  ): Promise<string | null> {
+    const ids = [
+      ...new Set(
+        sceneIds
+          .map((id) => this.normalizeEntityId(id))
+          .filter((id): id is string => !!id),
+      ),
+    ];
+    if (ids.length === 0) {
+      return null;
+    }
+    const found = (await this.executeQuery(
+      config,
+      `query PreviewFiles($ids: [ID!]) {
+        findScenes(ids: $ids, filter: { per_page: -1 }) { scenes { files { path } } }
+      }`,
+      { ids },
+    )) as unknown as {
+      data?: {
+        findScenes?: { scenes?: Array<{ files?: Array<{ path?: unknown }> }> };
+      };
+    };
+    const paths = [
+      ...new Set(
+        (found.data?.findScenes?.scenes ?? []).flatMap((scene) =>
+          (scene.files ?? [])
+            .map((file) => file.path)
+            .filter(
+              (path): path is string => typeof path === 'string' && !!path,
+            ),
+        ),
+      ),
+    ];
+    if (paths.length === 0) {
+      return null;
+    }
+    const payload = (await this.executeQuery(
+      config,
+      `mutation PreviewScan($input: ScanMetadataInput!) { metadataScan(input: $input) }`,
+      {
+        input: {
+          paths,
+          rescan: true,
+          scanGenerateCovers: false,
+          scanGeneratePreviews: true,
+          scanGenerateImagePreviews: true,
+          scanGenerateSprites: false,
+          scanGeneratePhashes: false,
+          scanGenerateThumbnails: false,
+          scanGenerateClipPreviews: false,
+        },
+      },
+    )) as unknown as { data?: { metadataScan?: unknown } };
+    const job = payload.data?.metadataScan;
+    return typeof job === 'string' || typeof job === 'number'
+      ? String(job)
+      : null;
+  }
+
   /** Ids of every scene Stash says is missing this (one query, ids only). */
   private async sceneIdsMissing(
     config: StashAdapterBaseConfig,
