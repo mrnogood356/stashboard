@@ -74,6 +74,8 @@ export interface LocalPerformer {
   favorite: boolean;
   imageUrl: string | null;
   sceneCount: number;
+  /** Their StashDB/FansDB ids. Older APIs: missing. */
+  catalogIds?: string[];
 }
 
 export interface LocalStudio {

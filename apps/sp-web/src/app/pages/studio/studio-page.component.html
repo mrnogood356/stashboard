@@ -203,6 +203,10 @@
       }
     </div>
 
+    @if (studioId(); as currentStudioId) {
+      <app-studio-performers [studioId]="currentStudioId" [returnTo]="currentRouteUrl()" />
+    }
+
     <section
       class="section controls-shell app-section-panel app-control-shell"
       aria-label="Studio scene filters"

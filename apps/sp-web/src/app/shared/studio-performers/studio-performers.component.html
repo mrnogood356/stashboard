@@ -1,0 +1,60 @@
+<section class="studio-performers app-section-panel" aria-label="Performers in this studio">
+  <div class="head">
+    <h2>Performers</h2>
+    @if (total() > 0) {
+      <span class="count">{{ total() }}</span>
+    }
+  </div>
+  <input
+    class="search"
+    type="search"
+    placeholder="Search this studio’s performers"
+    aria-label="Search this studio’s performers"
+    data-testid="studio-performer-search"
+    [value]="query()"
+    (input)="onQuery($any($event.target).value)"
+  />
+
+  @if (loading() && performers().length === 0) {
+    <p class="muted">Loading performers…</p>
+  } @else if (failed() && performers().length === 0) {
+    <p class="muted">Couldn’t load this studio’s performers.</p>
+  } @else if (performers().length === 0) {
+    <p class="muted">
+      {{ query() ? 'No performer by that name in this studio.' : 'No performers listed.' }}
+    </p>
+  } @else {
+    <ul class="grid">
+      @for (performer of performers(); track performer.id) {
+        <li>
+          <a
+            class="performer"
+            [routerLink]="['/performer', performer.id]"
+            [queryParams]="returnTo ? { returnTo: returnTo } : {}"
+            [attr.data-testid]="'studio-performer-' + performer.id"
+          >
+            @if (performer.cardImageUrl || performer.imageUrl) {
+              <img
+                [src]="performer.cardImageUrl || performer.imageUrl"
+                [alt]="performer.name"
+                loading="lazy"
+              />
+            } @else {
+              <span class="placeholder" aria-hidden="true">{{ initial(performer.name) }}</span>
+            }
+            <span class="name">{{ performer.name }}</span>
+            <span class="scenes">{{ performer.sceneCount }} scenes</span>
+          </a>
+        </li>
+      }
+    </ul>
+    @if (failed()) {
+      <p class="muted">Couldn’t load more of this studio’s performers.</p>
+    }
+    @if (hasMore() || failed()) {
+      <button type="button" class="btn small more" [disabled]="loading()" (click)="more()">
+        {{ loading() ? 'Loading…' : failed() ? 'Try again' : 'Show more' }}
+      </button>
+    }
+  }
+</section>

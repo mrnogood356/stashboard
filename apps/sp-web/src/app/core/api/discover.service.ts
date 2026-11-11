@@ -173,6 +173,8 @@ export class DiscoverService {
       sort?: PerformerSort;
       direction?: SortDirection;
       favoritesOnly?: boolean;
+      /** Only performers in this catalog studio's scenes. */
+      studioId?: string;
     },
   ): Observable<PerformerFeedResponse> {
     let params = new HttpParams().set('page', page.toString()).set('perPage', perPage.toString());
@@ -191,6 +193,9 @@ export class DiscoverService {
     }
     if (filters?.favoritesOnly) {
       params = params.set('favoritesOnly', 'true');
+    }
+    if (filters?.studioId) {
+      params = params.set('studioId', filters.studioId);
     }
     return this.http.get<PerformerFeedResponse>('/api/performers', { params });
   }

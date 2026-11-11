@@ -108,6 +108,8 @@ export interface LocalPerformerDto {
   favorite: boolean;
   imageUrl: string | null;
   sceneCount: number;
+  /** Their StashDB/FansDB ids, for their catalog page. */
+  catalogIds: string[];
 }
 
 export interface DuplicateSceneDto extends Omit<

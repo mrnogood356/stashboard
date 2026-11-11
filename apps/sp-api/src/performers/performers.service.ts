@@ -51,6 +51,7 @@ export class PerformersService {
       sort?: PerformerSort;
       direction?: PerformerSortDirection;
       favoritesOnly?: boolean;
+      studioId?: string;
     },
   ): Promise<PerformerFeedResponseDto> {
     const catalogProvider =
@@ -68,6 +69,7 @@ export class PerformersService {
         filters?.direction ??
         PerformersService.DEFAULT_PERFORMERS_SORT_DIRECTION,
       favoritesOnly: filters?.favoritesOnly === true,
+      studioId: filters?.studioId?.trim() || undefined,
     });
 
     const hasMore = page * perPage < performers.total;
@@ -95,7 +97,7 @@ export class PerformersService {
       throw new BadRequestException('Performer id is required.');
     }
 
-    const { value: performer } =
+    const { value: performer, provider } =
       await this.catalogProviderService.withDetailFallback((provider) =>
         this.stashdbAdapter.getPerformerById(normalizedPerformerId, {
           baseUrl: provider.baseUrl,
@@ -132,6 +134,7 @@ export class PerformersService {
       updatedAt: performer.updatedAt,
       imageUrl: performer.imageUrl,
       images: performer.images,
+      provider: provider.providerKey,
     };
   }
 

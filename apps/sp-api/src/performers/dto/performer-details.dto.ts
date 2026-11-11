@@ -1,3 +1,4 @@
+import type { CatalogProviderKey } from '../../providers/catalog/catalog-provider.util';
 import { PerformerGender } from './performers-query.dto';
 
 export interface PerformerDetailsImageDto {
@@ -36,4 +37,6 @@ export interface PerformerDetailsDto {
   updatedAt: string | null;
   imageUrl: string | null;
   images: PerformerDetailsImageDto[];
+  /** The catalog it came from: the one asked, or the other when it wasn't there. */
+  provider: CatalogProviderKey;
 }

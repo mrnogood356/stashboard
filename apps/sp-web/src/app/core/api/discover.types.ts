@@ -297,6 +297,8 @@ export interface PerformerDetails {
   updatedAt: string | null;
   imageUrl: string | null;
   images: PerformerDetailsImage[];
+  /** The catalog it came from (the other one when the page's didn't have it). */
+  provider?: CatalogProviderType;
 }
 
 export interface PerformerStudioOption {

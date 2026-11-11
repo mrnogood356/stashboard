@@ -72,6 +72,8 @@ export interface StashdbPerformerFeedConfig extends StashdbAdapterBaseConfig {
   sort?: StashdbPerformerSort;
   direction?: StashdbSortDirection;
   favoritesOnly?: boolean;
+  /** Only performers in this studio's scenes. */
+  studioId?: string;
 }
 
 export interface StashdbPerformerDetails {

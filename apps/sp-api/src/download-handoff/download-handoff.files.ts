@@ -543,3 +543,52 @@ function messageOf(error: unknown): string {
     ? error.message
     : 'unknown error';
 }
+
+/**
+ * Removes the _FAILED_ folder SABnzbd leaves in its category folder when a
+ * download fails after it was moved there (SABnzbd's own delete only clears
+ * its incomplete folder). Only a real folder (not a link) named _FAILED_…,
+ * strictly inside the category folder (real paths resolved), never
+ * SABnzbd's completed folder or anything holding it. Everything in it goes:
+ * a failed download's files are of no use.
+ */
+export async function removeFailedFolder(options: {
+  folder: string;
+  categoryFolder: string;
+  completedFolder?: string | null;
+}): Promise<
+  { result: 'removed' | 'gone' } | { result: 'kept'; reason: string }
+> {
+  const folder = trimTrailingSeparators(options.folder) || options.folder;
+  const stat = await fs.lstat(folder).catch(() => null);
+  if (!stat) {
+    return { result: 'gone' };
+  }
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    return { result: 'kept', reason: `${folder} isn’t a plain folder.` };
+  }
+  const real = await fs.realpath(folder).catch(() => null);
+  const category = await fs.realpath(options.categoryFolder).catch(() => null);
+  if (!real || !category) {
+    return {
+      result: 'kept',
+      reason: `Stashboard can’t see SABnzbd’s category folder (${options.categoryFolder}).`,
+    };
+  }
+  const completed = options.completedFolder
+    ? await fs.realpath(options.completedFolder).catch(() => null)
+    : null;
+  if (
+    !/^_FAILED_/i.test(path.basename(real)) ||
+    real === category ||
+    !isInside(real, category) ||
+    (completed && isInside(completed, real))
+  ) {
+    return {
+      result: 'kept',
+      reason: `${folder} isn’t a failed download’s own folder inside SABnzbd’s category folder (${options.categoryFolder}).`,
+    };
+  }
+  await fs.rm(real, { recursive: true, force: true });
+  return { result: 'removed' };
+}

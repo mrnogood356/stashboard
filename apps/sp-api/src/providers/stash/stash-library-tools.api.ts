@@ -54,6 +54,9 @@ export interface StashMergeCandidate {
 }
 
 /** The kept one's aliases and links, plus the merged ones' names, aliases and links. */
+/** Stash jobs remembered for reuse; older ones are forgotten. */
+const MAX_REMEMBERED_JOBS = 200;
+
 function mergedValues(
   keep: Record<string, unknown>,
   sources: Array<Record<string, unknown>>,
@@ -133,12 +136,22 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
       }
     }
     const started = start();
+    this.queuedJobs.delete(fullKey);
     this.queuedJobs.set(fullKey, started);
     started.catch(() => {
       if (this.queuedJobs.get(fullKey) === started) {
         this.queuedJobs.delete(fullKey);
       }
     });
+    // Only recent jobs are worth reusing: each import adds a key (its scene
+    // or folder), so the oldest are forgotten rather than kept for ever.
+    while (this.queuedJobs.size > MAX_REMEMBERED_JOBS) {
+      const oldest = this.queuedJobs.keys().next().value;
+      if (oldest === undefined) {
+        break;
+      }
+      this.queuedJobs.delete(oldest);
+    }
     return started;
   }
 

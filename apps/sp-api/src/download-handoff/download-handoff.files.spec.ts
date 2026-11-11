@@ -7,6 +7,7 @@ import {
   HandoffFileError,
   isInside,
   placeVideo,
+  removeFailedFolder,
   removeJobFolder,
 } from './download-handoff.files';
 
@@ -352,6 +353,42 @@ describe('finished download files', () => {
       expect(await findLooseVideos(category, [job])).toEqual([
         path.join(category, 'Loose.mp4'),
       ]);
+    });
+  });
+
+  describe('removeFailedFolder', () => {
+    const completed = () => path.join(root, 'sab');
+    const category = () => path.join(completed(), 'stashboard-downloads');
+    const remove = (folder: string) =>
+      removeFailedFolder({
+        folder,
+        categoryFolder: category(),
+        completedFolder: completed(),
+      });
+
+    it('removes a _FAILED_ folder in the category folder, with everything in it', async () => {
+      const failed = path.join(category(), '_FAILED_Release.Name');
+      await write(path.join(failed, 'part.mkv'), 900);
+      await expect(remove(failed)).resolves.toEqual({ result: 'removed' });
+      expect(await exists(failed)).toBe(false);
+      expect(await exists(job)).toBe(true);
+    });
+
+    it('leaves a link, a folder outside the category folder, and the category folder itself', async () => {
+      const outside = path.join(root, 'elsewhere', '_FAILED_Release.Name');
+      await write(path.join(outside, 'keep.mkv'), 10);
+      const link = path.join(category(), '_FAILED_Link');
+      await fs.symlink(outside, link);
+
+      await expect(remove(link)).resolves.toMatchObject({ result: 'kept' });
+      await expect(remove(outside)).resolves.toMatchObject({ result: 'kept' });
+      await expect(remove(category())).resolves.toMatchObject({
+        result: 'kept',
+      });
+      expect(await exists(path.join(outside, 'keep.mkv'))).toBe(true);
+      await expect(
+        remove(path.join(category(), '_FAILED_Gone')),
+      ).resolves.toEqual({ result: 'gone' });
     });
   });
 });

@@ -55,6 +55,7 @@ export class HealthHistoryService
 
   /** A first check soon after start, so the chart isn't empty for 5 minutes. */
   onApplicationBootstrap(): void {
+    this.noteMemory();
     this.firstCheck = setTimeout(() => void this.record(), 30_000);
     this.firstCheck.unref?.();
   }
@@ -65,8 +66,46 @@ export class HealthHistoryService
     }
   }
 
+  /** The most memory seen so far (MB), and when the process started using it. */
+  private memoryHigh: number | null = null;
+  /** Swapped in tests. */
+  memoryUsage: () => {
+    rss: number;
+    heapUsed: number;
+    external?: number;
+    arrayBuffers?: number;
+  } = () => process.memoryUsage();
+
+  /**
+   * Logs Stashboard's memory each time it reaches a new high, 50 MB above
+   * the last one, so steady growth shows in the log with when it happened.
+   * Split into JavaScript objects, buffers (downloads, files) and other
+   * memory outside JavaScript: a leak shows in one of them, or in none
+   * (native memory).
+   */
+  noteMemory(): void {
+    const usage = this.memoryUsage();
+    const mb = (bytes: number | undefined) =>
+      Math.round((bytes ?? 0) / 1048576);
+    const rss = mb(usage.rss);
+    const buffers = usage.arrayBuffers ?? 0;
+    const parts = `${mb(usage.heapUsed)} MB of it JavaScript, ${mb(buffers)} MB buffers, ${mb(Math.max(0, (usage.external ?? 0) - buffers))} MB other outside JavaScript`;
+    if (this.memoryHigh === null) {
+      this.memoryHigh = rss;
+      this.logger.log(`Memory: ${rss} MB in use (${parts}).`);
+      return;
+    }
+    if (rss >= this.memoryHigh + 50) {
+      this.logger.warn(
+        `Memory: ${rss} MB in use (${parts}), up from ${this.memoryHigh} MB.`,
+      );
+      this.memoryHigh = rss;
+    }
+  }
+
   @Interval(SAMPLE_EVERY_MS)
   async record(): Promise<void> {
+    this.noteMemory();
     if (this.running || !this.about) {
       return;
     }

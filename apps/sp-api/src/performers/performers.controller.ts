@@ -23,6 +23,7 @@ export class PerformersController {
       sort: query.sort,
       direction: query.direction,
       favoritesOnly: query.favoritesOnly,
+      studioId: query.studioId,
     });
   }
 

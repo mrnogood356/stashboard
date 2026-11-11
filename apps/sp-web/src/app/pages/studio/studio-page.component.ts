@@ -47,6 +47,7 @@ import { OwnedNoteComponent } from '../../shared/owned-note/owned-note.component
 import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.component';
 import { HideToggleComponent } from '../../shared/hide-toggle/hide-toggle.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
+import { StudioPerformersComponent } from '../../shared/studio-performers/studio-performers.component';
 
 type FavoritesFilterOption = 'NONE' | SceneFavoritesFilter;
 
@@ -58,6 +59,7 @@ interface MultiSelectOption {
 @Component({
   selector: 'app-studio-page',
   imports: [
+    StudioPerformersComponent,
     SkeletonComponent,
     HideToggleComponent,
     RouterLink,

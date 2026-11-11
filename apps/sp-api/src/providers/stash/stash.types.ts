@@ -187,6 +187,8 @@ export interface StashLocalPerformer {
   favorite: boolean;
   imageVersion: string | null;
   sceneCount: number;
+  /** Their StashDB/FansDB ids, for their catalog page. */
+  catalogIds: string[];
 }
 
 export interface StashLocalStudio {

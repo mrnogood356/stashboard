@@ -43,6 +43,7 @@ import {
   isInside,
   type JobFolderCleanup,
   placeVideo,
+  removeFailedFolder,
   removeJobFolder,
 } from './download-handoff.files';
 import {
@@ -383,6 +384,12 @@ export class DownloadHandoffService {
       return toDto(row);
     }
     const status: HandoffStatus = row.finalPath ? 'completed' : 'sent';
+    if (!row.finalPath && !(await this.sabnzbdStillHas(row))) {
+      // Failed in SABnzbd, so removed there: watching again finds nothing.
+      throw new ConflictException(
+        'SABnzbd doesn’t have this download any more (a failed download is removed there). Find a download for the scene again to grab another release.',
+      );
+    }
     this.logger.log(`Trying download “${row.releaseTitle}” again.`);
     const updated = await this.prisma.downloadHandoff.update({
       where: { id },
@@ -391,6 +398,29 @@ export class DownloadHandoffService {
     // In the background: the answer doesn't wait for SABnzbd or Stash.
     void this.watch();
     return toDto(updated);
+  }
+
+  /**
+   * Whether SABnzbd still lists a download, in its queue or history; true
+   * when it can't be asked, so a retry is never refused on a guess.
+   */
+  private async sabnzbdStillHas(row: DownloadHandoff): Promise<boolean> {
+    const [config, settings] = await Promise.all([
+      this.sabConfig(),
+      this.getSettings(),
+    ]);
+    if (!config) {
+      return true;
+    }
+    try {
+      const [history, queue] = await Promise.all([
+        this.sabnzbd.history(config, settings.category),
+        this.sabnzbd.queue(config, settings.category),
+      ]);
+      return [...history, ...queue].some((item) => item.nzoId === row.nzoId);
+    } catch {
+      return true;
+    }
   }
 
   // ---------- watching ----------
@@ -662,6 +692,9 @@ export class DownloadHandoffService {
         row,
         `SABnzbd couldn’t download it: ${entry.failMessage ?? 'it gave no reason'}.`,
       );
+      // What it downloaded before failing stays behind otherwise, and
+      // nothing ever picks it up.
+      await this.clearFailedDownload(config, row, entry, settings);
       return;
     }
     if (status !== 'completed') {
@@ -679,6 +712,73 @@ export class DownloadHandoffService {
   }
 
   /** Moves the finished video into the destination folder; null when it couldn't. */
+  /**
+   * Has SABnzbd forget a failed download and its incomplete folder, and
+   * removes the _FAILED_ folder it may have left in the category folder.
+   * What can't be removed is listed in Activity, with where it is. Never
+   * throws.
+   */
+  private async clearFailedDownload(
+    config: SabnzbdAdapterBaseConfig,
+    row: DownloadHandoff,
+    entry: SabnzbdHistoryEntry,
+    settings: DownloadHandoffSettings,
+  ): Promise<void> {
+    const problems: string[] = [];
+    await this.sabnzbd
+      .deleteFailed(config, entry.nzoId)
+      .catch((error: unknown) => {
+        problems.push(`SABnzbd: ${messageOf(error)}`);
+      });
+    if (entry.storage && SAB_WORK_FOLDER.test(path.basename(entry.storage))) {
+      const folder = mapPath(
+        entry.storage,
+        settings.sabPathFrom,
+        settings.sabPathTo,
+      );
+      try {
+        const folders = await this.sabFolders(config, settings);
+        const result = folders.category
+          ? await removeFailedFolder({
+              folder,
+              categoryFolder: folders.category,
+              completedFolder: folders.completed,
+            })
+          : {
+              result: 'kept' as const,
+              reason: `SABnzbd didn’t say where its “${settings.category}” downloads go.`,
+            };
+        if (result.result === 'removed') {
+          this.logger.log(`Removed SABnzbd's folder ${folder}.`);
+        } else if (result.result === 'kept') {
+          problems.push(result.reason);
+        }
+      } catch (error) {
+        problems.push(`${folder}: ${messageOf(error)}`);
+      }
+    }
+    if (problems.length === 0) {
+      this.logger.log(
+        `Removed the failed download “${row.releaseTitle}” and its leftover files.`,
+      );
+      return;
+    }
+    this.logger.warn(
+      `Couldn't remove all of the failed download “${row.releaseTitle}”: ${problems.join(' ')}`,
+    );
+    await this.activity
+      ?.record({
+        kind: 'download',
+        title: `Couldn’t clear away the failed download “${row.releaseTitle}”`,
+        detail: [
+          ...problems,
+          'Delete it from SABnzbd’s history, with its files, by hand.',
+        ].join('\n'),
+        status: 'failed',
+      })
+      .catch(() => undefined);
+  }
+
   private async moveFinished(
     config: SabnzbdAdapterBaseConfig,
     row: DownloadHandoff,
@@ -1140,6 +1240,10 @@ export class DownloadHandoffService {
         }
       }
       await this.countSaved(removedBytes, keep.size ?? newFile.size ?? 0);
+      // The previews asked for earlier were for the new scene, which the merge
+      // removed before Stash got to them: ask again for the scene that stays,
+      // whose file is now the new one.
+      await this.generatePreviews(config, oldSceneId);
       await this.prisma.downloadHandoff.update({
         where: { id: row.id },
         data: { stashSceneId: oldSceneId },
