@@ -55,10 +55,11 @@ import {
 /** Scenes asked for per page, newest first. */
 const PAGE_SIZE = 40;
 /**
- * Pages read per follow and check, at most: enough to reach a year back for
- * the busiest studio. A check reads only until it reaches the cutoff.
+ * A check reads until it reaches the cutoff (at most a year back). This only
+ * stops a feed that never gets there, such as one that keeps coming back
+ * undated: 10,000 scenes.
  */
-const MAX_PAGES = 25;
+const MAX_PAGES = 250;
 /**
  * After a check has read back to a follow's start, later ones look back only
  * this far before it, for scenes the catalog adds with an earlier date.
@@ -229,31 +230,23 @@ export class FollowsService {
         ...(reachesFurther || tagsChanged ? { fullyCheckedAt: null } : {}),
       },
     });
-    if (since > existing.since && !tagsChanged) {
-      // Starting later: what's waiting from before the new start goes.
-      await this.prisma.followedScene.deleteMany({
-        where: {
-          followId: id,
-          state: { in: [FollowedSceneState.NEW, FollowedSceneState.FAILED] },
-          releaseDate: { lt: since },
-        },
-      });
-    }
     if (tagsChanged) {
-      // What's waiting may not have these tags: look again from scratch.
-      // Requested and dismissed scenes stay as they are.
-      await this.prisma.followedScene.deleteMany({
-        where: {
-          followId: id,
-          state: { in: [FollowedSceneState.NEW, FollowedSceneState.FAILED] },
-        },
-      });
       this.logger.log(
         `Following “${follow.name}”${describeTags(tags ?? []) || ' with every tag'} now.`,
       );
     }
-    if (reachesFurther || tagsChanged) {
-      void this.checkOne(follow.id).catch(() => undefined);
+    if (reachesFurther || tagsChanged || since > existing.since) {
+      // What's waiting is tidied by the follow's own check, which runs after
+      // any check already under way, so nothing that check adds under the
+      // old settings is left behind: under other tags, everything waiting
+      // goes; starting later, what's from before the new start.
+      void this.checkOne(follow.id, {
+        clearWaiting: tagsChanged
+          ? 'all'
+          : since > existing.since
+            ? 'before-start'
+            : null,
+      }).catch(() => undefined);
     }
     const counts = await this.reviewCounts(id);
     return toFollowDto(follow, counts.get(id) ?? 0);
@@ -449,9 +442,30 @@ export class FollowsService {
     return describeCheck(await this.checkAll());
   }
 
-  private checkOne(id: string): Promise<FollowCheckSummary> {
+  /**
+   * Checks one follow after a change to it, once any check under way has
+   * finished; first clearing what's waiting that the change makes stale
+   * (requested and dismissed scenes stay).
+   */
+  private checkOne(
+    id: string,
+    {
+      clearWaiting = null,
+    }: { clearWaiting?: 'all' | 'before-start' | null } = {},
+  ): Promise<FollowCheckSummary> {
     return this.exclusive(async () => {
       const follow = await this.prisma.follow.findUnique({ where: { id } });
+      if (follow && clearWaiting) {
+        await this.prisma.followedScene.deleteMany({
+          where: {
+            followId: id,
+            state: { in: [FollowedSceneState.NEW, FollowedSceneState.FAILED] },
+            ...(clearWaiting === 'before-start'
+              ? { releaseDate: { lt: follow.since } }
+              : {}),
+          },
+        });
+      }
       // You've just changed this follow and are looking at it: no message.
       return this.check(follow ? [follow] : [], { quiet: true });
     });

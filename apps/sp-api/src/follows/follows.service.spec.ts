@@ -215,6 +215,13 @@ function fakePrisma() {
   return { prisma, follows, scenes };
 }
 
+/** Waits until no check is running or waiting to run. */
+async function idle(service: FollowsService): Promise<void> {
+  do {
+    await new Promise((resolve) => setImmediate(resolve));
+  } while (service.checking);
+}
+
 function feedScene(id: string, releaseDate: string, state = 'NOT_REQUESTED') {
   return {
     id,
@@ -316,6 +323,7 @@ function setup() {
     requests,
     notifications,
     hiddenRules,
+    prisma,
   };
 }
 
@@ -729,6 +737,7 @@ describe('FollowsService', () => {
       follows[0].since = '2026-11-01';
       await service.checkAll(); // new-1 (11-10) and new-2 (11-08)
       await service.update(follows[0].id, { since: '2026-11-09' });
+      await service.checkAll(); // waits for the follow's own re-check
       expect(scenes.map((row) => row.sceneId)).toEqual(['new-1']);
     });
 
@@ -778,6 +787,56 @@ describe('FollowsService', () => {
       expect(scenes).toEqual([]);
       expect(follows[0].fullyCheckedAt).toBeNull();
       expect(follows[0].since).toBe('2026-11-01');
+    });
+    it('finds every scene of a feed with more than 1,000 since the start', async () => {
+      const { service, follows, performers } = setup();
+      const all = Array.from({ length: 1100 }, (_, i) =>
+        feedScene(
+          `b${i}`,
+          new Date(Date.UTC(2026, 10, 10) - i * 6 * 3_600_000)
+            .toISOString()
+            .slice(0, 10),
+        ),
+      );
+      performers.getPerformerScenes.mockImplementation(
+        (_id: string, page: number, perPage: number) =>
+          Promise.resolve({
+            hasMore: page * perPage < all.length,
+            items: all.slice((page - 1) * perPage, page * perPage),
+          }),
+      );
+      await service.follow({ kind: 'PERFORMER', entityId: 'p1', name: 'K' });
+      follows[0].since = '2025-11-11';
+      const summary = await service.checkAll();
+      expect(summary.found).toBe(1100);
+      expect(follows[0].fullyCheckedAt).toEqual(service.now());
+    });
+
+    it('leaves nothing behind that a check adds just after a tag change', async () => {
+      const { service, follows, scenes, performers, prisma } = setup();
+      await service.follow({ kind: 'PERFORMER', entityId: 'p1', name: 'K' });
+      follows[0].since = '2026-11-01';
+      performers.getPerformerScenes.mockResolvedValue({
+        hasMore: false,
+        items: [feedScene('untagged', '2026-11-10')],
+      });
+      // The tags change (and the change is saved) after the check has
+      // re-read the follow, just before it saves the scene.
+      const findFirst = prisma.followedScene.findFirst.getMockImplementation()!;
+      prisma.followedScene.findFirst.mockImplementationOnce(async (args) => {
+        performers.getPerformerScenes.mockResolvedValue({
+          hasMore: false,
+          items: [],
+        });
+        await service.update(follows[0].id, {
+          tags: [{ id: 't-anal', name: 'Anal' }],
+        });
+        return findFirst(args);
+      });
+      await service.checkAll();
+      // Then the follow's own re-check, queued by the change, runs.
+      await idle(service);
+      expect(scenes.map((row) => row.sceneId)).toEqual([]);
     });
   });
 });
