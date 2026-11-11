@@ -52,6 +52,13 @@ type NumberSelectOption = {
   ],
   templateUrl: './scene-request-modal.component.html',
   styleUrl: './scene-request-modal.component.scss',
+  host: {
+    // The dialog's own Escape and backdrop handling only work with its close
+    // button shown, and are set once on opening, so they'd ignore a request
+    // being sent. The sheet does both itself.
+    '(document:keydown.escape)': 'onEscape()',
+    '(mousedown)': 'onBackdrop($event)',
+  },
 })
 export class SceneRequestModalComponent implements OnChanges, OnDestroy {
   private readonly discoverService = inject(DiscoverService);
@@ -188,6 +195,23 @@ export class SceneRequestModalComponent implements OnChanges, OnDestroy {
     }
 
     this.closed.emit();
+  }
+
+  protected onEscape(): void {
+    if (this.open) {
+      this.closeModal();
+    }
+  }
+
+  protected onBackdrop(event: MouseEvent): void {
+    const target = event.target;
+    if (
+      this.open &&
+      target instanceof HTMLElement &&
+      target.classList.contains('request-dialog-mask')
+    ) {
+      this.closeModal();
+    }
   }
 
   protected onDialogVisibleChange(visible: boolean): void {

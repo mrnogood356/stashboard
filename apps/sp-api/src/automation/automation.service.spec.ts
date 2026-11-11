@@ -22,6 +22,7 @@ describe('AutomationService', () => {
     waitForJob: jest.Mock;
     findLocalScenes: jest.Mock;
     scenesWithoutPreview: jest.Mock;
+    rescanForPreviews: jest.Mock;
   };
   let indexing: {
     syncLibraryProjection: jest.Mock;
@@ -73,6 +74,7 @@ describe('AutomationService', () => {
       scenesWithoutPreview: jest
         .fn()
         .mockResolvedValue({ missing: [], unanswered: [] }),
+      rescanForPreviews: jest.fn().mockResolvedValue(null),
     };
     indexing = {
       syncLibraryProjection: jest.fn().mockResolvedValue(null),
@@ -698,6 +700,27 @@ describe('AutomationService', () => {
       await service.sweepPreviews();
       // Two empty starts, then the two real tries.
       expect(generateCalls()).toHaveLength(4);
+    });
+
+    it('rescans with previews when Stash’s Generate makes none (Stash #7341)', async () => {
+      stash.rescanForPreviews.mockResolvedValue('rescan-job');
+      stash.scenesWithoutPreview
+        .mockResolvedValueOnce(lacking()) // recent scenes: nothing else to do
+        .mockResolvedValueOnce(lacking('41', '42')) // Generate made none
+        .mockResolvedValueOnce(lacking()); // the rescan made them
+      await service.run('detected');
+      expect(stash.rescanForPreviews).toHaveBeenCalledWith(expect.anything(), [
+        '41',
+        '42',
+      ]);
+      expect(stash.waitForJob).toHaveBeenCalledWith(
+        expect.anything(),
+        'rescan-job',
+        expect.anything(),
+      );
+      expect(settings.lastRunMessage).toBe(
+        'Found 2 new scenes, previews generated, identified.',
+      );
     });
 
     it('says so when it can’t confirm the previews, rather than claiming them', async () => {

@@ -215,6 +215,40 @@ describe('StashAdapter', () => {
     expect(sent).toEqual([{ method: 'HEAD' }, { method: 'GET' }]);
   });
 
+  it('rescans a scene’s files with previews, and nothing else generated', async () => {
+    fetchMock.mockImplementation((_url, init) => {
+      const body = String(init?.body ?? '');
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: body.includes('PreviewFiles')
+              ? {
+                  findScenes: {
+                    scenes: [{ files: [{ path: '/data/a/scene.mp4' }] }],
+                  },
+                }
+              : { metadataScan: '77' },
+          }),
+      } as Response);
+    });
+
+    await expect(
+      adapter.rescanForPreviews({ baseUrl: 'http://stash.local' }, ['12']),
+    ).resolves.toBe('77');
+    const scan = JSON.parse(
+      (fetchMock.mock.calls[1][1] as { body: string }).body,
+    ) as { variables: { input: Record<string, unknown> } };
+    expect(scan.variables.input).toMatchObject({
+      paths: ['/data/a/scene.mp4'],
+      rescan: true,
+      scanGeneratePreviews: true,
+      scanGenerateCovers: false,
+      scanGenerateSprites: false,
+      scanGeneratePhashes: false,
+    });
+  });
+
   it('returns empty list when there are no matching scenes', async () => {
     fetchMock.mockResolvedValue({
       ok: true,

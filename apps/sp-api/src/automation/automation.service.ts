@@ -786,14 +786,20 @@ export class AutomationService
       );
       return { result, stillMissing: [], unconfirmed: [] };
     }
-    const check = await this.stash
-      .scenesWithoutPreview(config, sceneIds)
-      .catch((error: unknown) => {
-        this.logger.debug(
-          `Couldn't check the new previews: ${messageOf(error)}`,
-        );
-        return { missing: [] as string[], unanswered: sceneIds };
-      });
+    let check = await this.checkPreviews(config, sceneIds);
+    if (check.missing.length > 0) {
+      // Some Stash builds' Generate makes no previews at all (Stash issue
+      // #7341, 0.32 development builds), though a rescan that makes them
+      // still works: try that for the ones still without one.
+      const rescanned = await this.rescanForPreviews(config, check.missing);
+      if (rescanned) {
+        const again = await this.checkPreviews(config, check.missing);
+        check = {
+          missing: again.missing,
+          unanswered: [...check.unanswered, ...again.unanswered],
+        };
+      }
+    }
     if (check.missing.length > 0) {
       this.logger.warn(
         `Stash finished generating, but scene(s) ${check.missing.join(', ')} still have no hover preview. Stash's own log says why (often a file it can't read or decode).`,
@@ -804,6 +810,43 @@ export class AutomationService
       stillMissing: check.missing,
       unconfirmed: check.unanswered,
     };
+  }
+
+  private async checkPreviews(
+    config: StashAdapterBaseConfig,
+    sceneIds: string[],
+  ): Promise<{ missing: string[]; unanswered: string[] }> {
+    return this.stash
+      .scenesWithoutPreview(config, sceneIds)
+      .catch((error: unknown) => {
+        this.logger.debug(
+          `Couldn't check the new previews: ${messageOf(error)}`,
+        );
+        return { missing: [] as string[], unanswered: sceneIds };
+      });
+  }
+
+  /** Rescans with previews made by the scan; true once that scan finished. */
+  private async rescanForPreviews(
+    config: StashAdapterBaseConfig,
+    sceneIds: string[],
+  ): Promise<boolean> {
+    try {
+      const job = await this.stash.rescanForPreviews(config, sceneIds);
+      if (!job) {
+        return false;
+      }
+      this.logger.log(
+        `Stash's Generate left ${sceneIds.length} scene(s) without a hover preview; rescanning them with previews.`,
+      );
+      const result = await this.stash.waitForJob(config, job, {
+        sleep: this.sleep,
+      });
+      return result === 'FINISHED';
+    } catch (error) {
+      this.logger.warn(`Couldn't rescan for previews: ${messageOf(error)}`);
+      return false;
+    }
   }
 
   private async foldersToScan(

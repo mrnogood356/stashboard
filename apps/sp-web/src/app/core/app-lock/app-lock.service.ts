@@ -86,6 +86,7 @@ export class AppLockService implements OnDestroy {
     // cover the screen right away.
     listen(window, 'blur', () => this.raiseShield());
     listen(window, 'focus', onVisible);
+    const ios = this.isIos();
     // iOS paints nothing the page changes once it starts leaving, so blur and
     // visibilitychange come too late for the switcher's snapshot. The home
     // swipe starts as a touch on the page that iOS then takes over, which
@@ -97,7 +98,7 @@ export class AppLockService implements OnDestroy {
     // which otherwise sees no requests and would lock it as idle.
     const active = setInterval(() => this.reportActive(), ACTIVE_EVERY_MS);
     this.disposers.push(() => clearInterval(active));
-    if (this.isIos()) {
+    if (ios) {
       listen(document, 'touchcancel', () => this.raiseShield());
       listen(document, 'touchstart', () => {
         if (document.visibilityState === 'visible') {
@@ -278,9 +279,16 @@ export class AppLockService implements OnDestroy {
         void firstValueFrom(this.http.post<void>('/api/app-lock/lock', {})).catch(() => undefined);
       }
     }
+    const cameBack = this.hiddenAt !== null;
     this.hiddenAt = null;
+    // On iOS, focus can come back mid-swipe while the switcher is still
+    // opening, before it has taken its picture: taking the cover down then
+    // shows the page in the switcher. There it comes down only once the app
+    // was really away, or at the next touch (the swipe was abandoned).
     // The lock screen is opaque, so the cover can come down either way.
-    this.lowerShield();
+    if (cameBack || this.locked() || !this.isIos()) {
+      this.lowerShield();
+    }
     if (status?.enabled && !this.locked()) {
       // Ask the server too; it may have locked on its own idle timer.
       const fresh = await this.refresh();
