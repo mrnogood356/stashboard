@@ -101,12 +101,13 @@ describe('health history', () => {
     history.memoryUsage = () => ({
       rss: rss * mb,
       heapUsed: 120 * mb,
-      external: 8 * mb,
+      external: 11 * mb,
+      arrayBuffers: 8 * mb,
     });
 
     history.noteMemory();
     expect(logger.log).toHaveBeenCalledWith(
-      'Memory: 300 MB in use (120 MB of it JavaScript, 8 MB buffers).',
+      'Memory: 300 MB in use (120 MB of it JavaScript, 8 MB buffers, 3 MB other outside JavaScript).',
     );
     rss = 340;
     history.noteMemory();
@@ -114,7 +115,7 @@ describe('health history', () => {
     rss = 360;
     history.noteMemory();
     expect(logger.warn).toHaveBeenCalledWith(
-      'Memory: 360 MB in use (120 MB of it JavaScript, 8 MB buffers), up from 300 MB.',
+      'Memory: 360 MB in use (120 MB of it JavaScript, 8 MB buffers, 3 MB other outside JavaScript), up from 300 MB.',
     );
   });
 });
