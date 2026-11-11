@@ -17,6 +17,7 @@ describe('SettingsNotificationsPageComponent', () => {
     notifyDownloading: false,
     notifyAvailable: true,
     notifyFailed: true,
+    notifyFollowed: true,
   };
 
   async function render(service: Partial<Record<keyof NotificationsService, unknown>>) {

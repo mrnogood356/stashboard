@@ -21,7 +21,8 @@ export type HomeRailKey =
   | 'QUICK_PICKS'
   | 'LIBRARY_4K'
   | 'COMING_SOON'
-  | 'YOU_MAY_ENJOY';
+  | 'YOU_MAY_ENJOY'
+  | 'FOLLOWING';
 /**
  * Rows with no "See all" page: picked by play history, rating, length or
  * resolution, which the Library page can't filter by.

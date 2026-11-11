@@ -1,6 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotificationsService } from './notifications.service';
+import {
+  buildFollowedMessage,
+  NotificationsService,
+} from './notifications.service';
 
 describe('NotificationsService', () => {
   const findUniqueMock = jest.fn();
@@ -40,6 +43,7 @@ describe('NotificationsService', () => {
       notifyDownloading: false,
       notifyAvailable: true,
       notifyFailed: true,
+      notifyFollowed: true,
     });
   });
 
@@ -264,5 +268,44 @@ describe('NotificationsService', () => {
         notifyFailed: true,
       }),
     ).rejects.toThrow('the server replied 404');
+  });
+
+  describe('followed releases', () => {
+    const scenes = [
+      { title: 'One', followName: 'Kaitlyn', requested: true },
+      { title: 'Two', followName: 'Kaitlyn', requested: false },
+    ];
+
+    it('sends one message naming the follow, with what was requested', async () => {
+      findUniqueMock.mockResolvedValue(enabledSettings());
+      await service.notifyFollowedReleases(scenes);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const body = JSON.parse(
+        (fetchMock.mock.calls[0] as [string, { body: string }])[1].body,
+      ) as { embeds: Array<{ title: string; description: string }> };
+      expect(body.embeds[0].title).toBe('2 new scenes from Kaitlyn');
+      expect(body.embeds[0].description).toContain('• One — requested');
+      expect(body.embeds[0].description).toContain(
+        '1 requested; the rest are waiting in Following.',
+      );
+    });
+
+    it('stays quiet when followed releases are switched off', async () => {
+      findUniqueMock.mockResolvedValue(
+        enabledSettings({ notifyFollowed: false }),
+      );
+      await service.notifyFollowedReleases(scenes);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('names each follow when there are several', () => {
+      const message = buildFollowedMessage([
+        { title: 'One', followName: 'Kaitlyn', requested: false },
+        { title: 'Two', followName: 'Blacked', requested: false },
+      ]);
+      expect(message.title).toBe('2 new scenes from people you follow');
+      expect(message.body).toContain('• Two (Blacked)');
+      expect(message.body).toContain('They’re waiting in Following.');
+    });
   });
 });

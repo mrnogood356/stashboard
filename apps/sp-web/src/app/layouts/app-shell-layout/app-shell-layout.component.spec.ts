@@ -248,6 +248,7 @@ describe('AppShellLayoutComponent', () => {
       'Calendar',
       'Performers',
       'Studios',
+      'Following',
       'Library',
       'Swipe feed',
       'Tools',
@@ -315,6 +316,7 @@ describe('AppShellLayoutComponent', () => {
     expect(moreSheet?.textContent).toContain('Search');
     expect(moreSheet?.textContent).toContain('Downloads');
     expect(moreSheet?.textContent).toContain('Performers');
+    expect(moreSheet?.textContent).toContain('Following');
     expect(moreSheet?.textContent).toContain('Studios');
     expect(moreSheet?.textContent).toContain('Settings');
     expect(moreSheet?.textContent).toContain('Log out');

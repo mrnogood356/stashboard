@@ -137,6 +137,22 @@
         </div>
       </fieldset>
 
+      <fieldset class="field events">
+        <legend>And when…</legend>
+        <div class="switch-row">
+          <span>someone I follow has new scenes</span>
+          <input
+            type="checkbox"
+            class="app-switch"
+            role="switch"
+            name="notifyFollowed"
+            aria-label="Notify when a performer or studio I follow has new scenes"
+            [ngModel]="form().notifyFollowed"
+            (ngModelChange)="update('notifyFollowed', $event)"
+          />
+        </div>
+      </fieldset>
+
       @if (status(); as status) {
         <p class="status" [class.error]="status.kind === 'error'" role="status">
           {{ status.text }}

@@ -249,6 +249,7 @@ enum HomeRailKey {
   LIBRARY_4K
   COMING_SOON
   YOU_MAY_ENJOY
+  FOLLOWING
 }
 
 enum HomeRailKind {
@@ -336,6 +337,8 @@ model NotificationSettings {
   notifyDownloading Boolean             @default(false)
   notifyAvailable   Boolean             @default(true)
   notifyFailed      Boolean             @default(true)
+  /// New scenes from performers and studios you follow.
+  notifyFollowed    Boolean             @default(true)
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 }
@@ -778,4 +781,67 @@ model DuplicateIgnore {
   /// The set's Stash scene ids, sorted and joined with commas.
   sceneKey  String   @id
   createdAt DateTime @default(now())
+}
+
+enum FollowKind {
+  PERFORMER
+  STUDIO
+}
+
+/// A performer or studio you follow: its new catalog scenes are looked for on a schedule.
+model Follow {
+  id            String          @id @default(cuid())
+  kind          FollowKind
+  /// The catalog it was followed on (STASHDB or FANSDB); only the main one is checked.
+  provider      String
+  entityId      String
+  name          String
+  imageUrl      String?
+  /// Only scenes released on or after this day (YYYY-MM-DD).
+  since         String
+  /// Send new scenes straight to Whisparr instead of listing them for review.
+  autoRequest   Boolean         @default(false)
+  /// Scenes released on or before this day (YYYY-MM-DD) are listed for review even when requesting automatically. Set on follows a restore adds: what was passed on before isn't in the backup.
+  reviewThrough String?
+  /// Only scenes with at least one of these catalog tags: [{ id, name }]. Empty is every scene.
+  tags          Json            @default("[]")
+  lastCheckedAt DateTime?
+  /// When a check last read all the way back to `since` with these tags; later checks only look back from shortly before it.
+  fullyCheckedAt DateTime?
+  /// Why the last check of this follow didn't work, when it didn't.
+  lastError     String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  scenes        FollowedScene[]
+
+  @@unique([provider, kind, entityId])
+}
+
+enum FollowedSceneState {
+  NEW
+  REQUESTED
+  DISMISSED
+  FAILED
+}
+
+/// A new scene found for a follow, kept so it's acted on and announced only once.
+model FollowedScene {
+  followId    String
+  sceneId     String
+  title       String
+  imageUrl    String?
+  studioId    String?
+  studioName  String?
+  releaseDate String?
+  duration    Int?
+  state       FollowedSceneState @default(NEW)
+  /// Why an automatic request failed.
+  detail      String?
+  foundAt     DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  follow      Follow             @relation(fields: [followId], references: [id], onDelete: Cascade)
+
+  @@id([followId, sceneId])
+  @@index([sceneId])
+  @@index([state, foundAt])
 }

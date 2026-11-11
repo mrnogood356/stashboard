@@ -5,6 +5,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import { FollowsService } from '../follows/follows.service';
 import { OrganizerService } from '../organizer/organizer.service';
 import { LocalLibraryService } from '../playback/local-library.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -50,6 +51,7 @@ export class SchedulesService {
     private readonly prisma: PrismaService,
     @Optional() private readonly organizer?: OrganizerService,
     @Optional() private readonly library?: LocalLibraryService,
+    @Optional() private readonly follows?: FollowsService,
   ) {}
 
   async list(): Promise<SchedulesDto> {
@@ -160,6 +162,9 @@ export class SchedulesService {
           break;
         case 'stash-clean':
           await this.library?.startJob('clean');
+          break;
+        case 'follow-check':
+          status = (await this.follows?.runScheduled()) ?? status;
           break;
       }
     } catch (error) {

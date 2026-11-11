@@ -86,6 +86,12 @@
           }
 
           <div class="hide-row">
+            <app-follow-button
+              kind="STUDIO"
+              [entityId]="studio.id"
+              [name]="studio.name"
+              [imageUrl]="studio.imageUrl"
+            />
             <app-hide-toggle kind="studio" [itemId]="studio.id" [name]="studio.name" />
           </div>
 

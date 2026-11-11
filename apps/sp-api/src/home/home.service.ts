@@ -1,3 +1,4 @@
+import { FollowsService } from '../follows/follows.service';
 import { SuggestionsService } from '../suggestions/suggestions.service';
 import { HomeRowCache, rulesStamp } from './home-row-cache';
 import {
@@ -151,6 +152,12 @@ const STOCK_HOME_ROWS: Array<{
     key: HomeRailKey.YOU_MAY_ENJOY,
     title: 'You May Enjoy',
     subtitle: 'Catalog scenes you don’t have, picked from what you watch most.',
+    from: 'catalog',
+  },
+  {
+    key: HomeRailKey.FOLLOWING,
+    title: 'From People You Follow',
+    subtitle: 'New scenes from the performers and studios you follow.',
     from: 'catalog',
   },
 ];
@@ -347,6 +354,7 @@ export class HomeService {
     @Optional() private readonly hiddenContent?: HiddenContentService,
     @Optional() private readonly scenes?: ScenesService,
     @Optional() private readonly suggestions?: SuggestionsService,
+    @Optional() private readonly follows?: FollowsService,
   ) {}
 
   async getRails(): Promise<HomeRailDto[]> {
@@ -619,6 +627,8 @@ export class HomeService {
         return this.getComingSoonRowContent(rail);
       case HomeRailKey.YOU_MAY_ENJOY:
         return this.getYouMayEnjoyRowContent(rail);
+      case HomeRailKey.FOLLOWING:
+        return this.getFollowingRowContent(rail);
       default:
         break;
     }
@@ -779,6 +789,49 @@ export class HomeService {
   }
 
   /** What Whisparr is waiting for over the next weeks, soonest first. */
+  /** Scenes found for your follows lately, waiting or requested. */
+  private async getFollowingRowContent(
+    rail: HomeRail,
+  ): Promise<HomeRailContentDto> {
+    if (!this.follows) {
+      return { items: [], message: 'Following isn’t available.' };
+    }
+    try {
+      const { items } = await this.follows.releases(
+        'all',
+        this.railLimit(rail),
+      );
+      return {
+        items: items.map((item): HomeRailItemDto => ({
+          id: item.id,
+          title: item.title,
+          description: item.description,
+          imageUrl: item.imageUrl,
+          cardImageUrl: item.cardImageUrl,
+          studioId: item.studioId,
+          studio: item.studio,
+          studioImageUrl: item.studioImageUrl,
+          releaseDate: item.releaseDate,
+          duration: item.duration,
+          type: 'SCENE',
+          source: item.source,
+          status: item.status,
+          requestable: item.requestable,
+          viewUrl: null,
+        })),
+        message:
+          items.length === 0
+            ? 'Follow performers and studios from their pages to see their new scenes here.'
+            : null,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Failed to load the Home row “${rail.title}”. ${(error as Error)?.message ?? 'Unknown error.'}`,
+      );
+      return { items: [], message: 'Couldn’t read who you follow right now.' };
+    }
+  }
+
   private async getYouMayEnjoyRowContent(
     rail: HomeRail,
   ): Promise<HomeRailContentDto> {

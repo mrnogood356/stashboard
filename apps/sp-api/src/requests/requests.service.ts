@@ -281,6 +281,38 @@ export class RequestsService {
   }
 
   /**
+   * What an automatic request uses, like the request sheet's preselection:
+   * the first root folder Whisparr can reach and its first quality profile,
+   * monitored and searched for. Read once per run, not once per scene.
+   */
+  async getDefaultRequest(): Promise<SubmitSceneRequestDto> {
+    const whisparrConfig = await this.getWhisparrConfig();
+    const [rootFolders, qualityProfiles] = await Promise.all([
+      this.whisparrAdapter.getRootFolders(whisparrConfig),
+      this.whisparrAdapter.getQualityProfiles(whisparrConfig),
+    ]);
+    const root = rootFolders.find((folder) => folder.accessible);
+    const profile = qualityProfiles[0];
+    if (!root) {
+      throw new ConflictException(
+        'No accessible Whisparr root folders are available.',
+      );
+    }
+    if (!profile) {
+      throw new ConflictException(
+        'No Whisparr quality profiles are available.',
+      );
+    }
+    return {
+      monitored: true,
+      searchForMovie: true,
+      rootFolderPath: root.path,
+      qualityProfileId: profile.id,
+      tags: [],
+    };
+  }
+
+  /**
    * Every release Whisparr's indexers have for a requested scene, best first,
    * so you can choose the exact one to download. Whisparr builds the search
    * itself, and indexers match loosely, so each release says how well its

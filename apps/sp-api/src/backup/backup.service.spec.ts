@@ -3,6 +3,7 @@ import { IntegrationStatus } from '@prisma/client';
 import type { AppearanceService } from '../appearance/appearance.service';
 import type { AutomationService } from '../automation/automation.service';
 import type { DownloadHandoffService } from '../download-handoff/download-handoff.service';
+import type { FollowsService } from '../follows/follows.service';
 import type { HiddenContentService } from '../hidden-content/hidden-content.service';
 import type { IntegrationsService } from '../integrations/integrations.service';
 import type { LogsService } from '../logs/logs.service';
@@ -62,6 +63,7 @@ function setup() {
       notifyDownloading: false,
       notifyAvailable: true,
       notifyFailed: true,
+      notifyFollowed: true,
     }),
     updateSettings: jest.fn(),
   };
@@ -148,6 +150,22 @@ function setup() {
     }),
     updateSettings: jest.fn(),
   };
+  const follows = {
+    exportForBackup: jest.fn().mockResolvedValue({
+      follows: [
+        {
+          kind: 'PERFORMER',
+          provider: 'STASHDB',
+          entityId: 'p1',
+          name: 'Kaitlyn',
+          imageUrl: null,
+          since: '2026-11-01',
+          autoRequest: true,
+        },
+      ],
+    }),
+    restoreFromBackup: jest.fn(),
+  };
 
   const service = new BackupService(
     prisma as unknown as PrismaService,
@@ -160,9 +178,11 @@ function setup() {
     appearance as unknown as AppearanceService,
     playback as unknown as PlaybackSettingsService,
     logs as unknown as LogsService,
+    follows as unknown as FollowsService,
   );
   return {
     service,
+    follows,
     prisma,
     integrations,
     notifications,
@@ -213,6 +233,9 @@ describe('BackupService', () => {
     // Only what the page saves: not when it was saved.
     expect(file.settings.appearance).not.toHaveProperty('updatedAt');
     expect(file.settings.logs).toEqual({ level: 'info', fileEnabled: true });
+    expect(file.settings.follows).toEqual({
+      follows: [expect.objectContaining({ entityId: 'p1', autoRequest: true })],
+    });
   });
 
   it('leaves keys, tokens and webhook links out when asked', async () => {

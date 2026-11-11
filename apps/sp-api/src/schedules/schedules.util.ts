@@ -4,6 +4,7 @@ export const SCHEDULED_JOBS = [
   'stash-scan',
   'stash-generate',
   'stash-clean',
+  'follow-check',
 ] as const;
 export type ScheduledJob = (typeof SCHEDULED_JOBS)[number];
 
@@ -51,6 +52,12 @@ export const JOB_INFO: Record<
     detail:
       'Removes scenes whose files Stash can’t find. If a drive isn’t mounted when it runs, its scenes are removed too, so leave this off unless every library folder is always there.',
     defaults: { enabled: false, hour: 2, minute: 30, days: [0] },
+  },
+  'follow-check': {
+    label: 'Check who you follow',
+    detail:
+      'Looks for new scenes from the performers and studios you follow. Those set to request on their own go straight to Whisparr.',
+    defaults: { enabled: true, hour: 6, minute: 15, days: [] },
   },
 };
 

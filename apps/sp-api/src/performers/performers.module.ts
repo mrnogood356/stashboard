@@ -15,5 +15,6 @@ import { PerformersService } from './performers.service';
   ],
   controllers: [PerformersController],
   providers: [PerformersService],
+  exports: [PerformersService],
 })
 export class PerformersModule {}

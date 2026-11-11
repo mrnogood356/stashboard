@@ -18,5 +18,6 @@ import { RequestsService } from './requests.service';
   ],
   controllers: [RequestsController],
   providers: [RequestsService, OwnedCopiesService],
+  exports: [RequestsService],
 })
 export class RequestsModule {}

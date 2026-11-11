@@ -59,6 +59,7 @@ export class SettingsNotificationsPageComponent implements OnInit {
     notifyDownloading: false,
     notifyAvailable: true,
     notifyFailed: true,
+    notifyFollowed: true,
   });
 
   ngOnInit(): void {

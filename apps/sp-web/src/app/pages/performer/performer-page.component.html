@@ -97,6 +97,12 @@
           }
 
           <div class="hide-row">
+            <app-follow-button
+              kind="PERFORMER"
+              [entityId]="performer.id"
+              [name]="performer.name"
+              [imageUrl]="performer.imageUrl"
+            />
             <app-hide-toggle kind="performer" [itemId]="performer.id" [name]="performer.name" />
           </div>
 

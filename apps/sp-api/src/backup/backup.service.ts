@@ -7,6 +7,8 @@ import { UpdateAppearanceDto } from '../appearance/dto/appearance.dto';
 import { UpdateAutomationDto } from '../automation/automation.controller';
 import { AutomationService } from '../automation/automation.service';
 import { DownloadHandoffService } from '../download-handoff/download-handoff.service';
+import { FollowsBackupDto } from '../follows/dto/follow.dto';
+import { FollowsService } from '../follows/follows.service';
 import { UpdateDownloadHandoffDto } from '../download-handoff/dto/update-download-handoff.dto';
 import { resolveAppVersion } from '../health/health.controller';
 import { UpdateHiddenContentSettingsDto } from '../hidden-content/dto/hidden-content-settings.dto';
@@ -107,6 +109,7 @@ export class BackupService {
     appearance: AppearanceService,
     playback: PlaybackSettingsService,
     logs: LogsService,
+    follows: FollowsService,
   ) {
     this.sections = [
       defineSection({
@@ -122,6 +125,7 @@ export class BackupService {
           'notifyDownloading',
           'notifyAvailable',
           'notifyFailed',
+          'notifyFollowed',
         ],
         // A Discord or ntfy link is as good as a password to whoever has it.
         secretFields: ['url', 'token', 'userKey'],
@@ -230,6 +234,14 @@ export class BackupService {
         fields: ['level', 'fileEnabled'],
         read: async () => ({ ...(await logs.settings()) }),
         write: (values) => logs.updateSettings(values),
+      }),
+      defineSection({
+        id: 'follows',
+        label: 'Following',
+        dto: FollowsBackupDto,
+        fields: ['follows'],
+        read: async () => ({ ...(await follows.exportForBackup()) }),
+        write: (values) => follows.restoreFromBackup(values),
       }),
     ];
   }

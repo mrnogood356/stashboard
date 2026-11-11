@@ -178,6 +178,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'following',
+        loadComponent: () =>
+          import('./pages/following/following-page.component').then(
+            (m) => m.FollowingPageComponent,
+          ),
+      },
+      {
         path: 'acquisition',
         loadComponent: () =>
           import('./pages/acquisition/acquisition-page.component').then(

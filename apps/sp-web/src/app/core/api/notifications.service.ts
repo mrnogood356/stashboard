@@ -15,6 +15,8 @@ export interface NotificationSettings {
   notifyDownloading: boolean;
   notifyAvailable: boolean;
   notifyFailed: boolean;
+  /** New scenes from performers and studios you follow. */
+  notifyFollowed: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
