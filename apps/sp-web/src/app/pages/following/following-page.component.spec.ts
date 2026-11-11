@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { Follow, FollowedRelease, FollowsApiService } from '../../core/api/follows.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { FollowingPageComponent } from './following-page.component';
@@ -155,5 +155,76 @@ describe('FollowingPageComponent', () => {
     expect(root.querySelector('[data-testid="follow-p1"]')?.textContent).toContain(
       'Only tagged Anal',
     );
+  });
+
+  it('offers to try again when a list can’t be read', async () => {
+    const releases = vi
+      .fn()
+      .mockReturnValueOnce(throwError(() => new Error('down')))
+      .mockReturnValue(of({ items: [release('a')], reviewCount: 1 }));
+    const fixture = await render({
+      list: vi
+        .fn()
+        .mockReturnValue(of({ follows: [follow], checking: false, provider: 'STASHDB' })),
+      releases,
+    });
+    const root = fixture.nativeElement as HTMLElement;
+    (root.querySelector('[data-testid="retry-releases"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="release-a"]')).toBeTruthy();
+  });
+
+  it('keeps each follow’s controls waiting for its own save', async () => {
+    const other: Follow = { ...follow, id: 'f2', entityId: 'p2', name: 'Other' };
+    const saves = new Map<string, Subject<Follow>>([
+      ['f1', new Subject<Follow>()],
+      ['f2', new Subject<Follow>()],
+    ]);
+    const update = vi.fn((id: string) => saves.get(id)!);
+    const fixture = await render({
+      list: vi
+        .fn()
+        .mockReturnValue(of({ follows: [follow, other], checking: false, provider: 'STASHDB' })),
+      releases: vi.fn().mockReturnValue(of({ items: [], reviewCount: 0 })),
+      update,
+    });
+    const root = fixture.nativeElement as HTMLElement;
+    (root.querySelector('[data-testid="tab-manage"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const check = (id: string) =>
+      root.querySelector(`[data-testid="auto-${id}"]`) as HTMLInputElement;
+
+    check('p1').click();
+    check('p2').click();
+    fixture.detectChanges();
+    saves.get('f2')!.next({ ...other, autoRequest: true });
+    saves.get('f2')!.complete();
+    fixture.detectChanges();
+    // p2 is saved; p1's save is still on its way, so it can't be changed yet.
+    expect(check('p2').disabled).toBe(false);
+    expect(check('p1').disabled).toBe(true);
+    expect(update).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows the newest list when an older one answers last', async () => {
+    const older = new Subject<{ items: FollowedRelease[]; reviewCount: number }>();
+    const releases = vi
+      .fn()
+      .mockReturnValueOnce(older)
+      .mockReturnValue(of({ items: [release('new')], reviewCount: 1 }));
+    const fixture = await render({
+      list: vi
+        .fn()
+        .mockReturnValue(of({ follows: [follow], checking: false, provider: 'STASHDB' })),
+      releases,
+    });
+    const root = fixture.nativeElement as HTMLElement;
+    (root.querySelector('[data-testid="tab-recent"]') as HTMLButtonElement).click();
+    (root.querySelector('[data-testid="tab-new"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    older.next({ items: [release('stale')], reviewCount: 9 });
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="release-stale"]')).toBeNull();
+    expect(root.querySelector('[data-testid="release-new"]')).toBeTruthy();
   });
 });

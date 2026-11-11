@@ -12,6 +12,7 @@ import {
   FollowedSceneState,
 } from '@prisma/client';
 import { ActivityService } from '../activity/activity.service';
+import { HiddenContentService } from '../hidden-content/hidden-content.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PerformersService } from '../performers/performers.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -23,6 +24,11 @@ import { SubmitSceneRequestDto } from '../requests/dto/submit-scene-request.dto'
 import { RequestsService } from '../requests/requests.service';
 import { isSceneStatusRequestable } from '../scene-status/dto/scene-status.dto';
 import { SceneStatusService } from '../scene-status/scene-status.service';
+import {
+  EMPTY_EXCLUDE_RULES,
+  isSceneExcluded,
+  type SceneExcludeRules,
+} from '../scenes/scene-exclude-terms.util';
 import { ScenesService } from '../scenes/scenes.service';
 import {
   CreateFollowDto,
@@ -48,8 +54,18 @@ import {
 
 /** Scenes asked for per page, newest first. */
 const PAGE_SIZE = 40;
-/** Pages read per follow and check: at most 120 scenes back. */
-const MAX_PAGES = 3;
+/**
+ * Pages read per follow and check, at most: enough to reach a year back for
+ * the busiest studio. A check reads only until it reaches the cutoff.
+ */
+const MAX_PAGES = 25;
+/**
+ * After a check has read back to a follow's start, later ones look back only
+ * this far before it, for scenes the catalog adds with an earlier date.
+ */
+const RECHECK_OVERLAP_DAYS = 30;
+/** No more follows than a settings backup can hold. */
+export const MAX_FOLLOWS = 2000;
 /** "All" on the Following page and the Home row reach back this far. */
 const RECENT_DAYS = 90;
 
@@ -82,6 +98,7 @@ export class FollowsService {
     private readonly requests: RequestsService,
     @Optional() private readonly notifications?: NotificationsService,
     @Optional() private readonly activity?: ActivityService,
+    @Optional() private readonly hiddenContent?: HiddenContentService,
   ) {}
 
   get checking(): boolean {
@@ -153,6 +170,16 @@ export class FollowsService {
       );
     }
     const entityId = dto.entityId.trim();
+    const existing = await this.prisma.follow.findUnique({
+      where: {
+        provider_kind_entityId: { provider, kind: dto.kind, entityId },
+      },
+    });
+    if (!existing && (await this.prisma.follow.count()) >= MAX_FOLLOWS) {
+      throw new BadRequestException(
+        `You can follow up to ${MAX_FOLLOWS} performers and studios.`,
+      );
+    }
     const since = clampSince(dto.since, this.now());
     const data = {
       name: dto.name.trim(),
@@ -160,6 +187,8 @@ export class FollowsService {
       since,
       autoRequest: dto.autoRequest ?? false,
       tags: readFollowTags(dto.tags ?? []),
+      // Following again starts over from its new day and tags.
+      fullyCheckedAt: null,
     };
     const follow = await this.prisma.follow.upsert({
       where: {
@@ -187,6 +216,7 @@ export class FollowsService {
     const tags = dto.tags === undefined ? null : readFollowTags(dto.tags);
     const tagsChanged =
       tags !== null && !sameFollowTags(tags, readFollowTags(existing.tags));
+    const reachesFurther = since < existing.since;
     const follow = await this.prisma.follow.update({
       where: { id },
       data: {
@@ -195,8 +225,20 @@ export class FollowsService {
           ? {}
           : { autoRequest: dto.autoRequest }),
         ...(tagsChanged ? { tags } : {}),
+        // Scenes before the old start, or under other tags, haven't been read.
+        ...(reachesFurther || tagsChanged ? { fullyCheckedAt: null } : {}),
       },
     });
+    if (since > existing.since && !tagsChanged) {
+      // Starting later: what's waiting from before the new start goes.
+      await this.prisma.followedScene.deleteMany({
+        where: {
+          followId: id,
+          state: { in: [FollowedSceneState.NEW, FollowedSceneState.FAILED] },
+          releaseDate: { lt: since },
+        },
+      });
+    }
     if (tagsChanged) {
       // What's waiting may not have these tags: look again from scratch.
       // Requested and dismissed scenes stay as they are.
@@ -210,7 +252,7 @@ export class FollowsService {
         `Following “${follow.name}”${describeTags(tags ?? []) || ' with every tag'} now.`,
       );
     }
-    if (since < existing.since || tagsChanged) {
+    if (reachesFurther || tagsChanged) {
       void this.checkOne(follow.id).catch(() => undefined);
     }
     const counts = await this.reviewCounts(id);
@@ -233,22 +275,66 @@ export class FollowsService {
     const recentFrom = new Date(
       this.now().getTime() - RECENT_DAYS * 86_400_000,
     );
-    const rows = await this.prisma.followedScene.findMany({
-      where:
-        view === 'review'
-          ? {
-              state: {
-                in: [FollowedSceneState.NEW, FollowedSceneState.FAILED],
-              },
-            }
-          : {
-              state: { not: FollowedSceneState.DISMISSED },
-              foundAt: { gte: recentFrom },
+    const where =
+      view === 'review'
+        ? {
+            state: {
+              in: [FollowedSceneState.NEW, FollowedSceneState.FAILED],
             },
-      include: { follow: true },
-      orderBy: [{ releaseDate: 'desc' }, { foundAt: 'desc' }],
-      take: 1000,
+          }
+        : {
+            state: { not: FollowedSceneState.DISMISSED },
+            foundAt: { gte: recentFrom },
+          };
+    const orderBy = [
+      { releaseDate: 'desc' as const },
+      { foundAt: 'desc' as const },
+    ];
+
+    // First which scenes to show, every matching one considered (a scene two
+    // follows found is one), less what Settings → Hidden leaves out now;
+    // then only those are read in full and checked against Whisparr.
+    const rules = await this.hiddenRules();
+    const candidates = await this.prisma.followedScene.findMany({
+      where,
+      select: {
+        sceneId: true,
+        title: true,
+        studioId: true,
+        studioName: true,
+        follow: { select: { kind: true, entityId: true } },
+      },
+      orderBy,
     });
+    const shownIds = new Set<string>();
+    for (const row of candidates) {
+      if (
+        isFollowHidden(row.follow, rules) ||
+        isSceneExcluded(
+          {
+            title: row.title,
+            details: null,
+            studioId: row.studioId,
+            studioName: row.studioName,
+          },
+          rules,
+        )
+      ) {
+        continue;
+      }
+      shownIds.add(row.sceneId);
+    }
+    // Shown when any follow that found it isn't hidden.
+    const sceneIds = [...shownIds].slice(0, limit);
+
+    const rows =
+      sceneIds.length === 0
+        ? []
+        : await this.prisma.followedScene.findMany({
+            where: { ...where, sceneId: { in: sceneIds } },
+            include: { follow: true },
+            orderBy,
+          });
     const grouped = groupBySceneId(rows);
     const statuses = await this.sceneStatus.resolveForScenes(
       grouped.map((group) => group.sceneId),
@@ -276,17 +362,19 @@ export class FollowsService {
       });
     }
 
-    const source = (await this.instanceProviderKey()) ?? 'STASHDB';
+    const mainProvider = await this.instanceProviderKey();
     const items = grouped
       .filter(
         (group) => view !== 'review' || !nowRequested.includes(group.sceneId),
       )
-      .slice(0, limit)
       .map((group): FollowedReleaseDto => {
         const status = statuses.get(group.sceneId) ?? {
           state: 'NOT_REQUESTED' as const,
         };
         const first = group.rows[0];
+        // The catalog the scene was found on, which links its card; a follow
+        // kept from a catalog that's no longer the main one can't request.
+        const source = first.follow.provider as CatalogProviderKey;
         return {
           id: group.sceneId,
           title: first.title,
@@ -301,7 +389,8 @@ export class FollowsService {
           type: 'SCENE',
           source,
           status,
-          requestable: isSceneStatusRequestable(status),
+          requestable:
+            source === mainProvider && isSceneStatusRequestable(status),
           localSceneId: null,
           followed: {
             state: nowRequested.includes(group.sceneId)
@@ -319,11 +408,7 @@ export class FollowsService {
         };
       });
 
-    const reviewCount =
-      view === 'review'
-        ? grouped.length - nowRequested.length
-        : await this.reviewSceneCount();
-    return { items, reviewCount };
+    return { items, reviewCount: await this.reviewSceneCount(rules) };
   }
 
   /** Not interested: the scene leaves the review list for every follow. */
@@ -359,9 +444,8 @@ export class FollowsService {
 
   /** The schedule's run: what it did, for Schedules → last run. */
   async runScheduled(): Promise<string> {
-    if (this.running) {
-      return 'Already checking.';
-    }
+    // A check already running (one follow just changed, say) finishes first;
+    // this one still checks every follow.
     return describeCheck(await this.checkAll());
   }
 
@@ -406,6 +490,7 @@ export class FollowsService {
       return summary;
     }
     const provider = await this.instanceProviderKey().catch(() => null);
+    const rules = await this.hiddenRules();
     const found: FoundScene[] = [];
     // Read once per run, and only if a follow requests on its own.
     let defaults: Promise<SubmitSceneRequestDto> | null = null;
@@ -414,15 +499,35 @@ export class FollowsService {
       if (!provider || follow.provider !== provider) {
         summary.errors += 1;
         await this.noteChecked(
-          follow.id,
+          follow,
           provider
             ? `Followed on ${follow.provider}, which isn’t your main catalog now.`
             : 'No catalog is set up.',
         );
         continue;
       }
+      if (isFollowHidden(follow, rules)) {
+        // Its own page shows hidden scenes, so its feed would too.
+        await this.noteChecked(
+          follow,
+          `Hidden in Settings → Hidden, so it isn’t checked.`,
+        );
+        continue;
+      }
+      const tags = readFollowTags(follow.tags);
+      const shownTags = tags.filter((tag) => !rules.tagIds.has(tag.id));
+      if (tags.length > 0 && shownTags.length === 0) {
+        await this.noteChecked(
+          follow,
+          `Its tags are hidden in Settings → Hidden, so it isn’t checked.`,
+        );
+        continue;
+      }
       try {
-        const candidates = await this.findNewScenes(follow);
+        const { scenes: candidates, complete } = await this.findNewScenes(
+          follow,
+          shownTags.map((tag) => tag.id),
+        );
         summary.checked += 1;
         for (const scene of candidates) {
           const outcome = await this.record(follow, scene, () => {
@@ -444,12 +549,12 @@ export class FollowsService {
             requested: outcome.state === FollowedSceneState.REQUESTED,
           });
         }
-        await this.noteChecked(follow.id, null);
+        await this.noteChecked(follow, null, complete);
       } catch (error) {
         summary.errors += 1;
         const message = errorMessage(error);
         this.logger.warn(`Couldn’t check “${follow.name}”: ${message}`);
-        await this.noteChecked(follow.id, message.slice(0, 300));
+        await this.noteChecked(follow, message.slice(0, 300));
       }
     }
 
@@ -476,18 +581,23 @@ export class FollowsService {
   }
 
   /**
-   * New scenes for one follow, newest first, from its catalog feed. Always the
-   * main catalog, whatever page started the check.
+   * New scenes for one follow, from its catalog feed newest first, read back
+   * to its start, or (once a check has got that far with these settings) to
+   * shortly before that check. Always the main catalog, whatever page started
+   * it. Hidden tags aren't asked for: its page would show their scenes.
    */
-  private async findNewScenes(follow: Follow): Promise<CandidateScene[]> {
+  private async findNewScenes(
+    follow: Follow,
+    tagIds: string[],
+  ): Promise<{ scenes: CandidateScene[]; complete: boolean }> {
     const knownRows = await this.prisma.followedScene.findMany({
       where: { followId: follow.id },
       select: { sceneId: true },
     });
     const known = new Set(knownRows.map((row) => row.sceneId));
-    // Any of them: the catalog matches a scene with at least one.
-    const tagIds = readFollowTags(follow.tags).map((tag) => tag.id);
+    const cutoff = checkCutoff(follow);
     const fresh: CandidateScene[] = [];
+    let complete = false;
 
     for (let page = 1; page <= MAX_PAGES; page += 1) {
       const feed = await runWithRequestedCatalogProvider(null, () =>
@@ -499,6 +609,7 @@ export class FollowsService {
               {
                 sort: 'DATE',
                 direction: 'DESC',
+                // Any of them: the catalog matches a scene with at least one.
                 ...(tagIds.length > 0 ? { tagIds } : {}),
               },
             )
@@ -513,26 +624,45 @@ export class FollowsService {
               [follow.entityId],
             ),
       );
-      const picked = pickNewScenes(feed.items, follow.since, known);
+      const picked = pickNewScenes(feed.items, cutoff, known);
       fresh.push(...picked.fresh);
       if (picked.reachedSince || !feed.hasMore) {
+        complete = true;
         break;
       }
     }
+    if (!complete) {
+      this.logger.warn(
+        `“${follow.name}” has more than ${MAX_PAGES * PAGE_SIZE} scenes since ${cutoff}; only the newest ${MAX_PAGES * PAGE_SIZE} are checked.`,
+      );
+    }
     // Oldest first, so notifications and the log read in release order.
-    return fresh.reverse();
+    return { scenes: fresh.reverse(), complete };
   }
 
   /**
-   * Keeps a found scene for this follow. A scene another follow already found
-   * takes that follow's state (requested once, dismissed everywhere) and isn't
-   * news again. Otherwise it's requested now, or left for review.
+   * Keeps a found scene for this follow, with the follow's settings as they
+   * are now: changed while the check ran (other tags, a later start, or
+   * unfollowed), the scene is left for the next check. A scene another follow
+   * already found takes that follow's state (requested once, dismissed
+   * everywhere); still waiting there, a follow that requests on its own
+   * requests it now. Otherwise it's requested now, or left for review.
    */
   private async record(
     follow: Follow,
     scene: CandidateScene,
     getDefaults: () => Promise<SubmitSceneRequestDto>,
   ): Promise<{ state: FollowedSceneState } | null> {
+    const current = await this.prisma.follow.findUnique({
+      where: { id: follow.id },
+    });
+    if (
+      !current ||
+      current.since !== follow.since ||
+      !sameFollowTags(readFollowTags(current.tags), readFollowTags(follow.tags))
+    ) {
+      return null;
+    }
     const elsewhere = await this.prisma.followedScene.findFirst({
       where: { sceneId: scene.id },
       orderBy: { foundAt: 'asc' },
@@ -547,31 +677,47 @@ export class FollowsService {
       releaseDate: scene.releaseDate?.slice(0, 10) ?? null,
       duration: scene.duration,
     };
+
     if (elsewhere) {
-      await this.prisma.followedScene.create({
-        data: { ...base, state: elsewhere.state, detail: elsewhere.detail },
+      if (!current.autoRequest || elsewhere.state !== FollowedSceneState.NEW) {
+        await this.prisma.followedScene.create({
+          data: { ...base, state: elsewhere.state, detail: elsewhere.detail },
+        });
+        return null;
+      }
+      const outcome = await this.requestScene(current, scene, getDefaults);
+      // Every follow that has it waiting now shows it requested (or failed).
+      await this.prisma.followedScene.updateMany({
+        where: { sceneId: scene.id, state: FollowedSceneState.NEW },
+        data: outcome,
       });
-      return null;
+      await this.prisma.followedScene.create({ data: { ...base, ...outcome } });
+      return { state: outcome.state };
     }
 
-    let state: FollowedSceneState = FollowedSceneState.NEW;
-    let detail: string | null = null;
-    if (follow.autoRequest) {
-      try {
-        await this.requests.submitSceneRequest(scene.id, await getDefaults());
-        state = FollowedSceneState.REQUESTED;
-      } catch (error) {
-        state = FollowedSceneState.FAILED;
-        detail = errorMessage(error).slice(0, 300);
-        this.logger.warn(
-          `Couldn’t request “${scene.title}” for “${follow.name}”: ${detail}`,
-        );
-      }
+    const outcome = current.autoRequest
+      ? await this.requestScene(current, scene, getDefaults)
+      : { state: FollowedSceneState.NEW, detail: null };
+    await this.prisma.followedScene.create({ data: { ...base, ...outcome } });
+    return { state: outcome.state };
+  }
+
+  /** Sends a found scene to Whisparr, saying why when it couldn't. */
+  private async requestScene(
+    follow: Follow,
+    scene: CandidateScene,
+    getDefaults: () => Promise<SubmitSceneRequestDto>,
+  ): Promise<{ state: FollowedSceneState; detail: string | null }> {
+    try {
+      await this.requests.submitSceneRequest(scene.id, await getDefaults());
+      return { state: FollowedSceneState.REQUESTED, detail: null };
+    } catch (error) {
+      const detail = errorMessage(error).slice(0, 300);
+      this.logger.warn(
+        `Couldn’t request “${scene.title}” for “${follow.name}”: ${detail}`,
+      );
+      return { state: FollowedSceneState.FAILED, detail };
     }
-    await this.prisma.followedScene.create({
-      data: { ...base, state, detail },
-    });
-    return { state };
   }
 
   /** Follows and backups: every follow, for Settings → Backup. */
@@ -594,34 +740,67 @@ export class FollowsService {
   }
 
   /**
-   * Makes the follows the backup's: adds and updates those in it, removes
-   * the rest. Scenes already found for a kept follow stay.
+   * Makes the follows the backup's: adds and updates those in it, removes the
+   * rest. A follow already here keeps what it found; one whose start or tags
+   * change is read again, as when changed by hand. One added by the restore
+   * starts from today (or its later start): which of its earlier scenes you
+   * passed on isn't in the backup, so they aren't offered (or requested)
+   * again.
    */
   async restoreFromBackup(values: {
     follows: FollowBackupItemDto[];
   }): Promise<void> {
     const keep: string[] = [];
+    const today = clampSince(null, this.now());
     for (const item of values.follows) {
-      const where = {
-        provider_kind_entityId: {
-          provider: item.provider,
-          kind: item.kind,
-          entityId: item.entityId,
-        },
+      const key = {
+        provider: item.provider,
+        kind: item.kind,
+        entityId: item.entityId,
       };
+      const existing = await this.prisma.follow.findUnique({
+        where: { provider_kind_entityId: key },
+      });
+      const savedSince = clampSince(item.since, this.now());
+      const tags = readFollowTags(item.tags ?? []);
       const data = {
         name: item.name,
         imageUrl: item.imageUrl ?? null,
-        since: clampSince(item.since, this.now()),
         autoRequest: item.autoRequest,
-        tags: readFollowTags(item.tags ?? []),
+        tags,
       };
-      const follow = await this.prisma.follow.upsert({
-        where,
-        create: { ...where.provider_kind_entityId, ...data },
-        update: data,
+      if (!existing) {
+        const created = await this.prisma.follow.create({
+          data: {
+            ...key,
+            ...data,
+            since: savedSince > today ? savedSince : today,
+          },
+        });
+        keep.push(created.id);
+        continue;
+      }
+      const tagsChanged = !sameFollowTags(tags, readFollowTags(existing.tags));
+      const sinceChanged = savedSince !== existing.since;
+      await this.prisma.follow.update({
+        where: { id: existing.id },
+        data: {
+          ...data,
+          since: savedSince,
+          ...(tagsChanged || sinceChanged ? { fullyCheckedAt: null } : {}),
+        },
       });
-      keep.push(follow.id);
+      if (tagsChanged || sinceChanged) {
+        // What's waiting may not match the restored settings; the next check
+        // finds what does. Requested and dismissed scenes stay.
+        await this.prisma.followedScene.deleteMany({
+          where: {
+            followId: existing.id,
+            state: { in: [FollowedSceneState.NEW, FollowedSceneState.FAILED] },
+          },
+        });
+      }
+      keep.push(existing.id);
     }
     await this.prisma.follow.deleteMany({ where: { id: { notIn: keep } } });
   }
@@ -634,14 +813,29 @@ export class FollowsService {
     return follow;
   }
 
+  /**
+   * Notes a follow's check. A check that read back to its cutoff marks it
+   * fully checked, unless the follow changed while it ran (its new settings
+   * haven't been read yet).
+   */
   private async noteChecked(
-    id: string,
+    follow: Follow,
     lastError: string | null,
+    complete = false,
   ): Promise<void> {
+    const now = this.now();
+    if (complete) {
+      await this.prisma.follow
+        .updateMany({
+          where: { id: follow.id, updatedAt: follow.updatedAt },
+          data: { fullyCheckedAt: now },
+        })
+        .catch(() => undefined);
+    }
     await this.prisma.follow
       .update({
-        where: { id },
-        data: { lastCheckedAt: this.now(), lastError },
+        where: { id: follow.id },
+        data: { lastCheckedAt: now, lastError },
       })
       .catch(() => undefined);
   }
@@ -658,16 +852,49 @@ export class FollowsService {
     return new Map(rows.map((row) => [row.followId, row._count._all]));
   }
 
-  /** Scenes (not rows: a scene two follows found counts once) waiting for review. */
-  private async reviewSceneCount(): Promise<number> {
+  /**
+   * Scenes (not rows: a scene two follows found counts once) waiting for
+   * review, less those Settings → Hidden leaves out.
+   */
+  private async reviewSceneCount(rules?: SceneExcludeRules): Promise<number> {
+    const current = rules ?? (await this.hiddenRules());
     const rows = await this.prisma.followedScene.findMany({
       where: {
         state: { in: [FollowedSceneState.NEW, FollowedSceneState.FAILED] },
       },
-      select: { sceneId: true },
-      distinct: ['sceneId'],
+      select: {
+        sceneId: true,
+        title: true,
+        studioId: true,
+        studioName: true,
+        follow: { select: { kind: true, entityId: true } },
+      },
     });
-    return rows.length;
+    const shown = new Set<string>();
+    for (const row of rows) {
+      const hidden =
+        isFollowHidden(row.follow, current) ||
+        isSceneExcluded(
+          {
+            title: row.title,
+            details: null,
+            studioId: row.studioId,
+            studioName: row.studioName,
+          },
+          current,
+        );
+      if (!hidden) {
+        shown.add(row.sceneId);
+      }
+    }
+    return shown.size;
+  }
+
+  private async hiddenRules(): Promise<SceneExcludeRules> {
+    return (
+      (await this.hiddenContent?.getRules().catch(() => null)) ??
+      EMPTY_EXCLUDE_RULES
+    );
   }
 
   private async instanceProviderKey(): Promise<CatalogProviderKey | null> {
@@ -709,6 +936,33 @@ function groupBySceneId(rows: FollowedSceneWithFollow[]): Array<{
     }
   }
   return [...groups.values()];
+}
+
+/**
+ * How far back a check reads: the follow's start, or once a check has read
+ * that far with its current settings, a little before that check (for scenes
+ * the catalog adds with an earlier date).
+ */
+function checkCutoff(follow: Follow): string {
+  if (!follow.fullyCheckedAt) {
+    return follow.since;
+  }
+  const overlap = new Date(
+    follow.fullyCheckedAt.getTime() - RECHECK_OVERLAP_DAYS * 86_400_000,
+  )
+    .toISOString()
+    .slice(0, 10);
+  return overlap > follow.since ? overlap : follow.since;
+}
+
+/** A followed performer or studio you've since hidden in Settings → Hidden. */
+function isFollowHidden(
+  follow: { kind: FollowKind; entityId: string },
+  rules: SceneExcludeRules,
+): boolean {
+  return follow.kind === FollowKind.PERFORMER
+    ? rules.performerIds.has(follow.entityId)
+    : rules.studioIds.has(follow.entityId);
 }
 
 function toFollowDto(follow: Follow, newCount: number): FollowDto {

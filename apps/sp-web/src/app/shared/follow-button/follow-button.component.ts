@@ -7,6 +7,7 @@ import {
   FollowTag,
   FollowsApiService,
   SINCE_OPTIONS,
+  sinceDayLabel,
   sinceDaysAgo,
   sinceOptionFor,
 } from '../../core/api/follows.service';
@@ -69,13 +70,17 @@ const NOUN: Record<FollowKind, string> = { PERFORMER: 'performer', STUDIO: 'stud
           <label class="field">
             <span>Show scenes from</span>
             <select
-              [value]="sinceChoice()"
               [disabled]="busy()"
               data-testid="follow-since"
-              (change)="setSince($any($event.target).value)"
+              (change)="setSince($any($event.target))"
             >
+              @if (sinceChoice() === null) {
+                <option value="custom" disabled selected>{{ sinceDayLabel(current.since) }}</option>
+              }
               @for (option of sinceOptions; track option.days) {
-                <option [value]="option.days">{{ option.label }}</option>
+                <option [value]="option.days" [selected]="sinceChoice() === option.days">
+                  {{ option.label }}
+                </option>
               }
             </select>
           </label>
@@ -90,7 +95,7 @@ const NOUN: Record<FollowKind, string> = { PERFORMER: 'performer', STUDIO: 'stud
               [checked]="current.autoRequest"
               [disabled]="busy()"
               data-testid="follow-auto"
-              (change)="setAutoRequest($any($event.target).checked)"
+              (change)="setAutoRequest($any($event.target))"
             />
             <span>
               Request new scenes automatically
@@ -249,27 +254,36 @@ export class FollowButtonComponent implements OnChanges {
   protected readonly followable = signal(false);
   protected readonly busy = signal(false);
   protected readonly open = signal(false);
-  protected readonly sinceChoice = signal<number>(0);
+  protected readonly sinceChoice = signal<number | null>(0);
   protected readonly sinceOptions = SINCE_OPTIONS;
+  protected readonly sinceDayLabel = sinceDayLabel;
+  /** Bumped on each lookup and follow, so a slower, older answer is ignored. */
+  private generation = 0;
 
   ngOnChanges(): void {
     const id = this.entityId?.trim();
+    const generation = ++this.generation;
     this.follow.set(null);
     this.followable.set(false);
     this.open.set(false);
+    this.busy.set(false);
     if (!id) {
       return;
     }
     this.api.lookup(this.kind, id).subscribe({
       next: (result) => {
-        if (this.entityId?.trim() !== id) {
+        if (generation !== this.generation) {
           return;
         }
         this.followable.set(result.followable);
         this.setFollow(result.follow);
       },
       // Can't tell: leave the button out rather than offer one that fails.
-      error: () => this.followable.set(false),
+      error: () => {
+        if (generation === this.generation) {
+          this.followable.set(false);
+        }
+      },
     });
   }
 
@@ -286,11 +300,16 @@ export class FollowButtonComponent implements OnChanges {
       return;
     }
     const name = this.name?.trim() || id;
+    const generation = this.generation;
     this.busy.set(true);
     this.api
       .follow({ kind: this.kind, entityId: id, name, imageUrl: this.imageUrl ?? null })
       .subscribe({
         next: (follow) => {
+          // This page shows someone else now: theirs isn't this follow.
+          if (generation !== this.generation) {
+            return;
+          }
           this.busy.set(false);
           this.setFollow(follow);
           this.open.set(true);
@@ -300,16 +319,23 @@ export class FollowButtonComponent implements OnChanges {
           );
         },
         error: () => {
-          this.busy.set(false);
+          if (generation === this.generation) {
+            this.busy.set(false);
+          }
           this.notifications.error(`Couldn’t follow this ${NOUN[this.kind]}`, 'Try again.');
         },
       });
   }
 
-  protected setSince(value: string): void {
-    const days = Number(value);
-    this.save({ since: sinceDaysAgo(Number.isFinite(days) ? days : 0) }, () =>
-      this.sinceChoice.set(days),
+  protected setSince(select: HTMLSelectElement): void {
+    const days = Number(select.value);
+    if (!Number.isFinite(days)) {
+      return;
+    }
+    this.save(
+      { since: sinceDaysAgo(days) },
+      // Failed: show the saved choice again.
+      () => (select.value = String(this.sinceChoice() ?? 'custom')),
     );
   }
 
@@ -317,8 +343,9 @@ export class FollowButtonComponent implements OnChanges {
     this.save({ tags });
   }
 
-  protected setAutoRequest(autoRequest: boolean): void {
-    this.save({ autoRequest });
+  protected setAutoRequest(checkbox: HTMLInputElement): void {
+    const saved = this.follow()?.autoRequest ?? false;
+    this.save({ autoRequest: checkbox.checked }, () => (checkbox.checked = saved));
   }
 
   protected unfollow(): void {
@@ -341,22 +368,28 @@ export class FollowButtonComponent implements OnChanges {
     });
   }
 
-  private save(changes: FollowChanges, done?: () => void): void {
+  /** Saves a change; on failure `undo` puts the control back as it was saved. */
+  private save(changes: FollowChanges, undo?: () => void): void {
     const current = this.follow();
     if (!current || this.busy()) {
+      undo?.();
       return;
     }
+    const generation = this.generation;
     this.busy.set(true);
     this.api.update(current.id, changes).subscribe({
       next: (follow) => {
+        if (generation !== this.generation) {
+          return;
+        }
         this.busy.set(false);
-        this.follow.set(follow);
-        done?.();
+        this.setFollow(follow);
       },
       error: () => {
-        this.busy.set(false);
-        // Put the controls back the way they were.
-        this.setFollow({ ...current });
+        if (generation === this.generation) {
+          this.busy.set(false);
+          undo?.();
+        }
         this.notifications.error('Couldn’t save that', 'Try again.');
       },
     });
@@ -364,6 +397,6 @@ export class FollowButtonComponent implements OnChanges {
 
   private setFollow(follow: Follow | null): void {
     this.follow.set(follow);
-    this.sinceChoice.set(follow ? sinceOptionFor(follow.since, follow.createdAt) : 0);
+    this.sinceChoice.set(follow ? sinceOptionFor(follow.since) : 0);
   }
 }

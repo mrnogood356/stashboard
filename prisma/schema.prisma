@@ -804,6 +804,8 @@ model Follow {
   /// Only scenes with at least one of these catalog tags: [{ id, name }]. Empty is every scene.
   tags          Json            @default("[]")
   lastCheckedAt DateTime?
+  /// When a check last read all the way back to `since` with these tags; later checks only look back from shortly before it.
+  fullyCheckedAt DateTime?
   /// Why the last check of this follow didn't work, when it didn't.
   lastError     String?
   createdAt     DateTime        @default(now())

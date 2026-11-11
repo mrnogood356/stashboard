@@ -130,14 +130,23 @@ export function sinceDaysAgo(days: number, now = new Date()): string {
   return new Date(now.getTime() - days * 86_400_000).toISOString().slice(0, 10);
 }
 
-/** The closest choice for a saved day, so the sheet shows what it was set to. */
-export function sinceOptionFor(since: string, createdAt: string): number {
-  const back = Math.round((Date.parse(createdAt) - Date.parse(since)) / 86_400_000);
-  let best: number = SINCE_OPTIONS[0].days;
-  for (const option of SINCE_OPTIONS) {
-    if (back >= option.days - 1) {
-      best = option.days;
-    }
-  }
-  return best;
+/**
+ * The choice that matches a saved start, counted back from today (the choices
+ * are "the last N days" as of now), or null when none does: chosen a while
+ * ago, it's a fixed day by now, and is shown as one.
+ */
+export function sinceOptionFor(since: string, now = new Date()): number | null {
+  const back = Math.round(
+    (Date.parse(now.toISOString().slice(0, 10)) - Date.parse(since)) / 86_400_000,
+  );
+  const match = SINCE_OPTIONS.find((option) => Math.abs(back - option.days) <= 1);
+  return match ? match.days : null;
+}
+
+/** "From 2 Oct 2026", for a start none of the choices matches. */
+export function sinceDayLabel(since: string): string {
+  const day = new Date(`${since}T00:00:00Z`);
+  return Number.isNaN(day.getTime())
+    ? `From ${since}`
+    : `From ${day.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}`;
 }

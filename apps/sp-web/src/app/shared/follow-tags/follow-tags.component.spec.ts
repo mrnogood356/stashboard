@@ -64,4 +64,15 @@ describe('FollowTagsComponent', () => {
     ]);
     expect(root.textContent).toContain('A scene needs any one of these.');
   });
+
+  it('searches the same words again right after adding a tag', async () => {
+    const anal = { id: 't-anal', name: 'Anal' };
+    const { fixture, root, searchTags } = await render([], [anal]);
+    await type(fixture, root, 'an');
+    (root.querySelector('[data-testid="add-tag-t-anal"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await type(fixture, root, 'an');
+    expect(searchTags).toHaveBeenCalledTimes(2);
+    expect(root.textContent).not.toContain('Searching…');
+  });
 });

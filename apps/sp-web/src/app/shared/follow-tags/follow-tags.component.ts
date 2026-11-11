@@ -1,5 +1,5 @@
 import { Component, EventEmitter, Input, OnDestroy, Output, inject, signal } from '@angular/core';
-import { Subject, Subscription, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
+import { Subject, Subscription, debounceTime, of, switchMap } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { FollowTag, FollowsApiService } from '../../core/api/follows.service';
 
@@ -201,8 +201,9 @@ export class FollowTagsComponent implements OnDestroy {
   constructor() {
     this.searchSub = this.queries
       .pipe(
+        // No skipping a repeat: the same words typed again after adding a
+        // tag still need their results.
         debounceTime(SEARCH_DEBOUNCE_MS),
-        distinctUntilChanged(),
         switchMap((text) =>
           text
             ? this.api.searchTags(text).pipe(catchError(() => of([] as FollowTag[])))

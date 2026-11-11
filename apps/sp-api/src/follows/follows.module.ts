@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { HiddenContentModule } from '../hidden-content/hidden-content.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PerformersModule } from '../performers/performers.module';
@@ -11,6 +12,7 @@ import { FollowsService } from './follows.service';
 /** Following performers and studios, and the scenes they release. */
 @Module({
   imports: [
+    HiddenContentModule,
     IntegrationsModule,
     NotificationsModule,
     PerformersModule,

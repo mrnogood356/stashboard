@@ -226,3 +226,14 @@
     justify-content: flex-start;
   }
 }
+
+.retry {
+  margin-left: 0.5rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text, var(--accent));
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}

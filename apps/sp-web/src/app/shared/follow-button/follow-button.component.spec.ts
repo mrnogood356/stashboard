@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { Follow, FollowsApiService } from '../../core/api/follows.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { FollowButtonComponent } from './follow-button.component';
@@ -98,5 +98,71 @@ describe('FollowButtonComponent', () => {
     expect(
       (fixture.nativeElement as HTMLElement).querySelector('[data-testid="follow-toggle"]'),
     ).toBeNull();
+  });
+
+  it('puts the checkbox back when saving fails', async () => {
+    const fixture = await render({
+      lookup: vi.fn().mockReturnValue(of({ follow: follow(), followable: true })),
+      update: vi.fn().mockReturnValue(throwError(() => new Error('down'))),
+    });
+    const root = fixture.nativeElement as HTMLElement;
+    (root.querySelector('[data-testid="follow-toggle"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const auto = root.querySelector('[data-testid="follow-auto"]') as HTMLInputElement;
+    auto.checked = true;
+    auto.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(auto.checked).toBe(false);
+  });
+
+  it('ignores a follow that finishes after the page moved on', async () => {
+    const pending = new Subject<Follow>();
+    const lookup = vi
+      .fn()
+      .mockReturnValueOnce(of({ follow: null, followable: true }))
+      .mockReturnValueOnce(of({ follow: null, followable: true }));
+    const fixture = await render({ lookup, follow: vi.fn().mockReturnValue(pending) });
+    const root = fixture.nativeElement as HTMLElement;
+    (root.querySelector('[data-testid="follow-toggle"]') as HTMLButtonElement).click();
+
+    // Now on another performer's page; then the first follow comes back.
+    fixture.componentRef.setInput('entityId', 'p2');
+    fixture.detectChanges();
+    pending.next(follow());
+    pending.complete();
+    fixture.detectChanges();
+    const toggle = root.querySelector('[data-testid="follow-toggle"]') as HTMLButtonElement;
+    expect(toggle.textContent).not.toContain('Following');
+    expect(toggle.disabled).toBe(false);
+  });
+
+  it('ignores a failed lookup for a page it has left', async () => {
+    const first = new Subject<never>();
+    const lookup = vi
+      .fn()
+      .mockReturnValueOnce(first)
+      .mockReturnValueOnce(of({ follow: null, followable: true }));
+    const fixture = await render({ lookup });
+    fixture.componentRef.setInput('entityId', 'p2');
+    fixture.detectChanges();
+    first.error(new Error('slow and failed'));
+    fixture.detectChanges();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="follow-toggle"]'),
+    ).toBeTruthy();
+  });
+
+  it('shows a start none of the choices matches as its day', async () => {
+    const fixture = await render({
+      lookup: vi
+        .fn()
+        .mockReturnValue(of({ follow: follow({ since: '2020-01-02' }), followable: true })),
+    });
+    const root = fixture.nativeElement as HTMLElement;
+    (root.querySelector('[data-testid="follow-toggle"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const select = root.querySelector('[data-testid="follow-since"]') as HTMLSelectElement;
+    expect(select.value).toBe('custom');
+    expect(select.textContent).toContain('2020');
   });
 });

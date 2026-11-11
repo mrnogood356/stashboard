@@ -10,6 +10,7 @@ import {
   FollowedRelease,
   FollowsApiService,
   SINCE_OPTIONS,
+  sinceDayLabel,
   sinceDaysAgo,
   sinceOptionFor,
 } from '../../core/api/follows.service';
@@ -58,11 +59,15 @@ export class FollowingPageComponent implements OnInit, OnDestroy {
   protected readonly follows = signal<Follow[] | null>(null);
   protected readonly followsFailed = signal(false);
   protected readonly checking = signal(false);
-  protected readonly savingId = signal<string | null>(null);
+  /** Follows with a save on its way: their controls wait for it. */
+  protected readonly savingIds = signal<ReadonlySet<string>>(new Set());
   /** The follow whose tags are open for editing. */
   protected readonly editingTagsId = signal<string | null>(null);
   protected readonly requestContext = signal<SceneRequestContext | null>(null);
   protected readonly sinceOptions = SINCE_OPTIONS;
+  protected readonly sinceDayLabel = sinceDayLabel;
+  /** Bumped on each releases load, so an older answer can't replace a newer one. */
+  private releasesGeneration = 0;
 
   /** Performers, then studios. */
   protected readonly groups = computed(() => {
@@ -145,13 +150,24 @@ export class FollowingPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  protected sinceChoice(follow: Follow): number {
-    return sinceOptionFor(follow.since, follow.createdAt);
+  protected sinceChoice(follow: Follow): number | null {
+    return sinceOptionFor(follow.since);
   }
 
-  protected setSince(follow: Follow, value: string): void {
-    const days = Number(value);
-    this.save(follow, { since: sinceDaysAgo(Number.isFinite(days) ? days : 0) });
+  protected isSaving(follow: Follow): boolean {
+    return this.savingIds().has(follow.id);
+  }
+
+  protected setSince(follow: Follow, select: HTMLSelectElement): void {
+    const days = Number(select.value);
+    if (!Number.isFinite(days)) {
+      return;
+    }
+    this.save(
+      follow,
+      { since: sinceDaysAgo(days) },
+      () => (select.value = String(this.sinceChoice(follow) ?? 'custom')),
+    );
   }
 
   protected toggleTags(follow: Follow): void {
@@ -166,21 +182,36 @@ export class FollowingPageComponent implements OnInit, OnDestroy {
     return follow.tags.map((tag) => tag.name).join(', ');
   }
 
-  protected setAutoRequest(follow: Follow, autoRequest: boolean): void {
-    this.save(follow, { autoRequest });
+  protected setAutoRequest(follow: Follow, checkbox: HTMLInputElement): void {
+    this.save(
+      follow,
+      { autoRequest: checkbox.checked },
+      () => (checkbox.checked = follow.autoRequest),
+    );
+  }
+
+  /** Tries again after a list couldn't be read. */
+  protected retryFollows(): void {
+    this.loadFollows();
+  }
+
+  protected retryReleases(): void {
+    this.loadReleases();
   }
 
   protected unfollow(follow: Follow): void {
-    this.savingId.set(follow.id);
+    if (!this.startSaving(follow)) {
+      return;
+    }
     this.api.unfollow(follow.id).subscribe({
       next: () => {
-        this.savingId.set(null);
+        this.doneSaving(follow);
         this.follows.update((list) => (list ?? []).filter((other) => other.id !== follow.id));
         this.notifications.success(`Stopped following ${follow.name}`);
         this.loadReleases();
       },
       error: () => {
-        this.savingId.set(null);
+        this.doneSaving(follow);
         this.notifications.error('Couldn’t unfollow', 'Try again.');
       },
     });
@@ -190,21 +221,49 @@ export class FollowingPageComponent implements OnInit, OnDestroy {
     return [kind === 'PERFORMER' ? '/performer' : '/studio', entityId];
   }
 
-  private save(follow: Follow, changes: FollowChanges): void {
-    this.savingId.set(follow.id);
+  /**
+   * Saves a change to one follow; on failure `undo` puts the control back as
+   * it was saved. A change to its tags or start has the server look again,
+   * so New is read again once that's done.
+   */
+  private save(follow: Follow, changes: FollowChanges, undo?: () => void): void {
+    if (!this.startSaving(follow)) {
+      undo?.();
+      return;
+    }
     this.api.update(follow.id, changes).subscribe({
       next: (saved) => {
-        this.savingId.set(null);
+        this.doneSaving(follow);
         this.follows.update((list) =>
           (list ?? []).map((other) => (other.id === saved.id ? saved : other)),
         );
+        if (changes.tags !== undefined || changes.since !== undefined) {
+          this.checking.set(true);
+          this.pollUntilChecked();
+        }
       },
       error: () => {
-        this.savingId.set(null);
-        // Redraw from what was saved.
-        this.follows.update((list) => [...(list ?? [])]);
+        this.doneSaving(follow);
+        undo?.();
         this.notifications.error('Couldn’t save that', 'Try again.');
       },
+    });
+  }
+
+  /** False while this follow already has a save on its way. */
+  private startSaving(follow: Follow): boolean {
+    if (this.savingIds().has(follow.id)) {
+      return false;
+    }
+    this.savingIds.update((ids) => new Set(ids).add(follow.id));
+    return true;
+  }
+
+  private doneSaving(follow: Follow): void {
+    this.savingIds.update((ids) => {
+      const next = new Set(ids);
+      next.delete(follow.id);
+      return next;
     });
   }
 
@@ -218,17 +277,22 @@ export class FollowingPageComponent implements OnInit, OnDestroy {
 
   private loadReleases(): void {
     const view = this.tab() === 'recent' ? 'all' : 'review';
+    const generation = ++this.releasesGeneration;
     this.releasesFailed.set(false);
     this.releases.set(null);
     this.api.releases(view, 120).subscribe({
       next: (result) => {
-        if ((this.tab() === 'recent' ? 'all' : 'review') !== view) {
+        if (generation !== this.releasesGeneration) {
           return;
         }
         this.releases.set(result.items);
         this.reviewCount.set(result.reviewCount);
       },
-      error: () => this.releasesFailed.set(true),
+      error: () => {
+        if (generation === this.releasesGeneration) {
+          this.releasesFailed.set(true);
+        }
+      },
     });
   }
 
@@ -263,6 +327,7 @@ export class FollowingPageComponent implements OnInit, OnDestroy {
           this.pollSub?.unsubscribe();
           this.pollSub = null;
           this.checking.set(false);
+          this.loadReleases();
         },
       });
     });

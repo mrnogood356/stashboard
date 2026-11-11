@@ -111,7 +111,12 @@
         </ul>
       }
     } @else if (releasesFailed()) {
-      <div class="notice" role="alert">Couldn’t read what’s new right now.</div>
+      <div class="notice" role="alert">
+        Couldn’t read what’s new right now.
+        <button type="button" class="retry" data-testid="retry-releases" (click)="retryReleases()">
+          Try again
+        </button>
+      </div>
     } @else {
       <p class="muted" role="status">Loading…</p>
     }
@@ -185,29 +190,38 @@
                   </div>
                   <div class="follow-controls">
                     <select
-                      [value]="sinceChoice(follow)"
-                      [disabled]="savingId() === follow.id"
+                      [disabled]="isSaving(follow)"
                       [attr.aria-label]="'How far back to look for ' + follow.name"
-                      (change)="setSince(follow, $any($event.target).value)"
+                      (change)="setSince(follow, $any($event.target))"
                     >
+                      @if (sinceChoice(follow) === null) {
+                        <option value="custom" disabled selected>
+                          {{ sinceDayLabel(follow.since) }}
+                        </option>
+                      }
                       @for (option of sinceOptions; track option.days) {
-                        <option [value]="option.days">{{ option.label }}</option>
+                        <option
+                          [value]="option.days"
+                          [selected]="sinceChoice(follow) === option.days"
+                        >
+                          {{ option.label }}
+                        </option>
                       }
                     </select>
                     <label class="auto">
                       <input
                         type="checkbox"
                         [checked]="follow.autoRequest"
-                        [disabled]="savingId() === follow.id"
+                        [disabled]="isSaving(follow)"
                         [attr.data-testid]="'auto-' + follow.entityId"
-                        (change)="setAutoRequest(follow, $any($event.target).checked)"
+                        (change)="setAutoRequest(follow, $any($event.target))"
                       />
                       Request automatically
                     </label>
                     <button
                       type="button"
                       class="unfollow"
-                      [disabled]="savingId() === follow.id"
+                      [disabled]="isSaving(follow)"
                       [attr.aria-label]="'Unfollow ' + follow.name"
                       (click)="unfollow(follow)"
                     >
@@ -218,7 +232,7 @@
                     <div class="tags-editor">
                       <app-follow-tags
                         [tags]="follow.tags"
-                        [disabled]="savingId() === follow.id"
+                        [disabled]="isSaving(follow)"
                         (tagsChange)="setTags(follow, $event)"
                       />
                     </div>
@@ -235,7 +249,12 @@
         </p>
       }
     } @else if (followsFailed()) {
-      <div class="notice" role="alert">Couldn’t read who you follow right now.</div>
+      <div class="notice" role="alert">
+        Couldn’t read who you follow right now.
+        <button type="button" class="retry" data-testid="retry-follows" (click)="retryFollows()">
+          Try again
+        </button>
+      </div>
     } @else {
       <p class="muted" role="status">Loading…</p>
     }
