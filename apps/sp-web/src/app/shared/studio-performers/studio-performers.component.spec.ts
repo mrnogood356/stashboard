@@ -165,4 +165,34 @@ describe('StudioPerformersComponent', () => {
       expect.objectContaining({ name: 'khloe', studioId: 'studio-2' }),
     );
   });
+
+  it('treats going back to a studio as a new visit', async () => {
+    const { fixture, root, getPerformersFeed } = await render();
+    await settle();
+    const search = () =>
+      root.querySelector('[data-testid="studio-performer-search"]') as HTMLInputElement;
+    const type = (value: string) => {
+      search().value = value;
+      search().dispatchEvent(new Event('input'));
+    };
+    const named = () =>
+      getPerformersFeed.mock.calls.filter((call) => call[2].name === 'khloe').length;
+
+    // Searched, away and back: the same name searches again.
+    type('khloe');
+    await settle();
+    expect(named()).toBe(1);
+    fixture.componentInstance.studioId = 'studio-2';
+    fixture.componentInstance.studioId = 'studio-1';
+    type('khloe');
+    await settle();
+    expect(named()).toBe(2);
+
+    // Typed, away and back before the pause is over: the old search is dropped.
+    type('kh');
+    fixture.componentInstance.studioId = 'studio-2';
+    fixture.componentInstance.studioId = 'studio-1';
+    await settle();
+    expect(getPerformersFeed.mock.calls.some((call) => call[2].name === 'kh')).toBe(false);
+  });
 });
