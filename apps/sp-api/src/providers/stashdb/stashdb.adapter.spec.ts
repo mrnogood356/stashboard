@@ -1536,6 +1536,30 @@ describe('StashdbAdapter', () => {
     expect(requestBody.query).toContain('direction: DESC');
   });
 
+  it('asks only for a studio’s performers when given its id', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: { queryPerformers: { count: 0, performers: [] } },
+        }),
+    });
+
+    await adapter.getPerformersFeed({
+      baseUrl: 'http://stashdb.local/graphql',
+      page: 1,
+      perPage: 50,
+      studioId: 'studio-1',
+    });
+
+    const requestBody = JSON.parse(
+      (fetchMock.mock.calls[0] as [string, { body: string }])[1].body,
+    ) as { query: string; variables: Record<string, unknown> };
+    expect(requestBody.query).toContain('studio_id: $studioId');
+    expect(requestBody.query).toContain('$studioId: ID!');
+    expect(requestBody.variables.studioId).toBe('studio-1');
+  });
+
   it('omits is_favorite filter when favoritesOnly is false', async () => {
     fetchMock.mockResolvedValue({
       ok: true,

@@ -46,9 +46,15 @@ export abstract class StashdbPeopleApi extends StashdbGraphqlClient {
       inputParts.push('is_favorite: true');
     }
 
+    const studioId = config.studioId?.trim() ?? '';
+    if (studioId) {
+      inputParts.push('studio_id: $studioId');
+    }
+
     const nameVariableDeclaration = normalizedName ? ', $name: String!' : '';
+    const studioVariableDeclaration = studioId ? ', $studioId: ID!' : '';
     const query = `
-      query QueryPerformers($page: Int!, $perPage: Int!${nameVariableDeclaration}) {
+      query QueryPerformers($page: Int!, $perPage: Int!${nameVariableDeclaration}${studioVariableDeclaration}) {
         queryPerformers(input: { ${inputParts.join(', ')} }) {
           count
           performers {
@@ -74,6 +80,9 @@ export abstract class StashdbPeopleApi extends StashdbGraphqlClient {
     };
     if (normalizedName) {
       variables.name = normalizedName;
+    }
+    if (studioId) {
+      variables.studioId = studioId;
     }
 
     const payload = normalizedName

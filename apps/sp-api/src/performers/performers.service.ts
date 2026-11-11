@@ -51,6 +51,7 @@ export class PerformersService {
       sort?: PerformerSort;
       direction?: PerformerSortDirection;
       favoritesOnly?: boolean;
+      studioId?: string;
     },
   ): Promise<PerformerFeedResponseDto> {
     const catalogProvider =
@@ -68,6 +69,7 @@ export class PerformersService {
         filters?.direction ??
         PerformersService.DEFAULT_PERFORMERS_SORT_DIRECTION,
       favoritesOnly: filters?.favoritesOnly === true,
+      studioId: filters?.studioId?.trim() || undefined,
     });
 
     const hasMore = page * perPage < performers.total;

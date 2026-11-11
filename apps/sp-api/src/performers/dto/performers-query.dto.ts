@@ -91,4 +91,10 @@ export class PerformersQueryDto {
   })
   @IsBoolean()
   favoritesOnly?: boolean;
+
+  /** Only performers who appear in this catalog studio's scenes. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  studioId?: string;
 }
