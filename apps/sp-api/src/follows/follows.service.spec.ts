@@ -146,6 +146,12 @@ function fakePrisma() {
           return Promise.resolve();
         },
       ),
+      deleteMany: jest.fn(({ where }: { where: Where }) => {
+        for (const row of scenes.filter((s) => matches(s as never, where))) {
+          scenes.splice(scenes.indexOf(row), 1);
+        }
+        return Promise.resolve();
+      }),
       groupBy: jest.fn(({ where }: { where: Where }) => {
         const counts = new Map<string, number>();
         for (const row of scenes.filter((s) => matches(s as never, where))) {
@@ -194,6 +200,11 @@ function setup() {
     }),
   };
   const scenesService = {
+    searchSceneTags: jest
+      .fn()
+      .mockResolvedValue([
+        { id: 't-anal', name: 'Anal', description: null, aliases: [] },
+      ]),
     getScenesFeed: jest.fn().mockResolvedValue({
       hasMore: false,
       items: [
@@ -415,6 +426,80 @@ describe('FollowsService', () => {
     });
     expect(follows.map((f) => [f.entityId, f.since, f.autoRequest])).toEqual([
       ['s1', '2025-11-11', true],
+    ]);
+    // A backup from before tags follows every scene.
+    expect(follows[0].tags).toEqual([]);
+  });
+
+  it('asks the catalog only for scenes with the follow’s tags', async () => {
+    const { service, follows, performers, scenesService } = setup();
+    const anal = { id: 't-anal', name: 'Anal' };
+    await service.follow({
+      kind: 'PERFORMER',
+      entityId: 'p1',
+      name: 'Kaitlyn',
+      tags: [anal, anal, { id: ' ', name: 'blank' }],
+    });
+    await service.follow({
+      kind: 'STUDIO',
+      entityId: 's1',
+      name: 'Studio',
+      tags: [anal],
+    });
+    expect(follows[0].tags).toEqual([anal]);
+    await service.checkAll();
+
+    expect(performers.getPerformerScenes).toHaveBeenCalledWith('p1', 1, 40, {
+      sort: 'DATE',
+      direction: 'DESC',
+      tagIds: ['t-anal'],
+    });
+    expect(scenesService.getScenesFeed).toHaveBeenCalledWith(
+      1,
+      40,
+      'DATE',
+      'DESC',
+      ['t-anal'],
+      'OR',
+      undefined,
+      ['s1'],
+    );
+    expect((await service.list()).follows[0].tags).toEqual([anal]);
+  });
+
+  it('looks again, quietly, when a follow’s tags change', async () => {
+    const { service, follows, scenes, performers, notifications } = setup();
+    await service.follow({
+      kind: 'PERFORMER',
+      entityId: 'p1',
+      name: 'Kaitlyn',
+    });
+    follows[0].since = '2026-11-01';
+    await service.checkAll();
+    expect(scenes.map((row) => row.sceneId)).toEqual(['new-1']);
+    notifications.notifyFollowedReleases.mockClear();
+
+    // Under the new tag the catalog has a different scene.
+    performers.getPerformerScenes.mockResolvedValue({
+      hasMore: false,
+      items: [feedScene('tagged', '2026-11-09')],
+    });
+    const saved = await service.update(follows[0].id, {
+      tags: [{ id: 't-anal', name: 'Anal' }],
+    });
+    expect(saved.tags).toEqual([{ id: 't-anal', name: 'Anal' }]);
+    await service.checkAll(); // waits for the re-check the change started
+
+    // What was waiting without the tag is gone; the tagged scene is there.
+    expect(scenes.map((row) => row.sceneId)).toEqual(['tagged']);
+    expect(notifications.notifyFollowedReleases).not.toHaveBeenCalled();
+  });
+
+  it('finds tags on the main catalog', async () => {
+    const { service } = setup();
+    await expect(service.searchTags('  ')).resolves.toEqual([]);
+    await expect(service.searchTags('an')).resolves.toEqual([
+      { id: 't-anal', name: 'Anal' },
     ]);
   });
 });

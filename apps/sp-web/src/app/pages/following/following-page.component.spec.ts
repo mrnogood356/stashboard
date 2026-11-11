@@ -40,6 +40,7 @@ const follow: Follow = {
   imageUrl: null,
   since: '2026-11-11',
   autoRequest: false,
+  tags: [],
   lastCheckedAt: '2026-11-11T06:15:00.000Z',
   lastError: null,
   newCount: 2,
@@ -121,6 +122,38 @@ describe('FollowingPageComponent', () => {
     expect(root.textContent).toContain('You’re not following anyone yet');
     expect((root.querySelector('[data-testid="check-now"]') as HTMLButtonElement).disabled).toBe(
       true,
+    );
+  });
+
+  it('narrows a follow to tags from its row', async () => {
+    const anal = { id: 't-anal', name: 'Anal' };
+    const update = vi.fn().mockReturnValue(of({ ...follow, tags: [anal] }));
+    const fixture = await render({
+      list: vi
+        .fn()
+        .mockReturnValue(of({ follows: [follow], checking: false, provider: 'STASHDB' })),
+      releases: vi.fn().mockReturnValue(of({ items: [], reviewCount: 0 })),
+      searchTags: vi.fn().mockReturnValue(of([anal])),
+      update,
+    });
+    const root = fixture.nativeElement as HTMLElement;
+    (root.querySelector('[data-testid="tab-manage"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="follow-p1"]')?.textContent).toContain('Every tag');
+
+    (root.querySelector('[data-testid="edit-tags-p1"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const search = root.querySelector('[data-testid="tag-search"]') as HTMLInputElement;
+    search.value = 'an';
+    search.dispatchEvent(new Event('input'));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    fixture.detectChanges();
+    (root.querySelector('[data-testid="add-tag-t-anal"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(update).toHaveBeenCalledWith('f1', { tags: [anal] });
+    expect(root.querySelector('[data-testid="follow-p1"]')?.textContent).toContain(
+      'Only tagged Anal',
     );
   });
 });

@@ -39,8 +39,11 @@ import {
   type FollowedReleaseDto,
   type FollowedReleasesDto,
   type FollowLookupDto,
+  type FollowTag,
   type FollowsDto,
   pickNewScenes,
+  readFollowTags,
+  sameFollowTags,
 } from './follows.model';
 
 /** Scenes asked for per page, newest first. */
@@ -124,6 +127,18 @@ export class FollowsService {
     };
   }
 
+  /** Tags to narrow a follow to: always the main catalog's, whatever page asks. */
+  async searchTags(query: string): Promise<FollowTag[]> {
+    const text = query.trim();
+    if (!text) {
+      return [];
+    }
+    const tags = await runWithRequestedCatalogProvider(null, () =>
+      this.scenes.searchSceneTags(text),
+    );
+    return tags.slice(0, 20).map((tag) => ({ id: tag.id, name: tag.name }));
+  }
+
   /** Follows (or updates the follow of) a performer or studio on the main catalog. */
   async follow(dto: CreateFollowDto): Promise<FollowDto> {
     if (await this.catalogProvider.isBrowseOnlyRequest()) {
@@ -144,6 +159,7 @@ export class FollowsService {
       imageUrl: dto.imageUrl?.trim() || null,
       since,
       autoRequest: dto.autoRequest ?? false,
+      tags: readFollowTags(dto.tags ?? []),
     };
     const follow = await this.prisma.follow.upsert({
       where: {
@@ -153,7 +169,7 @@ export class FollowsService {
       update: data,
     });
     this.logger.log(
-      `Following ${follow.kind.toLowerCase()} “${follow.name}” from ${follow.since}${follow.autoRequest ? ', requesting new scenes' : ''}.`,
+      `Following ${follow.kind.toLowerCase()} “${follow.name}” from ${follow.since}${describeTags(data.tags)}${follow.autoRequest ? ', requesting new scenes' : ''}.`,
     );
     // Starting from an earlier day can already have scenes to show.
     if (since < clampSince(null, this.now())) {
@@ -168,6 +184,9 @@ export class FollowsService {
       dto.since === undefined
         ? existing.since
         : clampSince(dto.since, this.now());
+    const tags = dto.tags === undefined ? null : readFollowTags(dto.tags);
+    const tagsChanged =
+      tags !== null && !sameFollowTags(tags, readFollowTags(existing.tags));
     const follow = await this.prisma.follow.update({
       where: { id },
       data: {
@@ -175,9 +194,23 @@ export class FollowsService {
         ...(dto.autoRequest === undefined
           ? {}
           : { autoRequest: dto.autoRequest }),
+        ...(tagsChanged ? { tags } : {}),
       },
     });
-    if (since < existing.since) {
+    if (tagsChanged) {
+      // What's waiting may not have these tags: look again from scratch.
+      // Requested and dismissed scenes stay as they are.
+      await this.prisma.followedScene.deleteMany({
+        where: {
+          followId: id,
+          state: { in: [FollowedSceneState.NEW, FollowedSceneState.FAILED] },
+        },
+      });
+      this.logger.log(
+        `Following “${follow.name}”${describeTags(tags ?? []) || ' with every tag'} now.`,
+      );
+    }
+    if (since < existing.since || tagsChanged) {
       void this.checkOne(follow.id).catch(() => undefined);
     }
     const counts = await this.reviewCounts(id);
@@ -335,7 +368,8 @@ export class FollowsService {
   private checkOne(id: string): Promise<FollowCheckSummary> {
     return this.exclusive(async () => {
       const follow = await this.prisma.follow.findUnique({ where: { id } });
-      return this.check(follow ? [follow] : []);
+      // You've just changed this follow and are looking at it: no message.
+      return this.check(follow ? [follow] : [], { quiet: true });
     });
   }
 
@@ -357,7 +391,10 @@ export class FollowsService {
     }
   }
 
-  private async check(follows: Follow[]): Promise<FollowCheckSummary> {
+  private async check(
+    follows: Follow[],
+    { quiet = false }: { quiet?: boolean } = {},
+  ): Promise<FollowCheckSummary> {
     const summary: FollowCheckSummary = {
       checked: 0,
       found: 0,
@@ -431,7 +468,9 @@ export class FollowsService {
         status: summary.failed > 0 ? 'partial' : 'done',
         count: found.length,
       });
-      await this.notifications?.notifyFollowedReleases(found);
+      if (!quiet) {
+        await this.notifications?.notifyFollowedReleases(found);
+      }
     }
     return summary;
   }
@@ -446,6 +485,8 @@ export class FollowsService {
       select: { sceneId: true },
     });
     const known = new Set(knownRows.map((row) => row.sceneId));
+    // Any of them: the catalog matches a scene with at least one.
+    const tagIds = readFollowTags(follow.tags).map((tag) => tag.id);
     const fresh: CandidateScene[] = [];
 
     for (let page = 1; page <= MAX_PAGES; page += 1) {
@@ -458,6 +499,7 @@ export class FollowsService {
               {
                 sort: 'DATE',
                 direction: 'DESC',
+                ...(tagIds.length > 0 ? { tagIds } : {}),
               },
             )
           : this.scenes.getScenesFeed(
@@ -465,7 +507,7 @@ export class FollowsService {
               PAGE_SIZE,
               'DATE',
               'DESC',
-              [],
+              tagIds,
               'OR',
               undefined,
               [follow.entityId],
@@ -546,6 +588,7 @@ export class FollowsService {
         imageUrl: follow.imageUrl,
         since: follow.since,
         autoRequest: follow.autoRequest,
+        tags: readFollowTags(follow.tags),
       })),
     };
   }
@@ -571,6 +614,7 @@ export class FollowsService {
         imageUrl: item.imageUrl ?? null,
         since: clampSince(item.since, this.now()),
         autoRequest: item.autoRequest,
+        tags: readFollowTags(item.tags ?? []),
       };
       const follow = await this.prisma.follow.upsert({
         where,
@@ -677,11 +721,19 @@ function toFollowDto(follow: Follow, newCount: number): FollowDto {
     imageUrl: follow.imageUrl,
     since: follow.since,
     autoRequest: follow.autoRequest,
+    tags: readFollowTags(follow.tags),
     lastCheckedAt: follow.lastCheckedAt?.toISOString() ?? null,
     lastError: follow.lastError,
     newCount,
     createdAt: follow.createdAt.toISOString(),
   };
+}
+
+/** ", tagged Anal or Outdoor" for the log; nothing when every scene counts. */
+function describeTags(tags: Array<{ name: string }>): string {
+  return tags.length === 0
+    ? ''
+    : `, tagged ${tags.map((tag) => tag.name).join(' or ')}`;
 }
 
 function errorMessage(error: unknown): string {

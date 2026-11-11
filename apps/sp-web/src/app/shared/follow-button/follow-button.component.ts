@@ -2,13 +2,16 @@ import { Component, Input, OnChanges, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
   Follow,
+  FollowChanges,
   FollowKind,
+  FollowTag,
   FollowsApiService,
   SINCE_OPTIONS,
   sinceDaysAgo,
   sinceOptionFor,
 } from '../../core/api/follows.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
+import { FollowTagsComponent } from '../follow-tags/follow-tags.component';
 
 const NOUN: Record<FollowKind, string> = { PERFORMER: 'performer', STUDIO: 'studio' };
 
@@ -20,7 +23,7 @@ const NOUN: Record<FollowKind, string> = { PERFORMER: 'performer', STUDIO: 'stud
  */
 @Component({
   selector: 'app-follow-button',
-  imports: [RouterLink],
+  imports: [RouterLink, FollowTagsComponent],
   template: `
     @if (followable()) {
       <button
@@ -76,6 +79,11 @@ const NOUN: Record<FollowKind, string> = { PERFORMER: 'performer', STUDIO: 'stud
               }
             </select>
           </label>
+          <app-follow-tags
+            [tags]="current.tags"
+            [disabled]="busy()"
+            (tagsChange)="setTags($event)"
+          />
           <label class="check">
             <input
               type="checkbox"
@@ -305,6 +313,10 @@ export class FollowButtonComponent implements OnChanges {
     );
   }
 
+  protected setTags(tags: FollowTag[]): void {
+    this.save({ tags });
+  }
+
   protected setAutoRequest(autoRequest: boolean): void {
     this.save({ autoRequest });
   }
@@ -329,7 +341,7 @@ export class FollowButtonComponent implements OnChanges {
     });
   }
 
-  private save(changes: { since?: string; autoRequest?: boolean }, done?: () => void): void {
+  private save(changes: FollowChanges, done?: () => void): void {
     const current = this.follow();
     if (!current || this.busy()) {
       return;

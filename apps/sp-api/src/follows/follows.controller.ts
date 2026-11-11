@@ -13,6 +13,7 @@ import {
   CreateFollowDto,
   FollowedReleasesQueryDto,
   FollowLookupQueryDto,
+  FollowTagSearchQueryDto,
   UpdateFollowDto,
 } from './dto/follow.dto';
 import {
@@ -20,6 +21,7 @@ import {
   type FollowedReleasesDto,
   type FollowLookupDto,
   type FollowsDto,
+  type FollowTag,
 } from './follows.model';
 import { FollowsService } from './follows.service';
 
@@ -36,6 +38,12 @@ export class FollowsController {
   @Get('lookup')
   lookup(@Query() query: FollowLookupQueryDto): Promise<FollowLookupDto> {
     return this.follows.lookup(query.kind, query.entityId);
+  }
+
+  /** Tags to narrow a follow to, from the main catalog. */
+  @Get('tags')
+  searchTags(@Query() query: FollowTagSearchQueryDto): Promise<FollowTag[]> {
+    return this.follows.searchTags(query.query);
   }
 
   @Get('releases')

@@ -14,6 +14,7 @@ const follow = (overrides: Partial<Follow> = {}): Follow => ({
   imageUrl: null,
   since: '2026-11-11',
   autoRequest: false,
+  tags: [],
   lastCheckedAt: null,
   lastError: null,
   newCount: 0,

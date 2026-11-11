@@ -140,6 +140,28 @@
   font-weight: 650;
 }
 
+.tags-line {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.edit-tags {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text, var(--accent));
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tags-editor {
+  grid-column: 1 / -1;
+  max-width: 28rem;
+  font-size: 0.88rem;
+}
+
 .follow-controls {
   display: flex;
   align-items: center;

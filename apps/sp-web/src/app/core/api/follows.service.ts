@@ -6,6 +6,11 @@ import { SceneExplorerItem } from './discover.types';
 export type FollowKind = 'PERFORMER' | 'STUDIO';
 export type FollowedSceneState = 'NEW' | 'REQUESTED' | 'DISMISSED' | 'FAILED';
 
+export interface FollowTag {
+  id: string;
+  name: string;
+}
+
 export interface Follow {
   id: string;
   kind: FollowKind;
@@ -16,6 +21,8 @@ export interface Follow {
   /** Only scenes released on or after this day (YYYY-MM-DD). */
   since: string;
   autoRequest: boolean;
+  /** Only scenes with at least one of these tags; empty is every scene. */
+  tags: FollowTag[];
   lastCheckedAt: string | null;
   lastError: string | null;
   /** Its scenes waiting for review. */
@@ -56,6 +63,13 @@ export interface NewFollow {
   imageUrl?: string | null;
   since?: string;
   autoRequest?: boolean;
+  tags?: FollowTag[];
+}
+
+export interface FollowChanges {
+  since?: string;
+  autoRequest?: boolean;
+  tags?: FollowTag[];
 }
 
 /** Following performers and studios, and the new scenes found for them. */
@@ -75,7 +89,12 @@ export class FollowsApiService {
     return this.http.post<Follow>('/api/follows', input);
   }
 
-  update(id: string, changes: { since?: string; autoRequest?: boolean }): Observable<Follow> {
+  /** Tags to narrow a follow to, from the main catalog. */
+  searchTags(query: string): Observable<FollowTag[]> {
+    return this.http.get<FollowTag[]>('/api/follows/tags', { params: { query } });
+  }
+
+  update(id: string, changes: FollowChanges): Observable<Follow> {
     return this.http.patch<Follow>(`/api/follows/${encodeURIComponent(id)}`, changes);
   }
 

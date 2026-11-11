@@ -159,6 +159,23 @@
                         Not checked yet
                       }
                     </p>
+                    <p class="tags-line">
+                      @if (follow.tags.length > 0) {
+                        Only tagged {{ tagSummary(follow) }}
+                      } @else {
+                        Every tag
+                      }
+                      ·
+                      <button
+                        type="button"
+                        class="edit-tags"
+                        [attr.aria-expanded]="editingTagsId() === follow.id"
+                        [attr.data-testid]="'edit-tags-' + follow.entityId"
+                        (click)="toggleTags(follow)"
+                      >
+                        {{ editingTagsId() === follow.id ? 'Done' : 'Edit tags' }}
+                      </button>
+                    </p>
                     @if (follow.lastError) {
                       <p class="failed">
                         <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
@@ -197,6 +214,15 @@
                       Unfollow
                     </button>
                   </div>
+                  @if (editingTagsId() === follow.id) {
+                    <div class="tags-editor">
+                      <app-follow-tags
+                        [tags]="follow.tags"
+                        [disabled]="savingId() === follow.id"
+                        (tagsChange)="setTags(follow, $event)"
+                      />
+                    </div>
+                  }
                 </li>
               }
             </ul>

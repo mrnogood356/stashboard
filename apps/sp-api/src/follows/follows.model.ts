@@ -15,6 +15,15 @@ export type FollowedSceneStateValue = (typeof FOLLOWED_SCENE_STATES)[number];
 /** How far back a follow can reach: older scenes are a bulk request, not news. */
 export const MAX_SINCE_DAYS = 365;
 
+/** A catalog tag a follow is narrowed to (a type, so it saves as JSON). */
+export type FollowTag = {
+  id: string;
+  name: string;
+};
+
+/** At most this many tags per follow. */
+export const MAX_FOLLOW_TAGS = 20;
+
 export interface FollowDto {
   id: string;
   kind: FollowKindValue;
@@ -25,6 +34,8 @@ export interface FollowDto {
   /** Only scenes released on or after this day (YYYY-MM-DD). */
   since: string;
   autoRequest: boolean;
+  /** Only scenes with at least one of these tags; empty is every scene. */
+  tags: FollowTag[];
   lastCheckedAt: string | null;
   lastError: string | null;
   /** Its scenes waiting for review. */
@@ -188,4 +199,45 @@ export function describeCheck(summary: FollowCheckSummary): string {
 
 function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? '' : 's'}`;
+}
+
+/**
+ * Tags as saved or sent: each with an id, once, at most MAX_FOLLOW_TAGS, the
+ * id standing in for a missing name. Anything else is left out.
+ */
+export function readFollowTags(value: unknown): FollowTag[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const tags: FollowTag[] = [];
+  for (const entry of value as unknown[]) {
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
+    const { id, name } = entry as { id?: unknown; name?: unknown };
+    const tagId = typeof id === 'string' ? id.trim() : '';
+    if (!tagId || seen.has(tagId)) {
+      continue;
+    }
+    seen.add(tagId);
+    tags.push({
+      id: tagId,
+      name: (typeof name === 'string' && name.trim()) || tagId,
+    });
+    if (tags.length === MAX_FOLLOW_TAGS) {
+      break;
+    }
+  }
+  return tags;
+}
+
+/** The same tags, whatever their order. */
+export function sameFollowTags(a: FollowTag[], b: FollowTag[]): boolean {
+  const ids = (tags: FollowTag[]) =>
+    tags
+      .map((tag) => tag.id)
+      .sort()
+      .join(',');
+  return ids(a) === ids(b);
 }

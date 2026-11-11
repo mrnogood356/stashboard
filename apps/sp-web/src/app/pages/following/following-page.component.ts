@@ -5,6 +5,8 @@ import { Subscription, timer } from 'rxjs';
 import { SceneRequestContext } from '../../core/api/discover.types';
 import {
   Follow,
+  FollowChanges,
+  FollowTag,
   FollowedRelease,
   FollowsApiService,
   SINCE_OPTIONS,
@@ -15,6 +17,7 @@ import { AppNotificationsService } from '../../core/notifications/app-notificati
 import { SceneCardComponent } from '../../shared/scene-card/scene-card.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
 import { SectionBackComponent } from '../../shared/section-back/section-back.component';
+import { FollowTagsComponent } from '../../shared/follow-tags/follow-tags.component';
 
 type FollowingTab = 'new' | 'recent' | 'manage';
 const TABS: readonly FollowingTab[] = ['new', 'recent', 'manage'];
@@ -36,6 +39,7 @@ const CHECK_POLL_MS = 4000;
     SceneCardComponent,
     SceneRequestModalComponent,
     SectionBackComponent,
+    FollowTagsComponent,
   ],
   templateUrl: './following-page.component.html',
   styleUrls: ['../tools/tools-shared.scss', './following-page.component.scss'],
@@ -55,6 +59,8 @@ export class FollowingPageComponent implements OnInit, OnDestroy {
   protected readonly followsFailed = signal(false);
   protected readonly checking = signal(false);
   protected readonly savingId = signal<string | null>(null);
+  /** The follow whose tags are open for editing. */
+  protected readonly editingTagsId = signal<string | null>(null);
   protected readonly requestContext = signal<SceneRequestContext | null>(null);
   protected readonly sinceOptions = SINCE_OPTIONS;
 
@@ -148,6 +154,18 @@ export class FollowingPageComponent implements OnInit, OnDestroy {
     this.save(follow, { since: sinceDaysAgo(Number.isFinite(days) ? days : 0) });
   }
 
+  protected toggleTags(follow: Follow): void {
+    this.editingTagsId.update((id) => (id === follow.id ? null : follow.id));
+  }
+
+  protected setTags(follow: Follow, tags: FollowTag[]): void {
+    this.save(follow, { tags });
+  }
+
+  protected tagSummary(follow: Follow): string {
+    return follow.tags.map((tag) => tag.name).join(', ');
+  }
+
   protected setAutoRequest(follow: Follow, autoRequest: boolean): void {
     this.save(follow, { autoRequest });
   }
@@ -172,7 +190,7 @@ export class FollowingPageComponent implements OnInit, OnDestroy {
     return [kind === 'PERFORMER' ? '/performer' : '/studio', entityId];
   }
 
-  private save(follow: Follow, changes: { since?: string; autoRequest?: boolean }): void {
+  private save(follow: Follow, changes: FollowChanges): void {
     this.savingId.set(follow.id);
     this.api.update(follow.id, changes).subscribe({
       next: (saved) => {

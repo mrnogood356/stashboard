@@ -795,6 +795,8 @@ model Follow {
   since         String
   /// Send new scenes straight to Whisparr instead of listing them for review.
   autoRequest   Boolean         @default(false)
+  /// Only scenes with at least one of these catalog tags: [{ id, name }]. Empty is every scene.
+  tags          Json            @default("[]")
   lastCheckedAt DateTime?
   /// Why the last check of this follow didn't work, when it didn't.
   lastError     String?
