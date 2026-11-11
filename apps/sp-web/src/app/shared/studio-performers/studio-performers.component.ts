@@ -62,15 +62,21 @@ export class StudioPerformersComponent implements OnInit {
   private name = '';
   /** The last page that came back. */
   private page = 0;
-  private readonly names = new Subject<string>();
+  private readonly names = new Subject<{ studioId: string; name: string }>();
   private readonly requests = new Subject<{ studioId: string; name: string; page: number }>();
 
   ngOnInit(): void {
     // Typing waits for a pause; the same name again (say, a trailing space) is no new search.
+    // The studio is part of the key: the same name in the next studio is a new search, and
+    // one typed for the last studio, still waiting, is dropped.
     this.names
-      .pipe(debounceTime(250), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-      .subscribe((name) => {
-        if (name !== this.name) {
+      .pipe(
+        debounceTime(250),
+        distinctUntilChanged((a, b) => a.studioId === b.studioId && a.name === b.name),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(({ studioId, name }) => {
+        if (studioId === this.currentStudioId && name !== this.name) {
           this.name = name;
           this.load(1);
         }
@@ -115,7 +121,7 @@ export class StudioPerformersComponent implements OnInit {
 
   protected onQuery(value: string): void {
     this.query.set(value);
-    this.names.next(value.trim());
+    this.names.next({ studioId: this.currentStudioId, name: value.trim() });
   }
 
   protected more(): void {

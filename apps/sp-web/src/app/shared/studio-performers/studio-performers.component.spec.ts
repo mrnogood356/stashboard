@@ -136,4 +136,32 @@ describe('StudioPerformersComponent', () => {
     expect(getPerformersFeed.mock.calls.length).toBe(calls);
     expect(root.textContent).not.toContain('Loading performers');
   });
+
+  it('searches the same name again in the next studio, and drops a search typed for the last one', async () => {
+    const { fixture, root, getPerformersFeed } = await render();
+    await settle();
+    const search = () =>
+      root.querySelector('[data-testid="studio-performer-search"]') as HTMLInputElement;
+    const type = (value: string) => {
+      search().value = value;
+      search().dispatchEvent(new Event('input'));
+    };
+
+    type('khloe');
+    await settle();
+    // Typed, then the studio changes before the pause is over.
+    type('kh');
+    fixture.componentInstance.studioId = 'studio-2';
+    await settle();
+    const studio2 = getPerformersFeed.mock.calls.filter((call) => call[2].studioId === 'studio-2');
+    expect(studio2.map((call) => call[2].name)).toEqual([undefined]);
+
+    type('khloe');
+    await settle();
+    expect(getPerformersFeed).toHaveBeenLastCalledWith(
+      1,
+      24,
+      expect.objectContaining({ name: 'khloe', studioId: 'studio-2' }),
+    );
+  });
 });
