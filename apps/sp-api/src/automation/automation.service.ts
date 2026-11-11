@@ -505,7 +505,12 @@ export class AutomationService
             return [] as string[];
           },
         );
-        const previewIds = [...newIds, ...earlier];
+        // A scene seen as new by more than one run is asked about no more
+        // often than any other.
+        const newForPreviews = newIds.filter((id) =>
+          this.mayTryPreview(config, id),
+        );
+        const previewIds = [...newForPreviews, ...earlier];
         if (previewIds.length > 0) {
           await this.record(
             reason,
@@ -516,8 +521,8 @@ export class AutomationService
             steps.push(
               describePreviews(
                 await this.generatePreviews(config, previewIds),
-                newIds.length,
-                earlier.length,
+                newForPreviews.length,
+                earlier,
               ),
             );
           } catch (error) {
@@ -701,14 +706,15 @@ export class AutomationService
         `${missing.length} recent scene(s) have no hover preview; asking Stash to generate them.`,
       );
       const outcome = await this.generatePreviews(config, missing);
-      const message = describePreviews(outcome, 0, missing.length);
+      const message = describePreviews(outcome, 0, missing);
       await this.activity?.record({
         kind: 'automation',
         title: message.charAt(0).toUpperCase() + message.slice(1),
         detail:
           'Found by the regular check for recent scenes without previews.',
         status:
-          outcome.result !== 'FINISHED' || outcome.stillMissing.length > 0
+          outcome.result !== 'FINISHED' ||
+          outcome.stillMissing.length + outcome.unconfirmed.length > 0
             ? 'partial'
             : 'done',
       });
@@ -736,11 +742,21 @@ export class AutomationService
     const skip = new Set(exclude);
     const candidates = recent.items
       .map((scene) => scene.id)
-      .filter(
-        (id) =>
-          !skip.has(id) && (this.previewTries.get(id) ?? 0) < PREVIEW_TRIES,
-      );
-    return this.stash.scenesWithoutPreview(config, candidates);
+      .filter((id) => !skip.has(id) && this.mayTryPreview(config, id));
+    // Scenes Stash didn't answer for are left for the next check.
+    return (await this.stash.scenesWithoutPreview(config, candidates)).missing;
+  }
+
+  /** Attempts are counted per Stash, so a different one starts afresh. */
+  private previewTryKey(config: StashAdapterBaseConfig, id: string): string {
+    return `${config.baseUrl}|${id}`;
+  }
+
+  private mayTryPreview(config: StashAdapterBaseConfig, id: string): boolean {
+    return (
+      (this.previewTries.get(this.previewTryKey(config, id)) ?? 0) <
+      PREVIEW_TRIES
+    );
   }
 
   /**
@@ -752,28 +768,42 @@ export class AutomationService
     config: StashAdapterBaseConfig,
     sceneIds: string[],
   ): Promise<PreviewOutcome> {
-    for (const id of sceneIds) {
-      this.previewTries.set(id, (this.previewTries.get(id) ?? 0) + 1);
-    }
     const job = await this.stash.startLibraryTask(config, 'generate', sceneIds);
-    const result = job
-      ? await this.stash.waitForJob(config, job, { sleep: this.sleep })
-      : 'FINISHED';
+    if (!job) {
+      // Nothing was started, so no attempt is used up.
+      throw new Error("Stash didn't start a Generate job");
+    }
+    for (const id of sceneIds) {
+      const key = this.previewTryKey(config, id);
+      this.previewTries.set(key, (this.previewTries.get(key) ?? 0) + 1);
+    }
+    const result = await this.stash.waitForJob(config, job, {
+      sleep: this.sleep,
+    });
     if (result !== 'FINISHED') {
       this.logger.warn(
         `Stash's Generate job for ${sceneIds.length} scene(s) ${result.toLowerCase()}.`,
       );
-      return { result, stillMissing: [] };
+      return { result, stillMissing: [], unconfirmed: [] };
     }
-    const stillMissing = await this.stash
+    const check = await this.stash
       .scenesWithoutPreview(config, sceneIds)
-      .catch(() => [] as string[]);
-    if (stillMissing.length > 0) {
+      .catch((error: unknown) => {
+        this.logger.debug(
+          `Couldn't check the new previews: ${messageOf(error)}`,
+        );
+        return { missing: [] as string[], unanswered: sceneIds };
+      });
+    if (check.missing.length > 0) {
       this.logger.warn(
-        `Stash finished generating, but scene(s) ${stillMissing.join(', ')} still have no hover preview. Stash's own log says why (often a file it can't read or decode).`,
+        `Stash finished generating, but scene(s) ${check.missing.join(', ')} still have no hover preview. Stash's own log says why (often a file it can't read or decode).`,
       );
     }
-    return { result, stillMissing };
+    return {
+      result,
+      stillMissing: check.missing,
+      unconfirmed: check.unanswered,
+    };
   }
 
   private async foldersToScan(
@@ -972,33 +1002,43 @@ interface PreviewOutcome {
   result: 'FINISHED' | 'FAILED' | 'CANCELLED' | 'TIMEOUT';
   /** Scenes still without a hover preview after the job finished. */
   stillMissing: string[];
+  /** Scenes Stash didn't answer for when asked afterwards. */
+  unconfirmed: string[];
 }
 
 /** "previews generated" or what went wrong, for the run's summary. */
 export function describePreviews(
   outcome: PreviewOutcome,
   newCount: number,
-  earlierCount: number,
+  earlierIds: string[],
 ): string {
   if (outcome.result !== 'FINISHED') {
     return `previews not made: Stash's Generate job ${outcome.result.toLowerCase()}`;
   }
-  const total = newCount + earlierCount;
-  const made = total - outcome.stillMissing.length;
+  const notMade = new Set([...outcome.stillMissing, ...outcome.unconfirmed]);
+  const made = newCount + earlierIds.length - notMade.size;
+  const earlierMade = earlierIds.filter((id) => !notMade.has(id)).length;
+  const scenes = (n: number) => `${n} recent ${n === 1 ? 'scene' : 'scenes'}`;
   const parts: string[] = [];
   if (made > 0) {
     parts.push(
-      earlierCount === 0
+      earlierMade === 0
         ? 'previews generated'
         : newCount === 0
-          ? `previews made for ${made} recent ${made === 1 ? 'scene' : 'scenes'} that had none`
-          : `previews generated (including ${earlierCount} recent ${earlierCount === 1 ? 'scene' : 'scenes'} that had none)`,
+          ? `previews made for ${scenes(made)} that had none`
+          : `previews generated (including ${scenes(earlierMade)} that had none)`,
     );
   }
   if (outcome.stillMissing.length > 0) {
     const n = outcome.stillMissing.length;
     parts.push(
       `Stash couldn't make previews for ${n} ${n === 1 ? 'scene' : 'scenes'} (its log says why)`,
+    );
+  }
+  if (outcome.unconfirmed.length > 0) {
+    const n = outcome.unconfirmed.length;
+    parts.push(
+      `couldn't confirm previews for ${n} ${n === 1 ? 'scene' : 'scenes'} (Stash didn't answer)`,
     );
   }
   return parts.join(', ');
