@@ -69,6 +69,12 @@ const SAME_SET_RETRY_MS = 60 * 60_000;
 /** Look back a little: Stash and Stashboard clocks can differ slightly. */
 const CLOCK_SLACK_MS = 2 * 60_000;
 const MAX_NEW_SCENES = 100;
+/** The latest scenes in Stash checked for a hover preview after each run and sweep. */
+const RECENT_SCENES_FOR_PREVIEWS = 40;
+/** How often recent scenes are checked for previews between runs. */
+const PREVIEW_SWEEP_MS = 30 * 60_000;
+/** Previews are asked for a scene this many times at most (per start-up). */
+const PREVIEW_TRIES = 2;
 
 /**
  * When Whisparr imports a scene: ask Stash to scan, identify the new scene on
@@ -98,6 +104,9 @@ export class AutomationService
   /** An import came in without a folder: only a full scan will find it. */
   private pendingFullScan = false;
   private lastWaitingSignature: string | null = null;
+  /** How often previews were asked for each scene, so a broken file isn't asked about forever. */
+  private readonly previewTries = new Map<string, number>();
+  private sweepingPreviews = false;
   private lastWaitingAttemptAt = 0;
   /** Used by tests to avoid real waiting. */
   sleep: (ms: number) => Promise<void> = (ms) =>
@@ -484,27 +493,37 @@ export class AutomationService
       ];
 
       // Previews first: they give the new files the fingerprints matching uses.
-      if (newIds.length > 0 && settings.generateNew) {
-        await this.record(
-          reason,
-          'RUNNING',
-          `${steps.join(', ')}. Generating previews…`,
+      // Recent scenes that reached Stash some other way (its own scan, a
+      // scheduled one, or a run that didn't see them as new) and still have
+      // no hover preview get theirs too.
+      if (settings.generateNew) {
+        const earlier = await this.recentWithoutPreviews(config, newIds).catch(
+          (error: unknown) => {
+            this.logger.debug(
+              `Couldn't check recent scenes for previews: ${messageOf(error)}`,
+            );
+            return [] as string[];
+          },
         );
-        try {
-          const generateJob = await this.stash.startLibraryTask(
-            config,
-            'generate',
-            newIds,
+        const previewIds = [...newIds, ...earlier];
+        if (previewIds.length > 0) {
+          await this.record(
+            reason,
+            'RUNNING',
+            `${steps.join(', ')}. Generating previews…`,
           );
-          if (generateJob) {
-            await this.stash.waitForJob(config, generateJob, {
-              sleep: this.sleep,
-            });
+          try {
+            steps.push(
+              describePreviews(
+                await this.generatePreviews(config, previewIds),
+                newIds.length,
+                earlier.length,
+              ),
+            );
+          } catch (error) {
+            this.logger.warn(`Generating previews failed: ${messageOf(error)}`);
+            steps.push(`previews skipped (${messageOf(error)})`);
           }
-          steps.push('previews generated');
-        } catch (error) {
-          this.logger.warn(`Generating previews failed: ${messageOf(error)}`);
-          steps.push(`previews skipped (${messageOf(error)})`);
         }
       }
 
@@ -655,6 +674,108 @@ export class AutomationService
    * isn't inside one of Stash's library folders (after the Whisparr path
    * mapping from the organizer's settings).
    */
+  /**
+   * Between runs: recent scenes without a hover preview get one, whichever
+   * way they reached Stash. Each is asked about a couple of times at most.
+   */
+  @Interval(PREVIEW_SWEEP_MS)
+  async sweepPreviews(): Promise<void> {
+    if (this.running || this.sweepingPreviews || this.debounceTimer) {
+      return;
+    }
+    this.sweepingPreviews = true;
+    try {
+      const settings = await this.getSettings();
+      if (!settings.generateNew) {
+        return;
+      }
+      const config = await this.stashConfig().catch(() => null);
+      if (!config) {
+        return;
+      }
+      const missing = await this.recentWithoutPreviews(config, []);
+      if (missing.length === 0) {
+        return;
+      }
+      this.logger.log(
+        `${missing.length} recent scene(s) have no hover preview; asking Stash to generate them.`,
+      );
+      const outcome = await this.generatePreviews(config, missing);
+      const message = describePreviews(outcome, 0, missing.length);
+      await this.activity?.record({
+        kind: 'automation',
+        title: message.charAt(0).toUpperCase() + message.slice(1),
+        detail:
+          'Found by the regular check for recent scenes without previews.',
+        status:
+          outcome.result !== 'FINISHED' || outcome.stillMissing.length > 0
+            ? 'partial'
+            : 'done',
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Checking recent scenes for previews failed: ${messageOf(error)}`,
+      );
+    } finally {
+      this.sweepingPreviews = false;
+    }
+  }
+
+  /** The latest scenes in Stash without a hover preview, less these and those asked about enough. */
+  private async recentWithoutPreviews(
+    config: StashAdapterBaseConfig,
+    exclude: string[],
+  ): Promise<string[]> {
+    const recent = await this.stash.findLocalScenes(config, {
+      page: 1,
+      perPage: RECENT_SCENES_FOR_PREVIEWS,
+      sort: 'created_at',
+      direction: 'DESC',
+      sceneFilter: {},
+    });
+    const skip = new Set(exclude);
+    const candidates = recent.items
+      .map((scene) => scene.id)
+      .filter(
+        (id) =>
+          !skip.has(id) && (this.previewTries.get(id) ?? 0) < PREVIEW_TRIES,
+      );
+    return this.stash.scenesWithoutPreview(config, candidates);
+  }
+
+  /**
+   * Has Stash generate for these scenes, then checks each now has a hover
+   * preview: Stash's job can finish with some scenes still lacking one (a
+   * file it can't read or decode), and that's worth saying.
+   */
+  private async generatePreviews(
+    config: StashAdapterBaseConfig,
+    sceneIds: string[],
+  ): Promise<PreviewOutcome> {
+    for (const id of sceneIds) {
+      this.previewTries.set(id, (this.previewTries.get(id) ?? 0) + 1);
+    }
+    const job = await this.stash.startLibraryTask(config, 'generate', sceneIds);
+    const result = job
+      ? await this.stash.waitForJob(config, job, { sleep: this.sleep })
+      : 'FINISHED';
+    if (result !== 'FINISHED') {
+      this.logger.warn(
+        `Stash's Generate job for ${sceneIds.length} scene(s) ${result.toLowerCase()}.`,
+      );
+      return { result, stillMissing: [] };
+    }
+    const stillMissing = await this.stash
+      .scenesWithoutPreview(config, sceneIds)
+      .catch(() => [] as string[]);
+    if (stillMissing.length > 0) {
+      this.logger.warn(
+        `Stash finished generating, but scene(s) ${stillMissing.join(', ')} still have no hover preview. Stash's own log says why (often a file it can't read or decode).`,
+      );
+    }
+    return { result, stillMissing };
+  }
+
   private async foldersToScan(
     reason: AutomationReason,
     config: StashAdapterBaseConfig,
@@ -847,6 +968,42 @@ function newToken(): string {
 }
 
 /** Stash timestamp filter format (RFC 3339 without milliseconds). */
+interface PreviewOutcome {
+  result: 'FINISHED' | 'FAILED' | 'CANCELLED' | 'TIMEOUT';
+  /** Scenes still without a hover preview after the job finished. */
+  stillMissing: string[];
+}
+
+/** "previews generated" or what went wrong, for the run's summary. */
+export function describePreviews(
+  outcome: PreviewOutcome,
+  newCount: number,
+  earlierCount: number,
+): string {
+  if (outcome.result !== 'FINISHED') {
+    return `previews not made: Stash's Generate job ${outcome.result.toLowerCase()}`;
+  }
+  const total = newCount + earlierCount;
+  const made = total - outcome.stillMissing.length;
+  const parts: string[] = [];
+  if (made > 0) {
+    parts.push(
+      earlierCount === 0
+        ? 'previews generated'
+        : newCount === 0
+          ? `previews made for ${made} recent ${made === 1 ? 'scene' : 'scenes'} that had none`
+          : `previews generated (including ${earlierCount} recent ${earlierCount === 1 ? 'scene' : 'scenes'} that had none)`,
+    );
+  }
+  if (outcome.stillMissing.length > 0) {
+    const n = outcome.stillMissing.length;
+    parts.push(
+      `Stash couldn't make previews for ${n} ${n === 1 ? 'scene' : 'scenes'} (its log says why)`,
+    );
+  }
+  return parts.join(', ');
+}
+
 export function stashTimestamp(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
 }

@@ -21,6 +21,7 @@ describe('AutomationService', () => {
     startLibraryTask: jest.Mock;
     waitForJob: jest.Mock;
     findLocalScenes: jest.Mock;
+    scenesWithoutPreview: jest.Mock;
   };
   let indexing: {
     syncLibraryProjection: jest.Mock;
@@ -68,6 +69,8 @@ describe('AutomationService', () => {
       findLocalScenes: jest
         .fn()
         .mockResolvedValue({ total: 2, items: [{ id: '41' }, { id: '42' }] }),
+      // Every scene has its hover preview unless a test says otherwise.
+      scenesWithoutPreview: jest.fn().mockResolvedValue([]),
     };
     indexing = {
       syncLibraryProjection: jest.fn().mockResolvedValue(null),
@@ -599,6 +602,79 @@ describe('AutomationService', () => {
       settings = { ...settings, tidyAfterImport: true };
       const saved = await service.updateSettings({ tidyAfterImport: false });
       expect(saved.tidyAfterImport).toBe(false);
+    });
+  });
+
+  describe('hover previews', () => {
+    const generateCalls = () =>
+      stash.startLibraryTask.mock.calls
+        .filter((call) => call[1] === 'generate')
+        .map((call) => call[2] as string[]);
+
+    it('also makes previews for recent scenes Stash found some other way', async () => {
+      // 41 and 42 are new; 7 came in through Stash's own scan and has none.
+      stash.findLocalScenes
+        .mockResolvedValueOnce({
+          total: 2,
+          items: [{ id: '41' }, { id: '42' }],
+        })
+        .mockResolvedValueOnce({
+          total: 3,
+          items: [{ id: '42' }, { id: '41' }, { id: '7' }],
+        });
+      stash.scenesWithoutPreview
+        .mockResolvedValueOnce(['7'])
+        .mockResolvedValueOnce([]);
+      await service.run('detected');
+      expect(generateCalls()).toEqual([['41', '42', '7']]);
+      // The new ones aren't asked about: they're generated anyway.
+      expect(stash.scenesWithoutPreview.mock.calls[0][1]).toEqual(['7']);
+      expect(settings.lastRunMessage).toBe(
+        'Found 2 new scenes, previews generated (including 1 recent scene that had none), identified.',
+      );
+    });
+
+    it('says when Stash’s Generate job fails instead of claiming previews', async () => {
+      stash.waitForJob.mockImplementation((_config, job: string) =>
+        Promise.resolve(job === 'generate-job' ? 'FAILED' : 'FINISHED'),
+      );
+      await service.run('detected');
+      expect(settings.lastRunMessage).toContain(
+        "previews not made: Stash's Generate job failed",
+      );
+      expect(settings.lastRunMessage).not.toContain('previews generated');
+    });
+
+    it('says which scenes Stash still has no preview for after generating', async () => {
+      stash.scenesWithoutPreview
+        .mockResolvedValueOnce([]) // recent scenes: nothing else to do
+        .mockResolvedValueOnce(['42']); // after the job: 42 still has none
+      await service.run('detected');
+      expect(settings.lastRunMessage).toBe(
+        "Found 2 new scenes, previews generated, Stash couldn't make previews for 1 scene (its log says why), identified.",
+      );
+    });
+
+    it('checks recent scenes on its own and asks about each only so often', async () => {
+      stash.findLocalScenes.mockResolvedValue({
+        total: 1,
+        items: [{ id: '7' }],
+      });
+      stash.scenesWithoutPreview.mockImplementation((_config, ids: string[]) =>
+        Promise.resolve(ids),
+      );
+      for (let i = 0; i < 4; i += 1) {
+        await service.sweepPreviews();
+      }
+      // Tried twice, then left alone.
+      expect(generateCalls()).toEqual([['7'], ['7']]);
+    });
+
+    it('doesn’t sweep when previews for new scenes are off', async () => {
+      settings = { ...settings, generateNew: false };
+      await service.sweepPreviews();
+      expect(stash.findLocalScenes).not.toHaveBeenCalled();
+      expect(stash.startLibraryTask).not.toHaveBeenCalled();
     });
   });
 });
