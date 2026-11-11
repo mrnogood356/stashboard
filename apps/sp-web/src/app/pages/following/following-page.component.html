@@ -1,0 +1,226 @@
+<main class="app-page-shell app-page-shell--wide">
+  <app-section-back />
+  <header class="page-head-compact following-head">
+    <div class="page-head-compact__title">
+      <h1>Following</h1>
+      <p>New scenes from the performers and studios you follow.</p>
+    </div>
+    <button
+      type="button"
+      class="app-btn"
+      [disabled]="checking() || (follows()?.length ?? 0) === 0"
+      [attr.aria-busy]="checking()"
+      data-testid="check-now"
+      (click)="checkNow()"
+    >
+      <i class="pi pi-refresh" [class.pi-spin]="checking()" aria-hidden="true"></i>
+      {{ checking() ? 'Checking…' : 'Check now' }}
+    </button>
+  </header>
+
+  <div class="segmented" role="tablist" aria-label="Following">
+    <button
+      type="button"
+      role="tab"
+      [class.active]="tab() === 'new'"
+      [attr.aria-selected]="tab() === 'new'"
+      data-testid="tab-new"
+      (click)="select('new')"
+    >
+      New
+      @if (reviewCount() > 0) {
+        <span class="count-badge">{{ reviewCount() }}</span>
+      }
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [class.active]="tab() === 'recent'"
+      [attr.aria-selected]="tab() === 'recent'"
+      data-testid="tab-recent"
+      (click)="select('recent')"
+    >
+      Recent
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [class.active]="tab() === 'manage'"
+      [attr.aria-selected]="tab() === 'manage'"
+      data-testid="tab-manage"
+      (click)="select('manage')"
+    >
+      Following
+      @if (follows(); as list) {
+        <span class="count-muted">{{ list.length }}</span>
+      }
+    </button>
+  </div>
+
+  @if (tab() !== 'manage') {
+    @if (releases(); as items) {
+      @if (items.length === 0) {
+        <div class="empty">
+          <i class="pi pi-bell" aria-hidden="true"></i>
+          @if ((follows()?.length ?? 0) === 0) {
+            <p>
+              You’re not following anyone yet. Open a performer or studio and tap Follow; their new
+              scenes will show up here.
+            </p>
+            <a class="app-btn" routerLink="/performers">Browse performers</a>
+          } @else if (tab() === 'new') {
+            <p>You’re all caught up. New scenes show here after each check.</p>
+          } @else {
+            <p>Nothing found in the last 90 days yet.</p>
+          }
+        </div>
+      } @else {
+        <ul class="release-grid">
+          @for (item of items; track item.id) {
+            <li class="release-item" [attr.data-testid]="'release-' + item.id">
+              <app-scene-card
+                [item]="item"
+                studioBadgeRoute="studio"
+                [requestable]="item.requestable"
+                (request)="openRequest($event)"
+              />
+              <div class="release-why">
+                <span class="who">
+                  From
+                  @for (follow of item.followed.follows; track follow.id; let last = $last) {
+                    <a [routerLink]="entityRoute(follow.kind, follow.entityId)">{{ follow.name }}</a
+                    >{{ last ? '' : ', ' }}
+                  }
+                </span>
+                @if (tab() === 'new' && item.requestable) {
+                  <button type="button" class="pass" data-testid="dismiss" (click)="dismiss(item)">
+                    Not interested
+                  </button>
+                }
+              </div>
+              @if (item.followed.state === 'FAILED') {
+                <p class="failed" role="note">
+                  <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                  Couldn’t request it automatically{{
+                    item.followed.detail ? ': ' + item.followed.detail : '.'
+                  }}
+                </p>
+              }
+            </li>
+          }
+        </ul>
+      }
+    } @else if (releasesFailed()) {
+      <div class="notice" role="alert">Couldn’t read what’s new right now.</div>
+    } @else {
+      <p class="muted" role="status">Loading…</p>
+    }
+  } @else {
+    @if (follows(); as list) {
+      @if (list.length === 0) {
+        <div class="empty">
+          <i class="pi pi-users" aria-hidden="true"></i>
+          <p>Follow performers and studios from their pages.</p>
+          <div class="empty-actions">
+            <a class="app-btn" routerLink="/performers">Performers</a>
+            <a class="app-btn" routerLink="/studios">Studios</a>
+          </div>
+        </div>
+      } @else {
+        @for (group of groups(); track group.label) {
+          @if (group.items.length > 0) {
+            <h2 class="group-title">{{ group.label }}</h2>
+            <ul class="follow-list">
+              @for (follow of group.items; track follow.id) {
+                <li class="follow-row" [attr.data-testid]="'follow-' + follow.entityId">
+                  <a class="avatar" [routerLink]="entityRoute(follow.kind, follow.entityId)">
+                    @if (follow.imageUrl) {
+                      <img [src]="follow.imageUrl" alt="" loading="lazy" decoding="async" />
+                    } @else {
+                      <i
+                        class="pi"
+                        [class.pi-user]="follow.kind === 'PERFORMER'"
+                        [class.pi-building]="follow.kind === 'STUDIO'"
+                        aria-hidden="true"
+                      ></i>
+                    }
+                  </a>
+                  <div class="follow-copy">
+                    <a class="name" [routerLink]="entityRoute(follow.kind, follow.entityId)">{{
+                      follow.name
+                    }}</a>
+                    <p class="meta">
+                      @if (follow.newCount > 0) {
+                        <span class="new">{{ follow.newCount }} new</span> ·
+                      }
+                      @if (follow.lastCheckedAt) {
+                        Checked {{ follow.lastCheckedAt | date: 'MMM d, HH:mm' }}
+                      } @else {
+                        Not checked yet
+                      }
+                    </p>
+                    @if (follow.lastError) {
+                      <p class="failed">
+                        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                        {{ follow.lastError }}
+                      </p>
+                    }
+                  </div>
+                  <div class="follow-controls">
+                    <select
+                      [value]="sinceChoice(follow)"
+                      [disabled]="savingId() === follow.id"
+                      [attr.aria-label]="'How far back to look for ' + follow.name"
+                      (change)="setSince(follow, $any($event.target).value)"
+                    >
+                      @for (option of sinceOptions; track option.days) {
+                        <option [value]="option.days">{{ option.label }}</option>
+                      }
+                    </select>
+                    <label class="auto">
+                      <input
+                        type="checkbox"
+                        [checked]="follow.autoRequest"
+                        [disabled]="savingId() === follow.id"
+                        [attr.data-testid]="'auto-' + follow.entityId"
+                        (change)="setAutoRequest(follow, $any($event.target).checked)"
+                      />
+                      Request automatically
+                    </label>
+                    <button
+                      type="button"
+                      class="unfollow"
+                      [disabled]="savingId() === follow.id"
+                      [attr.aria-label]="'Unfollow ' + follow.name"
+                      (click)="unfollow(follow)"
+                    >
+                      Unfollow
+                    </button>
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+        }
+        <p class="muted footnote">
+          Checked every day at the time set in
+          <a routerLink="/tools/schedules">Tools → Schedules</a>. Automatic requests use Whisparr’s
+          first root folder and quality profile.
+        </p>
+      }
+    } @else if (followsFailed()) {
+      <div class="notice" role="alert">Couldn’t read who you follow right now.</div>
+    } @else {
+      <p class="muted" role="status">Loading…</p>
+    }
+  }
+</main>
+
+<app-scene-request-modal
+  [open]="requestContext() !== null"
+  [sceneId]="requestContext()?.id ?? null"
+  [sceneTitle]="requestContext()?.title ?? null"
+  [sceneImageUrl]="requestContext()?.imageUrl ?? null"
+  (closed)="closeRequest()"
+  (submitted)="onRequested()"
+/>

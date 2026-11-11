@@ -50,6 +50,7 @@ describe('app routes', () => {
       'chapters',
       'history',
       'you-may-enjoy',
+      'following',
       'acquisition',
       'processing',
       'library/scene/:sceneId',

@@ -1,3 +1,4 @@
+import { FollowsModule } from './follows/follows.module';
 import { SuggestionsModule } from './suggestions/suggestions.module';
 import { PlaybackModule } from './playback/playback.module';
 import { SchedulesModule } from './schedules/schedules.module';
@@ -58,6 +59,7 @@ import { StudiosModule } from './studios/studios.module';
     AcquisitionModule,
     ScenesModule,
     SuggestionsModule,
+    FollowsModule,
     RequestsModule,
     DownloadsModule,
     PerformersModule,

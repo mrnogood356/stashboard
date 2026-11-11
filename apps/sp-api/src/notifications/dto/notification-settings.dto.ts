@@ -26,6 +26,8 @@ export class NotificationSettingsDto {
   notifyDownloading!: boolean;
   notifyAvailable!: boolean;
   notifyFailed!: boolean;
+  /** New scenes from performers and studios you follow. */
+  notifyFollowed!: boolean;
 }
 
 export class UpdateNotificationSettingsDto {
@@ -58,4 +60,9 @@ export class UpdateNotificationSettingsDto {
 
   @IsBoolean()
   notifyFailed!: boolean;
+
+  /** Left out by older pages and backups: kept as it is. */
+  @IsOptional()
+  @IsBoolean()
+  notifyFollowed?: boolean;
 }

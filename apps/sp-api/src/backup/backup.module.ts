@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AppearanceModule } from '../appearance/appearance.module';
 import { AutomationModule } from '../automation/automation.module';
 import { DownloadHandoffModule } from '../download-handoff/download-handoff.module';
+import { FollowsModule } from '../follows/follows.module';
 import { HiddenContentModule } from '../hidden-content/hidden-content.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { LogsModule } from '../logs/logs.module';
@@ -17,6 +18,7 @@ import { BackupService } from './backup.service';
     AppearanceModule,
     AutomationModule,
     DownloadHandoffModule,
+    FollowsModule,
     HiddenContentModule,
     IntegrationsModule,
     LogsModule,

@@ -1,3 +1,4 @@
+import { FollowsModule } from '../follows/follows.module';
 import { SuggestionsModule } from '../suggestions/suggestions.module';
 import { Module } from '@nestjs/common';
 import { AcquisitionModule } from '../acquisition/acquisition.module';
@@ -29,6 +30,7 @@ import { HomeService } from './home.service';
     PlaybackModule,
     ScenesModule,
     SuggestionsModule,
+    FollowsModule,
   ],
   controllers: [HomeController],
   providers: [HomeService, HomeAttentionService],

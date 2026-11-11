@@ -86,7 +86,7 @@ type HomeRailView = HomeRailConfig & {
   items: HomeRailItem[];
   error: string | null;
   seeAllLink: {
-    path: '/library' | '/scenes' | '/acquisition' | '/calendar' | '/you-may-enjoy';
+    path: '/library' | '/scenes' | '/acquisition' | '/calendar' | '/you-may-enjoy' | '/following';
     queryParams: Record<string, string>;
   } | null;
   summary: HomeRailViewSummary;
@@ -1098,7 +1098,7 @@ export class HomePageComponent implements OnInit, OnDestroy {
   }
 
   private buildSeeAllLink(rail: HomeRailConfig): {
-    path: '/library' | '/scenes' | '/acquisition' | '/calendar' | '/you-may-enjoy';
+    path: '/library' | '/scenes' | '/acquisition' | '/calendar' | '/you-may-enjoy' | '/following';
     queryParams: Record<string, string>;
   } | null {
     if (rail.key === 'STILL_WAITING') {
@@ -1111,6 +1111,10 @@ export class HomePageComponent implements OnInit, OnDestroy {
 
     if (rail.key === 'YOU_MAY_ENJOY') {
       return { path: '/you-may-enjoy', queryParams: {} };
+    }
+
+    if (rail.key === 'FOLLOWING') {
+      return { path: '/following', queryParams: { tab: 'recent' } };
     }
 
     if (rail.key && NO_SEE_ALL_ROW_KEYS.includes(rail.key)) {

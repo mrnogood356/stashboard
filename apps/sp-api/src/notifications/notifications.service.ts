@@ -91,6 +91,7 @@ export class NotificationsService {
       notifyDownloading: row?.notifyDownloading ?? false,
       notifyAvailable: row?.notifyAvailable ?? true,
       notifyFailed: row?.notifyFailed ?? true,
+      notifyFollowed: row?.notifyFollowed ?? true,
     };
   }
 
@@ -111,6 +112,7 @@ export class NotificationsService {
       notifyDownloading: dto.notifyDownloading,
       notifyAvailable: dto.notifyAvailable,
       notifyFailed: dto.notifyFailed,
+      notifyFollowed: dto.notifyFollowed,
     };
     await this.prisma.notificationSettings.upsert({
       where: { key: SETTINGS_KEY },
@@ -191,6 +193,34 @@ export class NotificationsService {
           `No notifications wanted for ${changes.length} scene change(s).`,
         );
       }
+    } catch (error) {
+      this.logger.warn(`Notification delivery failed: ${errorMessage(error)}`);
+    }
+  }
+
+  /**
+   * New scenes from the performers and studios you follow, as one message
+   * per check. Never throws.
+   */
+  async notifyFollowedReleases(
+    scenes: Array<{ title: string; followName: string; requested: boolean }>,
+  ): Promise<void> {
+    if (scenes.length === 0) {
+      return;
+    }
+    try {
+      const settings = await this.getSettings();
+      if (
+        !settings.enabled ||
+        !isComplete(settings) ||
+        !settings.notifyFollowed
+      ) {
+        return;
+      }
+      await this.post(settings, buildFollowedMessage(scenes));
+      this.logger.log(
+        `Sent a notification through ${settings.channel} about ${scenes.length} new scene(s) from follows.`,
+      );
     } catch (error) {
       this.logger.warn(`Notification delivery failed: ${errorMessage(error)}`);
     }
@@ -293,6 +323,38 @@ function buildMessages(changes: SceneNotification[]): OutgoingMessage[] {
     });
   }
   return messages;
+}
+
+/** "New from Kaitlyn" or "5 new scenes from people you follow", listing each. */
+export function buildFollowedMessage(
+  scenes: Array<{ title: string; followName: string; requested: boolean }>,
+): OutgoingMessage {
+  const names = [...new Set(scenes.map((scene) => scene.followName))];
+  const requested = scenes.filter((scene) => scene.requested).length;
+  const title =
+    names.length === 1
+      ? scenes.length === 1
+        ? `New from ${names[0]}`
+        : `${scenes.length} new scenes from ${names[0]}`
+      : `${scenes.length} new scenes from people you follow`;
+  const listed = scenes.slice(0, MAX_LISTED_TITLES).map((scene) => {
+    const from = names.length === 1 ? '' : ` (${scene.followName})`;
+    return `• ${scene.title}${from}${scene.requested ? ' — requested' : ''}`;
+  });
+  if (scenes.length > MAX_LISTED_TITLES) {
+    listed.push(`…and ${scenes.length - MAX_LISTED_TITLES} more`);
+  }
+  const footer =
+    requested === scenes.length
+      ? null
+      : requested > 0
+        ? `${requested} requested; the rest are waiting in Following.`
+        : 'They’re waiting in Following.';
+  return {
+    title,
+    body: [...listed, ...(footer ? ['', footer] : [])].join('\n'),
+    color: 0xa855f7,
+  };
 }
 
 function toDestination(dto: UpdateNotificationSettingsDto): Destination {

@@ -46,6 +46,7 @@ import { HideOwnedService, isOwned } from '../../core/preferences/hide-owned.ser
 import { OwnedNoteComponent } from '../../shared/owned-note/owned-note.component';
 import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.component';
 import { HideToggleComponent } from '../../shared/hide-toggle/hide-toggle.component';
+import { FollowButtonComponent } from '../../shared/follow-button/follow-button.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
 import { StudioPerformersComponent } from '../../shared/studio-performers/studio-performers.component';
 
@@ -62,6 +63,7 @@ interface MultiSelectOption {
     StudioPerformersComponent,
     SkeletonComponent,
     HideToggleComponent,
+    FollowButtonComponent,
     RouterLink,
     FormsModule,
     Message,

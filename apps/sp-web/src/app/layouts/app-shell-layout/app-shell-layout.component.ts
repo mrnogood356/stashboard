@@ -96,6 +96,13 @@ const STUDIOS_NAV_ITEM: ShellNavItem = {
   activePrefixes: ['/studios', '/studio/'],
 };
 
+const FOLLOWING_NAV_ITEM: ShellNavItem = {
+  label: 'Following',
+  route: '/following',
+  icon: 'pi pi-bell',
+  exact: true,
+};
+
 const SETTINGS_NAV_ITEM: ShellNavItem = {
   label: 'Settings',
   route: '/settings',
@@ -136,7 +143,13 @@ const DESKTOP_NAV_GROUPS: readonly ShellNavGroup[] = [
   { label: null, items: [HOME_NAV_ITEM, SEARCH_NAV_ITEM] },
   {
     label: 'Browse',
-    items: [SCENES_NAV_ITEM, CALENDAR_NAV_ITEM, PERFORMERS_NAV_ITEM, STUDIOS_NAV_ITEM],
+    items: [
+      SCENES_NAV_ITEM,
+      CALENDAR_NAV_ITEM,
+      PERFORMERS_NAV_ITEM,
+      STUDIOS_NAV_ITEM,
+      FOLLOWING_NAV_ITEM,
+    ],
   },
   { label: 'Your library', items: [LIBRARY_NAV_ITEM, FEED_NAV_ITEM, TOOLS_NAV_ITEM] },
   { label: 'Requests & downloads', items: [ACQUISITION_NAV_ITEM, PROCESSING_NAV_ITEM] },
@@ -157,6 +170,7 @@ const MOBILE_SECONDARY_NAV_ITEMS: readonly ShellNavItem[] = [
   CALENDAR_NAV_ITEM,
   PERFORMERS_NAV_ITEM,
   STUDIOS_NAV_ITEM,
+  FOLLOWING_NAV_ITEM,
   FEED_NAV_ITEM,
   TOOLS_NAV_ITEM,
   PROCESSING_NAV_ITEM,
