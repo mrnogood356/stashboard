@@ -92,6 +92,35 @@ describe('AppLockService', () => {
     userAgent.mockRestore();
   });
 
+  it('keeps the cover up on iOS when focus comes back before the app has left', async () => {
+    const userAgent = vi
+      .spyOn(navigator, 'userAgent', 'get')
+      .mockReturnValue('Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X)');
+    service.ngOnDestroy();
+    service.start();
+    await load(status({ enabled: false, hideInSwitcher: true }));
+    const shielded = () => document.documentElement.classList.contains('app-shielded');
+
+    // The switcher opening: blur, then focus back mid-swipe, still visible.
+    window.dispatchEvent(new Event('blur'));
+    window.dispatchEvent(new Event('focus'));
+    await Promise.resolve();
+    expect(shielded()).toBe(true);
+
+    // Really away and back: the cover comes down.
+    setVisibility('hidden');
+    setVisibility('visible');
+    await Promise.resolve();
+    expect(shielded()).toBe(false);
+
+    // Or a touch on the cover, when the swipe was abandoned.
+    window.dispatchEvent(new Event('blur'));
+    window.dispatchEvent(new Event('focus'));
+    document.dispatchEvent(new Event('touchstart'));
+    expect(shielded()).toBe(false);
+    userAgent.mockRestore();
+  });
+
   it('ignores cancelled touches elsewhere, where scrolling cancels them', async () => {
     await load(status({ enabled: false, hideInSwitcher: true }));
     document.dispatchEvent(new Event('touchcancel'));
