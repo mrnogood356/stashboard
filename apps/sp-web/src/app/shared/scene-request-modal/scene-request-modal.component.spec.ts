@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DiscoverService } from '../../core/api/discover.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
@@ -118,6 +118,28 @@ describe('SceneRequestModalComponent', () => {
 
     expect(element.querySelector('[data-testid="owned-copies"]')).toBeNull();
     expect(element.querySelector('form')).not.toBeNull();
+  });
+
+  it('closes on Escape and on the backdrop, but not while sending', async () => {
+    const pending = new Subject<{ accepted: boolean; alreadyExists: boolean }>();
+    const { component, fixture } = await create(vi.fn().mockReturnValue(pending));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const closed = vi.fn();
+    component.closed.subscribe(closed);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(closed).toHaveBeenCalledTimes(1);
+
+    const mask = fixture.nativeElement.querySelector('.request-dialog-mask') as HTMLElement;
+    mask.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    expect(closed).toHaveBeenCalledTimes(2);
+
+    component.submitRequest();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    mask.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    expect(closed).toHaveBeenCalledTimes(2);
   });
 
   it('closes when you open the copy you have', async () => {
