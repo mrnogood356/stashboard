@@ -9,7 +9,9 @@ export interface ReleaseMatchScene {
 
 /**
  * How well a release's name fits the scene. `strong`: two or more of studio,
- * date, a performer and the title. `partial`: one of them (studio alone
+ * date, a performer and the title, one of them a performer or the title
+ * (studio and date alone fit every scene that studio put out that day).
+ * `partial`: studio and date only, or one of the others (studio alone
  * doesn't count, every scene from that studio has it). `weak`: none, or the
  * name has a different date, so it's almost surely another scene.
  */
@@ -102,11 +104,14 @@ export function matchRelease(
 
   const signals = [studioMatch, dateMatch, performerHits > 0, titleMatch];
   const count = signals.filter(Boolean).length;
+  // Studio and date say which studio and day, not which scene: studios put
+  // out several a day. Only a performer or the title names the scene itself.
+  const namesScene = performerHits > 0 || titleMatch;
   const strength: ReleaseMatchStrength = dateConflict
     ? 'weak'
-    : count >= 2
+    : count >= 2 && namesScene
       ? 'strong'
-      : count === 1 && !studioMatch
+      : count >= 2 || (count === 1 && !studioMatch)
         ? 'partial'
         : 'weak';
 
