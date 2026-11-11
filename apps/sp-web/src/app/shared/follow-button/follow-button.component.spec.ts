@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { Subject, of, throwError } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { Follow, FollowsApiService } from '../../core/api/follows.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { FollowButtonComponent } from './follow-button.component';
@@ -44,7 +44,7 @@ describe('FollowButtonComponent', () => {
     return fixture;
   }
 
-  it('follows on tap and opens its options', async () => {
+  it('follows on tap, without opening anything', async () => {
     const followCall = vi.fn().mockReturnValue(of(follow()));
     const fixture = await render({
       lookup: vi.fn().mockReturnValue(of({ follow: null, followable: true })),
@@ -63,32 +63,24 @@ describe('FollowButtonComponent', () => {
       imageUrl: null,
     });
     expect(toggle.textContent).toContain('Following');
-    expect(root.querySelector('[data-testid="follow-panel"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="follow-sheet"]')).toBeNull();
   });
 
-  it('turns on automatic requests and unfollows from its options', async () => {
-    const update = vi.fn().mockReturnValue(of(follow({ autoRequest: true })));
-    const unfollow = vi.fn().mockReturnValue(of(undefined));
+  it('opens the options sheet once followed, and shows what’s new', async () => {
     const fixture = await render({
       lookup: vi.fn().mockReturnValue(of({ follow: follow({ newCount: 3 }), followable: true })),
-      update,
-      unfollow,
     });
     const root = fixture.nativeElement as HTMLElement;
     const toggle = root.querySelector('[data-testid="follow-toggle"]') as HTMLButtonElement;
-    expect(toggle.textContent).toContain('3');
+    expect(toggle.textContent).toContain('3 new');
+    expect(toggle.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(toggle.getAttribute('aria-label')).toBe('Following Kaitlyn, 3 new: options');
 
     toggle.click();
     fixture.detectChanges();
-    const auto = root.querySelector('[data-testid="follow-auto"]') as HTMLInputElement;
-    auto.checked = true;
-    auto.dispatchEvent(new Event('change'));
-    expect(update).toHaveBeenCalledWith('f1', { autoRequest: true });
-
-    (root.querySelector('[data-testid="unfollow"]') as HTMLButtonElement).click();
-    fixture.detectChanges();
-    expect(unfollow).toHaveBeenCalledWith('f1');
-    expect(toggle.textContent).not.toContain('Following');
+    expect(document.querySelector('[data-testid="follow-sheet"]')?.textContent).toContain(
+      'Following Kaitlyn',
+    );
   });
 
   it('isn’t offered on a secondary catalog’s page', async () => {
@@ -98,21 +90,6 @@ describe('FollowButtonComponent', () => {
     expect(
       (fixture.nativeElement as HTMLElement).querySelector('[data-testid="follow-toggle"]'),
     ).toBeNull();
-  });
-
-  it('puts the checkbox back when saving fails', async () => {
-    const fixture = await render({
-      lookup: vi.fn().mockReturnValue(of({ follow: follow(), followable: true })),
-      update: vi.fn().mockReturnValue(throwError(() => new Error('down'))),
-    });
-    const root = fixture.nativeElement as HTMLElement;
-    (root.querySelector('[data-testid="follow-toggle"]') as HTMLButtonElement).click();
-    fixture.detectChanges();
-    const auto = root.querySelector('[data-testid="follow-auto"]') as HTMLInputElement;
-    auto.checked = true;
-    auto.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
-    expect(auto.checked).toBe(false);
   });
 
   it('ignores a follow that finishes after the page moved on', async () => {
@@ -150,19 +127,5 @@ describe('FollowButtonComponent', () => {
     expect(
       (fixture.nativeElement as HTMLElement).querySelector('[data-testid="follow-toggle"]'),
     ).toBeTruthy();
-  });
-
-  it('shows a start none of the choices matches as its day', async () => {
-    const fixture = await render({
-      lookup: vi
-        .fn()
-        .mockReturnValue(of({ follow: follow({ since: '2020-01-02' }), followable: true })),
-    });
-    const root = fixture.nativeElement as HTMLElement;
-    (root.querySelector('[data-testid="follow-toggle"]') as HTMLButtonElement).click();
-    fixture.detectChanges();
-    const select = root.querySelector('[data-testid="follow-since"]') as HTMLSelectElement;
-    expect(select.value).toBe('custom');
-    expect(select.textContent).toContain('2020');
   });
 });

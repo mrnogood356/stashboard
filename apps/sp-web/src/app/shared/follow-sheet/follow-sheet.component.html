@@ -1,0 +1,163 @@
+<p-dialog
+  [visible]="open"
+  (visibleChange)="onVisibleChange($event)"
+  [modal]="true"
+  [closeOnEscape]="false"
+  [draggable]="false"
+  [resizable]="false"
+  [closable]="false"
+  [blockScroll]="true"
+  [focusOnShow]="true"
+  [breakpoints]="dialogBreakpoints"
+  [appendTo]="'self'"
+  [style]="{ width: 'min(560px, 96vw)', maxHeight: 'min(86dvh, 720px)' }"
+  styleClass="follow-dialog"
+  maskStyleClass="follow-dialog-mask"
+  ariaLabelledBy="follow-sheet-title"
+>
+  @if (follow; as current) {
+    <div class="sheet-shell" data-testid="follow-sheet">
+      @if (imageUrl ?? current.imageUrl; as art) {
+        <div
+          class="follow-sheet-art"
+          [style.background-image]="'url(' + art + ')'"
+          aria-hidden="true"
+        ></div>
+      }
+      <div class="sheet-shade" aria-hidden="true"></div>
+
+      <div class="sheet-content">
+        <header class="sheet-header">
+          <div>
+            <h2 id="follow-sheet-title">Following {{ current.name }}</h2>
+            <p>
+              Checked for new scenes every day.
+              @if (showPageLink) {
+                <a class="page-link" [routerLink]="pageRoute(current)" (click)="close()">
+                  Open {{ current.kind === 'PERFORMER' ? 'performer' : 'studio' }}
+                </a>
+              }
+            </p>
+          </div>
+          <button type="button" class="close-sheet" pButton [disabled]="busy()" (click)="close()">
+            Close
+          </button>
+        </header>
+
+        <div class="sheet-body">
+          <label id="follow-start-label" class="field" for="follow-start">
+            <span>Starting from</span>
+            <p-select
+              inputId="follow-start"
+              ariaLabelledBy="follow-start-label"
+              [options]="startOptions()"
+              optionLabel="label"
+              optionValue="value"
+              [ngModel]="startChoice()"
+              (ngModelChange)="startChoice.set($event)"
+              [disabled]="busy()"
+              [appendTo]="'body'"
+              panelStyleClass="app-overlay-panel app-overlay-panel--comfortable"
+              data-testid="follow-start"
+            />
+            <small>Earlier scenes than this aren’t looked for.</small>
+          </label>
+
+          <div class="field">
+            <span id="follow-tags-label">Only scenes tagged</span>
+            <p-multiselect
+              inputId="follow-tags"
+              ariaLabelledBy="follow-tags-label"
+              [options]="tagOptions()"
+              optionLabel="label"
+              optionValue="value"
+              [ngModel]="tagIds()"
+              (ngModelChange)="onTagsChanged($event)"
+              (onFilter)="onTagFilter($event.filter)"
+              (onPanelHide)="onTagFilter('')"
+              [filter]="true"
+              [filterValue]="tagSearchTerm()"
+              filterPlaceHolder="Search tags"
+              [loading]="tagSearchLoading()"
+              [showToggleAll]="false"
+              [selectionLimit]="maxTags"
+              display="chip"
+              [emptyMessage]="tagEmptyMessage()"
+              [emptyFilterMessage]="tagEmptyMessage()"
+              [resetFilterOnHide]="true"
+              [disabled]="busy()"
+              [appendTo]="'body'"
+              panelStyleClass="app-overlay-panel app-overlay-panel--comfortable"
+              placeholder="Any tag"
+              scrollHeight="16rem"
+              data-testid="follow-tags"
+            />
+            <small>
+              @if (tags().length > 1) {
+                A scene needs any one of these.
+              } @else if (tags().length === 0) {
+                Every new scene counts.
+              } @else {
+                Only scenes with this tag count.
+              }
+            </small>
+          </div>
+
+          <label class="toggle-row" for="follow-auto">
+            <span>
+              <strong>Request automatically</strong>
+              <small
+                >Send new scenes straight to Whisparr instead of listing them in Following.</small
+              >
+            </span>
+            <p-toggleswitch
+              inputId="follow-auto"
+              [ngModel]="autoRequest()"
+              (ngModelChange)="autoRequest.set($event)"
+              [disabled]="busy()"
+              data-testid="follow-auto"
+            />
+          </label>
+
+          @if (error(); as message) {
+            <p-message severity="error" styleClass="app-inline-message">{{ message }}</p-message>
+          }
+
+          <div class="sheet-actions">
+            <button
+              type="button"
+              pButton
+              [disabled]="busy()"
+              data-testid="follow-save"
+              (click)="save()"
+            >
+              {{ busy() ? 'Saving…' : 'Save' }}
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              pButton
+              text
+              [disabled]="busy()"
+              (click)="close()"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="unfollow"
+              pButton
+              text
+              severity="danger"
+              [disabled]="busy()"
+              data-testid="unfollow"
+              (click)="unfollow()"
+            >
+              {{ confirmingUnfollow() ? 'Tap again to unfollow' : 'Unfollow' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+</p-dialog>

@@ -2565,6 +2565,39 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
     };
   }
 
+  /**
+   * Of these scenes, the ones Stash has no hover preview for: a definite
+   * "no" from its preview address (asked with a HEAD; nothing downloaded).
+   * Scenes Stash didn't answer for are listed apart, as unknown.
+   */
+  async scenesWithoutPreview(
+    config: StashAdapterBaseConfig,
+    sceneIds: string[],
+  ): Promise<{ missing: string[]; unanswered: string[] }> {
+    const ids = [
+      ...new Set(
+        sceneIds
+          .map((id) => this.normalizeEntityId(id))
+          .filter((id): id is string => !!id),
+      ),
+    ];
+    if (ids.length === 0) {
+      return { missing: [], unanswered: [] };
+    }
+    const probe = await this.probeAssets(
+      config,
+      ids,
+      (id) => `/scene/${id}/preview`,
+    );
+    return {
+      missing: ids.filter((_, index) => probe.results[index] === false),
+      // Stash didn't answer for these (busy, timed out): neither has nor lacks.
+      unanswered: ids.filter(
+        (_, index) => typeof probe.results[index] === 'string',
+      ),
+    };
+  }
+
   /** Ids of every scene Stash says is missing this (one query, ids only). */
   private async sceneIdsMissing(
     config: StashAdapterBaseConfig,

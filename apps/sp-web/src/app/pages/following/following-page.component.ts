@@ -1,24 +1,20 @@
 import { DatePipe } from '@angular/common';
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Subscription, timer } from 'rxjs';
 import { SceneRequestContext } from '../../core/api/discover.types';
 import {
   Follow,
   FollowChanges,
-  FollowTag,
   FollowedRelease,
   FollowsApiService,
-  SINCE_OPTIONS,
-  sinceDayLabel,
-  sinceDaysAgo,
-  sinceOptionFor,
+  describeFollow,
 } from '../../core/api/follows.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { SceneCardComponent } from '../../shared/scene-card/scene-card.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
 import { SectionBackComponent } from '../../shared/section-back/section-back.component';
-import { FollowTagsComponent } from '../../shared/follow-tags/follow-tags.component';
+import { FollowSheetComponent } from '../../shared/follow-sheet/follow-sheet.component';
 
 type FollowingTab = 'new' | 'recent' | 'manage';
 const TABS: readonly FollowingTab[] = ['new', 'recent', 'manage'];
@@ -40,7 +36,7 @@ const CHECK_POLL_MS = 4000;
     SceneCardComponent,
     SceneRequestModalComponent,
     SectionBackComponent,
-    FollowTagsComponent,
+    FollowSheetComponent,
   ],
   templateUrl: './following-page.component.html',
   styleUrls: ['../tools/tools-shared.scss', './following-page.component.scss'],
@@ -50,6 +46,7 @@ export class FollowingPageComponent implements OnInit, OnDestroy {
   private readonly notifications = inject(AppNotificationsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private pollSub: Subscription | null = null;
 
   protected readonly tab = signal<FollowingTab>('new');
@@ -59,13 +56,10 @@ export class FollowingPageComponent implements OnInit, OnDestroy {
   protected readonly follows = signal<Follow[] | null>(null);
   protected readonly followsFailed = signal(false);
   protected readonly checking = signal(false);
-  /** Follows with a save on its way: their controls wait for it. */
-  protected readonly savingIds = signal<ReadonlySet<string>>(new Set());
-  /** The follow whose tags are open for editing. */
-  protected readonly editingTagsId = signal<string | null>(null);
+  /** The follow whose options sheet is open. */
+  protected readonly sheetFollow = signal<Follow | null>(null);
   protected readonly requestContext = signal<SceneRequestContext | null>(null);
-  protected readonly sinceOptions = SINCE_OPTIONS;
-  protected readonly sinceDayLabel = sinceDayLabel;
+  protected readonly describe = describeFollow;
   /** Bumped on each releases load, so an older answer can't replace a newer one. */
   private releasesGeneration = 0;
 
@@ -150,44 +144,47 @@ export class FollowingPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  protected sinceChoice(follow: Follow): number | null {
-    return sinceOptionFor(follow.since);
+  protected openSheet(follow: Follow): void {
+    this.sheetFollow.set(follow);
   }
 
-  protected isSaving(follow: Follow): boolean {
-    return this.savingIds().has(follow.id);
+  protected closeSheet(): void {
+    this.sheetFollow.set(null);
   }
 
-  protected setSince(follow: Follow, select: HTMLSelectElement): void {
-    const days = Number(select.value);
-    if (!Number.isFinite(days)) {
-      return;
+  /**
+   * Saved from the sheet. A change to its tags or start has the server look
+   * again, so New is read again once that's done.
+   */
+  protected onSheetSaved(saved: Follow, changes: FollowChanges): void {
+    this.sheetFollow.set(null);
+    this.follows.update((list) =>
+      (list ?? []).map((other) => (other.id === saved.id ? saved : other)),
+    );
+    if (changes.tags !== undefined || changes.since !== undefined) {
+      this.checking.set(true);
+      this.pollUntilChecked();
     }
-    this.save(
-      follow,
-      { since: sinceDaysAgo(days) },
-      () => (select.value = String(this.sinceChoice(follow) ?? 'custom')),
-    );
   }
 
-  protected toggleTags(follow: Follow): void {
-    this.editingTagsId.update((id) => (id === follow.id ? null : follow.id));
-  }
-
-  protected setTags(follow: Follow, tags: FollowTag[]): void {
-    this.save(follow, { tags });
-  }
-
-  protected tagSummary(follow: Follow): string {
-    return follow.tags.map((tag) => tag.name).join(', ');
-  }
-
-  protected setAutoRequest(follow: Follow, checkbox: HTMLInputElement): void {
-    this.save(
-      follow,
-      { autoRequest: checkbox.checked },
-      () => (checkbox.checked = follow.autoRequest),
-    );
+  protected onUnfollowed(follow: Follow): void {
+    // Its row goes, so focus moves to the row that takes its place.
+    const rows = (): HTMLElement[] =>
+      Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>('.follow-row'));
+    const index = rows().findIndex((row) => row.dataset['testid'] === `follow-${follow.entityId}`);
+    this.sheetFollow.set(null);
+    this.follows.update((list) => (list ?? []).filter((other) => other.id !== follow.id));
+    if (index >= 0) {
+      setTimeout(() => {
+        const left = rows();
+        const next =
+          left[Math.min(index, left.length - 1)] ??
+          this.host.nativeElement.querySelector<HTMLElement>('[data-testid="tab-manage"]');
+        next?.focus();
+      });
+    }
+    this.notifications.success(`Stopped following ${follow.name}`);
+    this.loadReleases();
   }
 
   /** Tries again after a list couldn't be read. */
@@ -199,72 +196,8 @@ export class FollowingPageComponent implements OnInit, OnDestroy {
     this.loadReleases();
   }
 
-  protected unfollow(follow: Follow): void {
-    if (!this.startSaving(follow)) {
-      return;
-    }
-    this.api.unfollow(follow.id).subscribe({
-      next: () => {
-        this.doneSaving(follow);
-        this.follows.update((list) => (list ?? []).filter((other) => other.id !== follow.id));
-        this.notifications.success(`Stopped following ${follow.name}`);
-        this.loadReleases();
-      },
-      error: () => {
-        this.doneSaving(follow);
-        this.notifications.error('Couldn’t unfollow', 'Try again.');
-      },
-    });
-  }
-
   protected entityRoute(kind: Follow['kind'], entityId: string): string[] {
     return [kind === 'PERFORMER' ? '/performer' : '/studio', entityId];
-  }
-
-  /**
-   * Saves a change to one follow; on failure `undo` puts the control back as
-   * it was saved. A change to its tags or start has the server look again,
-   * so New is read again once that's done.
-   */
-  private save(follow: Follow, changes: FollowChanges, undo?: () => void): void {
-    if (!this.startSaving(follow)) {
-      undo?.();
-      return;
-    }
-    this.api.update(follow.id, changes).subscribe({
-      next: (saved) => {
-        this.doneSaving(follow);
-        this.follows.update((list) =>
-          (list ?? []).map((other) => (other.id === saved.id ? saved : other)),
-        );
-        if (changes.tags !== undefined || changes.since !== undefined) {
-          this.checking.set(true);
-          this.pollUntilChecked();
-        }
-      },
-      error: () => {
-        this.doneSaving(follow);
-        undo?.();
-        this.notifications.error('Couldn’t save that', 'Try again.');
-      },
-    });
-  }
-
-  /** False while this follow already has a save on its way. */
-  private startSaving(follow: Follow): boolean {
-    if (this.savingIds().has(follow.id)) {
-      return false;
-    }
-    this.savingIds.update((ids) => new Set(ids).add(follow.id));
-    return true;
-  }
-
-  private doneSaving(follow: Follow): void {
-    this.savingIds.update((ids) => {
-      const next = new Set(ids);
-      next.delete(follow.id);
-      return next;
-    });
   }
 
   private removeRelease(sceneId: string): void {

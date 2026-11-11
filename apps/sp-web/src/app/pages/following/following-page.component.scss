@@ -43,7 +43,16 @@
   color: var(--text-muted);
 }
 
-.who a,
+.who a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.who a:hover {
+  text-decoration: underline;
+}
+
 .footnote a {
   color: inherit;
   font-weight: 600;
@@ -87,14 +96,30 @@
   gap: 0.5rem;
 }
 
+/* One row per follow, like a settings row: tap it for its options. */
 .follow-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.85rem;
+  width: 100%;
   padding: 0.7rem 0.85rem;
+  border: 1px solid transparent;
   border-radius: 14px;
   background: var(--surface-1);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.follow-row:hover {
+  border-color: var(--border-strong);
+}
+
+.follow-row:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .avatar {
@@ -126,67 +151,24 @@
   white-space: nowrap;
   color: var(--text-primary);
   font-weight: 650;
-  text-decoration: none;
 }
 
-.meta {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 0.82rem;
-}
-
-.new {
-  color: var(--accent-text, var(--accent));
-  font-weight: 650;
-}
-
-.tags-line {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 0.82rem;
-}
-
-.edit-tags {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--accent-text, var(--accent));
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.tags-editor {
-  grid-column: 1 / -1;
-  max-width: 28rem;
-  font-size: 0.88rem;
-}
-
-.follow-controls {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.4rem 0.9rem;
-  font-size: 0.85rem;
-}
-
-.follow-controls select {
-  min-height: 2.1rem;
-  padding: 0 0.5rem;
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  background: var(--surface-elevated, var(--surface-1));
-  color: var(--text-primary);
-  font: inherit;
-}
-
-.auto {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
+.summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text-secondary);
-  cursor: pointer;
+  font-size: 0.84rem;
+}
+
+.checked {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.chevron {
+  color: var(--text-muted);
+  font-size: 0.8rem;
 }
 
 .empty-actions {
@@ -215,15 +197,6 @@
   .who {
     max-width: 100%;
     white-space: normal;
-  }
-
-  .follow-row {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .follow-controls {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
   }
 }
 
