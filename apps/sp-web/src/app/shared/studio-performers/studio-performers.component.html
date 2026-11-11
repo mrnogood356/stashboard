@@ -48,8 +48,13 @@
         </li>
       }
     </ul>
-    @if (hasMore()) {
-      <button type="button" class="btn small more" (click)="more()">Show more</button>
+    @if (failed()) {
+      <p class="muted">Couldn’t load more of this studio’s performers.</p>
+    }
+    @if (hasMore() || failed()) {
+      <button type="button" class="btn small more" [disabled]="loading()" (click)="more()">
+        {{ loading() ? 'Loading…' : failed() ? 'Try again' : 'Show more' }}
+      </button>
     }
   }
 </section>

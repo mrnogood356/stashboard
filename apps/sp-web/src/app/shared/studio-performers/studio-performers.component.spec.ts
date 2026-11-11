@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { DiscoverService } from '../../core/api/discover.service';
 import { StudioPerformersComponent } from './studio-performers.component';
@@ -74,5 +74,57 @@ describe('StudioPerformersComponent', () => {
       'Khloe Kingsley',
     );
     expect(root.querySelector('[data-testid="studio-performer-p1"]')).toBeNull();
+  });
+
+  it('asks for each page once, tries a failed page again, and keeps search errors visible', async () => {
+    const { fixture, root, getPerformersFeed } = await render();
+    await settle();
+    fixture.detectChanges();
+    getPerformersFeed.mockImplementationOnce(
+      () => throwError(() => new Error('down')) as unknown as Observable<never>,
+    );
+    const more = () => (root.querySelector('button.more') as HTMLButtonElement).click();
+    more();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Couldn’t load more');
+    expect(root.querySelector('[data-testid="studio-performer-p1"]')).not.toBeNull();
+    const pending = new Subject<unknown>();
+    getPerformersFeed.mockImplementationOnce(() => pending as unknown as Observable<never>);
+    more();
+    more();
+    const pages = getPerformersFeed.mock.calls.map((call) => call[0]);
+    expect(pages).toEqual([1, 2, 2]);
+    pending.next({
+      total: 30,
+      page: 2,
+      perPage: 24,
+      hasMore: false,
+      items: [performer('p2', 'Performer 2')],
+    });
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="studio-performer-p2"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="studio-performer-p1"]')).not.toBeNull();
+  });
+
+  it('starts over for another studio and doesn’t keep loading for a trailing space', async () => {
+    const { fixture, root, getPerformersFeed } = await render();
+    await settle();
+    fixture.componentInstance.studioId = 'studio-2';
+    fixture.detectChanges();
+    expect(getPerformersFeed).toHaveBeenLastCalledWith(
+      1,
+      24,
+      expect.objectContaining({ studioId: 'studio-2' }),
+    );
+    const calls = getPerformersFeed.mock.calls.length;
+    const search = root.querySelector(
+      '[data-testid="studio-performer-search"]',
+    ) as HTMLInputElement;
+    search.value = ' ';
+    search.dispatchEvent(new Event('input'));
+    await settle();
+    fixture.detectChanges();
+    expect(getPerformersFeed.mock.calls.length).toBe(calls);
+    expect(root.textContent).not.toContain('Loading performers');
   });
 });

@@ -1,6 +1,6 @@
 import { Component, DestroyRef, Input, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { Subject, debounceTime, distinctUntilChanged, switchMap, catchError, of } from 'rxjs';
+import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DiscoverService } from '../../core/api/discover.service';
 import { PerformerFeedItem, PerformerFeedResponse } from '../../core/api/discover.types';
@@ -21,7 +21,25 @@ export class StudioPerformersComponent implements OnInit {
   private readonly discover = inject(DiscoverService);
   private readonly destroyRef = inject(DestroyRef);
 
-  @Input({ required: true }) studioId = '';
+  private currentStudioId = '';
+  private started = false;
+
+  /** A new studio (the page is reused when going from one to another) starts over. */
+  @Input({ required: true })
+  set studioId(value: string) {
+    if (value === this.currentStudioId) {
+      return;
+    }
+    this.currentStudioId = value;
+    this.query.set('');
+    this.name = '';
+    if (this.started) {
+      this.load(1);
+    }
+  }
+  get studioId(): string {
+    return this.currentStudioId;
+  }
   /** Where a performer's page goes back to. */
   @Input() returnTo = '';
 
@@ -31,56 +49,82 @@ export class StudioPerformersComponent implements OnInit {
   protected readonly hasMore = signal(false);
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
-  private page = 1;
-  private readonly searches = new Subject<{ name: string; page: number }>();
+  /** The name searched for, as last sent. */
+  private name = '';
+  /** The last page that came back. */
+  private page = 0;
+  private readonly names = new Subject<string>();
+  private readonly requests = new Subject<{ studioId: string; name: string; page: number }>();
 
   ngOnInit(): void {
-    this.searches
+    // Typing waits for a pause; the same name again (say, a trailing space) is no new search.
+    this.names
+      .pipe(debounceTime(250), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe((name) => {
+        if (name !== this.name) {
+          this.name = name;
+          this.load(1);
+        }
+      });
+    // A newer request replaces one still on its way.
+    this.requests
       .pipe(
-        debounceTime(250),
-        distinctUntilChanged((a, b) => a.name === b.name && a.page === b.page),
-        switchMap(({ name, page }) =>
+        switchMap((request) =>
           this.discover
-            .getPerformersFeed(page, PAGE_SIZE, {
-              name: name || undefined,
-              studioId: this.studioId,
+            .getPerformersFeed(request.page, PAGE_SIZE, {
+              name: request.name || undefined,
+              studioId: request.studioId,
               sort: 'SCENE_COUNT',
               direction: 'DESC',
             })
-            .pipe(catchError(() => of(null as PerformerFeedResponse | null))),
+            .pipe(
+              map((response) => ({ request, response })),
+              catchError(() => of({ request, response: null as PerformerFeedResponse | null })),
+            ),
         ),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((response) => {
+      .subscribe(({ request, response }) => {
         this.loading.set(false);
         if (!response) {
+          // The same page is asked for again next time.
           this.failed.set(true);
           return;
         }
         this.failed.set(false);
+        this.page = request.page;
         this.total.set(response.total);
         this.hasMore.set(response.hasMore);
         this.performers.update((list) =>
-          response.page === 1 ? response.items : [...list, ...response.items],
+          request.page === 1 ? response.items : [...list, ...response.items],
         );
       });
-    this.search();
+    this.started = true;
+    this.load(1);
   }
 
   protected onQuery(value: string): void {
     this.query.set(value);
-    this.page = 1;
-    this.loading.set(true);
-    this.search();
+    this.names.next(value.trim());
   }
 
   protected more(): void {
-    this.page += 1;
-    this.search();
+    if (!this.loading()) {
+      this.load(this.page + 1);
+    }
   }
 
-  private search(): void {
-    this.searches.next({ name: this.query().trim(), page: this.page });
+  private load(page: number): void {
+    if (page === 1) {
+      // Another search or studio: the old list isn't shown as its results.
+      this.performers.set([]);
+      this.total.set(0);
+      this.hasMore.set(false);
+      this.page = 0;
+    }
+    this.loading.set(true);
+    this.failed.set(false);
+    this.requests.next({ studioId: this.currentStudioId, name: this.name, page });
   }
 
   protected initial(name: string): string {
