@@ -782,6 +782,8 @@ describe('StashAdapter', () => {
         {
           id: '411',
           title: 'Fresh Library Scene',
+          width: 1920,
+          height: 1080,
           description: 'Recently scanned into the local library.',
           imageUrl: 'http://stash.local/images/411.jpg',
           cardImageUrl: 'http://stash.local/images/411.jpg',
@@ -1246,6 +1248,8 @@ describe('StashAdapter', () => {
         {
           id: '812',
           title: 'Scene #812',
+          width: null,
+          height: null,
           description: null,
           imageUrl: null,
           cardImageUrl: null,
@@ -1608,7 +1612,7 @@ describe('StashAdapter', () => {
                   paths: {
                     screenshot: 'http://stash.local/scene/5/screenshot',
                   },
-                  files: [{ duration: 1200 }],
+                  files: [{ duration: 1200, width: 1920, height: 1080 }],
                 },
               ],
             },
@@ -1622,7 +1626,13 @@ describe('StashAdapter', () => {
     );
 
     expect(scenes).toEqual([
-      expect.objectContaining({ id: '5', resumeTime: 300, duration: 1200 }),
+      expect.objectContaining({
+        id: '5',
+        resumeTime: 300,
+        duration: 1200,
+        width: 1920,
+        height: 1080,
+      }),
     ]);
     const body = JSON.parse(
       (fetchMock.mock.calls[0][1] as RequestInit).body as string,
@@ -1959,6 +1969,42 @@ describe('StashAdapter', () => {
       expect(calls.some((call) => call.name === 'CarryChapter')).toBe(false);
     });
 
+    it('gives each card its main file’s picture size, for its quality', async () => {
+      fetchMock.mockResolvedValue(
+        ok({
+          findScenes: {
+            count: 1,
+            scenes: [
+              {
+                id: '1',
+                title: 'Pool',
+                files: [
+                  { duration: 2451, width: 3840, height: 2160 },
+                  { duration: 2451, width: 1280, height: 720 },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+      const page = await adapter.findLocalScenes(config, {
+        page: 1,
+        perPage: 10,
+        sort: 'id',
+        direction: 'ASC',
+        sceneFilter: {},
+      });
+      expect(page.items[0]).toMatchObject({
+        duration: 2451,
+        width: 3840,
+        height: 2160,
+      });
+      const body = JSON.parse(
+        (fetchMock.mock.calls[0][1] as RequestInit).body as string,
+      );
+      expect(body.query).toMatch(/files \{\s*duration\s*width\s*height/);
+    });
+
     it('refuses an answer with no scene list when asked to be strict', async () => {
       fetchMock.mockResolvedValue(ok({}));
       await expect(
@@ -2126,6 +2172,8 @@ describe('StashAdapter', () => {
             screenshotVersion: '1',
             studio: { id: '3', name: 'Studio', imageVersion: null },
             duration: 600,
+            width: null,
+            height: null,
             playCount: 2,
             resumeTime: 30,
             lastPlayedAt: null,

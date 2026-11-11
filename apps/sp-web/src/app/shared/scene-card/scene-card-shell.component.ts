@@ -14,6 +14,7 @@ import {
 import { Params, RouterLink } from '@angular/router';
 import { ImageObscurationService } from '../../core/preferences/image-obscuration.service';
 import { InViewPreviewCard, inViewPreviews } from './in-view-previews';
+import { lengthLabel, qualityLabel } from './scene-specs';
 
 export interface SceneCardShellItem {
   title: string;
@@ -22,6 +23,11 @@ export interface SceneCardShellItem {
   studioId: string | null;
   studio: string | null;
   studioImageUrl: string | null;
+  /** Length in seconds, shown on the picture. */
+  duration?: number | null;
+  /** Picture size of a file you have, shown as its quality (4K, 1080p…). */
+  width?: number | null;
+  height?: number | null;
 }
 
 export type SceneCardShellVariant = 'default' | 'rail';
@@ -239,6 +245,15 @@ export class SceneCardShellComponent implements AfterViewInit, OnDestroy {
 
   @ContentChild(SceneCardBodyDirective)
   private bodySlot?: SceneCardBodyDirective;
+
+  /** Quality (for a file you have) and length, in the picture's corner like Stash. */
+  protected quality(): string | null {
+    return qualityLabel(this.item.width, this.item.height);
+  }
+
+  protected length(): string | null {
+    return lengthLabel(this.item.duration);
+  }
 
   protected progressPercent(): number | null {
     return this.progress !== null && this.progress > 0.005

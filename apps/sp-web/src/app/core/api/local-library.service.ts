@@ -14,6 +14,9 @@ export interface LocalSceneCard {
   studioImageUrl: string | null;
   releaseDate: string | null;
   duration: number | null;
+  /** The main file's picture size, for its quality (4K, 1080p…). */
+  width?: number | null;
+  height?: number | null;
   playCount: number;
   progress: number | null;
   /** When it was last played (history only). */

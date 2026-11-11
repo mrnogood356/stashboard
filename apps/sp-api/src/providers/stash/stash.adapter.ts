@@ -721,6 +721,8 @@ export class StashAdapter extends StashLibraryToolsApi {
             }
             files {
               duration
+              width
+              height
             }
           }
         }
@@ -1074,9 +1076,11 @@ export class StashAdapter extends StashLibraryToolsApi {
     const files = Array.isArray(scene.files)
       ? (scene.files as Array<Record<string, unknown>>)
       : [];
-    const duration = files.find(
-      (file) => typeof file?.duration === 'number',
-    )?.duration;
+    // The main file: Stash plays (and shows) the first one.
+    const main = files.find((file) => typeof file?.duration === 'number');
+    const duration = main?.duration;
+    const size = (value: unknown) =>
+      typeof value === 'number' && value > 0 ? value : null;
     return {
       id,
       title: this.normalizeOptionalString(scene.title) ?? `Scene #${id}`,
@@ -1093,6 +1097,8 @@ export class StashAdapter extends StashLibraryToolsApi {
             }
           : null,
       duration: typeof duration === 'number' ? duration : null,
+      width: size(main?.width),
+      height: size(main?.height),
       playCount: typeof scene.play_count === 'number' ? scene.play_count : 0,
       resumeTime: typeof scene.resume_time === 'number' ? scene.resume_time : 0,
       lastPlayedAt: this.normalizeOptionalString(scene.last_played_at),
@@ -1629,6 +1635,7 @@ export class StashAdapter extends StashLibraryToolsApi {
       studioImageUrl,
       releaseDate,
       duration,
+      ...this.pickFirstSize(scene.files ?? []),
       viewUrl: this.resolveSceneViewUrl(baseUrl, scene.id),
     };
   }

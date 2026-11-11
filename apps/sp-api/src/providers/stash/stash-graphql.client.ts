@@ -164,6 +164,20 @@ export abstract class StashGraphqlClient {
     return null;
   }
 
+  /** The picture size of the file pickFirstDuration reads (the one Stash plays). */
+  protected pickFirstSize(
+    files: Array<{ duration?: unknown; width?: unknown; height?: unknown }>,
+  ): { width: number | null; height: number | null } {
+    const file =
+      files.find(
+        (entry) =>
+          typeof entry.duration === 'number' && Number.isFinite(entry.duration),
+      ) ?? files[0];
+    const size = (value: unknown) =>
+      typeof value === 'number' && value > 0 ? value : null;
+    return { width: size(file?.width), height: size(file?.height) };
+  }
+
   protected normalizeEntityId(id: string): string | null {
     const normalized = id.trim();
     return /^[A-Za-z0-9_-]+$/.test(normalized) ? normalized : null;

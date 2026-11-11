@@ -126,6 +126,9 @@ export interface StashLocalSceneCard {
   screenshotVersion: string | null;
   studio: { id: string; name: string; imageVersion: string | null } | null;
   duration: number | null;
+  /** The main file's picture size, for its quality (4K, 1080p…). */
+  width?: number | null;
+  height?: number | null;
   playCount: number;
   resumeTime: number;
   /** When it was last played, when Stash says. */
@@ -296,6 +299,9 @@ export interface StashLocalSceneFeedItem {
   studioImageUrl: string | null;
   releaseDate: string | null;
   duration: number | null;
+  /** The main file's picture size, for its quality (4K, 1080p…). */
+  width?: number | null;
+  height?: number | null;
   viewUrl: string;
 }
 

@@ -61,6 +61,9 @@ export interface LocalSceneCardDto {
   studioImageUrl: string | null;
   releaseDate: string | null;
   duration: number | null;
+  /** The main file's picture size, for its quality (4K, 1080p…). */
+  width: number | null;
+  height: number | null;
   playCount: number;
   /** How far through the scene playback got, 0 to 1. */
   progress: number | null;
@@ -1525,6 +1528,8 @@ export function toCard(scene: StashLocalSceneCard): LocalSceneCardDto {
       : null,
     releaseDate: scene.date,
     duration: scene.duration,
+    width: scene.width ?? null,
+    height: scene.height ?? null,
     playCount: scene.playCount,
     progress,
     lastPlayedAt: scene.lastPlayedAt ?? null,

@@ -247,6 +247,34 @@ describe('SceneCardShellComponent', () => {
     ).toContain('Footer copy');
     expect(fixture.nativeElement.querySelector('.media .media-footer-test')).toBeNull();
     expect(fixture.nativeElement.querySelector('.body-test')?.textContent).toContain('Body copy');
+    // No length or file size: nothing on the picture's corner.
+    expect(fixture.nativeElement.querySelector('.media-specs')).toBeNull();
+  });
+
+  it('shows quality and length on the picture, like Stash, and only length for a catalog scene', async () => {
+    await TestBed.configureTestingModule({
+      imports: [SceneCardShellHostComponent],
+      providers: [provideRouter([])],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(SceneCardShellHostComponent);
+    fixture.componentInstance.item = {
+      ...fixture.componentInstance.item,
+      duration: 2451,
+      width: 3840,
+      height: 2160,
+    };
+    fixture.detectChanges();
+    const specs = () => fixture.nativeElement.querySelector('.media .media-specs') as HTMLElement;
+    expect(specs().querySelector('.media-quality')?.textContent).toBe('4K');
+    expect(specs().querySelector('.media-length')?.textContent).toBe('40:51');
+
+    // A catalog scene: its length from the catalog, no file to have a quality.
+    const catalog = TestBed.createComponent(SceneCardShellHostComponent);
+    catalog.componentInstance.item = { ...catalog.componentInstance.item, duration: 2451 };
+    catalog.detectChanges();
+    const catalogSpecs = catalog.nativeElement.querySelector('.media .media-specs') as HTMLElement;
+    expect(catalogSpecs.querySelector('.media-quality')).toBeNull();
+    expect(catalogSpecs.textContent?.trim()).toBe('40:51');
   });
 });
 

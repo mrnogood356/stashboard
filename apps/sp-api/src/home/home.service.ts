@@ -1053,6 +1053,8 @@ export class HomeService {
           : null,
       releaseDate: scene.releaseDate,
       duration: scene.duration,
+      width: scene.width ?? null,
+      height: scene.height ?? null,
       type: 'SCENE',
       source: 'STASH',
       status: { state: 'AVAILABLE' },

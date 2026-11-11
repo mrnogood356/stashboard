@@ -75,6 +75,17 @@
       </a>
     }
 
+    @if (quality() || length()) {
+      <div class="media-specs" [class.above-progress]="progressPercent()">
+        @if (quality(); as quality) {
+          <span class="media-quality">{{ quality }}</span>
+        }
+        @if (length(); as length) {
+          <span class="media-length">{{ length }}</span>
+        }
+      </div>
+    }
+
     @if (progressPercent(); as percent) {
       <div
         class="watch-progress"

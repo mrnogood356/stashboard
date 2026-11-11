@@ -498,8 +498,12 @@ describe('LocalLibraryService', () => {
   });
 
   it('builds cards with thumbnails and progress', () => {
-    expect(toCard({ ...card('5'), resumeTime: 25 })).toEqual(
+    expect(
+      toCard({ ...card('5'), resumeTime: 25, width: 3840, height: 2160 }),
+    ).toEqual(
       expect.objectContaining({
+        width: 3840,
+        height: 2160,
         imageUrl: '/api/media/stash/scenes/5/screenshot?v=1',
         cardImageUrl: '/api/media/stash/scenes/5/screenshot?v=1&w=480',
         progress: 0.25,

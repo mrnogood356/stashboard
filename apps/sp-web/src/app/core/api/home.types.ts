@@ -150,6 +150,9 @@ export interface HomeRailItem {
   studioImageUrl: string | null;
   releaseDate: string | null;
   duration: number | null;
+  /** A library scene's picture size, for its quality (4K, 1080p…). */
+  width?: number | null;
+  height?: number | null;
   type: 'SCENE';
   source: HomeRailItemSource;
   status: SceneStatus;
