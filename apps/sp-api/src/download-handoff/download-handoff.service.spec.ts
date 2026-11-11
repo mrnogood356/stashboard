@@ -604,6 +604,57 @@ describe('DownloadHandoffService', () => {
         failed.nzoId,
       );
       expect(row()).toMatchObject({ status: 'failed' });
+      expect(activity.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: expect.stringContaining('Couldn’t clear away'),
+          detail: expect.stringContaining('SABnzbd: offline'),
+        }),
+      );
+    });
+
+    it('removes the _FAILED_ folder SABnzbd leaves in the category folder, and nothing else', async () => {
+      rows.push(handoff({ id: 'h1' }));
+      const failedFolder = path.join(sabFolder, '_FAILED_Jane.Doe.Beach.Day');
+      await write(path.join(failedFolder, 'Jane.part01.rar'), 50);
+      await write(path.join(sabFolder, 'Other.Release', 'Other.mkv'), 50);
+      sabnzbd.history.mockResolvedValue([
+        historyEntry({
+          status: 'Failed',
+          storage:
+            '/downloads/complete/stashboard-downloads/_FAILED_Jane.Doe.Beach.Day',
+          failMessage: 'Unpacking failed',
+        }),
+      ]);
+
+      await service.checkOpen();
+
+      expect(await exists(failedFolder)).toBe(false);
+      expect(
+        await exists(path.join(sabFolder, 'Other.Release', 'Other.mkv')),
+      ).toBe(true);
+      expect(activity.record).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: expect.stringContaining('Couldn’t clear away'),
+        }),
+      );
+    });
+
+    it('leaves a failed download’s folder alone when it isn’t a _FAILED_ folder', async () => {
+      rows.push(handoff({ id: 'h1' }));
+      const folder = path.join(sabFolder, 'Jane.Doe.Beach.Day');
+      await write(path.join(folder, 'Jane.mkv'), 50);
+      sabnzbd.history.mockResolvedValue([
+        historyEntry({
+          status: 'Failed',
+          storage:
+            '/downloads/complete/stashboard-downloads/Jane.Doe.Beach.Day',
+          failMessage: 'Aborted',
+        }),
+      ]);
+
+      await service.checkOpen();
+
+      expect(await exists(path.join(folder, 'Jane.mkv'))).toBe(true);
     });
 
     it('lets Smaller copies try a release again when its download fails in SABnzbd', async () => {
@@ -1052,6 +1103,18 @@ describe('DownloadHandoffService', () => {
       await service.checkOpen();
       expect(row()).toMatchObject({ status: 'imported', stashSceneId: '77' });
       expect(await exists(path.join(destination, 'Jane.mkv'))).toBe(true);
+    });
+
+    it('says to find another release when SABnzbd no longer has the download', async () => {
+      rows.push(handoff({ id: 'h1', status: 'failed', error: 'Aborted' }));
+      sabnzbd.history.mockResolvedValue([]);
+      sabnzbd.queue.mockResolvedValue([]);
+
+      await expect(service.retry('h1')).rejects.toThrow(
+        'SABnzbd doesn’t have this download any more',
+      );
+      expect(row().status).toBe('failed');
+      expect(service.watch).not.toHaveBeenCalled();
     });
 
     it('waits for Stash again for one already moved', async () => {

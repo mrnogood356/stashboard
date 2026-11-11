@@ -248,19 +248,27 @@ export class SabnzbdAdapter {
   }
 
   /**
-   * Removes a failed download from SABnzbd's history together with what it
-   * left on disk (its _FAILED_ folder). SABnzbd only deletes the files of
-   * failed downloads this way, never a finished one's.
+   * Removes a failed download from SABnzbd's history together with its
+   * incomplete folder. SABnzbd only deletes the files of failed downloads
+   * this way, never a finished one's. A _FAILED_ folder it moved to the
+   * completed folder isn't deleted by SABnzbd; Stashboard removes that.
    */
   async deleteFailed(
     config: SabnzbdAdapterBaseConfig,
     nzoId: string,
   ): Promise<void> {
-    await this.call(config, 'history', {
+    const payload = (await this.call(config, 'history', {
       name: 'delete',
       value: nzoId,
       del_files: '1',
-    });
+    })) as { status?: unknown; error?: unknown } | null;
+    if (payload?.status === false) {
+      throw new BadGatewayException(
+        typeof payload.error === 'string' && payload.error.trim()
+          ? `SABnzbd didn’t remove it: ${payload.error.trim()}`
+          : 'SABnzbd didn’t remove it.',
+      );
+    }
   }
 
   /** Downloads still waiting or downloading in one category. */
