@@ -74,6 +74,7 @@ describe('FollowButtonComponent', () => {
     const toggle = root.querySelector('[data-testid="follow-toggle"]') as HTMLButtonElement;
     expect(toggle.textContent).toContain('3 new');
     expect(toggle.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(toggle.getAttribute('aria-label')).toBe('Following Kaitlyn, 3 new: options');
 
     toggle.click();
     fixture.detectChanges();

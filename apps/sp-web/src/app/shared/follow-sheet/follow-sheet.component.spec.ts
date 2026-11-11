@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { Follow, FollowsApiService } from '../../core/api/follows.service';
 import { FollowSheetComponent } from './follow-sheet.component';
 
@@ -29,6 +29,7 @@ interface SheetState {
   onTagsChanged(ids: string[] | null): void;
   onTagFilter(value: string): void;
   tagOptions(): Array<{ label: string; value: string }>;
+  tagEmptyMessage(): string;
 }
 
 describe('FollowSheetComponent', () => {
@@ -132,5 +133,57 @@ describe('FollowSheetComponent', () => {
     click('unfollow');
     expect(unfollow).toHaveBeenCalledWith('f1');
     expect(unfollowed).toEqual([follow()]);
+  });
+
+  it('closes on Escape and on the backdrop, but not while saving', async () => {
+    const pending = new Subject<Follow>();
+    const { fixture, state, click } = await render({ update: vi.fn().mockReturnValue(pending) });
+    const closed = vi.fn();
+    fixture.componentInstance.closed.subscribe(closed);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(closed).toHaveBeenCalledTimes(1);
+
+    const mask = document.querySelector('.follow-dialog-mask') as HTMLElement;
+    mask.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    expect(closed).toHaveBeenCalledTimes(2);
+
+    state.autoRequest.set(true);
+    click('follow-save');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    mask.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    expect(closed).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives focus back to what opened it', async () => {
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+    await TestBed.configureTestingModule({
+      imports: [FollowSheetComponent],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        { provide: FollowsApiService, useValue: {} },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(FollowSheetComponent);
+    fixture.componentRef.setInput('follow', follow());
+    fixture.componentRef.setInput('open', true);
+    fixture.detectChanges();
+    (document.querySelector('[data-testid="follow-save"]') as HTMLElement).focus();
+
+    fixture.componentRef.setInput('open', false);
+    fixture.detectChanges();
+    await vi.waitFor(() => expect(document.activeElement).toBe(opener));
+    opener.remove();
+  });
+
+  it('says when searching tags fails, instead of that nothing matches', async () => {
+    const { state } = await render({
+      searchTags: vi.fn().mockReturnValue(throwError(() => new Error('down'))),
+    });
+    state.onTagFilter('an');
+    await vi.waitFor(() => expect(state.tagEmptyMessage()).toContain('Couldn’t search tags'));
   });
 });

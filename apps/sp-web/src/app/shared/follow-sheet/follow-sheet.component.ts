@@ -1,5 +1,6 @@
 import {
   Component,
+  ElementRef,
   EventEmitter,
   Input,
   OnChanges,
@@ -11,6 +12,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ButtonDirective } from 'primeng/button';
@@ -70,9 +72,20 @@ interface Option<T> {
   ],
   templateUrl: './follow-sheet.component.html',
   styleUrl: './follow-sheet.component.scss',
+  host: {
+    // The dialog's own Escape and backdrop handling only work with its close
+    // button shown, and are set once on opening, so they'd ignore a save in
+    // progress. The sheet does both itself.
+    '(document:keydown.escape)': 'onEscape()',
+    '(mousedown)': 'onBackdrop($event)',
+  },
 })
 export class FollowSheetComponent implements OnChanges, OnDestroy {
   private readonly api = inject(FollowsApiService);
+  private readonly document = inject(DOCUMENT);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  /** What had focus when the sheet opened, to go back to when it closes. */
+  private opener: HTMLElement | null = null;
   private readonly tagQueries = new Subject<string>();
   private readonly tagSearchSub: Subscription;
 
@@ -104,6 +117,7 @@ export class FollowSheetComponent implements OnChanges, OnDestroy {
 
   protected readonly tagSearchTerm = signal('');
   protected readonly tagSearchLoading = signal(false);
+  protected readonly tagSearchFailed = signal(false);
   private readonly tagResults = signal<FollowTag[]>([]);
 
   protected readonly startOptions = computed<Array<Option<number | typeof KEEP_START>>>(() => {
@@ -136,19 +150,30 @@ export class FollowSheetComponent implements OnChanges, OnDestroy {
         debounceTime(SEARCH_DEBOUNCE_MS),
         switchMap((query) => {
           if (!query) {
-            return of<FollowTag[]>([]);
+            return of({ tags: [] as FollowTag[], failed: false });
           }
           this.tagSearchLoading.set(true);
           return this.api.searchTags(query).pipe(
-            catchError(() => of<FollowTag[]>([])),
+            map((tags) => ({ tags, failed: false })),
+            catchError(() => of({ tags: [] as FollowTag[], failed: true })),
             finalize(() => this.tagSearchLoading.set(false)),
           );
         }),
       )
-      .subscribe((tags) => this.tagResults.set(tags));
+      .subscribe(({ tags, failed }) => {
+        this.tagResults.set(tags);
+        this.tagSearchFailed.set(failed);
+      });
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    const openChange = changes['open'];
+    if (openChange && this.open && !openChange.previousValue) {
+      const active = this.document.activeElement;
+      this.opener = active instanceof HTMLElement ? active : null;
+    } else if (openChange && !this.open && openChange.previousValue) {
+      this.restoreFocus();
+    }
     // Opened, or opened for another follow: start from what's saved.
     if ((changes['open'] || changes['follow']) && this.open && this.follow) {
       const follow = this.follow;
@@ -157,6 +182,7 @@ export class FollowSheetComponent implements OnChanges, OnDestroy {
       this.autoRequest.set(follow.autoRequest);
       this.tagResults.set([]);
       this.tagSearchTerm.set('');
+      this.tagSearchFailed.set(false);
       this.error.set(null);
       this.confirmingUnfollow.set(false);
       this.busy.set(false);
@@ -169,6 +195,23 @@ export class FollowSheetComponent implements OnChanges, OnDestroy {
 
   protected pageRoute(follow: Follow): string[] {
     return [follow.kind === 'PERFORMER' ? '/performer' : '/studio', follow.entityId];
+  }
+
+  protected onEscape(): void {
+    if (this.open) {
+      this.close();
+    }
+  }
+
+  protected onBackdrop(event: MouseEvent): void {
+    const target = event.target;
+    if (
+      this.open &&
+      target instanceof HTMLElement &&
+      target.classList.contains('follow-dialog-mask')
+    ) {
+      this.close();
+    }
   }
 
   protected onVisibleChange(visible: boolean): void {
@@ -204,6 +247,9 @@ export class FollowSheetComponent implements OnChanges, OnDestroy {
   protected tagEmptyMessage(): string {
     if (this.tagSearchLoading()) {
       return 'Searching…';
+    }
+    if (this.tagSearchFailed()) {
+      return 'Couldn’t search tags. Type again to retry.';
     }
     return this.tagSearchTerm().trim() ? 'No tags match.' : 'Type to search tags.';
   }
@@ -253,6 +299,30 @@ export class FollowSheetComponent implements OnChanges, OnDestroy {
         this.confirmingUnfollow.set(false);
         this.error.set('Couldn’t unfollow. Try again.');
       },
+    });
+  }
+
+  /**
+   * Back to what opened the sheet, once it has gone. If that's gone too (its
+   * row was unfollowed), whoever showed the sheet moves focus instead.
+   */
+  private restoreFocus(): void {
+    const opener = this.opener;
+    this.opener = null;
+    if (!opener) {
+      return;
+    }
+    setTimeout(() => {
+      const active = this.document.activeElement;
+      // Still in the closing sheet, or nowhere: nothing else took it.
+      const lost =
+        !active ||
+        active === this.document.body ||
+        !active.isConnected ||
+        this.host.nativeElement.contains(active);
+      if (opener.isConnected && lost) {
+        opener.focus();
+      }
     });
   }
 

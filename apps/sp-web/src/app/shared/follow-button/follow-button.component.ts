@@ -24,7 +24,7 @@ const NOUN: Record<FollowKind, string> = { PERFORMER: 'performer', STUDIO: 'stud
         [attr.aria-pressed]="follow() !== null"
         [attr.aria-haspopup]="follow() !== null ? 'dialog' : null"
         [attr.aria-busy]="busy()"
-        [attr.aria-label]="follow() ? 'Following ' + label() + ': options' : null"
+        [attr.aria-label]="activeLabel()"
         data-testid="follow-toggle"
         (click)="toggle()"
       >
@@ -120,6 +120,16 @@ export class FollowButtonComponent implements OnChanges {
 
   protected label(): string {
     return this.name?.trim() || NOUN[this.kind];
+  }
+
+  /** Once following, says what the chip shows (with its count) and that it opens options. */
+  protected activeLabel(): string | null {
+    const current = this.follow();
+    if (!current) {
+      return null;
+    }
+    const count = current.newCount > 0 ? `, ${current.newCount} new` : '';
+    return `Following ${this.label()}${count}: options`;
   }
 
   ngOnChanges(): void {

@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Subscription, timer } from 'rxjs';
 import { SceneRequestContext } from '../../core/api/discover.types';
@@ -46,6 +46,7 @@ export class FollowingPageComponent implements OnInit, OnDestroy {
   private readonly notifications = inject(AppNotificationsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private pollSub: Subscription | null = null;
 
   protected readonly tab = signal<FollowingTab>('new');
@@ -167,8 +168,21 @@ export class FollowingPageComponent implements OnInit, OnDestroy {
   }
 
   protected onUnfollowed(follow: Follow): void {
+    // Its row goes, so focus moves to the row that takes its place.
+    const rows = (): HTMLElement[] =>
+      Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>('.follow-row'));
+    const index = rows().findIndex((row) => row.dataset['testid'] === `follow-${follow.entityId}`);
     this.sheetFollow.set(null);
     this.follows.update((list) => (list ?? []).filter((other) => other.id !== follow.id));
+    if (index >= 0) {
+      setTimeout(() => {
+        const left = rows();
+        const next =
+          left[Math.min(index, left.length - 1)] ??
+          this.host.nativeElement.querySelector<HTMLElement>('[data-testid="tab-manage"]');
+        next?.focus();
+      });
+    }
     this.notifications.success(`Stopped following ${follow.name}`);
     this.loadReleases();
   }

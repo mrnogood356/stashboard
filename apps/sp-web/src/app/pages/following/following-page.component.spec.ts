@@ -150,6 +150,36 @@ describe('FollowingPageComponent', () => {
     expect(root.querySelector('[data-testid="follow-p1"]')).toBeNull();
   });
 
+  it('reads each row out in full, and moves focus on when one is unfollowed', async () => {
+    const fixture = await render({
+      list: vi.fn().mockReturnValue(
+        of({
+          follows: [follow, { ...follow, id: 'f2', entityId: 'p2', name: 'Other', newCount: 0 }],
+          checking: false,
+          provider: 'STASHDB',
+        }),
+      ),
+      releases: vi.fn().mockReturnValue(of({ items: [], reviewCount: 0 })),
+    });
+    const root = fixture.nativeElement as HTMLElement;
+    document.body.appendChild(root);
+    (root.querySelector('[data-testid="tab-manage"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const row = root.querySelector('[data-testid="follow-p1"]') as HTMLButtonElement;
+    // Its name is its text: who, what's new and when it was checked.
+    expect(row.hasAttribute('aria-label')).toBe(false);
+
+    row.focus();
+    (fixture.componentInstance as unknown as { onUnfollowed(f: Follow): void }).onUnfollowed(
+      follow,
+    );
+    fixture.detectChanges();
+    await vi.waitFor(() =>
+      expect(document.activeElement?.getAttribute('data-testid')).toBe('follow-p2'),
+    );
+    root.remove();
+  });
+
   it('points to performers when nobody is followed yet', async () => {
     const fixture = await render({
       list: vi.fn().mockReturnValue(of({ follows: [], checking: false, provider: 'STASHDB' })),
