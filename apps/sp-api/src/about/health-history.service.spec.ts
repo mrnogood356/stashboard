@@ -98,11 +98,15 @@ describe('health history', () => {
     logger.warn = jest.fn();
     const mb = 1024 * 1024;
     let rss = 300;
-    history.memoryUsage = () => ({ rss: rss * mb, heapUsed: 120 * mb });
+    history.memoryUsage = () => ({
+      rss: rss * mb,
+      heapUsed: 120 * mb,
+      external: 8 * mb,
+    });
 
     history.noteMemory();
     expect(logger.log).toHaveBeenCalledWith(
-      'Memory: 300 MB in use (120 MB of it JavaScript).',
+      'Memory: 300 MB in use (120 MB of it JavaScript, 8 MB buffers).',
     );
     rss = 340;
     history.noteMemory();
@@ -110,7 +114,7 @@ describe('health history', () => {
     rss = 360;
     history.noteMemory();
     expect(logger.warn).toHaveBeenCalledWith(
-      'Memory: 360 MB in use (120 MB of it JavaScript), up from 300 MB.',
+      'Memory: 360 MB in use (120 MB of it JavaScript, 8 MB buffers), up from 300 MB.',
     );
   });
 });
