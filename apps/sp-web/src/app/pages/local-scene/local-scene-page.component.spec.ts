@@ -116,6 +116,18 @@ describe('LocalScenePageComponent', () => {
     expect(root.textContent).not.toContain('Catalog page');
   });
 
+  it('shows when it was filmed, from Stash 0.32, when that differs from the release date', async () => {
+    const { root } = await render(
+      vi.fn().mockReturnValue(of(sceneDetails({ productionDate: '2025-06-14' }))),
+    );
+    expect(root.querySelector('.meta-row')?.textContent).toContain('Filmed');
+    TestBed.resetTestingModule();
+    const same = await render(
+      vi.fn().mockReturnValue(of(sceneDetails({ productionDate: '2026-01-02' }))),
+    );
+    expect(same.root.querySelector('.meta-row')?.textContent).not.toContain('Filmed');
+  });
+
   it('has a collapsed “Status details” panel for the Stash scene', async () => {
     diagnosticsApi.localScene.mockReset().mockReturnValue(of(null));
     const { root } = await render(vi.fn().mockReturnValue(of(sceneDetails())));

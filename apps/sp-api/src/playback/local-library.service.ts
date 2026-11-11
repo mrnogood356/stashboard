@@ -1414,7 +1414,12 @@ export class LocalLibraryService {
     seed: number,
   ): Promise<LocalScenePageDto> {
     const config = await this.playback.getStashConfig();
-    const { stashSort, direction } = toStashSort(sort, seed);
+    // Production date only exists from Stash 0.32: older ones sort by release date.
+    const usable =
+      sort === 'PRODUCED' && !(await this.stash.supportsProductionDate(config))
+        ? 'DATE'
+        : sort;
+    const { stashSort, direction } = toStashSort(usable, seed);
     const result = await this.stash.findLocalScenes(config, {
       page,
       perPage: PAGE_SIZE,
@@ -1436,6 +1441,8 @@ function toStashSort(
   seed: number,
 ): { stashSort: string; direction: 'ASC' | 'DESC' } {
   switch (sort) {
+    case 'PRODUCED':
+      return { stashSort: 'production_date', direction: 'DESC' };
     case 'ADDED':
       return { stashSort: 'created_at', direction: 'DESC' };
     case 'PLAYS':

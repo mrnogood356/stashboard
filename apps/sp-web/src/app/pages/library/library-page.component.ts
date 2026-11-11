@@ -101,6 +101,7 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
     label: string;
   }> = [
     { value: 'RELEASE_DATE', label: 'Release Date' },
+    { value: 'PRODUCTION_DATE', label: 'Production Date' },
     { value: 'UPDATED_AT', label: 'Recently Updated' },
     { value: 'CREATED_AT', label: 'Recently Added' },
     { value: 'TITLE', label: 'Title' },
@@ -385,6 +386,7 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
       nextValue !== 'UPDATED_AT' &&
       nextValue !== 'CREATED_AT' &&
       nextValue !== 'RELEASE_DATE' &&
+      nextValue !== 'PRODUCTION_DATE' &&
       nextValue !== 'TITLE'
     ) {
       return;
@@ -872,6 +874,7 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
       sortParam === 'UPDATED_AT' ||
       sortParam === 'CREATED_AT' ||
       sortParam === 'RELEASE_DATE' ||
+      sortParam === 'PRODUCTION_DATE' ||
       sortParam === 'TITLE'
         ? sortParam
         : LibraryPageComponent.DEFAULT_SORT;

@@ -457,6 +457,25 @@ describe('LocalLibraryService', () => {
     );
   });
 
+  it('sorts by production date on Stash 0.32 and later, and by release date before', async () => {
+    stash.findLocalScenes.mockResolvedValue({ total: 1, items: [] });
+    const supports = jest.fn().mockResolvedValue(true);
+    (stash as Record<string, unknown>).supportsProductionDate = supports;
+
+    await service.performerScenes('p1', 1, 'PRODUCED');
+    expect(stash.findLocalScenes).toHaveBeenLastCalledWith(
+      config,
+      expect.objectContaining({ sort: 'production_date', direction: 'DESC' }),
+    );
+
+    supports.mockResolvedValue(false);
+    await service.performerScenes('p1', 1, 'PRODUCED');
+    expect(stash.findLocalScenes).toHaveBeenLastCalledWith(
+      config,
+      expect.objectContaining({ sort: 'date', direction: 'DESC' }),
+    );
+  });
+
   it('includes sub-studios and keeps a random order stable with the seed', async () => {
     stash.findLocalScenes.mockResolvedValue({ total: 1, items: [] });
 

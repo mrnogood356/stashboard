@@ -64,6 +64,8 @@ export interface LocalSceneDetails {
   code: string | null;
   details: string | null;
   date: string | null;
+  /** When it was filmed (Stash 0.32 and later). */
+  productionDate?: string | null;
   rating100: number | null;
   oCounter: number;
   playCount: number;

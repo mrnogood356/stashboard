@@ -62,7 +62,7 @@ export interface LocalScenePage {
   items: LocalSceneCard[];
 }
 
-export type LocalSceneSort = 'DATE' | 'ADDED' | 'PLAYS' | 'TITLE' | 'RANDOM';
+export type LocalSceneSort = 'DATE' | 'PRODUCED' | 'ADDED' | 'PLAYS' | 'TITLE' | 'RANDOM';
 
 export interface LocalPerformer {
   id: string;

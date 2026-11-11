@@ -25,7 +25,10 @@ const librarySceneListSelect =
     studioImageUrl: true,
     performerNames: true,
     releaseDate: true,
+    productionDate: true,
     duration: true,
+    width: true,
+    height: true,
     viewUrl: true,
     localCreatedAt: true,
   });
@@ -215,6 +218,14 @@ export class LibrarySceneQueryService {
     switch (sort) {
       case 'TITLE':
         return [{ title: order }, { stashSceneId: 'asc' }];
+      case 'PRODUCTION_DATE':
+        // Scenes without one (or from a Stash before 0.32) go last.
+        return [
+          { productionDate: { sort: order, nulls: 'last' } },
+          { releaseDate: { sort: order, nulls: 'last' } },
+          { title: 'asc' },
+          { stashSceneId: 'asc' },
+        ];
       case 'RELEASE_DATE':
         return [
           { releaseDate: { sort: order, nulls: 'last' } },
@@ -265,7 +276,10 @@ export class LibrarySceneQueryService {
       studioImageUrl: studioLogoUrl,
       performerNames: row.performerNames,
       releaseDate: row.releaseDate,
+      productionDate: row.productionDate,
       duration: row.duration,
+      width: row.width,
+      height: row.height,
       localCreatedAt: row.localCreatedAt,
       type: 'SCENE',
       source: 'STASH',
