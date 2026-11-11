@@ -662,6 +662,20 @@ export class DownloadHandoffService {
         row,
         `SABnzbd couldn’t download it: ${entry.failMessage ?? 'it gave no reason'}.`,
       );
+      // What it downloaded before failing stays in the download folder
+      // otherwise (a _FAILED_ folder), and nothing ever picks it up.
+      await this.sabnzbd
+        .deleteFailed(config, entry.nzoId)
+        .then(() =>
+          this.logger.log(
+            `Removed the failed download “${row.releaseTitle}” and its leftover files from SABnzbd.`,
+          ),
+        )
+        .catch((error: unknown) =>
+          this.logger.warn(
+            `Couldn't remove the failed download “${row.releaseTitle}” from SABnzbd: ${messageOf(error)}`,
+          ),
+        );
       return;
     }
     if (status !== 'completed') {
@@ -1140,6 +1154,10 @@ export class DownloadHandoffService {
         }
       }
       await this.countSaved(removedBytes, keep.size ?? newFile.size ?? 0);
+      // The previews asked for earlier were for the new scene, which the merge
+      // removed before Stash got to them: ask again for the scene that stays,
+      // whose file is now the new one.
+      await this.generatePreviews(config, oldSceneId);
       await this.prisma.downloadHandoff.update({
         where: { id: row.id },
         data: { stashSceneId: oldSceneId },

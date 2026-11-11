@@ -169,6 +169,7 @@ describe('DownloadHandoffService', () => {
       addNzb: jest.fn().mockResolvedValue('SABnzbd_nzo_new'),
       history: jest.fn().mockResolvedValue([]),
       queue: jest.fn().mockResolvedValue([]),
+      deleteFailed: jest.fn().mockResolvedValue(undefined),
       categoryFolders: jest.fn().mockResolvedValue({
         completed: '/downloads/complete',
         category: '/downloads/complete/stashboard-downloads',
@@ -586,6 +587,25 @@ describe('DownloadHandoffService', () => {
       expect(stash.scanLibraryFolders).not.toHaveBeenCalled();
     });
 
+    it('has SABnzbd remove a failed download and its leftover files, and carries on if it can’t', async () => {
+      rows.push(handoff({ id: 'h1' }));
+      const failed = historyEntry({
+        status: 'Failed',
+        storage: null,
+        failMessage: 'Aborted',
+      });
+      sabnzbd.history.mockResolvedValue([failed]);
+      sabnzbd.deleteFailed.mockRejectedValueOnce(new Error('offline'));
+
+      await service.checkOpen();
+
+      expect(sabnzbd.deleteFailed).toHaveBeenCalledWith(
+        expect.anything(),
+        failed.nzoId,
+      );
+      expect(row()).toMatchObject({ status: 'failed' });
+    });
+
     it('lets Smaller copies try a release again when its download fails in SABnzbd', async () => {
       rows.push(handoff({ id: 'h1', replacesStashSceneId: '12' }));
       const attempt = {
@@ -869,6 +889,14 @@ describe('DownloadHandoffService', () => {
       organizer.syncReplacedScene = jest
         .fn()
         .mockResolvedValue({ status: 'sent' });
+    });
+
+    it('has Stash make previews for the scene that stays, once its file is the new one', async () => {
+      stash.startLibraryTask = jest.fn().mockResolvedValue('9');
+      await replace();
+      expect(stash.startLibraryTask).toHaveBeenCalledWith(config, 'generate', [
+        '12',
+      ]);
     });
 
     it('adds the space given back to the running total', async () => {

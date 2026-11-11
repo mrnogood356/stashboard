@@ -247,6 +247,22 @@ export class SabnzbdAdapter {
     });
   }
 
+  /**
+   * Removes a failed download from SABnzbd's history together with what it
+   * left on disk (its _FAILED_ folder). SABnzbd only deletes the files of
+   * failed downloads this way, never a finished one's.
+   */
+  async deleteFailed(
+    config: SabnzbdAdapterBaseConfig,
+    nzoId: string,
+  ): Promise<void> {
+    await this.call(config, 'history', {
+      name: 'delete',
+      value: nzoId,
+      del_files: '1',
+    });
+  }
+
   /** Downloads still waiting or downloading in one category. */
   async queue(
     config: SabnzbdAdapterBaseConfig,
