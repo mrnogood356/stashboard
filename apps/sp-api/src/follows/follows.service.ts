@@ -182,25 +182,40 @@ export class FollowsService {
         `You can follow up to ${MAX_FOLLOWS} performers and studios.`,
       );
     }
+    const name = dto.name.trim();
+    const imageUrl = dto.imageUrl?.trim() || null;
+    if (existing) {
+      // Following again is a change to the follow, made the same way (in turn
+      // with its scenes, tidying what the change makes stale), from the day
+      // and with the settings now given.
+      return this.withFollowLock(existing.id, async () => {
+        await this.prisma.follow.update({
+          where: { id: existing.id },
+          data: { name, imageUrl },
+        });
+        return this.applyUpdate(existing.id, {
+          since: clampSince(dto.since, this.now()),
+          autoRequest: dto.autoRequest ?? false,
+          tags: dto.tags ?? [],
+        });
+      });
+    }
     const since = clampSince(dto.since, this.now());
-    const data = {
-      name: dto.name.trim(),
-      imageUrl: dto.imageUrl?.trim() || null,
-      since,
-      autoRequest: dto.autoRequest ?? false,
-      tags: readFollowTags(dto.tags ?? []),
-      // Following again starts over from its new day and tags.
-      fullyCheckedAt: null,
-    };
-    const follow = await this.prisma.follow.upsert({
-      where: {
-        provider_kind_entityId: { provider, kind: dto.kind, entityId },
+    const tags = readFollowTags(dto.tags ?? []);
+    const follow = await this.prisma.follow.create({
+      data: {
+        provider,
+        kind: dto.kind,
+        entityId,
+        name,
+        imageUrl,
+        since,
+        autoRequest: dto.autoRequest ?? false,
+        tags,
       },
-      create: { provider, kind: dto.kind, entityId, ...data },
-      update: data,
     });
     this.logger.log(
-      `Following ${follow.kind.toLowerCase()} “${follow.name}” from ${follow.since}${describeTags(data.tags)}${follow.autoRequest ? ', requesting new scenes' : ''}.`,
+      `Following ${follow.kind.toLowerCase()} “${follow.name}” from ${follow.since}${describeTags(tags)}${follow.autoRequest ? ', requesting new scenes' : ''}.`,
     );
     // Starting from an earlier day can already have scenes to show.
     if (since < clampSince(null, this.now())) {
@@ -873,7 +888,16 @@ export class FollowsService {
       });
       keep.push(existing.id);
     }
-    await this.prisma.follow.deleteMany({ where: { id: { notIn: keep } } });
+    // Each follow left out goes once nothing is being saved for it.
+    const gone = await this.prisma.follow.findMany({
+      where: { id: { notIn: keep } },
+      select: { id: true },
+    });
+    for (const { id } of gone) {
+      await this.withFollowLock(id, () =>
+        this.prisma.follow.deleteMany({ where: { id } }),
+      );
+    }
   }
 
   private async requireFollow(id: string): Promise<Follow> {

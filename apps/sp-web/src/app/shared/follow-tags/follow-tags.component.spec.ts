@@ -20,16 +20,20 @@ describe('FollowTagsComponent', () => {
     return { fixture, searchTags, changes, root: fixture.nativeElement as HTMLElement };
   }
 
-  async function type(fixture: { detectChanges(): void }, root: HTMLElement, text: string) {
+  /** Types a search and waits until the tag it should find is listed. */
+  async function type(
+    fixture: { detectChanges(): void },
+    root: HTMLElement,
+    text: string,
+    expectTagId: string,
+  ) {
     const input = root.querySelector('[data-testid="tag-search"]') as HTMLInputElement;
     input.value = text;
     input.dispatchEvent(new Event('input'));
-    // Until the search has answered, however long the wait before it takes.
+    // Until the search has answered with it, however long that takes.
     await vi.waitFor(() => {
       fixture.detectChanges();
-      const results = root.querySelector('.results');
-      expect(results).toBeTruthy();
-      expect(results?.textContent).not.toContain('Searching');
+      expect(root.querySelector(`[data-testid="add-tag-${expectTagId}"]`)).toBeTruthy();
     });
   }
 
@@ -42,7 +46,7 @@ describe('FollowTagsComponent', () => {
     const outdoor = { id: 't-out', name: 'Outdoor' };
     const anal = { id: 't-anal', name: 'Anal' };
     const { fixture, root, searchTags, changes } = await render([outdoor], [outdoor, anal]);
-    await type(fixture, root, 'o');
+    await type(fixture, root, 'o', 't-anal');
     expect(searchTags).toHaveBeenCalledWith('o');
     expect(root.querySelector('[data-testid="add-tag-t-out"]')).toBeNull();
 
@@ -54,7 +58,7 @@ describe('FollowTagsComponent', () => {
     const anal = { id: 't-anal', name: 'Anal' };
     const outdoor = { id: 't-out', name: 'Outdoor' };
     const { fixture, root, changes } = await render([outdoor], [anal]);
-    await type(fixture, root, 'an');
+    await type(fixture, root, 'an', 't-anal');
     (root.querySelector('[data-testid="tag-search"]') as HTMLInputElement).dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Enter' }),
     );
@@ -73,10 +77,10 @@ describe('FollowTagsComponent', () => {
   it('searches the same words again right after adding a tag', async () => {
     const anal = { id: 't-anal', name: 'Anal' };
     const { fixture, root, searchTags } = await render([], [anal]);
-    await type(fixture, root, 'an');
+    await type(fixture, root, 'an', 't-anal');
     (root.querySelector('[data-testid="add-tag-t-anal"]') as HTMLButtonElement).click();
     fixture.detectChanges();
-    await type(fixture, root, 'an');
+    await type(fixture, root, 'an', 't-anal');
     expect(searchTags).toHaveBeenCalledTimes(2);
     expect(root.textContent).not.toContain('Searching…');
   });

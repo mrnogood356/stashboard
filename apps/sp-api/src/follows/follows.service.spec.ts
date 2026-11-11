@@ -122,7 +122,11 @@ function fakePrisma() {
       ),
       update: jest.fn(
         ({ where, data }: { where: { id: string }; data: Partial<Follow> }) => {
-          const row = follows.find((f) => f.id === where.id)!;
+          const row = follows.find((f) => f.id === where.id);
+          if (!row) {
+            // As Prisma does for a row that's gone.
+            return Promise.reject(new Error('Record to update not found.'));
+          }
           Object.assign(row, data);
           return Promise.resolve(row);
         },
@@ -898,6 +902,82 @@ describe('FollowsService', () => {
       expect(requests.submitSceneRequest).toHaveBeenCalledTimes(1);
       expect(summary.requested).toBe(1);
       expect(summary.found).toBe(2);
+    });
+
+    it('makes following again wait its turn too, and act from then on', async () => {
+      const { service, follows, performers, requests } = setup();
+      await service.follow({
+        kind: 'PERFORMER',
+        entityId: 'p1',
+        name: 'K',
+        autoRequest: true,
+      });
+      follows[0].since = '2026-11-01';
+      performers.getPerformerScenes.mockResolvedValue({
+        hasMore: false,
+        items: [feedScene('a', '2026-11-10'), feedScene('b', '2026-11-09')],
+      });
+      // Followed again (no automatic requests) while b's request is out.
+      const pending: { save?: Promise<unknown> } = {};
+      let savedBeforeRequestDone = false;
+      let requestDone = false;
+      requests.submitSceneRequest.mockImplementationOnce(async () => {
+        pending.save = service.follow({
+          kind: 'PERFORMER',
+          entityId: 'p1',
+          name: 'K again',
+          since: '2026-11-01',
+        });
+        void pending.save.then(() => (savedBeforeRequestDone = !requestDone));
+        await new Promise((resolve) => setImmediate(resolve));
+        requestDone = true;
+        return { accepted: true };
+      });
+      await service.checkAll();
+      await pending.save;
+      expect(savedBeforeRequestDone).toBe(false);
+      expect(requests.submitSceneRequest).toHaveBeenCalledTimes(1);
+      expect(follows[0]).toEqual(
+        expect.objectContaining({ name: 'K again', autoRequest: false }),
+      );
+    });
+
+    it('makes a restore wait to remove a follow whose scene is being saved', async () => {
+      const { service, follows, performers, requests, scenes } = setup();
+      await service.follow({
+        kind: 'PERFORMER',
+        entityId: 'p1',
+        name: 'K',
+        autoRequest: true,
+      });
+      follows[0].since = '2026-11-01';
+      performers.getPerformerScenes.mockResolvedValue({
+        hasMore: false,
+        items: [feedScene('a', '2026-11-10'), feedScene('b', '2026-11-09')],
+      });
+      // A restore without this follow, while b's request (oldest first) is out.
+      const pending: { restore?: Promise<unknown> } = {};
+      let removedBeforeRequestDone = false;
+      let requestDone = false;
+      requests.submitSceneRequest.mockImplementationOnce(async () => {
+        pending.restore = service.restoreFromBackup({ follows: [] });
+        void pending.restore.then(
+          () => (removedBeforeRequestDone = !requestDone),
+        );
+        await new Promise((resolve) => setImmediate(resolve));
+        requestDone = true;
+        return { accepted: true };
+      });
+      const summary = await service.checkAll();
+      await pending.restore;
+      expect(removedBeforeRequestDone).toBe(false);
+      expect(follows).toEqual([]);
+      // a, reached after the follow was gone, was neither requested nor saved.
+      expect(
+        requests.submitSceneRequest.mock.calls.map((call) => call[0]),
+      ).toEqual(['b']);
+      expect(scenes.some((row) => row.sceneId === 'a')).toBe(false);
+      expect(summary.errors).toBe(0);
     });
 
     it('lists for review what a restored follow finds from by the restore day', async () => {
