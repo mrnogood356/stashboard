@@ -97,7 +97,7 @@ export class PerformersService {
       throw new BadRequestException('Performer id is required.');
     }
 
-    const { value: performer } =
+    const { value: performer, provider } =
       await this.catalogProviderService.withDetailFallback((provider) =>
         this.stashdbAdapter.getPerformerById(normalizedPerformerId, {
           baseUrl: provider.baseUrl,
@@ -134,6 +134,7 @@ export class PerformersService {
       updatedAt: performer.updatedAt,
       imageUrl: performer.imageUrl,
       images: performer.images,
+      provider: provider.providerKey,
     };
   }
 

@@ -34,14 +34,19 @@ export const libraryPerformerRedirectGuard: CanActivateFn = (
       concat(
         ...(performer.catalogIds ?? []).map((catalogId) =>
           discover.getPerformerDetails(catalogId).pipe(
-            map(() => catalogId),
+            map((details) => ({ catalogId, provider: details.provider })),
             catchError(() => of(null)),
           ),
         ),
       ).pipe(
-        filter((catalogId): catalogId is string => catalogId !== null),
+        filter((found): found is NonNullable<typeof found> => found !== null),
         take(1),
-        map((catalogId) => router.createUrlTree(['/performer', catalogId], { queryParams })),
+        // The catalog that had them, so their scenes come from it too.
+        map(({ catalogId, provider }) =>
+          router.createUrlTree(['/performer', catalogId], {
+            queryParams: provider ? { ...queryParams, provider } : queryParams,
+          }),
+        ),
         defaultIfEmpty(libraryPage),
       ),
     ),

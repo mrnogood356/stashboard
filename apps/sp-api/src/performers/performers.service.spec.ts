@@ -215,6 +215,7 @@ describe('PerformersService', () => {
       name: 'Performer One',
       gender: 'FEMALE',
       isFavorite: true,
+      provider: 'STASHDB',
     });
   });
 

@@ -6,7 +6,12 @@ import { DiscoverService } from '../api/discover.service';
 import { LocalLibraryService } from '../api/local-library.service';
 import { libraryPerformerRedirectGuard } from './library-performer-redirect.guard';
 
-function run(catalogIds: string[] | undefined, known: string[], fails = false): Promise<string> {
+function run(
+  catalogIds: string[] | undefined,
+  known: string[],
+  fails = false,
+  provider?: string,
+): Promise<string> {
   TestBed.configureTestingModule({
     providers: [
       {
@@ -20,7 +25,7 @@ function run(catalogIds: string[] | undefined, known: string[], fails = false): 
         provide: DiscoverService,
         useValue: {
           getPerformerDetails: vi.fn((id: string) =>
-            known.includes(id) ? of({ id }) : throwError(() => new Error('404')),
+            known.includes(id) ? of({ id, provider }) : throwError(() => new Error('404')),
           ),
         },
       },
@@ -41,6 +46,12 @@ describe('libraryPerformerRedirectGuard', () => {
   it('opens the catalog page of a linked performer, the first one the catalog knows', async () => {
     expect(await run(['fansdb-id', 'stashdb-id'], ['stashdb-id'])).toBe(
       '/performer/stashdb-id?returnTo=%2Flibrary',
+    );
+  });
+
+  it('keeps the catalog that had them, so their scenes come from it too', async () => {
+    expect(await run(['fansdb-id'], ['fansdb-id'], false, 'FANSDB')).toBe(
+      '/performer/fansdb-id?returnTo=%2Flibrary&provider=FANSDB',
     );
   });
 
