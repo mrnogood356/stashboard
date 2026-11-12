@@ -395,3 +395,25 @@ img.thumbnail.is-failed {
 .media.is-previewing:has(.preview-video.is-playing) .play-button {
   opacity: 0;
 }
+
+/* Touch screens show it all the time: small and in the corner, opposite the
+   quality and length, instead of a big button over every picture. */
+@media (hover: none) {
+  .play-button {
+    top: auto;
+    left: 0.5rem;
+    bottom: 0.45rem;
+    width: 2rem;
+    height: 2rem;
+    transform: none;
+  }
+
+  .play-button:hover,
+  .play-button:focus-visible {
+    transform: none;
+  }
+
+  .play-button i {
+    font-size: 0.8rem;
+  }
+}

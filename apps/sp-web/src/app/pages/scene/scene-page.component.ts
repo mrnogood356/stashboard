@@ -147,6 +147,17 @@ export class ScenePageComponent implements OnInit, OnDestroy {
     return scene.stash?.hasMultipleCopies === true;
   }
 
+  /** Any of Play, View, Request, Pick a release or Find downloads to show. */
+  protected hasHeroActions(scene: SceneDetails): boolean {
+    return (
+      this.hasStashCopy(scene) ||
+      this.hasWhisparrLink(scene) ||
+      this.canRequestScene(scene) ||
+      this.canPickRelease(scene) ||
+      this.canFindDownloads(scene)
+    );
+  }
+
   protected hasWhisparrLink(scene: SceneDetails): boolean {
     return scene.whisparr?.exists === true && scene.whisparr.viewUrl.length > 0;
   }

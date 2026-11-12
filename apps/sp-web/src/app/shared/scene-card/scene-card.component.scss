@@ -280,3 +280,22 @@ a.media-studio:focus-visible {
 .card-menu-list button:hover {
   background: var(--chip-bg);
 }
+
+/* Two to a row on a phone: studio and date always on lines of their own,
+   rather than the date cut off or a separator left dangling. Every card is
+   then the same height. */
+@media (max-width: 640px) {
+  .media-date {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .media-date > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .media-date .media-dot {
+    display: none;
+  }
+}

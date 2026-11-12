@@ -574,10 +574,11 @@ describe('AcquisitionPageComponent', () => {
     const root = fixture.nativeElement as HTMLElement;
 
     const section = root.querySelector('[data-testid="handoff-section"]');
-    expect(section?.textContent).toContain('Your downloads');
+    expect(section?.textContent).toContain('Downloading now');
     const card = root.querySelector('[data-testid="handoff-h1"]');
     expect(card?.textContent).toContain('Golden Hour');
-    expect(card?.textContent).toContain('Golden.Hour.1080p');
+    // The scene's title, not the download's name (that's on Downloads).
+    expect(card?.textContent).not.toContain('Golden.Hour.1080p');
     expect(stageStates(root, 'h1')[1]).toBe('Downloading:current');
     expect(card?.textContent).toContain('40% · 12 min left');
     expect(stageStates(root, 'h2')[1]).toBe('Downloading:failed');

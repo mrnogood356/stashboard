@@ -38,6 +38,8 @@ export class SettingsPrivacyPageComponent implements OnInit {
   protected pin = '';
   protected pinConfirm = '';
   protected currentPassword = '';
+  /** What the server has, so the password and Save only show for a change. */
+  private saved = { enabled: false, timeoutSeconds: 60, hideInSwitcher: true };
 
   protected readonly hasPin = computed(() => this.appLock.status()?.hasPin ?? false);
   protected readonly passkeys = computed(() => this.appLock.status()?.passkeys ?? []);
@@ -50,12 +52,28 @@ export class SettingsPrivacyPageComponent implements OnInit {
       this.enabled = status.enabled;
       this.timeoutSeconds = status.timeoutSeconds;
       this.hideInSwitcher = status.hideInSwitcher;
+      this.saved = {
+        enabled: status.enabled,
+        timeoutSeconds: status.timeoutSeconds,
+        hideInSwitcher: status.hideInSwitcher,
+      };
     }
     this.loading.set(false);
   }
 
   protected setQuickHide(change: Partial<QuickHideSettings>): void {
     this.quickHide.save({ ...this.quickHide.settings(), ...change });
+  }
+
+  /** Something on the App Lock card differs from what's saved. */
+  protected changed(): boolean {
+    return (
+      this.enabled !== this.saved.enabled ||
+      this.timeoutSeconds !== this.saved.timeoutSeconds ||
+      this.hideInSwitcher !== this.saved.hideInSwitcher ||
+      !!this.pin ||
+      !!this.pinConfirm
+    );
   }
 
   protected pinNeeded(): boolean {
@@ -96,6 +114,11 @@ export class SettingsPrivacyPageComponent implements OnInit {
       this.pin = '';
       this.pinConfirm = '';
       this.currentPassword = '';
+      this.saved = {
+        enabled: this.enabled,
+        timeoutSeconds: this.timeoutSeconds,
+        hideInSwitcher: this.hideInSwitcher,
+      };
       this.message.set({
         kind: 'ok',
         text: this.enabled ? 'App Lock is on.' : 'Saved.',

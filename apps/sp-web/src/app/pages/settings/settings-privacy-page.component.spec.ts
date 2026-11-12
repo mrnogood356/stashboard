@@ -68,6 +68,18 @@ describe('SettingsPrivacyPageComponent', () => {
     });
   });
 
+  it('asks for the password and shows Save only once something changed', async () => {
+    const { fixture, component } = await render();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="app-lock-password"]')).toBeNull();
+    expect(root.textContent).not.toContain('Save App Lock');
+
+    component['hideInSwitcher'] = false;
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="app-lock-password"]')).not.toBeNull();
+    expect(root.textContent).toContain('Save App Lock');
+  });
+
   it('explains that Face ID needs HTTPS on plain http://', async () => {
     const { fixture } = await render({ enabled: true, hasPin: true }, false);
     expect(fixture.nativeElement.textContent).toContain(

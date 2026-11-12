@@ -136,7 +136,11 @@
             </button>
           } @else {
             @if (footerStatus(); as footerStatus) {
-              <app-scene-status-badge class="footer-status-badge" [status]="footerStatus" />
+              <app-scene-status-badge
+                class="footer-status-badge"
+                [status]="footerStatus"
+                [short]="true"
+              />
             }
           }
         </div>

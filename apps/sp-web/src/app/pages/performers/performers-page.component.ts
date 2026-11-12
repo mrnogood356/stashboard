@@ -67,8 +67,8 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
     { value: 'CAREER_START_YEAR', label: 'Career Start Year' },
     { value: 'DEBUT', label: 'Debut' },
     { value: 'LAST_SCENE', label: 'Last Scene' },
-    { value: 'CREATED_AT', label: 'Created At' },
-    { value: 'UPDATED_AT', label: 'Updated At' },
+    { value: 'CREATED_AT', label: 'Added to catalog' },
+    { value: 'UPDATED_AT', label: 'Recently updated' },
   ];
 
   protected static readonly GENDER_OPTIONS: Array<{

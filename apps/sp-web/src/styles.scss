@@ -1435,6 +1435,50 @@ input[type='checkbox'].app-switch:focus-visible {
   }
 }
 
+/* PrimeNG's switch (in sheets and filters) drawn like the one above, so the
+   app has one switch. */
+.p-toggleswitch {
+  width: 3.1rem;
+  height: 1.9rem;
+}
+
+.p-toggleswitch .p-toggleswitch-slider {
+  border: 0;
+  border-radius: 999px;
+  background: var(--border-strong);
+  transition: background-color 0.2s ease;
+}
+
+.p-toggleswitch .p-toggleswitch-handle {
+  width: 1.6rem;
+  height: 1.6rem;
+  inset-inline-start: 0.15rem;
+  background: var(--switch-knob);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 25%);
+}
+
+.p-toggleswitch.p-toggleswitch-checked .p-toggleswitch-slider,
+.p-toggleswitch:not(.p-disabled):has(.p-toggleswitch-input:hover).p-toggleswitch-checked
+  .p-toggleswitch-slider {
+  background: var(--success);
+}
+
+.p-toggleswitch:not(.p-disabled):has(.p-toggleswitch-input:hover) .p-toggleswitch-slider {
+  background: var(--border-strong);
+}
+
+.p-toggleswitch .p-toggleswitch-handle,
+.p-toggleswitch:not(.p-disabled):has(.p-toggleswitch-input:hover) .p-toggleswitch-handle {
+  background: var(--switch-knob);
+}
+
+.p-toggleswitch.p-toggleswitch-checked .p-toggleswitch-handle,
+.p-toggleswitch:not(.p-disabled):has(.p-toggleswitch-input:hover).p-toggleswitch-checked
+  .p-toggleswitch-handle {
+  inset-inline-start: 1.35rem;
+  background: var(--switch-knob);
+}
+
 /* ---------- Shared page primitives (layout consistency pass) ---------- */
 
 /* PrimeNG's select label sets its own font size; keep it in step with text inputs. */

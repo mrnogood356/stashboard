@@ -86,27 +86,33 @@
         />
       </div>
 
-      <label class="field">
-        <span class="field-label">Account password</span>
-        <input
-          class="text-input"
-          name="currentPassword"
-          type="password"
-          autocomplete="current-password"
-          [(ngModel)]="currentPassword"
-        />
-        <span class="muted">Needed to change these settings.</span>
-      </label>
+      <!-- Unlike Quick hide below, these are saved on the server, so changing
+           them asks for the password. Shown only once there's a change. -->
+      @if (changed()) {
+        <label class="field" data-testid="app-lock-password">
+          <span class="field-label">Account password</span>
+          <input
+            class="text-input"
+            name="currentPassword"
+            type="password"
+            autocomplete="current-password"
+            [(ngModel)]="currentPassword"
+          />
+          <span class="muted">To save these App Lock changes.</span>
+        </label>
+      }
 
       @if (message(); as m) {
         <p class="status" [class.error]="m.kind === 'error'" role="status">{{ m.text }}</p>
       }
 
-      <div class="actions">
-        <button type="submit" class="button" [disabled]="saving()">
-          {{ saving() ? 'Saving…' : 'Save' }}
-        </button>
-      </div>
+      @if (changed()) {
+        <div class="actions">
+          <button type="submit" class="button" [disabled]="saving()">
+            {{ saving() ? 'Saving…' : 'Save App Lock' }}
+          </button>
+        </div>
+      }
     </form>
 
     <section class="card face-id">

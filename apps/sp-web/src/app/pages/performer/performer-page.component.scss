@@ -99,12 +99,6 @@ h2 {
   background: var(--media-detail-placeholder-background);
 }
 
-.carousel-controls {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.carousel-controls button,
 .load-more-error button,
 main > button {
   width: fit-content;
@@ -336,7 +330,6 @@ main > button {
   border-radius: 18px;
 }
 
-.carousel-controls button,
 .load-more-error button,
 main > button {
   border: 0;
@@ -373,7 +366,7 @@ main > button {
 }
 
 .filters-toggle {
-  display: none;
+  display: inline-flex;
   align-items: center;
   gap: 0.4rem;
   border: 0;
@@ -443,14 +436,11 @@ main > button {
     font-weight: 600;
     font-size: 0.78rem;
   }
+}
 
-  .filters-toggle {
-    display: inline-flex;
-  }
-
-  .filter-body:not(.open) {
-    display: none;
-  }
+/* Folded behind Filters at every size, as on Scenes. */
+.filter-body:not(.open) {
+  display: none;
 }
 
 .hide-row {

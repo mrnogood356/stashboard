@@ -20,6 +20,14 @@ export function sceneStatusBadgeLabel(status: SceneStatusLike): string {
   }
 }
 
+/**
+ * The same, short enough for a card's footer next to its date: a long one
+ * pushes itself onto a line of its own and the card grows taller.
+ */
+export function sceneStatusShortLabel(status: SceneStatusLike): string {
+  return status.state === 'IMPORT_PENDING' ? 'Importing' : sceneStatusBadgeLabel(status);
+}
+
 export function sceneStatusBadgeModifier(status: SceneStatusLike): string {
   switch (status.state) {
     case 'REQUESTED':

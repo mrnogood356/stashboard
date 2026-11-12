@@ -53,8 +53,8 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
     label: string;
   }> = [
     { value: 'NAME', label: 'Name' },
-    { value: 'CREATED_AT', label: 'Created At' },
-    { value: 'UPDATED_AT', label: 'Updated At' },
+    { value: 'CREATED_AT', label: 'Added to catalog' },
+    { value: 'UPDATED_AT', label: 'Recently updated' },
   ];
 
   private readonly discoverService = inject(DiscoverService);

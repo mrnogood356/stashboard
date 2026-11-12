@@ -164,8 +164,8 @@ export class HomePageComponent implements OnInit, OnDestroy {
     { value: 'DATE', label: 'Release Date' },
     { value: 'TITLE', label: 'Title' },
     { value: 'TRENDING', label: 'Trending' },
-    { value: 'CREATED_AT', label: 'Created At' },
-    { value: 'UPDATED_AT', label: 'Updated At' },
+    { value: 'CREATED_AT', label: 'Added to catalog' },
+    { value: 'UPDATED_AT', label: 'Recently updated' },
   ];
   protected static readonly STASH_SORT_OPTIONS: Array<{
     value: HomeStashSceneSort;

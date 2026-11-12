@@ -16,3 +16,11 @@ describe('scene-status-badge.model', () => {
     expect(sceneStatusIconVisible(failedStatus)).toBe(true);
   });
 });
+
+describe('sceneStatusShortLabel', () => {
+  it('shortens only what doesn’t fit beside a card’s date', async () => {
+    const { sceneStatusShortLabel } = await import('./scene-status-badge.model');
+    expect(sceneStatusShortLabel({ state: 'IMPORT_PENDING' })).toBe('Importing');
+    expect(sceneStatusShortLabel({ state: 'AVAILABLE' })).toBe('In library');
+  });
+});
