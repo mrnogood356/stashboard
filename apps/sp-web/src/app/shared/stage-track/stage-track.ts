@@ -88,3 +88,8 @@ export function timeLeftText(value: string | null | undefined): string | null {
   }
   return minutes > 0 ? `${minutes} min left` : 'Under a minute left';
 }
+
+/** "0.4", "7.5", "47": whole percent, or one decimal under 10%, never a long float. */
+export function percentText(progress: number): string {
+  return progress < 10 ? String(Math.round(progress * 10) / 10) : String(Math.round(progress));
+}

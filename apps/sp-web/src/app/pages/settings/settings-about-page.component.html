@@ -9,7 +9,7 @@
         <i class="pi pi-refresh" [class.pi-spin]="checking()" aria-hidden="true"></i>
         {{ checking() ? 'Checking…' : 'Check again' }}
       </button>
-      <button type="button" class="pill primary copy" (click)="copy()">
+      <button type="button" class="pill copy" (click)="copy()">
         <i
           class="pi"
           [class.pi-check]="copied()"

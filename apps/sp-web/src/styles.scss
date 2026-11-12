@@ -1561,6 +1561,12 @@ input[type='checkbox'].app-switch:focus-visible {
   background: var(--accent-hover);
 }
 
+/* Current look: plain buttons are outlined, only the main action is filled. */
+.app-btn:not(.app-btn--primary) {
+  background: transparent;
+  color: var(--text-primary);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .app-btn {
     transition: none;

@@ -225,13 +225,13 @@ describe('SetupPageComponent', () => {
     );
 
     const catalogChecklist = checklistItemByTitle(fixture, 'Catalog provider');
-    expect(textContent(catalogChecklist)).toContain('Not Saved');
+    expect(textContent(catalogChecklist)).toContain('Not saved');
     expect(textContent(catalogChecklist)).toContain(
       'Choose StashDB or FansDB, then Save & Test the one you want to lock in.',
     );
 
     const stashCard = cardByTitle(fixture, 'Stash');
-    expect(textContent(stashCard)).toContain('Not Saved');
+    expect(textContent(stashCard)).toContain('Not saved');
     expect(textContent(stashCard)).toContain(
       'Enter Stash connection details, then Save & Test to continue setup.',
     );
@@ -331,7 +331,7 @@ describe('SetupPageComponent', () => {
     );
 
     expect(textContent(checklistItemByTitle(fixture, 'Catalog provider'))).toContain('Saved');
-    expect(textContent(checklistItemByTitle(fixture, 'Stash'))).toContain('Test Failed');
+    expect(textContent(checklistItemByTitle(fixture, 'Stash'))).toContain('Test failed');
     expect(textContent(checklistItemByTitle(fixture, 'Whisparr'))).toContain('Ready');
 
     const catalogCard = cardByTitle(fixture, 'StashDB');
@@ -341,7 +341,7 @@ describe('SetupPageComponent', () => {
     );
 
     const stashCard = cardByTitle(fixture, 'Stash');
-    expect(textContent(stashCard)).toContain('Test Failed');
+    expect(textContent(stashCard)).toContain('Test failed');
     expect(textContent(stashCard)).toContain('bad credentials');
 
     const whisparrCard = cardByTitle(fixture, 'Whisparr');
@@ -375,7 +375,7 @@ describe('SetupPageComponent', () => {
     );
 
     const catalogCard = cardByTitle(fixture, 'FansDB');
-    expect(textContent(catalogCard)).toContain('Test Failed');
+    expect(textContent(catalogCard)).toContain('Test failed');
     expect(textContent(catalogCard)).toContain(
       'FansDB is still the chosen catalog provider. Repair the connection details and Save & Test again, or reset catalog setup to switch providers.',
     );

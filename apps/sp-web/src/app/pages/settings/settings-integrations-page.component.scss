@@ -306,3 +306,24 @@ p {
   color: var(--text-muted);
   font-size: 0.9rem;
 }
+
+/* ---------- Current look: no boxes; readiness is a line of text ---------- */
+
+.cards {
+  gap: 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  overflow: hidden;
+}
+
+.checklist-item {
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+}
+
+/* Refresh health is a side action: outlined, not the blue of Save & test. */
+.global-health .panel-head button[pButton] {
+  border-color: var(--border-subtle);
+  background: transparent;
+  color: var(--text-primary);
+}

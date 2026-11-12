@@ -672,3 +672,22 @@ app-stage-track {
 .head-action:hover {
   border-color: var(--border-strong);
 }
+
+/* ---------- Current look: finished downloads as a plain list ---------- */
+
+.rows {
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.row {
+  padding: 0.75rem 0;
+}
+
+.footnote a {
+  color: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

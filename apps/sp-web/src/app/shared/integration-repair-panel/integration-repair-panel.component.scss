@@ -166,3 +166,24 @@ form {
     flex-basis: 100%;
   }
 }
+
+/* ---------- Current look: rows of one grouped list, status as a dot and words ---------- */
+
+/* The page groups the rows on one surface; each row is plain inside it. */
+.repair-card,
+.repair-card.is-open {
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+:host(:not(:last-child)) .repair-card {
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+.card-head:not(.is-static):hover {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+.card-body {
+  border-top: 0;
+}

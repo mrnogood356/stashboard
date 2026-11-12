@@ -6,6 +6,7 @@ import {
   buildStages,
   stagesForStatus,
   timeLeftText,
+  percentText,
 } from '../../shared/stage-track/stage-track';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
@@ -1235,7 +1236,3 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   }
 }
 
-/** Whole percent, or one decimal under 10%, so floats like 0.39999999999999997 read cleanly. */
-function percentText(progress: number): string {
-  return progress < 10 ? String(Math.round(progress * 10) / 10) : String(Math.round(progress));
-}

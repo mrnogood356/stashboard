@@ -325,3 +325,45 @@ p {
 .status.error {
   color: var(--danger);
 }
+
+/* ---------- Current look: no boxes, outlined buttons ---------- */
+
+.card.settings-card {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.entries,
+.files {
+  border-radius: 0;
+  background: none;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.entry-main {
+  padding-inline: 0;
+}
+
+.pill {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+}
+
+.pill.live.on {
+  border-color: var(--border-subtle);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.pill.live.on .pi {
+  color: var(--success, #22c55e);
+}
+
+.pill.danger {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  background: transparent;
+}

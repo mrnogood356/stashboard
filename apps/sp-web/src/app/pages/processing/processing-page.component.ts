@@ -14,7 +14,7 @@ import {
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { HANDOFF_STEPS, fileSize, relativeTime, stageLabel, stepIndex } from './processing.format';
 import { SectionBackComponent } from '../../shared/section-back/section-back.component';
-import { Stage, timeLeftText } from '../../shared/stage-track/stage-track';
+import { Stage, timeLeftText, percentText } from '../../shared/stage-track/stage-track';
 import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
 
 /** How often the page refreshes while it's on screen. */
@@ -71,7 +71,7 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
   protected progressText(progress: number | null, timeLeft: string | null): string {
     const parts: string[] = [];
     if (progress !== null) {
-      parts.push(`${progress}%`);
+      parts.push(`${percentText(progress)}%`);
     }
     const left = timeLeftText(timeLeft);
     if (left) {
