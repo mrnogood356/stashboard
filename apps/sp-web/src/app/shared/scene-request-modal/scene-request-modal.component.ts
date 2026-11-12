@@ -13,7 +13,7 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { finalize } from 'rxjs';
 import { Subscription } from 'rxjs';
 import { ButtonDirective } from 'primeng/button';
-import { Dialog } from 'primeng/dialog';
+import { SheetComponent } from '../sheet/sheet.component';
 import { Message } from 'primeng/message';
 import { MultiSelect } from 'primeng/multiselect';
 import { ProgressSpinner } from 'primeng/progressspinner';
@@ -41,7 +41,7 @@ type NumberSelectOption = {
   selector: 'app-scene-request-modal',
   imports: [
     ReactiveFormsModule,
-    Dialog,
+    SheetComponent,
     ButtonDirective,
     Message,
     ProgressSpinner,
@@ -52,13 +52,6 @@ type NumberSelectOption = {
   ],
   templateUrl: './scene-request-modal.component.html',
   styleUrl: './scene-request-modal.component.scss',
-  host: {
-    // The dialog's own Escape and backdrop handling only work with its close
-    // button shown, and are set once on opening, so they'd ignore a request
-    // being sent. The sheet does both itself.
-    '(document:keydown.escape)': 'onEscape()',
-    '(mousedown)': 'onBackdrop($event)',
-  },
 })
 export class SceneRequestModalComponent implements OnChanges, OnDestroy {
   private readonly discoverService = inject(DiscoverService);
@@ -89,11 +82,6 @@ export class SceneRequestModalComponent implements OnChanges, OnDestroy {
   protected readonly showOwnedWarning = computed(
     () => this.ownedCopies().length > 0 && !this.ownedAcknowledged(),
   );
-
-  protected readonly dialogBreakpoints = {
-    '960px': '94vw',
-    '640px': '98vw',
-  };
 
   protected readonly rootFolderOptions = computed<StringSelectOption[]>(() => {
     const options = this.requestOptions();
@@ -195,31 +183,6 @@ export class SceneRequestModalComponent implements OnChanges, OnDestroy {
     }
 
     this.closed.emit();
-  }
-
-  protected onEscape(): void {
-    if (this.open) {
-      this.closeModal();
-    }
-  }
-
-  protected onBackdrop(event: MouseEvent): void {
-    const target = event.target;
-    if (
-      this.open &&
-      target instanceof HTMLElement &&
-      target.classList.contains('request-dialog-mask')
-    ) {
-      this.closeModal();
-    }
-  }
-
-  protected onDialogVisibleChange(visible: boolean): void {
-    if (visible || !this.open) {
-      return;
-    }
-
-    this.closeModal();
   }
 
   protected submitRequest(): void {

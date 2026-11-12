@@ -1,48 +1,28 @@
-<div class="sheet-backdrop" aria-hidden="true" (click)="closed.emit()"></div>
-<section
-  class="sheet"
-  role="dialog"
-  aria-modal="true"
-  aria-labelledby="rows-editor-title"
-  data-testid="rows-editor"
-  cdkTrapFocus
-  [cdkTrapFocusAutoCapture]="true"
-  (keydown.escape)="closed.emit()"
+<app-sheet
+  [open]="true"
+  placement="side"
+  [title]="sheetTitle()"
+  [subtitle]="sheetSubtitle()"
+  testId="rows-editor"
+  (closed)="closed.emit()"
 >
-  <header class="sheet-head">
-    @if (view() === 'gallery' && !formOpen) {
-      <button
-        type="button"
-        class="icon-button"
-        aria-label="Back to your rows"
-        (click)="view.set('rows')"
-      >
-        <i class="pi pi-arrow-left" aria-hidden="true"></i>
-      </button>
-    }
-    <div class="sheet-title">
-      <h2 id="rows-editor-title">
-        {{ formOpen ? 'Your own row' : view() === 'gallery' ? 'Add a row' : 'Customize Home' }}
-      </h2>
-      @if (view() === 'rows' && !formOpen) {
-        <p>
-          {{ shownCount() }} of {{ order().length }} rows shown
-          @if (saving()) {
-            · Saving…
-          }
-        </p>
-      }
-    </div>
-    <button type="button" class="icon-button" aria-label="Close" (click)="closed.emit()">
-      <i class="pi pi-times" aria-hidden="true"></i>
+  @if (view() === 'gallery' && !formOpen) {
+    <button
+      sheetLead
+      type="button"
+      class="icon-button"
+      aria-label="Back to your rows"
+      (click)="view.set('rows')"
+    >
+      <i class="pi pi-arrow-left" aria-hidden="true"></i>
     </button>
-  </header>
+  }
 
   @if (error(); as message) {
     <p class="sheet-error" role="alert">{{ message }}</p>
   }
 
-  <div class="sheet-body">
+  <div class="rows-body">
     @if (formOpen) {
       <ng-content />
     } @else if (view() === 'gallery') {
@@ -338,4 +318,4 @@
       </ul>
     }
   </div>
-</section>
+</app-sheet>

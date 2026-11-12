@@ -1,53 +1,5 @@
-/* A side sheet on wide screens, a full-height sheet from the bottom on phones. */
-
-.sheet-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1100;
-  background: rgb(0 0 0 / 40%);
-  backdrop-filter: blur(3px);
-  animation: fade-in 0.2s ease;
-}
-
-.sheet {
-  position: fixed;
-  z-index: 1101;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  width: min(30rem, 100vw);
-  background: var(--surface-elevated);
-  color: var(--text-primary);
-  box-shadow: -18px 0 48px rgb(0 0 0 / 22%);
-  animation: slide-in 0.24s ease;
-}
-
-.sheet-head {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: calc(1rem + env(safe-area-inset-top)) 1rem 0.75rem;
-  border-bottom: 1px solid var(--separator, var(--border-subtle));
-}
-
-.sheet-title {
-  flex: 1;
-  min-width: 0;
-}
-
-.sheet-title h2 {
-  margin: 0;
-  font-size: 1.15rem;
-  font-weight: 750;
-}
-
-.sheet-title p {
-  margin: 0.1rem 0 0;
-  color: var(--text-muted);
-  font-size: 0.82rem;
-}
+/* The frame and header are the shared sheet's (along the side on a wide
+   screen, nearly full height from the bottom on a phone). */
 
 .icon-button {
   display: grid;
@@ -69,12 +21,8 @@
   font-size: 0.88rem;
 }
 
-.sheet-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
+.rows-body {
   padding: 0.85rem 1rem calc(1.25rem + env(safe-area-inset-bottom));
-  overscroll-behavior: contain;
 }
 
 .muted {
@@ -497,47 +445,8 @@
   white-space: nowrap;
 }
 
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-}
-
-@keyframes slide-in {
-  from {
-    transform: translateX(100%);
-  }
-}
-
-@keyframes slide-up {
-  from {
-    transform: translateY(100%);
-  }
-}
-
 @media (max-width: 720px) {
-  .sheet {
-    top: auto;
-    left: 0;
-    width: 100%;
-    height: calc(100dvh - 2.5rem);
-    border-radius: 20px 20px 0 0;
-    box-shadow: 0 -18px 48px rgb(0 0 0 / 22%);
-    animation-name: slide-up;
-  }
-
-  .sheet-head {
-    padding-top: 1rem;
-  }
-
   .row-moves {
     display: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sheet,
-  .sheet-backdrop {
-    animation: none;
   }
 }

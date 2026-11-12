@@ -241,7 +241,8 @@ describe('ScenePageComponent', () => {
     // "Pick another release" opens the release picker.
     root.querySelector<HTMLButtonElement>('[data-testid="timeline-action-pick-release"]')!.click();
     fixture.detectChanges();
-    expect(root.querySelector('app-release-picker [role="dialog"]')).not.toBeNull();
+    // An open sheet sits at the end of the page.
+    expect(document.querySelector('[data-testid="release-picker"][role="dialog"]')).not.toBeNull();
   });
 
   it('has no timeline for a scene that was never requested', async () => {

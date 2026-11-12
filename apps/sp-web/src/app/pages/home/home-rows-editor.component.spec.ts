@@ -50,7 +50,8 @@ describe('HomeRowsEditorComponent', () => {
     const fixture = TestBed.createComponent(HomeRowsEditorComponent);
     fixture.componentRef.setInput('rows', [row('a'), row('b', { enabled: false }), row('c')]);
     fixture.detectChanges();
-    return { fixture, root: fixture.nativeElement as HTMLElement };
+    // The sheet sits at the end of the page while it's open.
+    return { fixture, root: document.body };
   }
 
   it('lists every row and says how many are shown', async () => {
