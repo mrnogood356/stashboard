@@ -778,6 +778,26 @@ describe('AutomationService', () => {
       );
     });
 
+    it('doesn’t call previews failed when Stash’s job list never answers in time', async () => {
+      stash.rescanForPreviews.mockResolvedValue('rescan-job');
+      let clock = 0;
+      service.now = () => clock;
+      service.sleep = (ms) => {
+        clock += ms;
+        return Promise.resolve();
+      };
+      stash.getJobQueue.mockRejectedValue(new Error('timeout'));
+      stash.scenesWithoutPreview
+        .mockResolvedValueOnce(lacking())
+        .mockResolvedValue(lacking('41', '42'));
+      await service.run('detected');
+      // Asked until the deadline, every lookup failing.
+      expect(stash.getJobQueue.mock.calls.length).toBeGreaterThan(100);
+      expect(settings.lastRunMessage).toBe(
+        "Found 2 new scenes, couldn't confirm previews for 2 scenes (Stash didn't answer), identified.",
+      );
+    });
+
     it('says so when it can’t confirm the previews, rather than claiming them', async () => {
       stash.scenesWithoutPreview
         .mockResolvedValueOnce(lacking())

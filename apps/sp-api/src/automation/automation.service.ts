@@ -114,6 +114,8 @@ export class AutomationService
   /** Used by tests to avoid real waiting. */
   sleep: (ms: number) => Promise<void> = (ms) =>
     new Promise((resolve) => setTimeout(resolve, ms));
+  /** Used by tests to move time along. */
+  now: () => number = () => Date.now();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -795,12 +797,23 @@ export class AutomationService
       // #7341, 0.32 development builds), though a rescan that makes them
       // still works: try that for the ones still without one.
       const rescanned = await this.rescanForPreviews(config, check.missing);
-      if (rescanned) {
+      if (rescanned !== 'none') {
         const again = await this.checkPreviews(config, check.missing);
-        check = {
-          missing: again.missing,
-          unanswered: [...check.unanswered, ...again.unanswered],
-        };
+        check =
+          rescanned === 'done'
+            ? {
+                missing: again.missing,
+                unanswered: [...check.unanswered, ...again.unanswered],
+              }
+            : // Stash may still be making them: not known to have failed.
+              {
+                missing: [],
+                unanswered: [
+                  ...check.unanswered,
+                  ...again.unanswered,
+                  ...again.missing,
+                ],
+              };
       }
     }
     if (check.missing.length > 0) {
@@ -829,15 +842,19 @@ export class AutomationService
       });
   }
 
-  /** Rescans with previews made by the scan; true once that scan finished. */
+  /**
+   * Rescans with previews made by the scan. 'done' once Stash has finished
+   * making them; 'unconfirmed' when the scan finished but whether Stash is
+   * still generating couldn't be told in time; 'none' when nothing was made.
+   */
   private async rescanForPreviews(
     config: StashAdapterBaseConfig,
     sceneIds: string[],
-  ): Promise<boolean> {
+  ): Promise<'done' | 'unconfirmed' | 'none'> {
     try {
       const job = await this.stash.rescanForPreviews(config, sceneIds);
       if (!job) {
-        return false;
+        return 'none';
       }
       this.logger.log(
         `Stash's Generate left ${sceneIds.length} scene(s) without a hover preview; rescanning them with previews.`,
@@ -846,24 +863,28 @@ export class AutomationService
         sleep: this.sleep,
       });
       if (result !== 'FINISHED') {
-        return false;
+        return 'none';
       }
       // Newer Stash makes a scan's previews in a job of their own that
       // carries on after the scan: wait for it before checking.
-      await this.waitForStashGenerating(config);
-      return true;
+      return (await this.waitForStashGenerating(config))
+        ? 'done'
+        : 'unconfirmed';
     } catch (error) {
       this.logger.warn(`Couldn't rescan for previews: ${messageOf(error)}`);
-      return false;
+      return 'none';
     }
   }
 
-  /** Until Stash has no generating job left, or long enough has passed. */
+  /**
+   * Until Stash has no generating job left: true then, false when long
+   * enough has passed without seeing that.
+   */
   private async waitForStashGenerating(
     config: StashAdapterBaseConfig,
-  ): Promise<void> {
-    const deadline = Date.now() + SCAN_PREVIEWS_WAIT_MS;
-    while (Date.now() < deadline) {
+  ): Promise<boolean> {
+    const deadline = this.now() + SCAN_PREVIEWS_WAIT_MS;
+    while (this.now() < deadline) {
       const queue = await this.stash.getJobQueue(config).catch(() => null);
       if (queue === null) {
         // Stash didn't answer: not a sign it's done. Ask again in a moment.
@@ -876,10 +897,11 @@ export class AutomationService
           !['FINISHED', 'FAILED', 'CANCELLED'].includes(job.status),
       );
       if (!generating) {
-        return;
+        return true;
       }
       await this.sleep(SCAN_PREVIEWS_POLL_MS);
     }
+    return false;
   }
 
   private async foldersToScan(
