@@ -169,7 +169,7 @@ p {
 .preview-pill {
   width: 1.6rem;
   height: 0.6rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   margin-right: auto;
 }
 

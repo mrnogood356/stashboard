@@ -12,41 +12,27 @@ p {
   margin: 0;
 }
 
-.hero-card {
-  border: 1px solid var(--surface-panel-border);
-  border-radius: 18px;
-  background: var(--surface-panel-background);
-  box-shadow: var(--surface-panel-shadow);
-  padding: 1.1rem;
+.status-summary {
   display: grid;
-  gap: 0.95rem;
-}
-
-.hero-card.tone-good {
-  border-color: var(--tone-success-border);
-}
-
-.hero-card.tone-warn {
-  border-color: var(--tone-warning-border);
+  gap: 0.6rem;
+  padding: 0 0 0.25rem;
 }
 
 .hero-head {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   justify-content: space-between;
   gap: 1rem;
 }
 
 .hero-copy {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.2rem;
 }
 
-.eyebrow {
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: var(--text-muted);
+.hero-copy h2 {
+  font-size: 1.05rem;
+  font-weight: 600;
 }
 
 .hero-lead {
@@ -54,38 +40,38 @@ p {
   max-width: 56rem;
 }
 
-.status-pill {
+/* Said in words; colour only when something's wrong. */
+.status-note {
   display: inline-flex;
   align-items: center;
-  min-height: 2rem;
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  background: var(--tone-success-background);
-  color: var(--tone-success-text);
-  font-size: 0.82rem;
-  font-weight: 700;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.86rem;
   white-space: nowrap;
 }
 
-.status-pill.tone-warn {
-  background: var(--tone-warning-background);
+.status-note.tone-warn {
   color: var(--tone-warning-text);
 }
 
 .hero-meta {
-  display: grid;
-  gap: 0.75rem;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.5rem;
+  font-size: 0.86rem;
 }
 
 .meta-item {
-  display: grid;
-  gap: 0.25rem;
+  display: flex;
+  gap: 0.4rem;
 }
 
 .meta-item span {
   color: var(--text-muted);
-  font-size: 0.82rem;
+}
+
+.meta-item strong {
+  font-weight: 500;
 }
 
 @media (max-width: 640px) {
@@ -112,135 +98,100 @@ p {
   min-width: 0;
 }
 
-/* Section cards: the same look as Library tools. */
+/* One plain grouped list: an icon, a name and a line about it. */
 .group-title {
-  margin: 0.6rem 0 -0.4rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  margin: 1rem 0 -0.5rem;
+  font-size: 0.85rem;
+  font-weight: 500;
   color: var(--text-muted);
 }
 
-/* Three sections a group: one even row each on wider screens, one column on phones. */
 .tool-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.8rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
-@media (min-width: 720px) {
+@media (min-width: 900px) {
   .tool-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .tool + .tool {
+    border-left: 1px solid var(--border-subtle);
   }
 }
 
 .tool {
-  border-radius: 18px;
-  background: var(--surface-1);
+  position: relative;
   display: grid;
   align-content: start;
-  gap: 0.45rem;
-  padding: 1.1rem;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  grid-template-areas:
+    'icon title'
+    '. detail';
+  column-gap: 0.75rem;
+  row-gap: 0.15rem;
+  align-items: center;
+  padding: 0.85rem 1rem;
   color: var(--text-primary);
   text-decoration: none;
-  transition: transform 0.12s ease;
+  transition: background-color 0.12s ease;
+}
+
+.tool:hover {
+  background: var(--surface-1);
 }
 
 .tool:focus-visible {
   outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-.tool:active {
-  transform: scale(0.98);
+  outline-offset: -2px;
 }
 
 .tool i {
-  display: grid;
-  place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 12px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 1.1rem;
+  grid-area: icon;
+  color: var(--text-muted);
+  font-size: 1rem;
 }
 
 .tool-title {
-  font-size: 1.05rem;
-  font-weight: 700;
+  grid-area: title;
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
 .tool-detail {
-  font-size: 0.86rem;
+  grid-area: detail;
+  font-size: 0.84rem;
   color: var(--text-muted);
   line-height: 1.4;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .tool {
-    transition: none;
-  }
-}
-
-/* Phones: one grouped list, like iOS Settings, instead of a tile per item. */
-@media (max-width: 719px) {
-  .tool-grid {
-    gap: 0;
-    overflow: hidden;
-    border-radius: 16px;
-    background: var(--surface-1);
-  }
-
-  .tool {
-    position: relative;
-    grid-template-columns: 2rem minmax(0, 1fr) auto;
-    grid-template-areas:
-      'icon title chevron'
-      'icon detail chevron';
-    column-gap: 0.8rem;
-    row-gap: 0.1rem;
-    align-items: center;
-    padding: 0.75rem 0.9rem;
-    border-radius: 0;
-    background: transparent;
-  }
-
+@media (max-width: 899px) {
   .tool + .tool {
     border-top: 1px solid var(--border-subtle);
+  }
+
+  .tool {
+    grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+    grid-template-areas:
+      'icon title chevron'
+      '. detail chevron';
   }
 
   .tool::after {
     content: '\e901';
     grid-area: chevron;
     font-family: 'primeicons';
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--text-muted);
   }
+}
 
-  .tool i {
-    grid-area: icon;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 9px;
-    font-size: 0.95rem;
-  }
-
-  .tool-title {
-    grid-area: title;
-    font-size: 0.98rem;
-    font-weight: 600;
-  }
-
-  .tool-detail {
-    grid-area: detail;
-    font-size: 0.8rem;
-    line-height: 1.3;
-  }
-
-  .tool:active {
-    transform: none;
-    background: var(--surface-2);
+@media (prefers-reduced-motion: reduce) {
+  .tool {
+    transition: none;
   }
 }

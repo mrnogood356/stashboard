@@ -405,7 +405,7 @@
 
 .speed-button {
   width: auto;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   min-width: 2.75rem;
   padding: 0 0.5rem;
   font-size: 0.85rem;
@@ -586,7 +586,7 @@
 .pill {
   height: 2.4rem;
   padding: 0 1rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid rgb(255 255 255 / 30%);
   background: transparent;
   color: #fff;
@@ -740,10 +740,8 @@
 
 .up-next-label {
   margin: 0;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: rgb(255 255 255 / 65%);
 }
 

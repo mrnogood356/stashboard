@@ -206,7 +206,7 @@ main > button {
 }
 
 .meta-chip {
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--media-detail-chip-border);
   background: var(--media-detail-chip-background);
   color: var(--media-detail-chip-text);
@@ -333,7 +333,7 @@ main > button {
 .load-more-error button,
 main > button {
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   padding: 0.45rem 0.9rem;
   background: var(--chip-bg);
   color: var(--text-primary);
@@ -370,7 +370,7 @@ main > button {
   align-items: center;
   gap: 0.4rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   padding: 0.4rem 0.85rem;
   background: var(--chip-bg);
   color: var(--text-primary);
@@ -462,4 +462,66 @@ main > button {
   color: var(--text-muted);
   font-size: 0.82rem;
   font-weight: 600;
+}
+
+/* ---------- Current look: on the page, facts as a plain list (matches the scene pages) ---------- */
+
+.hero-shell {
+  overflow: visible;
+  border-radius: 0;
+  background: none;
+}
+
+.hero-backdrop,
+.hero-shade {
+  display: none;
+}
+
+.hero-layout {
+  padding: 0.25rem 0 0;
+  gap: 2rem;
+}
+
+.carousel-main {
+  border-radius: var(--radius-md);
+}
+
+.title-row h1 {
+  font-size: clamp(1.6rem, 3.4vw, 2.4rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-shadow: none;
+}
+
+.favorite-indicator {
+  border: 0;
+}
+
+.metadata-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
+  gap: 0.9rem 1.5rem;
+  margin-top: 0.4rem;
+}
+
+.metadata-item {
+  gap: 0.1rem;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.metadata-item .label {
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.metadata-item .value {
+  font-size: 0.92rem;
+}
+
+@media (max-width: 600px) {
+  .hero-layout {
+    padding: 0;
+    gap: 1rem;
+  }
 }

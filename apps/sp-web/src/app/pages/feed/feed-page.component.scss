@@ -89,9 +89,7 @@
 .slide-studio {
   margin: 0;
   font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-weight: 600;
   color: rgb(255 255 255 / 75%);
 }
 
@@ -227,7 +225,7 @@
   height: 2.4rem;
   padding: 0 1rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: #fff;
   color: #000;
   font: inherit;

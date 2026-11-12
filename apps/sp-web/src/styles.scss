@@ -45,9 +45,9 @@
   --chip-bg: #ebebf0;
   --chip-border: transparent;
   --chip-text: #1c1c1e;
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
   /* Settings → Appearance: corner radius, spacing and text size multipliers. */
   --radius-scale: 1;
   --density-scale: 1;
@@ -719,8 +719,12 @@ select:disabled {
 }
 
 .app-back-link--media {
-  color: var(--accent);
-  font-weight: 600;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.app-back-link:hover {
+  color: var(--text-primary);
 }
 
 .app-back-link::before {
@@ -743,11 +747,9 @@ select:disabled {
 }
 
 .app-page-eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: color-mix(in srgb, var(--focus-ring) 68%, var(--text-primary));
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-muted);
 }
 
 .app-page-lede {
@@ -809,16 +811,17 @@ select:disabled {
   color: var(--text-muted);
 }
 
+/* Sections sit on the page itself, set apart by space rather than boxes. */
 .app-section-stack {
   display: grid;
-  gap: 0.9rem;
+  gap: 2.25rem;
 }
 
 .app-section-panel {
-  border: var(--app-section-border, 1px solid var(--border-subtle));
-  border-radius: var(--app-section-radius, var(--radius-lg));
-  padding: var(--app-section-padding, 1.1rem 1.15rem);
-  background: var(--app-section-bg, var(--surface-1));
+  border: var(--app-section-border, 0);
+  border-radius: var(--app-section-radius, 0);
+  padding: var(--app-section-padding, 0);
+  background: var(--app-section-bg, transparent);
   color: var(--text-primary);
   display: grid;
   gap: var(--app-section-gap, 0.75rem);
@@ -858,10 +861,10 @@ select:disabled {
   gap: 0.35rem;
   border: 1px solid var(--app-chip-border, var(--chip-border));
   background: var(--app-chip-bg, var(--chip-bg));
-  border-radius: 999px;
-  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  padding: 0.25rem 0.6rem;
   font-size: 0.84rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--app-chip-text, var(--chip-text));
 }
 
@@ -1224,7 +1227,7 @@ select:disabled {
   flex-shrink: 0;
   height: 2.25rem;
   padding: 0 0.9rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 0;
   background: var(--chip-bg);
   color: var(--text-primary);
@@ -1284,7 +1287,7 @@ select:disabled {
     gap: 0.5rem;
     height: 2.9rem;
     border: 0;
-    border-radius: 999px;
+    border-radius: var(--radius-sm);
     background: var(--accent);
     color: var(--accent-contrast);
     font: inherit;
@@ -1516,13 +1519,13 @@ input[type='checkbox'].app-switch:focus-visible {
   gap: 0.4rem;
   min-height: 2.25rem;
   padding: 0.42rem 0.95rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
   background: var(--button-bg);
   color: var(--button-text);
   font: inherit;
-  font-size: 0.84rem;
-  font-weight: 700;
+  font-size: 0.86rem;
+  font-weight: 600;
   line-height: 1.2;
   text-decoration: none;
   cursor: pointer;
@@ -1533,7 +1536,7 @@ input[type='checkbox'].app-switch:focus-visible {
 }
 
 .app-btn:hover {
-  transform: translateY(-1px);
+  border-color: var(--border-strong);
 }
 
 .app-btn:disabled {
@@ -1548,9 +1551,14 @@ input[type='checkbox'].app-switch:focus-visible {
 }
 
 .app-btn--primary {
-  border-color: color-mix(in srgb, var(--focus-ring) 52%, transparent);
-  background: color-mix(in srgb, var(--focus-ring) 14%, var(--surface-elevated));
-  color: color-mix(in srgb, var(--focus-ring) 82%, var(--text-primary));
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.app-btn--primary:hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
 }
 
 @media (prefers-reduced-motion: reduce) {

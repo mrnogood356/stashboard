@@ -17,9 +17,9 @@ p {
 }
 
 .eyebrow {
-  font-size: 0.78rem;
-  color: var(--accent);
-  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 .home-state p,
@@ -38,7 +38,7 @@ p {
   justify-content: center;
   gap: 0.35rem;
   padding: 0.55rem 0.95rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 0;
   background: var(--accent);
   color: var(--accent-contrast, #fff);
@@ -144,7 +144,7 @@ p {
   display: inline-flex;
   align-items: center;
   padding: 0.18rem 0.5rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--chip-bg);
   font-size: 0.7rem;
   font-weight: 600;
@@ -152,7 +152,7 @@ p {
 
 .mini-button {
   padding: 0.38rem 0.7rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 0;
   background: var(--chip-bg);
   font: inherit;
@@ -234,15 +234,15 @@ p {
 }
 
 .home-header h1 {
-  font-size: clamp(2rem, 3vw, 2.4rem);
-  font-weight: 800;
-  letter-spacing: -0.025em;
+  font-size: clamp(1.75rem, 2.6vw, 2.15rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1.08;
 }
 
 .home-quick-links {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.15rem;
 }
 
 .quick-link {
@@ -250,14 +250,14 @@ p {
   align-items: center;
   gap: 0.45rem;
   height: 2.25rem;
-  padding: 0 0.9rem;
-  border-radius: 999px;
+  padding: 0 0.7rem;
+  border-radius: var(--radius-sm);
   border: 0;
-  background: var(--chip-bg);
-  color: var(--text-primary);
+  background: transparent;
+  color: var(--text-secondary);
   font: inherit;
-  font-size: 0.86rem;
-  font-weight: 600;
+  font-size: 0.88rem;
+  font-weight: 500;
   text-decoration: none;
   cursor: pointer;
   transition:
@@ -280,16 +280,37 @@ p {
 }
 
 .quick-link:hover {
-  background: var(--surface-raised);
-}
-
-.quick-link:active {
-  transform: scale(0.95);
+  background: var(--chip-bg);
+  color: var(--text-primary);
 }
 
 .quick-link.active {
-  background: var(--accent-soft, color-mix(in srgb, var(--accent) 14%, transparent));
-  color: var(--accent);
+  background: var(--chip-bg);
+  color: var(--text-primary);
+}
+
+/* What's waiting on you and what's downloading: one quiet row of links. */
+.home-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.home-status:not(:has(a)) {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .home-status {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .home-status::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 .quick-link:focus-visible,
@@ -314,7 +335,7 @@ p {
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
-  border-radius: var(--radius-lg, 20px);
+  border-radius: var(--radius-lg, 14px);
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
 }
@@ -373,20 +394,17 @@ p {
 }
 
 .featured-kicker {
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: rgb(255 255 255 / 75%);
 }
 
 .featured-title {
-  font-size: clamp(1.6rem, 4vw, 3rem);
-  font-weight: 800;
-  line-height: 1.04;
-  letter-spacing: -0.03em;
+  font-size: clamp(1.6rem, 3.4vw, 2.6rem);
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
   text-wrap: balance;
-  text-shadow: 0 2px 20px rgb(0 0 0 / 40%);
 }
 
 .featured-meta {
@@ -415,17 +433,15 @@ p {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  height: 2.75rem;
-  padding: 0 1.25rem;
-  border-radius: 999px;
+  height: 2.6rem;
+  padding: 0 1.15rem;
+  border-radius: var(--radius-sm);
   border: 0;
-  background: rgb(255 255 255 / 20%);
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  background: rgb(255 255 255 / 18%);
   color: #fff;
   font: inherit;
-  font-size: 0.95rem;
-  font-weight: 700;
+  font-size: 0.92rem;
+  font-weight: 600;
   text-decoration: none;
   cursor: pointer;
   transition:
@@ -512,9 +528,9 @@ p {
 .rail-copy h2 {
   min-width: 0;
   overflow-wrap: anywhere;
-  font-size: clamp(1.15rem, 1.6vw, 1.4rem);
-  font-weight: 750;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.1rem, 1.4vw, 1.25rem);
+  font-weight: 650;
+  letter-spacing: -0.01em;
   line-height: 1.25;
 }
 
@@ -532,7 +548,7 @@ p {
   border-radius: 6px;
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--accent);
+  color: var(--text-secondary);
   text-decoration: none;
   white-space: nowrap;
 }

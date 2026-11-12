@@ -61,8 +61,8 @@ describe('SettingsOverviewPageComponent', () => {
     fixture.detectChanges();
 
     const text = fixture.nativeElement.textContent;
-    const heroCard = fixture.nativeElement.querySelector('.hero-card') as HTMLElement | null;
-    const statusPill = fixture.nativeElement.querySelector('.status-pill') as HTMLElement | null;
+    const heroCard = fixture.nativeElement.querySelector('.status-summary') as HTMLElement | null;
+    const statusPill = fixture.nativeElement.querySelector('.status-note') as HTMLElement | null;
 
     expect(text).toContain('Required service status unavailable');
     expect(text).toContain('Required service readiness could not be loaded right now.');

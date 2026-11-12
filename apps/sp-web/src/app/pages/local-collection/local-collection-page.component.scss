@@ -137,10 +137,8 @@ p {
 }
 
 .kicker {
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -183,7 +181,7 @@ h1 {
   min-height: 2.75rem;
   padding: 0 1.15rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   font: inherit;
   font-size: 0.92rem;
   font-weight: 700;
@@ -259,7 +257,7 @@ h1 {
 
 .chip {
   padding: 0.35rem 0.8rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--chip-bg);
   color: var(--text-primary);
   font-size: 0.85rem;
@@ -469,4 +467,55 @@ h1 {
 
 a.action {
   text-decoration: none;
+}
+
+/* ---------- Current look: on the page, facts as a plain list (matches the catalog pages) ---------- */
+
+.hero {
+  overflow: visible;
+  border-radius: 0;
+  background: none;
+}
+
+.hero-backdrop,
+.hero-shade {
+  display: none;
+}
+
+.hero-inner {
+  padding: 0.25rem 0 0;
+  gap: 2rem;
+  color: var(--text-primary);
+}
+
+.avatar {
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+
+.metadata-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
+  gap: 0.9rem 1.5rem;
+}
+
+.metadata-item {
+  gap: 0.1rem;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.metadata-item .label {
+  font-weight: 400;
+}
+
+.metadata-item .value {
+  font-size: 0.92rem;
+}
+
+@media (max-width: 640px) {
+  .hero-inner {
+    padding: 0;
+    gap: 1rem;
+  }
 }

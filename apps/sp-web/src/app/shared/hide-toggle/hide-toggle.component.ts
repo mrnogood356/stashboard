@@ -88,7 +88,7 @@ const NOUN: Record<HiddenItemKind, string> = {
       max-width: 100%;
       min-height: 2.25rem;
       padding: 0.3rem 0.85rem;
-      border-radius: 999px;
+      border-radius: var(--radius-sm);
       border: 1px solid var(--tone-warning-border);
       background: var(--tone-warning-background);
       color: var(--tone-warning-text);
@@ -120,7 +120,7 @@ const NOUN: Record<HiddenItemKind, string> = {
       width: 2.25rem;
       height: 2.25rem;
       padding: 0;
-      border: 1px solid var(--border-strong);
+      border: 1px solid var(--border-subtle);
       border-radius: 50%;
       background: transparent;
       color: var(--text-secondary);
