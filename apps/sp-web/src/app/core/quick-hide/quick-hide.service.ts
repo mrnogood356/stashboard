@@ -1,5 +1,5 @@
 import { DOCUMENT } from '@angular/common';
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, OnDestroy, inject, signal } from '@angular/core';
 import { ImageObscurationService } from '../preferences/image-obscuration.service';
 
 /** On this device only: someone else's phone shouldn't change yours. */
@@ -40,7 +40,7 @@ const IDLE_CHECK_MS = 15_000;
  * images on open or after a while idle, if asked.
  */
 @Injectable({ providedIn: 'root' })
-export class QuickHideService {
+export class QuickHideService implements OnDestroy {
   private readonly document = inject(DOCUMENT);
   private readonly obscuration = inject(ImageObscurationService);
 
@@ -53,6 +53,9 @@ export class QuickHideService {
   private lastActivity = Date.now();
   private escAt = 0;
   private taps: Array<{ at: number; x: number; y: number }> = [];
+  /** Takes the listeners and the idle timer away again. */
+  private readonly stopListening = new AbortController();
+  private idleTimer: ReturnType<typeof setInterval> | null = null;
 
   start(): void {
     if (this.started || typeof window === 'undefined') {
@@ -63,15 +66,29 @@ export class QuickHideService {
       this.obscuration.setMode('obscured');
     }
     const win = this.document.defaultView ?? window;
-    win.addEventListener('keydown', (event) => this.onKey(event), { capture: true });
+    const signal = this.stopListening.signal;
+    win.addEventListener('keydown', (event) => this.onKey(event), { capture: true, signal });
     win.addEventListener('pointerdown', (event) => this.onPointer(event), {
       capture: true,
       passive: true,
+      signal,
     });
     for (const type of ['pointermove', 'wheel', 'scroll'] as const) {
-      win.addEventListener(type, () => this.touch(), { capture: true, passive: true });
+      win.addEventListener(type, () => this.touch(), { capture: true, passive: true, signal });
     }
-    win.setInterval(() => this.checkIdle(), IDLE_CHECK_MS);
+    this.idleTimer = win.setInterval(() => this.checkIdle(), IDLE_CHECK_MS);
+  }
+
+  /**
+   * The app keeps it for as long as it's open; a test's app doesn't, and a
+   * hidden one left listening would swallow the next one's keys.
+   */
+  ngOnDestroy(): void {
+    this.stopListening.abort();
+    if (this.idleTimer !== null) {
+      clearInterval(this.idleTimer);
+      this.idleTimer = null;
+    }
   }
 
   save(settings: QuickHideSettings): void {
