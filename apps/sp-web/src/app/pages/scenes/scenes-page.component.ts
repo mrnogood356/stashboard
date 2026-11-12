@@ -1,4 +1,24 @@
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
+import {
+  FilterChipComponent,
+  FilterPanelDirective,
+} from '../../shared/filter-bar/filter-chip.component';
+import {
+  FilterOption,
+  FilterOptionsComponent,
+} from '../../shared/filter-bar/filter-options.component';
+import {
+  SortChoice,
+  pickedLabel,
+  sortChoiceId,
+  sortChoiceLabel,
+  sortChoiceOptions,
+} from '../../shared/filter-bar/filter-values';
+import {
+  RecentPick,
+  readRecentPicks,
+  rememberRecentPicks,
+} from '../../shared/filter-bar/recent-picks';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   AfterViewInit,
@@ -27,9 +47,7 @@ import {
   take,
 } from 'rxjs';
 import { Message } from 'primeng/message';
-import { MultiSelect } from 'primeng/multiselect';
 import { InputText } from 'primeng/inputtext';
-import { Select } from 'primeng/select';
 import { DiscoverService } from '../../core/api/discover.service';
 import {
   PerformerStudioOption,
@@ -84,9 +102,10 @@ import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.com
     FormsModule,
     InputText,
     Message,
-    Select,
-    MultiSelect,
     RouterLink,
+    FilterChipComponent,
+    FilterPanelDirective,
+    FilterOptionsComponent,
     SceneCardComponent,
     OwnedNoteComponent,
     SceneRequestModalComponent,
@@ -95,9 +114,6 @@ import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.com
   styleUrl: './scenes-page.component.scss',
 })
 export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
-  /** On phones the filter panel starts collapsed so results show first. */
-  protected readonly filtersOpen = signal(false);
-
   private static readonly PAGE_SIZE = 24;
   private static readonly SEARCH_DEBOUNCE_MS = 250;
   private static readonly EXCLUDE_DEBOUNCE_MS = 500;
@@ -239,6 +255,85 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly sortOptions = ScenesPageComponent.SORT_OPTIONS;
   protected readonly favoritesOptions = ScenesPageComponent.FAVORITES_OPTIONS;
   protected readonly tagMatchOptions = ScenesPageComponent.TAG_MATCH_OPTIONS;
+
+  /** Sort and direction as one plain choice, for the filter bar. */
+  private static readonly SORT_CHOICES: SortChoice<SceneFeedSort>[] = [
+    { label: 'Trending', sort: 'TRENDING', direction: 'DESC' },
+    { label: 'Newest first', sort: 'DATE', direction: 'DESC' },
+    { label: 'Oldest first', sort: 'DATE', direction: 'ASC' },
+    { label: 'Title A to Z', sort: 'TITLE', direction: 'ASC' },
+    { label: 'Recently added', sort: 'CREATED_AT', direction: 'DESC' },
+    { label: 'Recently updated', sort: 'UPDATED_AT', direction: 'DESC' },
+  ];
+  protected readonly sortChoices = sortChoiceOptions(ScenesPageComponent.SORT_CHOICES);
+  protected readonly sortValue = computed(() =>
+    sortChoiceLabel(
+      ScenesPageComponent.SORT_CHOICES,
+      this.selectedSort(),
+      this.selectedDirection(),
+    ),
+  );
+  protected readonly sortPicked = computed(() => [
+    sortChoiceId(this.selectedSort(), this.selectedDirection()),
+  ]);
+  protected readonly favoriteChoices: FilterOption[] = [
+    { id: 'ALL', label: 'Any favorite' },
+    { id: 'PERFORMER', label: 'Favorite performers' },
+    { id: 'STUDIO', label: 'Favorite studios' },
+  ];
+  protected readonly favoriteValue = computed(
+    () =>
+      this.favoriteChoices.find((option) => option.id === this.selectedFavorites())?.label ?? null,
+  );
+  protected readonly favoritePicked = computed(() =>
+    this.selectedFavorites() === ScenesPageComponent.DEFAULT_FAVORITES
+      ? []
+      : [this.selectedFavorites()],
+  );
+
+  /** Picked lately, in this browser: the lists open on them before anything is typed. */
+  private readonly recentTags = signal<RecentPick[]>(readRecentPicks('catalog-tags'));
+  private readonly recentStudios = signal<RecentPick[]>(readRecentPicks('catalog-studios'));
+
+  protected readonly categoryValue = computed(() =>
+    pickedLabel(this.selectedTags().map((tag) => tag.name)),
+  );
+  protected readonly studioValue = computed(() =>
+    pickedLabel(this.selectedStudios().map((studio) => studio.label)),
+  );
+  /** Typed: what the catalog found. Not yet: what's picked, then recent ones. */
+  protected readonly categoryChoices = computed<FilterOption[]>(() => {
+    if (this.tagSearchTerm().trim()) {
+      return this.tagSelectOptions().map((option) => ({ id: option.value, label: option.label }));
+    }
+    const picked = this.selectedTags().map((tag) => ({ id: tag.id, label: tag.name }));
+    const pickedIds = new Set(picked.map((option) => option.id));
+    return [
+      ...picked,
+      ...this.recentTags()
+        .filter((pick) => !pickedIds.has(pick.id))
+        .map((pick) => ({ id: pick.id, label: pick.name, group: 'Recent' })),
+    ];
+  });
+  protected readonly studioChoices = computed<FilterOption[]>(() => {
+    if (this.studioSearchTerm().trim()) {
+      return this.studioSelectOptions().flatMap((group) =>
+        group.items.map((item) => ({ id: item.value, label: item.label, group: group.label })),
+      );
+    }
+    const picked = this.selectedStudios().map((studio) => ({ id: studio.id, label: studio.label }));
+    const pickedIds = new Set(picked.map((option) => option.id));
+    return [
+      ...picked,
+      ...this.recentStudios()
+        .filter((pick) => !pickedIds.has(pick.id))
+        .map((pick) => ({ id: pick.id, label: pick.name, group: 'Recent' })),
+    ];
+  });
+  /** Exclude words in use, said on the More chip. */
+  protected readonly moreValue = computed(() =>
+    this.excludeTerms().length > 0 ? `Hiding ${this.excludeTerms().length}` : null,
+  );
   protected readonly pageAlert = computed(() =>
     buildReadinessPageAlert(
       'scenes',
@@ -336,6 +431,60 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   protected isRequestable(item: SceneExplorerItem): boolean {
     return item.requestable && isSceneStatusRequestable(item.status);
+  }
+
+  protected onCategoriesPicked(ids: string[]): void {
+    const known = new Map(this.tagOptions().map((tag) => [tag.id, tag]));
+    for (const pick of this.recentTags()) {
+      if (!known.has(pick.id)) {
+        known.set(pick.id, { id: pick.id, name: pick.name, description: null, aliases: [] });
+      }
+    }
+    this.tagOptions.set([...known.values()]);
+    this.onTagSelectionChanged(ids);
+    this.recentTags.set(
+      rememberRecentPicks(
+        'catalog-tags',
+        this.selectedTags().map((tag) => ({ id: tag.id, name: tag.name })),
+      ),
+    );
+  }
+
+  protected onStudiosPicked(ids: string[]): void {
+    const known = new Map(this.studioOptions().map((studio) => [studio.id, studio]));
+    for (const pick of this.recentStudios()) {
+      if (!known.has(pick.id)) {
+        known.set(pick.id, { id: pick.id, name: pick.name, childStudios: [] });
+      }
+    }
+    this.studioOptions.set([...known.values()]);
+    this.onStudioSelectionChanged(ids);
+    this.recentStudios.set(
+      rememberRecentPicks(
+        'catalog-studios',
+        this.selectedStudios().map((studio) => ({ id: studio.id, name: studio.label })),
+      ),
+    );
+  }
+
+  protected onFavoritesPicked(ids: string[]): void {
+    this.onFavoritesChanged(ids[0] ?? ScenesPageComponent.DEFAULT_FAVORITES);
+  }
+
+  protected onSortPicked(ids: string[]): void {
+    const choice = ScenesPageComponent.SORT_CHOICES.find(
+      (option) => sortChoiceId(option.sort, option.direction) === ids[0],
+    );
+    if (
+      !choice ||
+      (choice.sort === this.selectedSort() && choice.direction === this.selectedDirection())
+    ) {
+      return;
+    }
+    this.selectedSort.set(choice.sort);
+    this.selectedDirection.set(choice.direction);
+    this.syncUrlWithCurrentFilters(false);
+    this.resetFeedAndReload();
   }
 
   protected openRequestModal(item: SceneRequestContext): void {

@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject, of } from 'rxjs';
 import { DiscoverService } from '../../core/api/discover.service';
-import { DiscoverItem, PerformerDetails } from '../../core/api/discover.types';
+import { DiscoverItem, PerformerDetails, SceneFacets } from '../../core/api/discover.types';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { PerformerPageComponent } from './performer-page.component';
 
@@ -82,6 +82,9 @@ describe('PerformerPageComponent', () => {
     const paramMap$ = new BehaviorSubject(convertToParamMap({ performerId: 'performer-1' }));
     const queryParamMap$ = new BehaviorSubject(convertToParamMap({}));
     const discoverService = {
+      getPerformerFacets: vi.fn(() =>
+        of<SceneFacets>({ total: 0, scanned: 0, tags: [], studios: [] }),
+      ),
       getPerformerDetails: vi.fn().mockReturnValue(of(buildPerformer())),
       getPerformerScenesFeed: vi.fn().mockReturnValue(
         of({
@@ -120,6 +123,7 @@ describe('PerformerPageComponent', () => {
           useValue: {
             paramMap: paramMap$.asObservable(),
             queryParamMap: queryParamMap$.asObservable(),
+            snapshot: { queryParamMap: convertToParamMap({}) },
           },
         },
         {
@@ -167,6 +171,45 @@ describe('PerformerPageComponent', () => {
 
     expect(fixture.nativeElement.querySelectorAll('app-scene-card')).toHaveLength(1);
     expect(fixture.nativeElement.querySelector('.request-cta')).toBeNull();
+  });
+
+  it("lists the performer's own categories with counts, ready to pick", async () => {
+    const { fixture, discoverService } = await renderPage();
+    discoverService.getPerformerFacets.mockReturnValue(
+      of({
+        total: 40,
+        scanned: 40,
+        tags: [
+          { id: 't1', name: 'Outdoor', count: 30 },
+          { id: 't2', name: 'POV', count: 12 },
+        ],
+        studios: [],
+      }),
+    );
+    // Facets load with the performer: load it again with the counted ones.
+    (fixture.componentInstance as any).loadFacets('performer-1');
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+
+    (root.querySelector('[data-testid="performer-category"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(
+      Array.from(root.querySelectorAll('.filter-option')).map((row) =>
+        row.textContent?.replace(/\s+/g, ''),
+      ),
+    ).toEqual(['Outdoor30', 'POV12']);
+
+    (
+      root.querySelector('[data-testid="performer-category-option-t2"]') as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    expect(discoverService.getPerformerScenesFeed).toHaveBeenLastCalledWith(
+      'performer-1',
+      1,
+      24,
+      expect.objectContaining({ tagIds: ['t2'] }),
+    );
+    expect(root.querySelector('[data-testid="performer-category"]')?.textContent).toContain('POV');
   });
 
   it('says how many scenes the hidden list left out, and shows them on request', async () => {

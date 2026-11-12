@@ -248,9 +248,10 @@ export class LocalLibraryService {
     page: number,
     sort: LocalSceneSort,
     seed = 0,
+    narrow: CollectionNarrowing = {},
   ): Observable<LocalScenePage> {
     return this.http.get<LocalScenePage>(`/api/local/performers/${enc(id)}/scenes`, {
-      params: pageParams(page, sort, seed),
+      params: narrowParams(pageParams(page, sort, seed), narrow),
     });
   }
 
@@ -267,9 +268,10 @@ export class LocalLibraryService {
     page: number,
     sort: LocalSceneSort,
     seed = 0,
+    narrow: CollectionNarrowing = {},
   ): Observable<LocalScenePage> {
     return this.http.get<LocalScenePage>(`/api/local/studios/${enc(id)}/scenes`, {
-      params: pageParams(page, sort, seed),
+      params: narrowParams(pageParams(page, sort, seed), narrow),
     });
   }
 
@@ -445,6 +447,23 @@ function clampQuery(query: string): string {
 
 function enc(value: string): string {
   return encodeURIComponent(value);
+}
+
+/** Categories (every one) and studios (any of them) to narrow a collection's scenes to. */
+export interface CollectionNarrowing {
+  tagIds?: string[];
+  studioIds?: string[];
+}
+
+function narrowParams(params: HttpParams, narrow: CollectionNarrowing): HttpParams {
+  let next = params;
+  if (narrow.tagIds?.length) {
+    next = next.set('tagIds', narrow.tagIds.join(','));
+  }
+  if (narrow.studioIds?.length) {
+    next = next.set('studioIds', narrow.studioIds.join(','));
+  }
+  return next;
 }
 
 function pageParams(page: number, sort: LocalSceneSort, seed: number): HttpParams {

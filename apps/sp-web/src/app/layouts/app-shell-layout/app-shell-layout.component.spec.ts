@@ -301,7 +301,7 @@ describe('AppShellLayoutComponent', () => {
 
     expect(desktopSidebar).toBeNull();
     expect(bottomNav).toBeTruthy();
-    expect(bottomNavItems).toEqual(['Home', 'Scenes', 'Requests', 'Library', 'More']);
+    expect(bottomNavItems).toEqual(['Home', 'Search', 'Requests', 'Library', 'More']);
 
     moreTrigger?.click();
     fixture.detectChanges();
@@ -313,7 +313,8 @@ describe('AppShellLayoutComponent', () => {
     ) as HTMLElement | null;
 
     expect(moreSheet).toBeTruthy();
-    expect(moreSheet?.textContent).toContain('Search');
+    expect(moreSheet?.textContent).toContain('Scenes');
+    expect(moreSheet?.textContent).toContain('Watch later');
     expect(moreSheet?.textContent).toContain('Downloads');
     expect(moreSheet?.textContent).toContain('Performers');
     expect(moreSheet?.textContent).toContain('Following');

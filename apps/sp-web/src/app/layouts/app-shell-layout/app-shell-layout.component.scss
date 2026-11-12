@@ -450,12 +450,10 @@
 }
 
 .mobile-more-item .icon {
-  width: 1.85rem;
-  height: 1.85rem;
-  flex-basis: 1.85rem;
-  border-radius: 8px;
-  background: var(--accent);
-  color: var(--accent-contrast);
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-basis: 1.5rem;
+  color: var(--text-muted);
 }
 
 .mobile-more-item .icon i {
@@ -463,7 +461,8 @@
 }
 
 .mobile-more-item.active {
-  color: var(--accent);
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 .mobile-more-label {
@@ -701,4 +700,44 @@
     font-size: 0;
     line-height: 0;
   }
+}
+
+/* More on a phone: a few short groups that scroll when the screen is short. */
+.mobile-more-sheet {
+  max-height: calc(100dvh - var(--shell-mobile-nav-offset) - 3rem);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.mobile-more-eyebrow {
+  font-weight: 700;
+}
+
+.mobile-more-nav {
+  display: block;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 0;
+  background: none;
+}
+
+.mobile-more-group {
+  margin: 0.9rem 0.25rem 0.2rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.mobile-more-group:first-child {
+  margin-top: 0;
+}
+
+.mobile-more-gap {
+  display: block;
+  height: 0.75rem;
+}
+
+.mobile-more-nav .mobile-more-item {
+  padding: 0.7rem 0.25rem;
+  border-bottom: 1px solid var(--border-subtle);
 }

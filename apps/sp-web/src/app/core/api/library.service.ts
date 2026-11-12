@@ -64,15 +64,37 @@ export class LibraryService {
     return this.http.get<LibraryScenesFeedResponse>('/api/library/scenes', { params });
   }
 
-  searchTags(query: string): Observable<LibraryTagOption[]> {
+  /**
+   * Your categories, the most used first with counts: matching what's typed,
+   * or with nothing typed the most common. A performer or studio narrows it
+   * to their scenes.
+   */
+  searchTags(query: string, scope: LibraryOptionScope = {}): Observable<LibraryTagOption[]> {
     return this.http.get<LibraryTagOption[]>('/api/library/tags', {
-      params: new HttpParams().set('query', query),
+      params: optionParams(query, scope),
     });
   }
 
-  searchStudios(query: string): Observable<LibraryStudioOption[]> {
+  searchStudios(query: string, scope: LibraryOptionScope = {}): Observable<LibraryStudioOption[]> {
     return this.http.get<LibraryStudioOption[]>('/api/library/studios', {
-      params: new HttpParams().set('query', query),
+      params: optionParams(query, scope),
     });
   }
+}
+
+/** Options from one performer's or studio's scenes only. */
+export interface LibraryOptionScope {
+  performerId?: string;
+  studioId?: string;
+}
+
+function optionParams(query: string, scope: LibraryOptionScope): HttpParams {
+  let params = new HttpParams().set('query', query);
+  if (scope.performerId) {
+    params = params.set('performerId', scope.performerId);
+  }
+  if (scope.studioId) {
+    params = params.set('studioId', scope.studioId);
+  }
+  return params;
 }

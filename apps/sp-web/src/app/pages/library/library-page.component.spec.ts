@@ -245,7 +245,7 @@ describe('LibraryPageComponent', () => {
   it('loads the default local-library view from the dedicated library API', async () => {
     const { fixture, libraryService, navigateSpy, runtimeHealthService } = await renderPage();
     const resetButton = fixture.nativeElement.querySelector(
-      '.controls-header .reset-filters-button',
+      '[data-testid="library-clear-filters"]',
     ) as HTMLButtonElement | null;
 
     expect(runtimeHealthService.ensureStarted).toHaveBeenCalledTimes(1);
@@ -261,7 +261,8 @@ describe('LibraryPageComponent', () => {
       favoriteTagsOnly: false,
     });
     expect(navigateSpy).not.toHaveBeenCalled();
-    expect(resetButton?.disabled).toBe(true);
+    // Nothing to clear yet, so no Clear all.
+    expect(resetButton).toBeNull();
   });
 
   it('clears active local-library filters back to the default indexed library view', async () => {
@@ -278,14 +279,17 @@ describe('LibraryPageComponent', () => {
       },
     });
     const resetButton = fixture.nativeElement.querySelector(
-      '.controls-header .reset-filters-button',
+      '[data-testid="library-clear-filters"]',
     ) as HTMLButtonElement | null;
 
     expect(resetButton).toBeTruthy();
-    expect(resetButton?.disabled).toBe(false);
+    // What's filtering is said on the chips.
     expect(
-      fixture.nativeElement.querySelector('[data-testid="library-active-filters"]')?.textContent,
-    ).toContain('Query: archive');
+      fixture.nativeElement.querySelector('[data-testid="library-category"]')?.textContent,
+    ).toContain('Tag One +1');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="library-studio"]')?.textContent,
+    ).toContain('Archive +1');
 
     resetButton?.click();
     fixture.detectChanges();
@@ -416,9 +420,10 @@ describe('LibraryPageComponent', () => {
     expect(fixture.nativeElement.querySelector('.results-shell')).toBeNull();
     expect(fixture.nativeElement.querySelector('header .state')?.textContent).toContain('1 scene');
     expect(fixture.nativeElement.querySelector('.controls-note')).toBeNull();
-    expect(fixture.nativeElement.querySelector('.controls-row input[type="search"]')).toBeTruthy();
-    expect(fixture.nativeElement.querySelectorAll('p-multiselect')).toHaveLength(2);
-    expect(fixture.nativeElement.querySelectorAll('p-select')).toHaveLength(2);
+    expect(
+      fixture.nativeElement.querySelector('.library-search input[type="search"]'),
+    ).toBeTruthy();
+    expect(fixture.nativeElement.querySelectorAll('.filter-bar app-filter-chip')).toHaveLength(3);
     expect(fixture.nativeElement.querySelector('.grid')).toBeTruthy();
   });
 

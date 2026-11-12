@@ -155,25 +155,32 @@
       </div>
 
       <nav class="mobile-more-nav" aria-label="Secondary navigation">
-        @for (item of mobileSecondaryNavItems(); track item.route) {
-          <a
-            [routerLink]="item.route"
-            class="mobile-more-item"
-            [class.active]="isNavItemActive(item)"
-            [class.has-alert]="item.route === '/settings' && !!degradedState()"
-            [attr.data-testid]="item.route === '/settings' ? 'mobile-settings-link' : null"
-            (click)="closeMoreMenu()"
-          >
-            <span class="icon" aria-hidden="true"><i [class]="item.icon"></i></span>
-            <span class="mobile-more-label">{{ item.label }}</span>
-            @if (item.route === '/acquisition' && requestsAttention() > 0) {
-              <span class="nav-count">{{ requestsAttention() }}</span>
-            }
-            <i class="pi pi-chevron-right mobile-more-chevron" aria-hidden="true"></i>
-            @if (item.route === '/settings' && degradedState()) {
-              <span class="nav-badge" data-testid="mobile-settings-nav-indicator">Repair</span>
-            }
-          </a>
+        @for (group of mobileSecondaryNavGroups(); track $index) {
+          @if (group.label) {
+            <p class="mobile-more-group">{{ group.label }}</p>
+          } @else {
+            <span class="mobile-more-gap" aria-hidden="true"></span>
+          }
+          @for (item of group.items; track item.route) {
+            <a
+              [routerLink]="item.route"
+              class="mobile-more-item"
+              [class.active]="isNavItemActive(item)"
+              [class.has-alert]="item.route === '/settings' && !!degradedState()"
+              [attr.data-testid]="item.route === '/settings' ? 'mobile-settings-link' : null"
+              (click)="closeMoreMenu()"
+            >
+              <span class="icon" aria-hidden="true"><i [class]="item.icon"></i></span>
+              <span class="mobile-more-label">{{ item.label }}</span>
+              @if (item.route === '/acquisition' && requestsAttention() > 0) {
+                <span class="nav-count">{{ requestsAttention() }}</span>
+              }
+              <i class="pi pi-chevron-right mobile-more-chevron" aria-hidden="true"></i>
+              @if (item.route === '/settings' && degradedState()) {
+                <span class="nav-badge" data-testid="mobile-settings-nav-indicator">Repair</span>
+              }
+            </a>
+          }
         }
       </nav>
 

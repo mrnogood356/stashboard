@@ -1,5 +1,18 @@
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import {
+  FilterChipComponent,
+  FilterPanelDirective,
+} from '../../shared/filter-bar/filter-chip.component';
+import { FilterOptionsComponent } from '../../shared/filter-bar/filter-options.component';
+import {
+  SortChoice,
+  facetOptions,
+  pickedLabel,
+  sortChoiceId,
+  sortChoiceLabel,
+  sortChoiceOptions,
+} from '../../shared/filter-bar/filter-values';
+import {
   AfterViewInit,
   Component,
   ElementRef,
@@ -10,7 +23,6 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import {
   combineLatest,
@@ -25,9 +37,6 @@ import {
   switchMap,
 } from 'rxjs';
 import { Message } from 'primeng/message';
-import { MultiSelect } from 'primeng/multiselect';
-import { Select } from 'primeng/select';
-import { ToggleSwitch } from 'primeng/toggleswitch';
 import { DiscoverService } from '../../core/api/discover.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import {
@@ -35,6 +44,7 @@ import {
   PerformerDetails,
   PerformerGender,
   PerformerStudioOption,
+  SceneFacets,
   SceneFeedSort,
   SceneRequestContext,
   SortDirection,
@@ -72,15 +82,14 @@ interface MultiSelectGroup {
     HideToggleComponent,
     FollowButtonComponent,
     RouterLink,
-    FormsModule,
-    Select,
-    ToggleSwitch,
     Message,
-    MultiSelect,
     SceneCardComponent,
     OwnedNoteComponent,
     SceneRequestModalComponent,
     HiddenCountComponent,
+    FilterChipComponent,
+    FilterPanelDirective,
+    FilterOptionsComponent,
   ],
   templateUrl: './performer-page.component.html',
   styleUrl: './performer-page.component.scss',
@@ -165,6 +174,46 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
   protected readonly tagSelectOptions = signal<MultiSelectOption[]>([]);
   protected readonly sceneSortOptions = PerformerPageComponent.SCENE_SORT_OPTIONS;
 
+  /** Sort and direction as one plain choice, for the filter bar. */
+  private static readonly SORT_CHOICES: SortChoice<SceneFeedSort>[] = [
+    { label: 'Newest first', sort: 'DATE', direction: 'DESC' },
+    { label: 'Oldest first', sort: 'DATE', direction: 'ASC' },
+    { label: 'Trending', sort: 'TRENDING', direction: 'DESC' },
+    { label: 'Title A to Z', sort: 'TITLE', direction: 'ASC' },
+    { label: 'Recently added', sort: 'CREATED_AT', direction: 'DESC' },
+    { label: 'Recently updated', sort: 'UPDATED_AT', direction: 'DESC' },
+  ];
+  protected readonly sortOptions = sortChoiceOptions(PerformerPageComponent.SORT_CHOICES);
+  protected readonly sortValue = computed(() =>
+    sortChoiceLabel(
+      PerformerPageComponent.SORT_CHOICES,
+      this.sceneSort(),
+      this.sceneSortDirection(),
+    ),
+  );
+  protected readonly sortPicked = computed(() => [
+    sortChoiceId(this.sceneSort(), this.sceneSortDirection()),
+  ]);
+
+  /** Their own categories and studios, the most used first, with counts. */
+  protected readonly facets = signal<SceneFacets | null>(null);
+  protected readonly facetsLoading = signal(false);
+  protected readonly categoryOptions = computed(() =>
+    facetOptions(this.facets()?.tags ?? [], this.selectedTags()),
+  );
+  protected readonly studioFilterOptions = computed(() =>
+    facetOptions(
+      this.facets()?.studios ?? [],
+      this.selectedStudios().map((studio) => ({ id: studio.id, name: studio.label })),
+    ),
+  );
+  protected readonly categoryValue = computed(() =>
+    pickedLabel(this.selectedTags().map((tag) => tag.name)),
+  );
+  protected readonly studioValue = computed(() =>
+    pickedLabel(this.selectedStudios().map((studio) => studio.label)),
+  );
+
   protected readonly loadingScenes = signal(false);
   protected readonly loadingMoreScenes = signal(false);
   protected readonly scenesError = signal<string | null>(null);
@@ -174,8 +223,6 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
   protected readonly scenesHasMore = signal(true);
   /** Show scenes Settings → Hidden content leaves out, for this list only. */
   protected readonly showHidden = signal(false);
-  /** On a phone the scene filters fold away behind one button. */
-  protected readonly filtersOpen = signal(false);
   protected readonly activeFilters = computed(
     () =>
       (this.onlyFavoriteStudios() ? 1 : 0) +
@@ -558,6 +605,74 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
     return readableDate(value);
   }
 
+  /** A pick from the Category list: its names are the counted ones. */
+  protected onCategoriesPicked(ids: string[]): void {
+    const known = new Map(this.tagOptions().map((tag) => [tag.id, tag]));
+    for (const facet of this.facets()?.tags ?? []) {
+      if (!known.has(facet.id)) {
+        known.set(facet.id, { id: facet.id, name: facet.name, description: null, aliases: [] });
+      }
+    }
+    this.tagOptions.set([...known.values()]);
+    this.onTagSelectionChanged(ids);
+  }
+
+  protected onStudiosPicked(ids: string[]): void {
+    const known = new Map(this.studioOptions().map((studio) => [studio.id, studio]));
+    for (const facet of this.facets()?.studios ?? []) {
+      if (!known.has(facet.id)) {
+        known.set(facet.id, { id: facet.id, name: facet.name, childStudios: [] });
+      }
+    }
+    this.studioOptions.set([...known.values()]);
+    this.onStudioSelectionChanged(ids);
+  }
+
+  protected onSortPicked(ids: string[]): void {
+    const choice = PerformerPageComponent.SORT_CHOICES.find(
+      (option) => sortChoiceId(option.sort, option.direction) === ids[0],
+    );
+    if (
+      !choice ||
+      (choice.sort === this.sceneSort() && choice.direction === this.sceneSortDirection())
+    ) {
+      return;
+    }
+    this.sceneSort.set(choice.sort);
+    this.sceneSortDirection.set(choice.direction);
+    this.syncUrlWithCurrentFilters(false);
+    this.resetScenesAndReload();
+  }
+
+  protected clearFilters(): void {
+    if (this.onlyFavoriteStudios()) {
+      this.onlyFavoriteStudios.set(false);
+    }
+    this.selectedTags.set([]);
+    this.tagSelectedIds.set([]);
+    this.selectedStudios.set([]);
+    this.studioSelectedIds.set([]);
+    this.syncUrlWithCurrentFilters(false);
+    this.resetScenesAndReload();
+  }
+
+  private loadFacets(performerId: string): void {
+    this.facets.set(null);
+    this.facetsLoading.set(true);
+    this.discoverService
+      .getPerformerFacets(performerId)
+      .pipe(finalize(() => this.facetsLoading.set(false)))
+      .subscribe({
+        next: (facets) => {
+          if (this.performerId() === performerId) {
+            this.facets.set(facets);
+          }
+        },
+        // Without counts the lists still hold what's picked.
+        error: () => undefined,
+      });
+  }
+
   protected currentRouteUrl(): string {
     return this.router.url;
   }
@@ -570,6 +685,7 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
 
     this.loadingPerformer.set(true);
     this.performerError.set(null);
+    this.loadFacets(currentPerformerId);
 
     this.discoverService
       .getPerformerDetails(currentPerformerId)

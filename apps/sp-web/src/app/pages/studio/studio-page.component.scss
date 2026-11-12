@@ -481,41 +481,15 @@ ul {
   margin-top: 0.6rem;
 }
 
-/* The Filters button only shows on phones, where the filters fold away. */
-.scenes-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-}
-
-.filters-toggle {
-  display: none;
-  align-items: center;
-  gap: 0.4rem;
-  border: 0;
-  border-radius: var(--radius-sm);
-  padding: 0.4rem 0.85rem;
-  background: var(--chip-bg);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.filters-count {
-  min-width: 1.2rem;
-  padding: 0 0.3rem;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 0.72rem;
-  text-align: center;
-}
-
-.filter-body {
+/* Scenes: the heading, then the filter bar on its own line. */
+.scenes-section {
   display: grid;
-  gap: 0.6rem;
+  gap: 0.75rem;
+  margin-top: 2rem;
+}
+
+.scenes-section h2 {
+  margin: 0;
 }
 
 @media (max-width: 640px) {
@@ -549,14 +523,6 @@ ul {
   .child-card .child-name {
     margin: 0;
     font-size: 0.85rem;
-  }
-
-  .filters-toggle {
-    display: inline-flex;
-  }
-
-  .filter-body:not(.open) {
-    display: none;
   }
 }
 

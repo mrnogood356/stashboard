@@ -193,35 +193,41 @@ h1 {
 
 .shortcuts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.5rem;
 }
 
 .shortcut {
-  display: grid;
-  align-content: start;
-  gap: 0.55rem;
-  padding: 1rem;
-  border-radius: 16px;
-  background: var(--surface-1);
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 3rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: 500;
   text-decoration: none;
-  transition: transform 0.12s ease;
 }
 
-.shortcut:active {
-  transform: scale(0.97);
+.shortcut:hover {
+  border-color: var(--border-strong);
+}
+
+.shortcut:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .shortcut i {
-  display: grid;
-  place-items: center;
-  width: 2.2rem;
-  height: 2.2rem;
-  border-radius: 10px;
-  background: var(--accent);
-  color: #fff;
+  color: var(--text-muted);
+  font-size: 1rem;
+}
+
+@media (max-width: 560px) {
+  .shortcuts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .status {

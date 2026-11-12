@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject, Subject, of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LibraryService } from '../../core/api/library.service';
 import { LocalLibraryService, LocalSceneCard } from '../../core/api/local-library.service';
 import { LocalCollectionPageComponent } from './local-collection-page.component';
 
@@ -23,10 +24,36 @@ function card(id: string, playCount = 0): LocalSceneCard {
   };
 }
 
+const NO_NARROWING = { tagIds: [], studioIds: [] };
+
+/** Opens the Sort chip's list and picks a sort by its name. */
+function pickSort(fixture: { detectChanges(): void }, root: HTMLElement, label: string): void {
+  root.querySelector<HTMLButtonElement>('[data-testid="collection-sort"]')!.click();
+  fixture.detectChanges();
+  Array.from(root.querySelectorAll<HTMLButtonElement>('.filter-option'))
+    .find((button) => button.textContent?.includes(label))!
+    .click();
+  fixture.detectChanges();
+}
+
 describe('LocalCollectionPageComponent', () => {
   afterEach(() => TestBed.resetTestingModule());
 
   async function render(kind: 'performer' | 'studio') {
+    const libraryOptions = {
+      searchTags: vi.fn().mockReturnValue(
+        of([
+          { id: 't1', name: 'Outdoor', count: 12 },
+          { id: 't2', name: 'POV', count: 5 },
+        ]),
+      ),
+      searchStudios: vi.fn().mockReturnValue(
+        of([
+          { id: 's1', name: 'Harbor Light', count: 20 },
+          { id: 's3', name: 'Low Tide', count: 10 },
+        ]),
+      ),
+    };
     const library = {
       performer: vi.fn().mockReturnValue(
         of({
@@ -81,6 +108,7 @@ describe('LocalCollectionPageComponent', () => {
       providers: [
         provideRouter([]),
         { provide: LocalLibraryService, useValue: library },
+        { provide: LibraryService, useValue: libraryOptions },
         {
           provide: ActivatedRoute,
           useValue: {
@@ -97,7 +125,7 @@ describe('LocalCollectionPageComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
-    return { fixture, root: fixture.nativeElement as HTMLElement, library };
+    return { fixture, root: fixture.nativeElement as HTMLElement, library, libraryOptions };
   }
 
   it('shows the performer with their scenes and loads more', async () => {
@@ -112,19 +140,16 @@ describe('LocalCollectionPageComponent', () => {
 
     root.querySelector<HTMLButtonElement>('.more button')!.click();
     fixture.detectChanges();
-    expect(library.performerScenes).toHaveBeenLastCalledWith('p1', 2, 'DATE', 0);
+    expect(library.performerScenes).toHaveBeenLastCalledWith('p1', 2, 'DATE', 0, NO_NARROWING);
     expect(root.querySelectorAll('app-scene-card').length).toBe(3);
   });
 
   it('changes the sort', async () => {
     const { fixture, root, library } = await render('performer');
 
-    Array.from(root.querySelectorAll<HTMLButtonElement>('.segmented button'))
-      .find((button) => button.textContent?.includes('Most played'))!
-      .click();
-    fixture.detectChanges();
+    pickSort(fixture, root, 'Most played');
 
-    expect(library.performerScenes).toHaveBeenLastCalledWith('p1', 1, 'PLAYS', 0);
+    expect(library.performerScenes).toHaveBeenLastCalledWith('p1', 1, 'PLAYS', 0, NO_NARROWING);
   });
 
   it('favorites the performer in Stash', async () => {
@@ -144,8 +169,48 @@ describe('LocalCollectionPageComponent', () => {
 
     root.querySelector<HTMLButtonElement>('.action.primary')!.click();
 
-    expect(library.performerScenes).toHaveBeenLastCalledWith('p1', 1, 'RANDOM', expect.any(Number));
+    expect(library.performerScenes).toHaveBeenLastCalledWith(
+      'p1',
+      1,
+      'RANDOM',
+      expect.any(Number),
+      NO_NARROWING,
+    );
     expect(navigate).toHaveBeenCalledWith(['/watch', '2'], expect.anything());
+  });
+
+  it("filters to the performer's own categories and studios, counted", async () => {
+    const { fixture, root, library, libraryOptions } = await render('performer');
+    expect(libraryOptions.searchTags).toHaveBeenCalledWith('', { performerId: 'p1' });
+
+    root.querySelector<HTMLButtonElement>('[data-testid="collection-category"]')!.click();
+    fixture.detectChanges();
+    const rows = Array.from(root.querySelectorAll('.filter-option')).map((row) =>
+      row.textContent?.replace(/\s+/g, ''),
+    );
+    expect(rows).toEqual(['Outdoor12', 'POV5']);
+
+    root.querySelector<HTMLButtonElement>('[data-testid="collection-category-option-t1"]')!.click();
+    fixture.detectChanges();
+    expect(library.performerScenes).toHaveBeenLastCalledWith('p1', 1, 'DATE', 0, {
+      tagIds: ['t1'],
+      studioIds: [],
+    });
+    expect(root.querySelector('[data-testid="collection-category"]')?.textContent).toContain(
+      'Outdoor',
+    );
+    // Several at once: the list stays open until Done.
+    root.querySelector<HTMLButtonElement>('.filter-foot__done')!.click();
+    fixture.detectChanges();
+
+    root.querySelector<HTMLButtonElement>('[data-testid="collection-studio"]')!.click();
+    fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-testid="collection-studio-option-s3"]')!.click();
+    fixture.detectChanges();
+    expect(library.performerScenes).toHaveBeenLastCalledWith('p1', 1, 'DATE', 0, {
+      tagIds: ['t1'],
+      studioIds: ['s3'],
+    });
   });
 
   it('shows a studio with its sub-studios', async () => {
@@ -168,9 +233,7 @@ describe('LocalCollectionPageComponent', () => {
     );
 
     root.querySelector<HTMLButtonElement>('.more button')!.click();
-    Array.from(root.querySelectorAll<HTMLButtonElement>('.segmented button'))
-      .find((button) => button.textContent?.includes('Most played'))!
-      .click();
+    pickSort(fixture, root, 'Most played');
     morePage.next({ total: 30, page: 2, hasMore: false, items: [card('old-3')] });
     fixture.detectChanges();
 
