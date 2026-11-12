@@ -137,14 +137,15 @@ ul {
 
 .title-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.55rem;
-  justify-content: space-between;
+  gap: 0.62rem;
 }
 
+/* The name and its star as on the performer page. */
 .title-row h1 {
-  font-size: clamp(1.5rem, 2.3vw, 2rem);
-  line-height: 1.12;
+  font-size: clamp(1.7rem, 5.3vw, 3rem);
+  line-height: 1.05;
   margin: 0;
   /* Long studio names wrap instead of pushing the star off the screen. */
   min-width: 0;
@@ -456,6 +457,20 @@ ul {
     grid-template-columns: minmax(0, 1fr);
     padding: 1rem;
   }
+
+  /* A logo, not a screen-wide box, centred like the performer pages on a
+     phone, with the name and buttons under it. */
+  .media-column {
+    justify-self: center;
+    width: min(56vw, 15rem);
+  }
+
+  .title-row,
+  .aliases,
+  .hide-row {
+    justify-content: center;
+    text-align: center;
+  }
 }
 
 .hide-row {
@@ -504,12 +519,6 @@ ul {
 }
 
 @media (max-width: 640px) {
-  /* A logo, not a screen-wide box. */
-  .media-column {
-    justify-self: start;
-    width: min(42vw, 11rem);
-  }
-
   /* Child studios as a row of names, not a card each. */
   .child-grid {
     display: flex;

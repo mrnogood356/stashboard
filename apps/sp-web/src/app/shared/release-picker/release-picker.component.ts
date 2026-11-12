@@ -1,14 +1,11 @@
 import {
   Component,
-  ElementRef,
   EventEmitter,
-  HostListener,
   Input,
   OnChanges,
   OnDestroy,
   Output,
   SimpleChanges,
-  ViewChild,
   computed,
   inject,
   signal,
@@ -24,6 +21,7 @@ import {
 } from '../../core/api/releases.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { ReleaseSearchService } from '../../core/releases/release-search.service';
+import { SheetComponent } from '../sheet/sheet.component';
 import { OwnedCopiesWarningComponent } from '../owned-copies-warning/owned-copies-warning.component';
 
 export type ReleaseSort = 'best' | 'size-desc' | 'size-asc' | 'seeders';
@@ -52,7 +50,7 @@ const SORTS: Array<{ id: ReleaseSort; label: string }> = [
  */
 @Component({
   selector: 'app-release-picker',
-  imports: [NgTemplateOutlet, OwnedCopiesWarningComponent],
+  imports: [NgTemplateOutlet, OwnedCopiesWarningComponent, SheetComponent],
   templateUrl: './release-picker.component.html',
   styleUrl: './release-picker.component.scss',
 })
@@ -69,7 +67,6 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
   @Input() provider: CatalogProviderType | null = null;
   @Output() readonly closed = new EventEmitter<void>();
   @Output() readonly grabbed = new EventEmitter<WhisparrRelease>();
-  @ViewChild('sheet') private sheet?: ElementRef<HTMLElement>;
 
   protected readonly sorts = SORTS;
   /** Where this search goes: what was asked for, or Prowlarr after Whisparr found nothing. */
@@ -149,11 +146,9 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
 
   private subscription: Subscription | null = null;
   private ownedSubscription: Subscription | null = null;
-  private previousFocus: HTMLElement | null = null;
 
   ngOnChanges(changes: SimpleChanges): void {
     if ((changes['open'] || changes['stashId']) && this.open && this.stashId) {
-      this.previousFocus = document.activeElement as HTMLElement | null;
       this.typedQuery.set('');
       this.activeSource.set(this.source);
       if (this.source === 'whisparr') {
@@ -161,7 +156,6 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
       }
       this.checkOwnedCopies(this.stashId);
       this.search();
-      setTimeout(() => this.sheet?.nativeElement.focus(), 0);
     }
     if (changes['open'] && !this.open) {
       this.subscription?.unsubscribe();
@@ -191,13 +185,6 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
       next: (result) => this.ownedCopies.set(result.copies ?? []),
       error: () => this.ownedCopies.set([]),
     });
-  }
-
-  @HostListener('document:keydown.escape')
-  protected onEscape(): void {
-    if (this.open && !this.grabbing()) {
-      this.close();
-    }
   }
 
   protected search(): void {
@@ -236,7 +223,6 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
   protected close(): void {
     this.subscription?.unsubscribe();
     this.closed.emit();
-    this.previousFocus?.focus?.();
   }
 
   protected choose(release: WhisparrRelease): void {

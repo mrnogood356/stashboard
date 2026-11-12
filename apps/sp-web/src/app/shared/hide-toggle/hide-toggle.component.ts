@@ -1,6 +1,8 @@
-import { Component, Input, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, Input, OnInit, computed, inject, signal } from '@angular/core';
 import { HiddenContentService, HiddenItemKind } from '../../core/api/hidden-content.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
+
+let nextPanelId = 0;
 
 const NOUN: Record<HiddenItemKind, string> = {
   tag: 'tag',
@@ -9,31 +11,68 @@ const NOUN: Record<HiddenItemKind, string> = {
 };
 
 /**
- * "Hide this studio" (or performer, or tag): adds it to Settings → Hidden,
- * so its scenes leave every catalog list. Tapped again, it stops hiding.
+ * "Hide this studio" (or performer, or tag), in a ⋯ menu: adds it to
+ * Settings → Hidden, so its scenes leave every catalog list. Once hidden it
+ * says so in plain sight, and a tap there stops hiding it.
  */
 @Component({
   selector: 'app-hide-toggle',
+  host: {
+    '(document:click)': 'closeOnOutsideClick($event)',
+    '(document:keydown.escape)': 'closeOnEscape()',
+  },
   template: `
     @if (id()) {
-      <button
-        type="button"
-        class="hide-toggle"
-        [class.active]="hidden()"
-        [disabled]="busy()"
-        [attr.aria-pressed]="hidden()"
-        [attr.aria-busy]="busy()"
-        [attr.data-testid]="'hide-' + what()"
-        (click)="toggle()"
-      >
-        <i
-          class="pi"
-          [class.pi-eye-slash]="!hidden()"
-          [class.pi-eye]="hidden()"
-          aria-hidden="true"
-        ></i>
-        <span>{{ label() }}</span>
-      </button>
+      @if (hidden()) {
+        <!-- Hidden: said plainly, with the way back one tap away. -->
+        <button
+          type="button"
+          class="hide-toggle active"
+          [disabled]="busy()"
+          aria-pressed="true"
+          [attr.aria-busy]="busy()"
+          [attr.data-testid]="'hide-' + what()"
+          (click)="toggle()"
+        >
+          <i class="pi pi-eye" aria-hidden="true"></i>
+          <span>Hidden · Show again</span>
+        </button>
+      } @else {
+        <!-- Rarely wanted, so it waits in a menu instead of beside the main actions. -->
+        <div class="hide-menu">
+          <button
+            type="button"
+            class="hide-menu-trigger"
+            [attr.aria-label]="'More options for this ' + noun()"
+            [attr.aria-expanded]="menuOpen()"
+            [attr.aria-controls]="panelId"
+            [attr.data-testid]="'more-' + what()"
+            (click)="toggleMenu($event)"
+          >
+            <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+          </button>
+          @if (menuOpen()) {
+            <ul class="hide-menu-list" [id]="panelId">
+              <li>
+                <button
+                  type="button"
+                  [disabled]="busy()"
+                  aria-pressed="false"
+                  [attr.aria-busy]="busy()"
+                  [attr.data-testid]="'hide-' + what()"
+                  (click)="toggle()"
+                >
+                  <i class="pi pi-eye-slash" aria-hidden="true"></i>
+                  <span>
+                    Hide this {{ noun() }}
+                    <small>Its scenes leave your catalog lists.</small>
+                  </span>
+                </button>
+              </li>
+            </ul>
+          }
+        </div>
+      }
     }
   `,
   styles: `
@@ -50,17 +89,13 @@ const NOUN: Record<HiddenItemKind, string> = {
       min-height: 2.25rem;
       padding: 0.3rem 0.85rem;
       border-radius: 999px;
-      border: 1px solid var(--border-strong);
-      background: transparent;
-      color: var(--text-secondary);
+      border: 1px solid var(--tone-warning-border);
+      background: var(--tone-warning-background);
+      color: var(--tone-warning-text);
       font: inherit;
       font-size: 0.86rem;
       font-weight: 600;
       cursor: pointer;
-    }
-
-    .hide-toggle:hover:not(:disabled) {
-      color: var(--text-primary);
     }
 
     .hide-toggle span {
@@ -69,21 +104,86 @@ const NOUN: Record<HiddenItemKind, string> = {
       white-space: nowrap;
     }
 
-    .hide-toggle.active {
-      border-color: var(--tone-warning-border);
-      background: var(--tone-warning-background);
-      color: var(--tone-warning-text);
-    }
-
-    .hide-toggle:disabled {
+    .hide-toggle:disabled,
+    .hide-menu-list button:disabled {
       opacity: 0.6;
       cursor: default;
+    }
+
+    .hide-menu {
+      position: relative;
+    }
+
+    .hide-menu-trigger {
+      display: grid;
+      place-items: center;
+      width: 2.25rem;
+      height: 2.25rem;
+      padding: 0;
+      border: 1px solid var(--border-strong);
+      border-radius: 50%;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .hide-menu-trigger:hover {
+      color: var(--text-primary);
+    }
+
+    .hide-menu-list {
+      position: absolute;
+      top: calc(100% + 0.35rem);
+      left: 0;
+      z-index: 20;
+      min-width: 15rem;
+      margin: 0;
+      padding: 0.3rem;
+      list-style: none;
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--surface-1) 94%, transparent);
+      backdrop-filter: var(--glass-blur, blur(20px));
+      -webkit-backdrop-filter: var(--glass-blur, blur(20px));
+      box-shadow: 0 14px 34px rgb(0 0 0 / 35%);
+      text-align: left;
+    }
+
+    .hide-menu-list button {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      width: 100%;
+      padding: 0.6rem 0.7rem;
+      border: 0;
+      border-radius: 9px;
+      background: none;
+      color: var(--text-primary);
+      font: inherit;
+      font-size: 0.88rem;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .hide-menu-list button i {
+      margin-top: 0.15rem;
+    }
+
+    .hide-menu-list button:hover:not(:disabled) {
+      background: var(--chip-bg);
+    }
+
+    .hide-menu-list small {
+      display: block;
+      margin-top: 0.1rem;
+      color: var(--text-secondary);
+      font-size: 0.78rem;
     }
   `,
 })
 export class HideToggleComponent implements OnInit {
   private readonly hiddenContent = inject(HiddenContentService);
   private readonly notifications = inject(AppNotificationsService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected readonly what = signal<HiddenItemKind>('studio');
   protected readonly id = signal<string | null>(null);
@@ -102,13 +202,33 @@ export class HideToggleComponent implements OnInit {
   }
 
   protected readonly busy = signal(false);
+  protected readonly menuOpen = signal(false);
   protected readonly hidden = computed(() => this.hiddenContent.isHidden(this.what(), this.id()));
-  protected readonly label = computed(() =>
-    this.hidden() ? `Hidden · Show again` : `Hide this ${NOUN[this.what()]}`,
-  );
+  protected readonly noun = computed(() => NOUN[this.what()]);
+  /** A plain disclosure: the ⋯ button shows or hides one button under it. */
+  protected readonly panelId = `hide-options-${++nextPanelId}`;
 
   ngOnInit(): void {
     this.hiddenContent.ensureLoaded();
+  }
+
+  protected toggleMenu(event: Event): void {
+    event.stopPropagation();
+    this.menuOpen.update((open) => !open);
+  }
+
+  protected closeOnOutsideClick(event: Event): void {
+    if (this.menuOpen() && !this.host.nativeElement.contains(event.target as Node | null)) {
+      this.menuOpen.set(false);
+    }
+  }
+
+  protected closeOnEscape(): void {
+    if (!this.menuOpen()) {
+      return;
+    }
+    this.menuOpen.set(false);
+    this.host.nativeElement.querySelector<HTMLElement>('.hide-menu-trigger')?.focus();
   }
 
   protected toggle(): void {
@@ -119,6 +239,7 @@ export class HideToggleComponent implements OnInit {
     const kind = this.what();
     const name = this.itemName()?.trim() || id;
     const wasHidden = this.hidden();
+    this.menuOpen.set(false);
     this.busy.set(true);
     const request = wasHidden
       ? this.hiddenContent.unhide(kind, id)

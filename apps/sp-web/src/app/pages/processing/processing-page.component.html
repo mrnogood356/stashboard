@@ -95,7 +95,15 @@
                 </div>
                 <h3 class="card-title">{{ entry.scene?.title ?? entry.releaseTitle }}</h3>
                 @if (entry.scene && entry.scene.title !== entry.releaseTitle) {
-                  <p class="release app-break-anywhere">{{ entry.releaseTitle }}</p>
+                  <!-- The download's own name, for finding it in SABnzbd: one quiet
+                       line, in full once something went wrong. -->
+                  <p
+                    class="release"
+                    [class.release-full]="entry.stage === 'failed'"
+                    [attr.title]="entry.releaseTitle"
+                  >
+                    {{ entry.releaseTitle }}
+                  </p>
                 }
                 <app-stage-track [stages]="stages(entry)" [label]="entry.releaseTitle" />
                 @if (entry.stage === 'downloading' && entry.progress !== null) {

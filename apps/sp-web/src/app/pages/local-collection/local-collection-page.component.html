@@ -27,6 +27,7 @@
           aria-hidden="true"
         ></div>
       }
+      <div class="hero-shade" aria-hidden="true"></div>
       <div class="hero-inner">
         <div
           class="avatar"
@@ -97,6 +98,17 @@
               </a>
             }
           </div>
+
+          @if (header.facts.length > 0) {
+            <div class="metadata-grid" data-testid="performer-facts">
+              @for (fact of header.facts; track fact.label) {
+                <div class="metadata-item">
+                  <span class="label">{{ fact.label }}</span>
+                  <span class="value">{{ fact.value }}</span>
+                </div>
+              }
+            </div>
+          }
         </div>
       </div>
     </section>

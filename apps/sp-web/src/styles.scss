@@ -1152,8 +1152,7 @@ select:disabled {
 
 :root[data-images='obscured'] img,
 :root[data-images='obscured'] .hero-backdrop,
-:root[data-images='obscured'] .request-modal-art,
-:root[data-images='obscured'] .follow-sheet-art,
+:root[data-images='obscured'] .sheet-art,
 /* Preview clips don't start while obscured; this covers the swipe feed and
    any clip caught mid-play. The feed's backdrop is already blurred harder.
    The player itself isn't touched: it only plays when asked. */
@@ -1193,6 +1192,16 @@ select:disabled {
 }
 
 .page-head-compact h1 {
+  margin: 0;
+  font-size: clamp(1.75rem, 2.6vw, 2.15rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+}
+
+/* A Settings page's own title (Privacy, Logs…) at the same size as every
+   other page's, not a smaller section heading. */
+.settings-shell > * > section > header:first-child h2 {
   margin: 0;
   font-size: clamp(1.75rem, 2.6vw, 2.15rem);
   font-weight: 700;
@@ -1433,6 +1442,52 @@ input[type='checkbox'].app-switch:focus-visible {
   input[type='checkbox'].app-switch::after {
     transition: none;
   }
+}
+
+/* PrimeNG's switch (in sheets and filters) drawn like the one above, so the
+   app has one switch. */
+.p-toggleswitch {
+  /* Never squeezed by a long label beside it. */
+  flex: 0 0 auto;
+  width: 3.1rem;
+  height: 1.9rem;
+}
+
+.p-toggleswitch .p-toggleswitch-slider {
+  border: 0;
+  border-radius: 999px;
+  background: var(--border-strong);
+  transition: background-color 0.2s ease;
+}
+
+.p-toggleswitch .p-toggleswitch-handle {
+  width: 1.6rem;
+  height: 1.6rem;
+  inset-inline-start: 0.15rem;
+  background: var(--switch-knob);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 25%);
+}
+
+.p-toggleswitch.p-toggleswitch-checked .p-toggleswitch-slider,
+.p-toggleswitch:not(.p-disabled):has(.p-toggleswitch-input:hover).p-toggleswitch-checked
+  .p-toggleswitch-slider {
+  background: var(--success);
+}
+
+.p-toggleswitch:not(.p-disabled):has(.p-toggleswitch-input:hover) .p-toggleswitch-slider {
+  background: var(--border-strong);
+}
+
+.p-toggleswitch .p-toggleswitch-handle,
+.p-toggleswitch:not(.p-disabled):has(.p-toggleswitch-input:hover) .p-toggleswitch-handle {
+  background: var(--switch-knob);
+}
+
+.p-toggleswitch.p-toggleswitch-checked .p-toggleswitch-handle,
+.p-toggleswitch:not(.p-disabled):has(.p-toggleswitch-input:hover).p-toggleswitch-checked
+  .p-toggleswitch-handle {
+  inset-inline-start: 1.35rem;
+  background: var(--switch-knob);
 }
 
 /* ---------- Shared page primitives (layout consistency pass) ---------- */
@@ -1812,4 +1867,9 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
+}
+
+/* A sheet is open: the page behind it doesn't scroll. */
+body.app-sheet-open {
+  overflow: hidden;
 }

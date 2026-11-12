@@ -5,7 +5,6 @@ import {
   CdkDropList,
   moveItemInArray,
 } from '@angular/cdk/drag-drop';
-import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   Component,
@@ -21,6 +20,7 @@ import {
 } from '@angular/core';
 import { EMPTY, Subject, Subscription, catchError, concatMap, finalize, switchMap } from 'rxjs';
 import { HomeService } from '../../core/api/home.service';
+import { SheetComponent } from '../../shared/sheet/sheet.component';
 import {
   DEFAULT_HOME_ROW_DISPLAY,
   HomeRailConfig,
@@ -56,7 +56,7 @@ const SORT_LABEL: Record<string, string> = {
  */
 @Component({
   selector: 'app-home-rows-editor',
-  imports: [CdkDropList, CdkDrag, CdkDragHandle, CdkTrapFocus],
+  imports: [CdkDropList, CdkDrag, CdkDragHandle, SheetComponent],
   templateUrl: './home-rows-editor.component.html',
   styleUrl: './home-rows-editor.component.scss',
 })
@@ -88,6 +88,22 @@ export class HomeRowsEditorComponent implements OnChanges, OnDestroy {
   protected readonly adding = signal<string | null>(null);
   protected readonly countOptions = COUNT_OPTIONS;
   protected readonly shownCount = computed(() => this.order().filter((row) => row.enabled).length);
+
+  protected sheetTitle(): string {
+    return this.formOpen
+      ? 'Your own row'
+      : this.view() === 'gallery'
+        ? 'Add a row'
+        : 'Customize Home';
+  }
+
+  protected sheetSubtitle(): string | null {
+    if (this.view() !== 'rows' || this.formOpen) {
+      return null;
+    }
+    const shown = `${this.shownCount()} of ${this.order().length} rows shown`;
+    return this.saving() ? `${shown} · Saving…` : shown;
+  }
   protected readonly galleryGroups = computed(() => {
     const items = this.gallery() ?? [];
     return (['library', 'catalog', 'whisparr', 'requests'] as const)

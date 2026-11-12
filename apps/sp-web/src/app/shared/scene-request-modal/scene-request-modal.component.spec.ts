@@ -102,7 +102,8 @@ describe('SceneRequestModalComponent', () => {
       vi.fn().mockReturnValue(of({ copies: [ownedCopy] })),
     );
     fixture.detectChanges();
-    const element = fixture.nativeElement as HTMLElement;
+    // An open sheet sits at the end of the page.
+    const element = document.body;
 
     expect(getOwnedCopies).toHaveBeenCalledWith('scene-1');
     expect(element.textContent).toContain('You may already have this');
@@ -132,13 +133,13 @@ describe('SceneRequestModalComponent', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(closed).toHaveBeenCalledTimes(1);
 
-    const mask = fixture.nativeElement.querySelector('.request-dialog-mask') as HTMLElement;
-    mask.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    const mask = document.querySelector('.sheet-backdrop') as HTMLElement;
+    mask.click();
     expect(closed).toHaveBeenCalledTimes(2);
 
     component.submitRequest();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    mask.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    mask.click();
     expect(closed).toHaveBeenCalledTimes(2);
   });
 
@@ -151,7 +152,7 @@ describe('SceneRequestModalComponent', () => {
     component.closed.subscribe(closed);
     fixture.detectChanges();
 
-    (fixture.nativeElement.querySelector('a.open') as HTMLAnchorElement).click();
+    (document.querySelector('a.open') as HTMLAnchorElement).click();
     await fixture.whenStable();
 
     expect(closed).toHaveBeenCalled();
@@ -166,7 +167,7 @@ describe('SceneRequestModalComponent', () => {
 
     expect(component.showOwnedWarning()).toBe(false);
     expect(component.ownedChecking()).toBe(false);
-    expect(fixture.nativeElement.querySelector('form')).not.toBeNull();
+    expect(document.querySelector('form')).not.toBeNull();
   });
 
   it('asks again each time it opens, without checking the same scene twice', async () => {

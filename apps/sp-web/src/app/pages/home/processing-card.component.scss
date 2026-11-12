@@ -79,3 +79,15 @@
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* On a phone just the line that leads to Downloads, under the Needs you pills. */
+@media (max-width: 640px) {
+  .processing-card {
+    margin-top: 0.5rem;
+    padding: 0.65rem 0.9rem;
+  }
+
+  .processing-card-list {
+    display: none;
+  }
+}

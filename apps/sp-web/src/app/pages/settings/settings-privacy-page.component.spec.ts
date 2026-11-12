@@ -68,10 +68,52 @@ describe('SettingsPrivacyPageComponent', () => {
     });
   });
 
+  it('asks for the password and shows Save only once something changed', async () => {
+    const { fixture, component } = await render();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="app-lock-password"]')).toBeNull();
+    expect(root.textContent).not.toContain('Save App Lock');
+
+    component['hideInSwitcher'] = false;
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="app-lock-password"]')).not.toBeNull();
+    expect(root.textContent).toContain('Save App Lock');
+  });
+
   it('explains that Face ID needs HTTPS on plain http://', async () => {
     const { fixture } = await render({ enabled: true, hasPin: true }, false);
     expect(fixture.nativeElement.textContent).toContain(
       'Face ID needs Stashboard to be opened over',
     );
+  });
+
+  it('says when the settings can’t be read, instead of offering defaults as saved', async () => {
+    const { fixture, appLock } = await render();
+    appLock.refresh.mockResolvedValueOnce(null);
+    const component = fixture.componentInstance as unknown as { load(): Promise<void> };
+    await component.load();
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="app-lock-load-failed"]')).not.toBeNull();
+    expect(root.textContent).not.toContain('Hide in app switcher');
+  });
+
+  it('keeps a change made while saving as unsaved', async () => {
+    const { fixture, component, appLock } = await render();
+    let finish!: () => void;
+    appLock.saveSettings.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    component['hideInSwitcher'] = false;
+    component['currentPassword'] = 'pw';
+    const saving = (component['save'] as () => Promise<void>).call(component);
+    component['hideInSwitcher'] = true;
+    finish();
+    await saving;
+    fixture.detectChanges();
+    // Sent off, on its way back on: still a change to save.
+    expect((component['changed'] as () => boolean).call(component)).toBe(true);
   });
 });

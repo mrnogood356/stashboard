@@ -149,13 +149,7 @@
             </div>
           }
 
-          @if (
-            hasStashCopy(scene) ||
-            hasWhisparrLink(scene) ||
-            canRequestScene(scene) ||
-            canPickRelease(scene) ||
-            canFindDownloads(scene)
-          ) {
+          @if (hasHeroActions(scene)) {
             <div class="hero-actions app-action-row">
               @if (playbackOn() && hasStashCopy(scene) && selectedStashSceneId(scene); as playId) {
                 <a
@@ -276,10 +270,14 @@
                   <i class="pi pi-external-link external-action-icon" aria-hidden="true"></i>
                 </a>
               }
+
+              @if (scene.studioId) {
+                <app-hide-toggle kind="studio" [itemId]="scene.studioId" [name]="scene.studio" />
+              }
             </div>
           }
 
-          @if (scene.studioId) {
+          @if (scene.studioId && !hasHeroActions(scene)) {
             <div class="hide-row">
               <app-hide-toggle kind="studio" [itemId]="scene.studioId" [name]="scene.studio" />
             </div>

@@ -55,7 +55,7 @@ describe('ReleasePickerComponent', () => {
     fixture.componentRef.setInput('stashId', 'abc');
     fixture.componentRef.setInput('open', true);
     fixture.detectChanges();
-    const root = fixture.nativeElement as HTMLElement;
+    const root = document.body;
 
     expect(root.textContent).toContain('Nothing found');
     const fallback = root.querySelector(
@@ -95,11 +95,7 @@ describe('ReleasePickerComponent', () => {
     fixture.componentRef.setInput('open', true);
     fixture.detectChanges();
 
-    expect(
-      (fixture.nativeElement as HTMLElement).querySelector(
-        '[data-testid="release-search-prowlarr"]',
-      ),
-    ).toBeNull();
+    expect(document.body.querySelector('[data-testid="release-search-prowlarr"]')).toBeNull();
   });
 
   it('lists releases, hides skipped ones, and downloads the chosen one', async () => {
@@ -133,7 +129,7 @@ describe('ReleasePickerComponent', () => {
     fixture.componentRef.setInput('stashId', 'abc');
     fixture.componentRef.setInput('open', true);
     fixture.detectChanges();
-    const root = fixture.nativeElement as HTMLElement;
+    const root = document.body;
 
     expect(api.search).toHaveBeenCalledWith('abc');
     expect(root.textContent).toContain('Release a');
@@ -182,7 +178,7 @@ describe('ReleasePickerComponent', () => {
     fixture.componentRef.setInput('open', true);
     fixture.detectChanges();
 
-    const text = (fixture.nativeElement as HTMLElement).textContent;
+    const text = document.body.textContent;
     expect(text).toContain('Nothing found');
     expect(text).toContain('Whisparr paused 1 of 2 indexers');
   });
@@ -228,7 +224,7 @@ describe('ReleasePickerComponent', () => {
     fixture.componentRef.setInput('stashId', 'abc');
     fixture.componentRef.setInput('open', true);
     fixture.detectChanges();
-    const root = fixture.nativeElement as HTMLElement;
+    const root = document.body;
     const titles = () =>
       Array.from(root.querySelectorAll('.release-title')).map((el) => el.textContent?.trim());
 
@@ -291,7 +287,7 @@ describe('ReleasePickerComponent', () => {
     fixture.componentRef.setInput('stashId', 'abc');
     fixture.componentRef.setInput('open', true);
     fixture.detectChanges();
-    const root = fixture.nativeElement as HTMLElement;
+    const root = document.body;
 
     expect(root.textContent).toContain('Nothing found looks like this scene');
     (
@@ -330,7 +326,7 @@ describe('ReleasePickerComponent', () => {
       fixture.componentRef.setInput('stashId', 'fans-1');
       fixture.componentRef.setInput('open', true);
       fixture.detectChanges();
-      return { fixture, root: fixture.nativeElement as HTMLElement, notifications, grabbed };
+      return { fixture, root: document.body, notifications, grabbed };
     }
 
     const prowlarrRelease = (guid: string, overrides: Record<string, unknown> = {}) =>
@@ -558,7 +554,7 @@ describe('ReleasePickerComponent', () => {
     fixture.componentRef.setInput('stashId', 'abc');
     fixture.componentRef.setInput('open', true);
     fixture.detectChanges();
-    const root = fixture.nativeElement as HTMLElement;
+    const root = document.body;
 
     expect(api.ownedCopies).toHaveBeenCalledWith('abc', null);
     expect(root.textContent).toContain('Same file fingerprint');

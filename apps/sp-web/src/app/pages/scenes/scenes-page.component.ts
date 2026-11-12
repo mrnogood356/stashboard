@@ -117,8 +117,8 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
     { value: 'TRENDING', label: 'Trending' },
     { value: 'DATE', label: 'Release Date' },
     { value: 'TITLE', label: 'Title' },
-    { value: 'CREATED_AT', label: 'Created At' },
-    { value: 'UPDATED_AT', label: 'Updated At' },
+    { value: 'CREATED_AT', label: 'Date added' },
+    { value: 'UPDATED_AT', label: 'Date updated' },
   ];
   protected static readonly FAVORITES_OPTIONS: Array<{
     value: FavoritesFilterOption;

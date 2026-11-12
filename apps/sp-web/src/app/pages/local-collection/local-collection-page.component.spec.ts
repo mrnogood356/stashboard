@@ -104,7 +104,9 @@ describe('LocalCollectionPageComponent', () => {
     const { fixture, root, library } = await render('performer');
 
     expect(root.querySelector('h1')?.textContent).toContain('Ana Rivers');
-    expect(root.textContent).toContain('Female · US');
+    const facts = root.querySelector('[data-testid="performer-facts"]')?.textContent ?? '';
+    expect(facts).toContain('Female');
+    expect(facts).toContain('United States');
     expect(root.textContent).toContain('30 scenes');
     expect(root.querySelectorAll('app-scene-card').length).toBe(2);
 

@@ -36,11 +36,6 @@
           </div>
 
           @if (hasCarouselImages()) {
-            <div class="carousel-controls">
-              <button type="button" (click)="previousImage()">Previous</button>
-              <button type="button" (click)="nextImage()">Next</button>
-            </div>
-
             <div class="carousel-thumbs">
               @for (image of performer.images; track image.id; let i = $index) {
                 <button
@@ -88,7 +83,7 @@
           @if (performer.deathDate) {
             <p class="passed-away" data-testid="passed-away">
               <i class="pi pi-moon" aria-hidden="true"></i> Passed away
-              {{ performer.deathDate }}
+              {{ readableDate(performer.deathDate) }}
             </p>
           }
 
@@ -188,7 +183,7 @@
 
           <div class="control-field checkbox-field app-control-field">
             <span id="performer-favorite-studios-label" class="app-control-label"
-              >Only Favorite Studios</span
+              >Favorite studios only</span
             >
             <label class="toggle-label">
               <p-toggleswitch
@@ -197,7 +192,7 @@
                 [ngModel]="onlyFavoriteStudios()"
                 (ngModelChange)="onOnlyFavoriteStudiosChanged($event)"
               />
-              <span>Enabled</span>
+              <span>{{ onlyFavoriteStudios() ? 'On' : 'Off' }}</span>
             </label>
           </div>
         </div>

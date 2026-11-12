@@ -125,13 +125,6 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
-.release-name {
-  margin: -0.2rem 0 0;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  overflow-wrap: anywhere;
-}
-
 .handoff-section {
   margin-top: 1rem;
 }
@@ -757,4 +750,20 @@ a {
 .card-actions .secondary-link .pi {
   margin-right: 0.3rem;
   font-size: 0.72rem;
+}
+
+@media (max-width: 640px) {
+  /* More tabs off to the side: fade the edge so it reads as scrollable. */
+  .lifecycle-tabs {
+    mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+    padding-right: 1.5rem;
+  }
+
+  /* On a phone the cards are the panels: no second frame around them. */
+  .lifecycle-section {
+    --app-section-padding: 0;
+    --app-section-border: 0;
+    --app-section-bg: transparent;
+  }
 }

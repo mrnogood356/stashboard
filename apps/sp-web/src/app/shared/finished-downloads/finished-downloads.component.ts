@@ -7,7 +7,7 @@ import { AppNotificationsService } from '../../core/notifications/app-notificati
 
 /**
  * SABnzbd's "Finished downloads" settings, under its integration card: where
- * finished downloads go and how. What's on its way in is on the Processing
+ * finished downloads go and how. What’s on its way in is on the Downloads
  * page, linked from here.
  */
 @Component({

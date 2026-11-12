@@ -48,6 +48,7 @@ import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.com
 import { HideToggleComponent } from '../../shared/hide-toggle/hide-toggle.component';
 import { FollowButtonComponent } from '../../shared/follow-button/follow-button.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
+import { PerformerFact, performerFacts, readableDate } from './performer-facts';
 
 interface SelectedStudioChip {
   id: string;
@@ -97,8 +98,8 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
     { value: 'DATE', label: 'Date' },
     { value: 'TITLE', label: 'Title' },
     { value: 'TRENDING', label: 'Trending' },
-    { value: 'CREATED_AT', label: 'Created At' },
-    { value: 'UPDATED_AT', label: 'Updated At' },
+    { value: 'CREATED_AT', label: 'Date added' },
+    { value: 'UPDATED_AT', label: 'Date updated' },
   ];
 
   private readonly discoverService = inject(DiscoverService);
@@ -505,8 +506,9 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
     return this.selectedTags().some((tag) => tag.id === tagId);
   }
 
+  /** More than one photo to flip through: one alone needs no controls. */
   protected hasCarouselImages(): boolean {
-    return (this.performer()?.images.length ?? 0) > 0;
+    return (this.performer()?.images.length ?? 0) > 1;
   }
 
   protected activeCarouselImageUrl(): string | null {
@@ -533,24 +535,6 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
     this.activeImageIndex.set(nextIndex);
   }
 
-  protected nextImage(): void {
-    const imageCount = this.performer()?.images.length ?? 0;
-    if (imageCount === 0) {
-      return;
-    }
-
-    this.activeImageIndex.set((this.activeImageIndex() + 1) % imageCount);
-  }
-
-  protected previousImage(): void {
-    const imageCount = this.performer()?.images.length ?? 0;
-    if (imageCount === 0) {
-      return;
-    }
-
-    this.activeImageIndex.set((this.activeImageIndex() - 1 + imageCount) % imageCount);
-  }
-
   protected performerInitial(name: string): string {
     return name.trim().charAt(0).toUpperCase();
   }
@@ -566,35 +550,12 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
       .join(' ');
   }
 
-  protected metadataRows(performer: PerformerDetails): Array<{ label: string; value: string }> {
-    const rows: Array<{ label: string; value: string }> = [];
-    const pushIfValue = (label: string, value: string | number | null) => {
-      if (value === null || value === undefined || value === '') {
-        return;
-      }
-      rows.push({ label, value: String(value) });
-    };
+  protected metadataRows(performer: PerformerDetails): PerformerFact[] {
+    return performerFacts(performer);
+  }
 
-    pushIfValue('Gender', this.formattedGender(performer.gender));
-    pushIfValue('Age', performer.age);
-    pushIfValue('Birth Date', performer.birthDate);
-    pushIfValue('Died', performer.deathDate);
-    pushIfValue('Country', performer.country);
-    pushIfValue('Ethnicity', performer.ethnicity);
-    pushIfValue('Eye Color', performer.eyeColor);
-    pushIfValue('Hair Color', performer.hairColor);
-    pushIfValue('Height', performer.height);
-    pushIfValue('Cup Size', performer.cupSize);
-    pushIfValue('Band Size', performer.bandSize);
-    pushIfValue('Waist Size', performer.waistSize);
-    pushIfValue('Hip Size', performer.hipSize);
-    pushIfValue('Breast Type', performer.breastType);
-    pushIfValue('Career Start Year', performer.careerStartYear);
-    pushIfValue('Career End Year', performer.careerEndYear);
-    pushIfValue('Created', performer.createdAt);
-    pushIfValue('Updated', performer.updatedAt);
-
-    return rows;
+  protected readableDate(value: string | null): string | null {
+    return readableDate(value);
   }
 
   protected currentRouteUrl(): string {

@@ -114,11 +114,11 @@
         <div class="lifecycle-section-head app-section-head">
           <div class="app-section-head__copy">
             <div class="section-title-row">
-              <h3>Your downloads</h3>
+              <h3>Downloading now</h3>
               <span class="section-count">{{ countLabel(handoffs().length, 'download') }}</span>
             </div>
           </div>
-          <a class="secondary-action compact" routerLink="/processing">Downloads</a>
+          <a class="secondary-action compact" routerLink="/processing">All downloads</a>
         </div>
         <div class="acquisition-list">
           @for (handoff of handoffs(); track handoff.id) {
@@ -147,9 +147,6 @@
                 </div>
                 <div class="card-copy">
                   <h4 class="card-title">{{ handoff.scene?.title ?? handoff.releaseTitle }}</h4>
-                  @if (handoff.scene) {
-                    <p class="release-name">{{ handoff.releaseTitle }}</p>
-                  }
                   <app-stage-track
                     [stages]="handoffStages(handoff)"
                     [label]="handoff.scene?.title ?? handoff.releaseTitle"
