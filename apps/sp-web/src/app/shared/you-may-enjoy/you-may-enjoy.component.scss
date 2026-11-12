@@ -213,3 +213,14 @@
     display: none;
   }
 }
+
+/* Category, Shuffle and See all wrap under the heading on a narrow screen. */
+.enjoy-head,
+.enjoy-toolbar {
+  flex-wrap: wrap;
+}
+
+.enjoy-actions {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}

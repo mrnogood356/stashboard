@@ -19,13 +19,16 @@ export interface Suggestions {
 export class SuggestionsApiService {
   private readonly http = inject(HttpClient);
 
-  list(limit = 24): Observable<Suggestions> {
-    return this.http.get<Suggestions>('/api/suggestions', { params: { limit } });
+  /** `tagIds`: catalog categories; only scenes in at least one of them. */
+  list(limit = 24, tagIds: string[] = []): Observable<Suggestions> {
+    return this.http.get<Suggestions>('/api/suggestions', { params: params(limit, tagIds) });
   }
 
   /** A fresh set now: other picks, deeper in, what was just shown moved down. */
-  shuffle(limit = 24): Observable<Suggestions> {
-    return this.http.post<Suggestions>('/api/suggestions/shuffle', null, { params: { limit } });
+  shuffle(limit = 24, tagIds: string[] = []): Observable<Suggestions> {
+    return this.http.post<Suggestions>('/api/suggestions/shuffle', null, {
+      params: params(limit, tagIds),
+    });
   }
 
   dismiss(suggestion: Suggestion): Observable<void> {
@@ -33,4 +36,8 @@ export class SuggestionsApiService {
       reason: suggestion.reason.key,
     });
   }
+}
+
+function params(limit: number, tagIds: string[]): Record<string, string | number> {
+  return tagIds.length > 0 ? { limit, tags: tagIds.join(',') } : { limit };
 }

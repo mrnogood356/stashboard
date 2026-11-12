@@ -13,6 +13,24 @@
         <p class="muted">Scenes you don’t have yet, picked from what you watch most.</p>
       </div>
       <div class="enjoy-actions">
+        <app-filter-chip label="Category" [value]="tagValue()" testId="enjoy-category">
+          <ng-template appFilterPanel>
+            <app-filter-options
+              [options]="tagChoices()"
+              [selected]="tagIds()"
+              multi
+              searchable
+              remote
+              [loading]="tagSearchLoading()"
+              searchLabel="Find a category"
+              emptyText="Type a few letters to find a category. Suggestions then come only from the ones you pick."
+              noMatchText="No category by that name."
+              testId="enjoy-category-option"
+              (searched)="onTagSearch($event)"
+              (changed)="onTagsPicked($event)"
+            />
+          </ng-template>
+        </app-filter-chip>
         <button
           type="button"
           class="shuffle"
@@ -37,17 +55,37 @@
           one for good and brings in the next.
         }
       </p>
-      <button
-        type="button"
-        class="shuffle"
-        data-testid="enjoy-shuffle"
-        [disabled]="shuffling() || loading()"
-        [attr.aria-busy]="shuffling()"
-        (click)="shuffle()"
-      >
-        <i class="pi pi-sync" [class.pi-spin]="shuffling()" aria-hidden="true"></i>
-        {{ shuffling() ? 'Picking…' : 'Shuffle' }}
-      </button>
+      <div class="enjoy-actions">
+        <app-filter-chip label="Category" [value]="tagValue()" testId="enjoy-category">
+          <ng-template appFilterPanel>
+            <app-filter-options
+              [options]="tagChoices()"
+              [selected]="tagIds()"
+              multi
+              searchable
+              remote
+              [loading]="tagSearchLoading()"
+              searchLabel="Find a category"
+              emptyText="Type a few letters to find a category. Suggestions then come only from the ones you pick."
+              noMatchText="No category by that name."
+              testId="enjoy-category-option"
+              (searched)="onTagSearch($event)"
+              (changed)="onTagsPicked($event)"
+            />
+          </ng-template>
+        </app-filter-chip>
+        <button
+          type="button"
+          class="shuffle"
+          data-testid="enjoy-shuffle"
+          [disabled]="shuffling() || loading()"
+          [attr.aria-busy]="shuffling()"
+          (click)="shuffle()"
+        >
+          <i class="pi pi-sync" [class.pi-spin]="shuffling()" aria-hidden="true"></i>
+          {{ shuffling() ? 'Picking…' : 'Shuffle' }}
+        </button>
+      </div>
     </div>
   }
 
@@ -65,6 +103,8 @@
             [item]="item"
             studioBadgeRoute="studio"
             [requestable]="item.requestable"
+            [sceneQueryParams]="sceneQueryParams()"
+            [studioQueryParams]="sceneQueryParams()"
             (request)="openRequest($event)"
           />
           <div class="enjoy-why">

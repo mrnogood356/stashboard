@@ -912,3 +912,34 @@ a {
 .download-progress {
   max-width: 28rem;
 }
+
+/* ---------- Spacing: each card's buttons belong to that card ---------- */
+
+.acquisition-card,
+.acquisition-card[data-state] {
+  row-gap: 0.65rem;
+  padding: 1.25rem 0;
+}
+
+.acquisition-card > .card-actions,
+.acquisition-card > .card-actions:is(*) {
+  grid-column: 2 / -1;
+  justify-content: flex-start;
+  margin: 0;
+}
+
+.acquisition-card + .acquisition-card {
+  border-top: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 640px) {
+  .acquisition-card,
+  .acquisition-card[data-state] {
+    padding: 1.1rem 0;
+  }
+
+  .acquisition-card > .card-actions,
+  .acquisition-card > .card-actions:is(*) {
+    grid-column: 1 / -1;
+  }
+}

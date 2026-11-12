@@ -19,6 +19,7 @@ import { PlaybackSettingsService } from '../../core/playback/playback-settings.s
 import { QuickSearchComponent } from '../../shared/quick-search/quick-search.component';
 import { WhatsNewComponent } from '../../shared/whats-new/whats-new.component';
 import { NavigationHistoryService } from '../../core/navigation/navigation-history.service';
+import { BackScrollService } from '../../core/navigation/back-scroll.service';
 
 interface ShellDegradedState {
   kind: 'setup' | 'runtime';
@@ -255,6 +256,7 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
   private readonly themeService = inject(ThemeService);
   private readonly playbackSettings = inject(PlaybackSettingsService);
   private readonly navigationHistory = inject(NavigationHistoryService);
+  private readonly backScroll = inject(BackScrollService);
   private readonly phoneShellMediaQuery = this.createPhoneShellMediaQuery();
   private readonly phoneShellMediaChangeHandler = (event: MediaQueryListEvent) => {
     this.mobileShell.set(event.matches);
@@ -328,6 +330,8 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     // So the back button on More's sections knows where you came from.
     this.navigationHistory.start();
+    // Browser Back returns to where you were on the page, once it has loaded.
+    this.backScroll.start();
     void this.appLock.refresh();
     // The saved theme may have changed on another device.
     void this.themeService.syncFromServer();

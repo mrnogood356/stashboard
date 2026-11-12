@@ -52,6 +52,20 @@ const KEEP = 150;
 const RECENT_LIMIT = 120;
 /** Worked out again after this long (or after Not interested). */
 const TTL_MS = 6 * 60 * 60_000;
+/** Lists kept for different picks of categories. */
+const MAX_LISTS = 8;
+/** Categories a list can be narrowed to. */
+const MAX_TAGS = 10;
+
+function normalizeTagIds(tagIds: string[]): string[] {
+  return [
+    ...new Set(
+      tagIds.map((id) => id.trim().slice(0, 64)).filter((id) => id.length > 0),
+    ),
+  ]
+    .sort()
+    .slice(0, MAX_TAGS);
+}
 
 /**
  * "You may enjoy": catalog scenes you don't have, picked from what you watch
@@ -62,8 +76,12 @@ const TTL_MS = 6 * 60 * 60_000;
 @Injectable()
 export class SuggestionsService {
   private readonly logger = new Logger(SuggestionsService.name);
-  private cache: { at: number; value: SuggestionsDto } | null = null;
-  private running: Promise<SuggestionsDto> | null = null;
+  /** One list per set of categories picked ('' for none). */
+  private readonly cache = new Map<
+    string,
+    { at: number; value: SuggestionsDto }
+  >();
+  private readonly running = new Map<string, Promise<SuggestionsDto>>();
   /** How many scenes each performer or studio has, learnt as they're asked about. */
   private readonly sourceTotals = new Map<string, number>();
   /** What the last few lists put first, for a shuffle to move past. */
@@ -82,24 +100,45 @@ export class SuggestionsService {
     private readonly hiddenContent: HiddenContentService,
   ) {}
 
-  async list(limit = 24): Promise<SuggestionsDto> {
-    return this.shown(await this.current(), limit);
+  /** `tagIds`: catalog categories; only scenes in at least one of them. */
+  async list(limit = 24, tagIds: string[] = []): Promise<SuggestionsDto> {
+    return this.shown(await this.current(normalizeTagIds(tagIds)), limit);
   }
 
   /**
    * A fresh set now: other people and studios you watch in the mix, deeper
    * into their scenes, and what was just shown moved down.
    */
-  async shuffle(limit = 24): Promise<SuggestionsDto> {
-    const value = await (this.running ??= this.build(true)
-      .then((built) => {
-        this.cache = { at: Date.now(), value: built };
-        return built;
+  async shuffle(limit = 24, tagIds: string[] = []): Promise<SuggestionsDto> {
+    const tags = normalizeTagIds(tagIds);
+    return this.shown(await this.run(tags, true), limit);
+  }
+
+  /** Works the list out once at a time per set of categories, and keeps it. */
+  private run(tags: string[], shuffled: boolean): Promise<SuggestionsDto> {
+    const key = tags.join(',');
+    const pending = this.running.get(key);
+    if (pending) {
+      return pending;
+    }
+    const work = this.build(shuffled, tags)
+      .then((value) => {
+        this.cache.delete(key);
+        this.cache.set(key, { at: Date.now(), value });
+        while (this.cache.size > MAX_LISTS) {
+          const oldest = this.cache.keys().next().value;
+          if (oldest === undefined) {
+            break;
+          }
+          this.cache.delete(oldest);
+        }
+        return value;
       })
       .finally(() => {
-        this.running = null;
-      }));
-    return this.shown(value, limit);
+        this.running.delete(key);
+      });
+    this.running.set(key, work);
+    return work;
   }
 
   /** The first `limit`, without any requested or brought in since; remembered as shown. */
@@ -136,33 +175,30 @@ export class SuggestionsService {
       create: { sceneId, reasonKey: key },
       update: { reasonKey: key },
     });
-    if (this.cache) {
-      this.cache = {
-        ...this.cache,
+    for (const [key, entry] of this.cache) {
+      this.cache.set(key, {
+        ...entry,
         value: {
-          ...this.cache.value,
-          items: this.cache.value.items.filter((item) => item.id !== sceneId),
+          ...entry.value,
+          items: entry.value.items.filter((item) => item.id !== sceneId),
         },
-      };
-    }
-  }
-
-  private async current(): Promise<SuggestionsDto> {
-    if (this.cache && Date.now() - this.cache.at < TTL_MS) {
-      return this.cache.value;
-    }
-    this.running ??= this.build()
-      .then((value) => {
-        this.cache = { at: Date.now(), value };
-        return value;
-      })
-      .finally(() => {
-        this.running = null;
       });
-    return this.running;
+    }
   }
 
-  private async build(shuffled = false): Promise<SuggestionsDto> {
+  private async current(tags: string[]): Promise<SuggestionsDto> {
+    const cached = this.cache.get(tags.join(','));
+    if (cached && Date.now() - cached.at < TTL_MS) {
+      return cached.value;
+    }
+    return this.run(tags, false);
+  }
+
+  private async build(
+    shuffled = false,
+    tags: string[] = [],
+  ): Promise<SuggestionsDto> {
+    const tagKey = tags.length > 0 ? `|${tags.join(',')}` : '';
     const [stashConfig, provider] = await Promise.all([
       this.stashConfig(),
       // The instance's own catalog, never one a page is browsing: the list is shared.
@@ -215,11 +251,15 @@ export class SuggestionsService {
           this.stashdb.getScenesForPerformer({
             ...catalog,
             performerId: entry.catalogId,
-            page: this.pageFor(`performer:${entry.catalogId}`, shuffled),
+            page: this.pageFor(
+              `performer:${entry.catalogId}${tagKey}`,
+              shuffled,
+            ),
             perPage: PER_SOURCE,
             sort: 'DATE',
             direction: 'DESC',
             includeTagNames: true,
+            ...(tags.length > 0 ? { tagIds: tags } : {}),
           }),
           `${entry.name}'s scenes`,
         ),
@@ -228,12 +268,15 @@ export class SuggestionsService {
         quietly(
           this.stashdb.getScenesBySort({
             ...catalog,
-            page: this.pageFor(`studio:${entry.catalogId}`, shuffled),
+            page: this.pageFor(`studio:${entry.catalogId}${tagKey}`, shuffled),
             perPage: PER_SOURCE,
             sort: 'DATE',
             direction: 'DESC',
             studioIds: [entry.catalogId],
             includeTagNames: true,
+            ...(tags.length > 0
+              ? { tagFilter: { tagIds: tags, mode: 'OR' as const } }
+              : {}),
           }),
           `${entry.name}'s scenes`,
         ),
@@ -241,8 +284,8 @@ export class SuggestionsService {
     ]);
     this.learnTotals(
       [
-        ...performers.map((entry) => `performer:${entry.catalogId}`),
-        ...studios.map((entry) => `studio:${entry.catalogId}`),
+        ...performers.map((entry) => `performer:${entry.catalogId}${tagKey}`),
+        ...studios.map((entry) => `studio:${entry.catalogId}${tagKey}`),
       ],
       results.map((result) => result?.total ?? null),
     );
@@ -303,9 +346,11 @@ export class SuggestionsService {
     return {
       items,
       message:
-        items.length === 0
-          ? 'Nothing new to suggest right now: you have, or have asked for, everything they’ve made lately.'
-          : null,
+        items.length === 0 && tags.length > 0
+          ? 'Nothing in those categories from who you watch most. Try other categories, or Shuffle.'
+          : items.length === 0
+            ? 'Nothing new to suggest right now: you have, or have asked for, everything they’ve made lately.'
+            : null,
     };
   }
 

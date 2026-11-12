@@ -14,15 +14,21 @@ export class SuggestionsController {
   constructor(private readonly suggestions: SuggestionsService) {}
 
   @Get()
-  list(@Query('limit') limit?: string): Promise<SuggestionsDto> {
-    return this.suggestions.list(parseLimit(limit));
+  list(
+    @Query('limit') limit?: string,
+    @Query('tags') tags?: string,
+  ): Promise<SuggestionsDto> {
+    return this.suggestions.list(parseLimit(limit), parseTags(tags));
   }
 
   /** A fresh set now, instead of waiting hours for the list to be worked out again. */
   @Post('shuffle')
   @HttpCode(200)
-  shuffle(@Query('limit') limit?: string): Promise<SuggestionsDto> {
-    return this.suggestions.shuffle(parseLimit(limit));
+  shuffle(
+    @Query('limit') limit?: string,
+    @Query('tags') tags?: string,
+  ): Promise<SuggestionsDto> {
+    return this.suggestions.shuffle(parseLimit(limit), parseTags(tags));
   }
 
   @Post(':sceneId/dismiss')
@@ -41,4 +47,9 @@ export class SuggestionsController {
 function parseLimit(limit: string | undefined): number {
   const parsed = Number.parseInt(limit ?? '', 10);
   return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 60) : 24;
+}
+
+/** Comma-separated catalog tag ids. */
+function parseTags(tags: string | undefined): string[] {
+  return typeof tags === 'string' ? tags.split(',') : [];
 }

@@ -4,6 +4,7 @@ import { of, throwError } from 'rxjs';
 import { Suggestion, SuggestionsApiService } from '../../core/api/suggestions.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { YouMayEnjoyComponent } from './you-may-enjoy.component';
+import { YouMayEnjoyState } from './you-may-enjoy.state';
 
 const suggestion = (id: string, reason: string): Suggestion =>
   ({
@@ -26,7 +27,10 @@ const suggestion = (id: string, reason: string): Suggestion =>
   }) as Suggestion;
 
 describe('YouMayEnjoyComponent', () => {
-  afterEach(() => TestBed.resetTestingModule());
+  afterEach(() => {
+    TestBed.resetTestingModule();
+    localStorage.removeItem('stashboard.enjoy.tags');
+  });
 
   async function render(api: Partial<SuggestionsApiService>, full = false) {
     await TestBed.configureTestingModule({
@@ -101,7 +105,7 @@ describe('YouMayEnjoyComponent', () => {
     (root.querySelector('[data-testid="enjoy-shuffle"]') as HTMLButtonElement).click();
     fixture.detectChanges();
 
-    expect(shuffle).toHaveBeenCalledWith(60);
+    expect(shuffle).toHaveBeenCalledWith(60, []);
     const text = root.textContent ?? '';
     expect(text).toContain('Scene c');
     expect(text).not.toContain('Scene a');
@@ -118,7 +122,7 @@ describe('YouMayEnjoyComponent', () => {
     const list = vi.fn().mockReturnValue(of({ items, message: null }));
     const page = await render({ list }, true);
     const root = page.nativeElement as HTMLElement;
-    expect(list).toHaveBeenCalledWith(60);
+    expect(list).toHaveBeenCalledWith(60, []);
     expect(root.querySelectorAll('.enjoy-item:not(.extra)').length).toBe(10);
     expect(root.querySelector('[data-testid="show-more"]')).toBeNull();
     expect(root.querySelector('[data-testid="enjoy-see-all"]')).toBeNull();
@@ -134,5 +138,39 @@ describe('YouMayEnjoyComponent', () => {
     TestBed.resetTestingModule();
     fixture = await render({ list: vi.fn().mockReturnValue(throwError(() => new Error('down'))) });
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Couldn’t pick scenes');
+  });
+
+  it('asks only for the categories picked, and remembers them', async () => {
+    const list = vi.fn().mockReturnValue(of({ items: [suggestion('a', 'x')], message: null }));
+    const fixture = await render({ list }, true);
+    const state = TestBed.inject(YouMayEnjoyState);
+    expect(list).toHaveBeenLastCalledWith(60, []);
+
+    state.setTags([{ id: 't1', name: 'Outdoor' }]);
+    (fixture.componentInstance as unknown as { onTagsPicked(ids: string[]): void }).onTagsPicked([
+      't1',
+    ]);
+    fixture.detectChanges();
+    expect(list).toHaveBeenLastCalledWith(60, ['t1']);
+    expect(fixture.nativeElement.textContent).toContain('Outdoor');
+    expect(JSON.parse(localStorage.getItem('stashboard.enjoy.tags') ?? '[]')).toEqual([
+      { id: 't1', name: 'Outdoor' },
+    ]);
+  });
+
+  it('back from a scene: the same picks, without asking again', async () => {
+    const list = vi.fn().mockReturnValue(of({ items: [suggestion('a', 'x')], message: null }));
+    const first = await render({ list }, true);
+    const link = first.nativeElement.querySelector('app-scene-card a[href*="/scene/"]');
+    expect(link?.getAttribute('href')).toContain('returnTo=');
+    const state = TestBed.inject(YouMayEnjoyState);
+    first.destroy();
+
+    const again = TestBed.createComponent(YouMayEnjoyComponent);
+    again.componentRef.setInput('full', true);
+    again.detectChanges();
+    expect(list).toHaveBeenCalledTimes(1);
+    expect(again.nativeElement.textContent).toContain('Scene a');
+    expect(state.restore('page')?.items).toHaveLength(1);
   });
 });

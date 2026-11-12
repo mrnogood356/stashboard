@@ -3,7 +3,9 @@ import { GlassArtService } from '../../core/theme/glass-art.service';
 import { Stage, stagesForStatus } from '../../shared/stage-track/stage-track';
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Location } from '@angular/common';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
+import { NavigationHistoryService } from '../../core/navigation/navigation-history.service';
 import { Subscription, combineLatest, finalize } from 'rxjs';
 import { ButtonDirective } from 'primeng/button';
 import { Message } from 'primeng/message';
@@ -48,6 +50,8 @@ import { PlaybackSettingsService } from '../../core/playback/playback-settings.s
 export class ScenePageComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
+  private readonly navigationHistory = inject(NavigationHistoryService);
   private readonly discoverService = inject(DiscoverService);
   private readonly notifications = inject(AppNotificationsService);
   private readonly releasesApi = inject(ReleasesApiService);
@@ -105,7 +109,11 @@ export class ScenePageComponent implements OnInit, OnDestroy {
       this.route.paramMap,
       this.route.queryParamMap,
     ]).subscribe(([paramMap, queryParamMap]) => {
-      const resolvedBackLink = this.parseReturnTo(queryParamMap.get('returnTo'), '/scenes');
+      // No returnTo: back to the page you came from, when it's another page of the app.
+      const resolvedBackLink = this.parseReturnTo(
+        queryParamMap.get('returnTo') ?? this.cameFrom(),
+        '/scenes',
+      );
       this.backLinkPath.set(resolvedBackLink.path);
       this.backLinkQueryParams.set(resolvedBackLink.queryParams);
       this.backLinkLabel.set(this.backLinkText(resolvedBackLink.path, 'Back to Scenes'));
@@ -571,6 +579,39 @@ export class ScenePageComponent implements OnInit, OnDestroy {
     return description.replaceAll(/\s+/g, ' ').trim();
   }
 
+  /**
+   * Back: the browser's own back when that's the page the link names, so the
+   * page comes back as you left it (scrolled, filtered, the same picks);
+   * otherwise the link opens it.
+   */
+  protected goBack(event: MouseEvent): void {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+    event.preventDefault();
+    const target = this.backLinkHref();
+    const previous = this.navigationHistory.previous();
+    if (previous && sameUrl(previous, target)) {
+      this.location.back();
+      return;
+    }
+    void this.router.navigateByUrl(target);
+  }
+
+  protected backLinkHref(): string {
+    return this.router.serializeUrl(
+      this.router.createUrlTree([this.backLinkPath()], {
+        queryParams: this.backLinkQueryParams(),
+      }),
+    );
+  }
+
+  /** The app page before this scene, unless it was another scene's page. */
+  private cameFrom(): string | null {
+    const previous = this.navigationHistory.previous();
+    return previous && !/^\/scene\//.test(previous) ? previous : null;
+  }
+
   private parseReturnTo(
     rawReturnTo: string | null,
     fallback: string,
@@ -608,6 +649,21 @@ export class ScenePageComponent implements OnInit, OnDestroy {
     }
     if (returnTo.startsWith('/scenes')) {
       return 'Back to Scenes';
+    }
+    if (returnTo.startsWith('/you-may-enjoy')) {
+      return 'Back to You may enjoy';
+    }
+    if (returnTo.startsWith('/search')) {
+      return 'Back to Search';
+    }
+    if (returnTo.startsWith('/following')) {
+      return 'Back to Following';
+    }
+    if (returnTo.startsWith('/calendar')) {
+      return 'Back to Calendar';
+    }
+    if (returnTo.startsWith('/history')) {
+      return 'Back to History';
     }
     if (returnTo.startsWith('/acquisition')) {
       return 'Back to Requests';
@@ -651,4 +707,13 @@ export class ScenePageComponent implements OnInit, OnDestroy {
       return next;
     });
   }
+}
+
+/** Same page and query, whatever order the query is written in. */
+function sameUrl(a: string, b: string): boolean {
+  const normalize = (url: string) => {
+    const [path, query = ''] = url.split('#', 1)[0].split('?');
+    return `${path}?${query.split('&').filter(Boolean).sort().join('&')}`;
+  };
+  return normalize(a) === normalize(b);
 }

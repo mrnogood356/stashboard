@@ -160,4 +160,24 @@ describe('SuggestionsService', () => {
     expect(again.items.map((item) => item.id)).toEqual(['b']);
     expect(deps.stash.listWatchHistory).toHaveBeenCalledTimes(1);
   });
+
+  it('narrows to picked categories, keeping a separate list for them', async () => {
+    const { service, deps } = setup();
+    await service.list();
+    await service.list(24, ['t2', ' t1', 't2']);
+
+    expect(deps.stashdb.getScenesForPerformer).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tagIds: ['t1', 't2'] }),
+    );
+    expect(deps.stash.listWatchHistory).toHaveBeenCalledTimes(2);
+    // Same picks in another order: the list already worked out.
+    await service.list(24, ['t1', 't2']);
+    expect(deps.stash.listWatchHistory).toHaveBeenCalledTimes(2);
+    // No picks: the first list, still kept, and asked without categories.
+    await service.list();
+    expect(deps.stash.listWatchHistory).toHaveBeenCalledTimes(2);
+    expect(
+      deps.stashdb.getScenesForPerformer.mock.calls[0][0],
+    ).not.toHaveProperty('tagIds');
+  });
 });

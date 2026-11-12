@@ -217,7 +217,10 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
 
   protected handoffProgressText(handoff: ProcessingHandoff): string | null {
     const left = timeLeftText(handoff.timeLeft);
-    const parts = [handoff.progress !== null ? `${handoff.progress}%` : null, left].filter(Boolean);
+    const parts = [
+      handoff.progress !== null ? `${percentText(handoff.progress)}%` : null,
+      left,
+    ].filter(Boolean);
     return parts.length ? parts.join(' · ') : null;
   }
 
@@ -716,7 +719,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       return null;
     }
     const left = timeLeftText(download.timeLeft);
-    return [download.progress !== null ? `${download.progress}%` : null, left]
+    return [download.progress !== null ? `${percentText(download.progress)}%` : null, left]
       .filter(Boolean)
       .join(' · ');
   }
@@ -1230,4 +1233,9 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       this.observer.observe(this.sentinelElement);
     }
   }
+}
+
+/** Whole percent, or one decimal under 10%, so floats like 0.39999999999999997 read cleanly. */
+function percentText(progress: number): string {
+  return progress < 10 ? String(Math.round(progress * 10) / 10) : String(Math.round(progress));
 }

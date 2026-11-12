@@ -1,8 +1,8 @@
 <main class="app-page-shell">
   <a
     class="back-link app-back-link app-back-link--media"
-    [routerLink]="backLinkPath()"
-    [queryParams]="backLinkQueryParams()"
+    [href]="backLinkHref()"
+    (click)="goBack($event)"
   >
     {{ backLinkLabel() }}
   </a>
