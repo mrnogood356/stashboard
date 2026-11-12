@@ -12,9 +12,42 @@
         <h2 id="you-may-enjoy">You may enjoy</h2>
         <p class="muted">Scenes you don’t have yet, picked from what you watch most.</p>
       </div>
-      @if (items().length > 0) {
-        <a class="see-all" routerLink="/you-may-enjoy" data-testid="enjoy-see-all">See all</a>
-      }
+      <div class="enjoy-actions">
+        <button
+          type="button"
+          class="shuffle"
+          data-testid="enjoy-shuffle"
+          [disabled]="shuffling() || loading()"
+          [attr.aria-busy]="shuffling()"
+          (click)="shuffle()"
+        >
+          <i class="pi pi-sync" [class.pi-spin]="shuffling()" aria-hidden="true"></i>
+          {{ shuffling() ? 'Picking…' : 'Shuffle' }}
+        </button>
+        @if (items().length > 0) {
+          <a class="see-all" routerLink="/you-may-enjoy" data-testid="enjoy-see-all">See all</a>
+        }
+      </div>
+    </div>
+  } @else {
+    <div class="enjoy-toolbar">
+      <p class="muted">
+        @if (!loading() && items().length > 0) {
+          {{ items().length }} {{ items().length === 1 ? 'pick' : 'picks' }}. Not interested hides
+          one for good and brings in the next.
+        }
+      </p>
+      <button
+        type="button"
+        class="shuffle"
+        data-testid="enjoy-shuffle"
+        [disabled]="shuffling() || loading()"
+        [attr.aria-busy]="shuffling()"
+        (click)="shuffle()"
+      >
+        <i class="pi pi-sync" [class.pi-spin]="shuffling()" aria-hidden="true"></i>
+        {{ shuffling() ? 'Picking…' : 'Shuffle' }}
+      </button>
     </div>
   }
 

@@ -4,10 +4,11 @@
 }
 
 .enjoy {
-  --app-section-radius: 18px;
-  --app-section-padding: 0.95rem;
-  --app-section-border: 1px solid color-mix(in srgb, var(--border-strong) 52%, transparent);
-  --app-section-bg: color-mix(in srgb, var(--surface-elevated) 92%, var(--surface-1));
+  /* On the page like the sections around it, not in a box. */
+  --app-section-radius: 0;
+  --app-section-padding: 0;
+  --app-section-border: 0;
+  --app-section-bg: transparent;
 }
 
 .enjoy-head {
@@ -21,9 +22,61 @@
   flex-shrink: 0;
   padding: 0.2rem 0;
   font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--accent-text, var(--accent));
+  font-weight: 500;
+  color: var(--text-secondary);
   text-decoration: none;
+}
+
+.enjoy-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-shrink: 0;
+}
+
+/* The page's own: how many, and Shuffle. */
+.enjoy-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.enjoy-toolbar p {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.shuffle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  min-height: 2.25rem;
+  padding: 0 0.85rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.shuffle:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.shuffle:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.shuffle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .enjoy-head h2 {
@@ -79,12 +132,21 @@
   background: none;
   padding: 0.35rem 0;
   font: inherit;
-  color: var(--accent-text, var(--accent));
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
 .not-interested {
   min-height: 2rem;
+  color: var(--text-muted);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 2px;
+}
+
+.not-interested:hover {
+  color: var(--text-primary);
+  text-decoration-color: currentColor;
 }
 
 .show-more {

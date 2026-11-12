@@ -23,6 +23,11 @@ export class SuggestionsApiService {
     return this.http.get<Suggestions>('/api/suggestions', { params: { limit } });
   }
 
+  /** A fresh set now: other picks, deeper in, what was just shown moved down. */
+  shuffle(limit = 24): Observable<Suggestions> {
+    return this.http.post<Suggestions>('/api/suggestions/shuffle', null, { params: { limit } });
+  }
+
   dismiss(suggestion: Suggestion): Observable<void> {
     return this.http.post<void>(`/api/suggestions/${encodeURIComponent(suggestion.id)}/dismiss`, {
       reason: suggestion.reason.key,

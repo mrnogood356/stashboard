@@ -15,10 +15,14 @@ export class SuggestionsController {
 
   @Get()
   list(@Query('limit') limit?: string): Promise<SuggestionsDto> {
-    const parsed = Number.parseInt(limit ?? '', 10);
-    return this.suggestions.list(
-      Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 60) : 24,
-    );
+    return this.suggestions.list(parseLimit(limit));
+  }
+
+  /** A fresh set now, instead of waiting hours for the list to be worked out again. */
+  @Post('shuffle')
+  @HttpCode(200)
+  shuffle(@Query('limit') limit?: string): Promise<SuggestionsDto> {
+    return this.suggestions.shuffle(parseLimit(limit));
   }
 
   @Post(':sceneId/dismiss')
@@ -32,4 +36,9 @@ export class SuggestionsController {
       typeof body?.reason === 'string' ? body.reason : '',
     );
   }
+}
+
+function parseLimit(limit: string | undefined): number {
+  const parsed = Number.parseInt(limit ?? '', 10);
+  return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 60) : 24;
 }

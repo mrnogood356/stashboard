@@ -109,6 +109,49 @@ describe('SuggestionsService', () => {
     ).not.toHaveBeenCalled();
   });
 
+  it('shuffles: works it out again now, deeper into their scenes, what was shown moved down', async () => {
+    const { service, deps } = setup();
+    deps.stashdb.getScenesForPerformer.mockResolvedValue({
+      total: 200,
+      scenes: ['a', 'b', 'c', 'd'].map((id) => ({
+        id,
+        title: id,
+        details: null,
+        imageUrl: null,
+        studioId: null,
+        studioName: null,
+        studioImageUrl: null,
+        date: null,
+        releaseDate: '2026-10-01',
+        productionDate: null,
+        duration: 1800,
+        performers: [{ id: 'p-k', name: 'Kaitlyn' }],
+      })),
+    });
+    const first = await service.list(2);
+    expect(first.items.map((item) => item.id)).toEqual(['a', 'b']);
+    expect(deps.stashdb.getScenesForPerformer).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1 }),
+    );
+
+    service.random = () => 0.9;
+    const shuffled = await service.shuffle(2);
+
+    expect(deps.stash.listWatchHistory).toHaveBeenCalledTimes(2);
+    // 200 scenes is 10 pages: a shuffle reaches past the newest.
+    const page = deps.stashdb.getScenesForPerformer.mock.calls.at(-1)[0]
+      .page as number;
+    expect(page).toBeGreaterThan(1);
+    expect(page).toBeLessThanOrEqual(10);
+    // The two just shown fall behind the two that weren't.
+    expect(shuffled.items.map((item) => item.id)).toEqual(['c', 'd']);
+    // And the shuffled list is what's kept for the next look.
+    expect((await service.list(2)).items.map((item) => item.id)).toEqual([
+      'c',
+      'd',
+    ]);
+  });
+
   it('drops a scene requested since the list was worked out, without working it out again', async () => {
     const { service, deps, request } = setup();
     await service.list();

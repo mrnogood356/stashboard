@@ -17,7 +17,9 @@ import { ScenesService } from '../scenes/scenes.service';
 import {
   type SuggestionReason,
   buildTasteProfile,
+  pickSources,
   rankCandidates,
+  reshuffle,
 } from './suggestions.util';
 
 export interface SuggestionDto extends ScenesFeedItemDto {
@@ -30,12 +32,24 @@ export interface SuggestionsDto {
   message: string | null;
 }
 
-/** Performers and studios you watch most that are asked about. */
-const TOP_PERFORMERS = 8;
-const TOP_STUDIOS = 4;
-/** Newest scenes asked for per performer or studio. */
+/**
+ * Performers and studios asked about: the ones you watch most every time,
+ * and a few more drawn at random from the next ones down.
+ */
+const TOP_PERFORMERS = 5;
+const EXTRA_PERFORMERS = 4;
+const PERFORMER_POOL = 20;
+const TOP_STUDIOS = 2;
+const EXTRA_STUDIOS = 2;
+const STUDIO_POOL = 10;
+/** Scenes asked for per performer or studio (one page). */
 const PER_SOURCE = 20;
-const KEEP = 60;
+/** How deep a shuffle can reach into someone's scenes (pages of PER_SOURCE). */
+const MAX_PAGE = 10;
+/** Enough kept that Not interested and Request leave something to fill the gap. */
+const KEEP = 150;
+/** Scenes shown lately, pushed down by the next shuffle. */
+const RECENT_LIMIT = 120;
 /** Worked out again after this long (or after Not interested). */
 const TTL_MS = 6 * 60 * 60_000;
 
@@ -50,6 +64,12 @@ export class SuggestionsService {
   private readonly logger = new Logger(SuggestionsService.name);
   private cache: { at: number; value: SuggestionsDto } | null = null;
   private running: Promise<SuggestionsDto> | null = null;
+  /** How many scenes each performer or studio has, learnt as they're asked about. */
+  private readonly sourceTotals = new Map<string, number>();
+  /** What the last few lists put first, for a shuffle to move past. */
+  private recentlyShown = new Set<string>();
+  /** Used by tests for a fixed draw. */
+  random: () => number = Math.random;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -63,7 +83,30 @@ export class SuggestionsService {
   ) {}
 
   async list(limit = 24): Promise<SuggestionsDto> {
-    const value = await this.current();
+    return this.shown(await this.current(), limit);
+  }
+
+  /**
+   * A fresh set now: other people and studios you watch in the mix, deeper
+   * into their scenes, and what was just shown moved down.
+   */
+  async shuffle(limit = 24): Promise<SuggestionsDto> {
+    const value = await (this.running ??= this.build(true)
+      .then((built) => {
+        this.cache = { at: Date.now(), value: built };
+        return built;
+      })
+      .finally(() => {
+        this.running = null;
+      }));
+    return this.shown(value, limit);
+  }
+
+  /** The first `limit`, without any requested or brought in since; remembered as shown. */
+  private async shown(
+    value: SuggestionsDto,
+    limit: number,
+  ): Promise<SuggestionsDto> {
     // The list is kept for hours; a scene requested or brought in since is dropped.
     const statuses = await this.sceneStatus.resolveForScenes(
       value.items.map((item) => item.id),
@@ -74,6 +117,14 @@ export class SuggestionsService {
         return !status || isSceneStatusRequestable(status);
       })
       .slice(0, limit);
+    for (const item of items) {
+      this.recentlyShown.add(item.id);
+    }
+    if (this.recentlyShown.size > RECENT_LIMIT) {
+      this.recentlyShown = new Set(
+        [...this.recentlyShown].slice(-RECENT_LIMIT),
+      );
+    }
     return { ...value, items };
   }
 
@@ -111,7 +162,7 @@ export class SuggestionsService {
     return this.running;
   }
 
-  private async build(): Promise<SuggestionsDto> {
+  private async build(shuffled = false): Promise<SuggestionsDto> {
     const [stashConfig, provider] = await Promise.all([
       this.stashConfig(),
       // The instance's own catalog, never one a page is browsing: the list is shared.
@@ -128,8 +179,20 @@ export class SuggestionsService {
       provider.providerKey,
     );
     const profile = buildTasteProfile(watched);
-    const performers = profile.performers.slice(0, TOP_PERFORMERS);
-    const studios = profile.studios.slice(0, TOP_STUDIOS);
+    const performers = pickSources(
+      profile.performers,
+      TOP_PERFORMERS,
+      EXTRA_PERFORMERS,
+      PERFORMER_POOL,
+      this.random,
+    );
+    const studios = pickSources(
+      profile.studios,
+      TOP_STUDIOS,
+      EXTRA_STUDIOS,
+      STUDIO_POOL,
+      this.random,
+    );
     if (performers.length === 0 && studios.length === 0) {
       return {
         items: [],
@@ -152,7 +215,7 @@ export class SuggestionsService {
           this.stashdb.getScenesForPerformer({
             ...catalog,
             performerId: entry.catalogId,
-            page: 1,
+            page: this.pageFor(`performer:${entry.catalogId}`, shuffled),
             perPage: PER_SOURCE,
             sort: 'DATE',
             direction: 'DESC',
@@ -165,7 +228,7 @@ export class SuggestionsService {
         quietly(
           this.stashdb.getScenesBySort({
             ...catalog,
-            page: 1,
+            page: this.pageFor(`studio:${entry.catalogId}`, shuffled),
             perPage: PER_SOURCE,
             sort: 'DATE',
             direction: 'DESC',
@@ -176,6 +239,13 @@ export class SuggestionsService {
         ),
       ),
     ]);
+    this.learnTotals(
+      [
+        ...performers.map((entry) => `performer:${entry.catalogId}`),
+        ...studios.map((entry) => `studio:${entry.catalogId}`),
+      ],
+      results.map((result) => result?.total ?? null),
+    );
     const candidates = results.flatMap((result) => result?.scenes ?? []);
 
     const rules =
@@ -195,11 +265,14 @@ export class SuggestionsService {
       dismissals.set(row.reasonKey, (dismissals.get(row.reasonKey) ?? 0) + 1);
     }
 
-    const ranked = rankCandidates(
+    const ordered = rankCandidates(
       shown.filter((scene) => !gone.has(scene.id)),
       profile,
       dismissals,
     );
+    const ranked = shuffled
+      ? reshuffle(ordered, this.recentlyShown, this.random)
+      : ordered;
     const statuses = await this.sceneStatus.resolveForScenes(
       ranked.map((entry) => entry.scene.id),
     );
@@ -234,6 +307,31 @@ export class SuggestionsService {
           ? 'Nothing new to suggest right now: you have, or have asked for, everything they’ve made lately.'
           : null,
     };
+  }
+
+  /**
+   * Their newest scenes the first time; a shuffle reaches a random page of
+   * the ones they have (newest still the likeliest), once their count is known.
+   */
+  private pageFor(key: string, shuffled: boolean): number {
+    const total = this.sourceTotals.get(key);
+    if (!shuffled || !total) {
+      return 1;
+    }
+    const pages = Math.max(
+      1,
+      Math.min(MAX_PAGE, Math.ceil(total / PER_SOURCE)),
+    );
+    return 1 + Math.floor(this.random() ** 1.5 * pages);
+  }
+
+  private learnTotals(keys: string[], totals: Array<number | null>): void {
+    keys.forEach((key, index) => {
+      const total = totals[index];
+      if (typeof total === 'number' && total > 0) {
+        this.sourceTotals.set(key, total);
+      }
+    });
   }
 
   private async stashConfig(): Promise<{

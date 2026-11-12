@@ -66,6 +66,47 @@ describe('YouMayEnjoyComponent', () => {
     expect(root.textContent).not.toContain('Because you watch Kaitlyn');
   });
 
+  it('brings the next pick in when one is hidden, never the hidden one', async () => {
+    const shown = [suggestion('a', 'x'), suggestion('b', 'x')];
+    const list = vi
+      .fn()
+      .mockReturnValueOnce(of({ items: shown, message: null }))
+      // The server's next look: the hidden one gone, the next in line after.
+      .mockReturnValueOnce(of({ items: [shown[1], suggestion('c', 'x')], message: null }));
+    const fixture = await render({ list, dismiss: vi.fn().mockReturnValue(of(undefined)) });
+    const root = fixture.nativeElement as HTMLElement;
+
+    (root.querySelector('[data-testid="not-interested"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const titles = Array.from(root.querySelectorAll('.enjoy-item')).map(
+      (item) => item.querySelector('app-scene-card')?.textContent ?? '',
+    );
+    expect(titles).toHaveLength(2);
+    expect(titles[0]).toContain('Scene b');
+    expect(titles[1]).toContain('Scene c');
+  });
+
+  it('shuffles to a fresh set, on the section and on its page', async () => {
+    const first = [suggestion('a', 'x'), suggestion('b', 'x')];
+    const fresh = [suggestion('c', 'x'), suggestion('d', 'x')];
+    const shuffle = vi.fn().mockReturnValue(of({ items: fresh, message: null }));
+    const fixture = await render(
+      { list: vi.fn().mockReturnValue(of({ items: first, message: null })), shuffle },
+      true,
+    );
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.textContent).toContain('2 picks');
+
+    (root.querySelector('[data-testid="enjoy-shuffle"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(shuffle).toHaveBeenCalledWith(60);
+    const text = root.textContent ?? '';
+    expect(text).toContain('Scene c');
+    expect(text).not.toContain('Scene a');
+  });
+
   it('links the section to its own page, which lists every pick', async () => {
     const items = Array.from({ length: 10 }, (_, i) => suggestion(`s${i}`, 'From Vixen'));
     const section = await render({ list: vi.fn().mockReturnValue(of({ items, message: null })) });
