@@ -499,3 +499,53 @@
 .request-button:hover:not(:disabled) {
   border-color: var(--border-strong);
 }
+
+/* ---------- Current look: releases as a plain list, status as a dot and words ---------- */
+
+.release {
+  padding: 0.6rem 0;
+  border-radius: 0;
+  background: none;
+}
+
+.release + .release {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.whisparr-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
+.whisparr-tag::before {
+  content: '';
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--badge-import-pending-text);
+}
+
+.today-chip {
+  padding: 0;
+  background: none;
+  color: var(--accent-text, var(--accent));
+  font-weight: 500;
+}
+
+.agenda-day ul {
+  gap: 0;
+}
+
+.nav-button,
+.today-button {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+}

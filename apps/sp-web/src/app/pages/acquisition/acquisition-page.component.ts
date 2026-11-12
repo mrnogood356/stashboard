@@ -1235,4 +1235,3 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     }
   }
 }
-

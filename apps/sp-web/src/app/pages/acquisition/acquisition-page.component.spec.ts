@@ -273,24 +273,26 @@ describe('AcquisitionPageComponent', () => {
     const timelineApi = {
       scenes: vi.fn((ids: string[]) =>
         of(
-          ids.map((id): SceneTimeline => ({
-            stashId: id,
-            route: 'whisparr',
-            now: id === 'scene-failed' ? 'Download failed' : 'Searching for a release',
-            unknown: [],
-            checkedAt: '2026-10-21T12:00:00.000Z',
-            steps: [
-              {
-                step: 'downloading',
-                label: 'Downloading',
-                at: null,
-                status: id === 'scene-failed' ? 'failed' : 'current',
-                detail: null,
-                progress: null,
-                action: null,
-              },
-            ],
-          })),
+          ids.map(
+            (id): SceneTimeline => ({
+              stashId: id,
+              route: 'whisparr',
+              now: id === 'scene-failed' ? 'Download failed' : 'Searching for a release',
+              unknown: [],
+              checkedAt: '2026-10-21T12:00:00.000Z',
+              steps: [
+                {
+                  step: 'downloading',
+                  label: 'Downloading',
+                  at: null,
+                  status: id === 'scene-failed' ? 'failed' : 'current',
+                  detail: null,
+                  progress: null,
+                  action: null,
+                },
+              ],
+            }),
+          ),
         ),
       ),
       scene: vi.fn((id: string) =>
