@@ -75,6 +75,9 @@ const RECENT_SCENES_FOR_PREVIEWS = 40;
 const PREVIEW_SWEEP_MS = 30 * 60_000;
 /** Previews are asked for a scene this many times at most (per start-up). */
 const PREVIEW_TRIES = 2;
+/** How long to wait for the previews a rescan makes in a job of their own. */
+const SCAN_PREVIEWS_WAIT_MS = 15 * 60_000;
+const SCAN_PREVIEWS_POLL_MS = 5_000;
 
 /**
  * When Whisparr imports a scene: ask Stash to scan, identify the new scene on
@@ -842,10 +845,35 @@ export class AutomationService
       const result = await this.stash.waitForJob(config, job, {
         sleep: this.sleep,
       });
-      return result === 'FINISHED';
+      if (result !== 'FINISHED') {
+        return false;
+      }
+      // Newer Stash makes a scan's previews in a job of their own that
+      // carries on after the scan: wait for it before checking.
+      await this.waitForStashGenerating(config);
+      return true;
     } catch (error) {
       this.logger.warn(`Couldn't rescan for previews: ${messageOf(error)}`);
       return false;
+    }
+  }
+
+  /** Until Stash has no generating job left, or long enough has passed. */
+  private async waitForStashGenerating(
+    config: StashAdapterBaseConfig,
+  ): Promise<void> {
+    const deadline = Date.now() + SCAN_PREVIEWS_WAIT_MS;
+    while (Date.now() < deadline) {
+      const queue = await this.stash.getJobQueue(config).catch(() => []);
+      const generating = queue.some(
+        (job) =>
+          /generat/i.test(job.description) &&
+          !['FINISHED', 'FAILED', 'CANCELLED'].includes(job.status),
+      );
+      if (!generating) {
+        return;
+      }
+      await this.sleep(SCAN_PREVIEWS_POLL_MS);
     }
   }
 

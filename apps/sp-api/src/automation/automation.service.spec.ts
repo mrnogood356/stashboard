@@ -23,6 +23,7 @@ describe('AutomationService', () => {
     findLocalScenes: jest.Mock;
     scenesWithoutPreview: jest.Mock;
     rescanForPreviews: jest.Mock;
+    getJobQueue: jest.Mock;
   };
   let indexing: {
     syncLibraryProjection: jest.Mock;
@@ -75,6 +76,7 @@ describe('AutomationService', () => {
         .fn()
         .mockResolvedValue({ missing: [], unanswered: [] }),
       rescanForPreviews: jest.fn().mockResolvedValue(null),
+      getJobQueue: jest.fn().mockResolvedValue([]),
     };
     indexing = {
       syncLibraryProjection: jest.fn().mockResolvedValue(null),
@@ -718,6 +720,34 @@ describe('AutomationService', () => {
         'rescan-job',
         expect.anything(),
       );
+      expect(settings.lastRunMessage).toBe(
+        'Found 2 new scenes, previews generated, identified.',
+      );
+    });
+
+    it('waits for the job Stash makes a rescan’s previews in before checking', async () => {
+      stash.rescanForPreviews.mockResolvedValue('rescan-job');
+      const generating = {
+        id: '9',
+        status: 'RUNNING',
+        description: 'Generating for scanned files...',
+      };
+      let previewsMade = false;
+      stash.scenesWithoutPreview.mockImplementation((_config, ids: string[]) =>
+        Promise.resolve(
+          lacking(...(previewsMade ? [] : ids.filter((id) => id !== '7'))),
+        ),
+      );
+      // The previews appear once Stash's generating job has finished.
+      stash.getJobQueue.mockImplementation(() => {
+        const calls = stash.getJobQueue.mock.calls.length;
+        previewsMade = calls >= 3;
+        return Promise.resolve(
+          calls >= 3 ? [{ ...generating, status: 'FINISHED' }] : [generating],
+        );
+      });
+      await service.run('detected');
+      expect(stash.getJobQueue.mock.calls.length).toBeGreaterThanOrEqual(3);
       expect(settings.lastRunMessage).toBe(
         'Found 2 new scenes, previews generated, identified.',
       );
