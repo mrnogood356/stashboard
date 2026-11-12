@@ -458,10 +458,11 @@ ul {
     padding: 1rem;
   }
 
-  /* Centred under the logo, like the performer pages on a phone. */
+  /* A logo, not a screen-wide box, centred like the performer pages on a
+     phone, with the name and buttons under it. */
   .media-column {
     justify-self: center;
-    width: min(70vw, 280px);
+    width: min(56vw, 15rem);
   }
 
   .title-row,
@@ -518,12 +519,6 @@ ul {
 }
 
 @media (max-width: 640px) {
-  /* A logo, not a screen-wide box. */
-  .media-column {
-    justify-self: start;
-    width: min(42vw, 11rem);
-  }
-
   /* Child studios as a row of names, not a card each. */
   .child-grid {
     display: flex;

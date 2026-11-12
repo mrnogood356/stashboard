@@ -2,6 +2,8 @@ import { Component, ElementRef, Input, OnInit, computed, inject, signal } from '
 import { HiddenContentService, HiddenItemKind } from '../../core/api/hidden-content.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 
+let nextPanelId = 0;
+
 const NOUN: Record<HiddenItemKind, string> = {
   tag: 'tag',
   studio: 'studio',
@@ -42,19 +44,18 @@ const NOUN: Record<HiddenItemKind, string> = {
             type="button"
             class="hide-menu-trigger"
             [attr.aria-label]="'More options for this ' + noun()"
-            aria-haspopup="menu"
             [attr.aria-expanded]="menuOpen()"
+            [attr.aria-controls]="panelId"
             [attr.data-testid]="'more-' + what()"
             (click)="toggleMenu($event)"
           >
             <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
           </button>
           @if (menuOpen()) {
-            <ul class="hide-menu-list" role="menu">
+            <ul class="hide-menu-list" [id]="panelId">
               <li>
                 <button
                   type="button"
-                  role="menuitem"
                   [disabled]="busy()"
                   aria-pressed="false"
                   [attr.aria-busy]="busy()"
@@ -204,6 +205,8 @@ export class HideToggleComponent implements OnInit {
   protected readonly menuOpen = signal(false);
   protected readonly hidden = computed(() => this.hiddenContent.isHidden(this.what(), this.id()));
   protected readonly noun = computed(() => NOUN[this.what()]);
+  /** A plain disclosure: the ⋯ button shows or hides one button under it. */
+  protected readonly panelId = `hide-options-${++nextPanelId}`;
 
   ngOnInit(): void {
     this.hiddenContent.ensureLoaded();

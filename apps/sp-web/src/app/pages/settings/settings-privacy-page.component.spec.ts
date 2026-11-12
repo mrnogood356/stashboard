@@ -86,4 +86,34 @@ describe('SettingsPrivacyPageComponent', () => {
       'Face ID needs Stashboard to be opened over',
     );
   });
+
+  it('says when the settings can’t be read, instead of offering defaults as saved', async () => {
+    const { fixture, appLock } = await render();
+    appLock.refresh.mockResolvedValueOnce(null);
+    const component = fixture.componentInstance as unknown as { load(): Promise<void> };
+    await component.load();
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="app-lock-load-failed"]')).not.toBeNull();
+    expect(root.textContent).not.toContain('Hide in app switcher');
+  });
+
+  it('keeps a change made while saving as unsaved', async () => {
+    const { fixture, component, appLock } = await render();
+    let finish!: () => void;
+    appLock.saveSettings.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    component['hideInSwitcher'] = false;
+    component['currentPassword'] = 'pw';
+    const saving = (component['save'] as () => Promise<void>).call(component);
+    component['hideInSwitcher'] = true;
+    finish();
+    await saving;
+    fixture.detectChanges();
+    // Sent off, on its way back on: still a change to save.
+    expect((component['changed'] as () => boolean).call(component)).toBe(true);
+  });
 });

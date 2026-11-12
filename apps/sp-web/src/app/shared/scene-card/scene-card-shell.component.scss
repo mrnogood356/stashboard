@@ -408,6 +408,14 @@ img.thumbnail.is-failed {
     transform: none;
   }
 
+  /* The circle is small, but a tap anywhere within 44px of it plays, rather
+     than opening the scene underneath. */
+  .play-button::before {
+    content: '';
+    position: absolute;
+    inset: -0.375rem;
+  }
+
   .play-button:hover,
   .play-button:focus-visible {
     transform: none;

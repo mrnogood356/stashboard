@@ -9,111 +9,120 @@
   @if (loading()) {
     <p class="muted" role="status">Loading…</p>
   } @else {
-    <form class="card" (ngSubmit)="save()">
-      <div class="switch-row">
-        <span>
-          <strong>App Lock</strong>
-          <small>Ask for your PIN when you come back to Stashboard.</small>
-        </span>
-        <input
-          type="checkbox"
-          class="app-switch"
-          role="switch"
-          name="enabled"
-          aria-label="App Lock"
-          [(ngModel)]="enabled"
-        />
-      </div>
-
-      @if (enabled) {
-        <label class="field">
-          <span class="field-label">Lock</span>
-          <select class="text-input" name="timeout" [(ngModel)]="timeoutSeconds">
-            @for (option of timeoutOptions; track option.value) {
-              <option [ngValue]="option.value">{{ option.label }}</option>
-            }
-          </select>
-          <span class="muted"
-            >How long Stashboard can be in the background before it locks. While it’s open on screen
-            it never locks.</span
-          >
-        </label>
-
-        <div class="pin-row">
-          <label class="field">
-            <span class="field-label">{{ hasPin() ? 'New PIN (optional)' : 'PIN' }}</span>
-            <input
-              class="text-input"
-              name="pin"
-              type="password"
-              inputmode="numeric"
-              autocomplete="new-password"
-              maxlength="8"
-              placeholder="4–8 digits"
-              [(ngModel)]="pin"
-            />
-          </label>
-          <label class="field">
-            <span class="field-label">Confirm PIN</span>
-            <input
-              class="text-input"
-              name="pinConfirm"
-              type="password"
-              inputmode="numeric"
-              autocomplete="new-password"
-              maxlength="8"
-              [(ngModel)]="pinConfirm"
-            />
-          </label>
-        </div>
-      }
-
-      <div class="switch-row">
-        <span>
-          <strong>Hide in app switcher</strong>
-          <small
-            >Cover the screen when you leave the app, so the switcher shows only the Stashboard
-            icon.</small
-          >
-        </span>
-        <input
-          type="checkbox"
-          class="app-switch"
-          role="switch"
-          name="hideInSwitcher"
-          aria-label="Hide in app switcher"
-          [(ngModel)]="hideInSwitcher"
-        />
-      </div>
-
-      <!-- Unlike Quick hide below, these are saved on the server, so changing
-           them asks for the password. Shown only once there's a change. -->
-      @if (changed()) {
-        <label class="field" data-testid="app-lock-password">
-          <span class="field-label">Account password</span>
-          <input
-            class="text-input"
-            name="currentPassword"
-            type="password"
-            autocomplete="current-password"
-            [(ngModel)]="currentPassword"
-          />
-          <span class="muted">To save these App Lock changes.</span>
-        </label>
-      }
-
-      @if (message(); as m) {
-        <p class="status" [class.error]="m.kind === 'error'" role="status">{{ m.text }}</p>
-      }
-
-      @if (changed()) {
+    @if (loadFailed()) {
+      <section class="card" role="alert" data-testid="app-lock-load-failed">
+        <p>Couldn’t read your App Lock settings, so they can’t be changed just now.</p>
         <div class="actions">
-          <button type="submit" class="button" [disabled]="saving()">
-            {{ saving() ? 'Saving…' : 'Save App Lock' }}
-          </button>
+          <button type="button" class="button" (click)="load()">Try again</button>
         </div>
-      }
-    </form>
+      </section>
+    } @else {
+      <form class="card" (ngSubmit)="save()">
+        <div class="switch-row">
+          <span>
+            <strong>App Lock</strong>
+            <small>Ask for your PIN when you come back to Stashboard.</small>
+          </span>
+          <input
+            type="checkbox"
+            class="app-switch"
+            role="switch"
+            name="enabled"
+            aria-label="App Lock"
+            [(ngModel)]="enabled"
+          />
+        </div>
+
+        @if (enabled) {
+          <label class="field">
+            <span class="field-label">Lock</span>
+            <select class="text-input" name="timeout" [(ngModel)]="timeoutSeconds">
+              @for (option of timeoutOptions; track option.value) {
+                <option [ngValue]="option.value">{{ option.label }}</option>
+              }
+            </select>
+            <span class="muted"
+              >How long Stashboard can be in the background before it locks. While it’s open on
+              screen it never locks.</span
+            >
+          </label>
+
+          <div class="pin-row">
+            <label class="field">
+              <span class="field-label">{{ hasPin() ? 'New PIN (optional)' : 'PIN' }}</span>
+              <input
+                class="text-input"
+                name="pin"
+                type="password"
+                inputmode="numeric"
+                autocomplete="new-password"
+                maxlength="8"
+                placeholder="4–8 digits"
+                [(ngModel)]="pin"
+              />
+            </label>
+            <label class="field">
+              <span class="field-label">Confirm PIN</span>
+              <input
+                class="text-input"
+                name="pinConfirm"
+                type="password"
+                inputmode="numeric"
+                autocomplete="new-password"
+                maxlength="8"
+                [(ngModel)]="pinConfirm"
+              />
+            </label>
+          </div>
+        }
+
+        <div class="switch-row">
+          <span>
+            <strong>Hide in app switcher</strong>
+            <small
+              >Cover the screen when you leave the app, so the switcher shows only the Stashboard
+              icon.</small
+            >
+          </span>
+          <input
+            type="checkbox"
+            class="app-switch"
+            role="switch"
+            name="hideInSwitcher"
+            aria-label="Hide in app switcher"
+            [(ngModel)]="hideInSwitcher"
+          />
+        </div>
+
+        <!-- Unlike Quick hide below, these are saved on the server, so changing
+           them asks for the password. Shown only once there's a change. -->
+        @if (changed()) {
+          <label class="field" data-testid="app-lock-password">
+            <span class="field-label">Account password</span>
+            <input
+              class="text-input"
+              name="currentPassword"
+              type="password"
+              autocomplete="current-password"
+              [(ngModel)]="currentPassword"
+            />
+            <span class="muted">To save these App Lock changes.</span>
+          </label>
+        }
+
+        @if (message(); as m) {
+          <p class="status" [class.error]="m.kind === 'error'" role="status">{{ m.text }}</p>
+        }
+
+        @if (changed()) {
+          <div class="actions">
+            <button type="submit" class="button" [disabled]="saving()">
+              {{ saving() ? 'Saving…' : 'Save App Lock' }}
+            </button>
+          </div>
+        }
+      </form>
+    }
 
     <section class="card face-id">
       <h3>Face ID</h3>

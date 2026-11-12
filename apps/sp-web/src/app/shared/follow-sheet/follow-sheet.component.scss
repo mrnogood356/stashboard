@@ -66,8 +66,8 @@ small {
   margin-left: auto;
 }
 
-:host ::ng-deep .follow-fields .p-select,
-:host ::ng-deep .follow-fields .p-multiselect {
+.follow-fields ::ng-deep .p-select,
+.follow-fields ::ng-deep .p-multiselect {
   width: 100%;
   border-radius: 10px;
   border-color: var(--border-subtle);
@@ -75,8 +75,8 @@ small {
   color: var(--text-primary);
 }
 
-:host ::ng-deep .follow-fields .p-select:not(.p-disabled):hover,
-:host ::ng-deep .follow-fields .p-multiselect:not(.p-disabled):hover {
+.follow-fields ::ng-deep .p-select:not(.p-disabled):hover,
+.follow-fields ::ng-deep .p-multiselect:not(.p-disabled):hover {
   border-color: color-mix(in srgb, var(--focus-ring) 70%, var(--border-subtle));
 }
 

@@ -68,6 +68,9 @@ describe('performer facts', () => {
   it('leaves values it can’t read as they came', () => {
     expect(readableValue('light brown')).toBe('light brown');
     expect(readableDate('sometime in 1996')).toBe('sometime in 1996');
+    expect(readableDate('2025-02-29')).toBe('2025-02-29');
+    expect(readableDate('2025-13-01')).toBe('2025-13-01');
+    expect(readableDate('2024-02-29')).toBe('Feb 29, 2024');
     expect(readableHeight('tall')).toBe('tall');
     expect(readableCountry('Atlantis')).toBe('Atlantis');
     expect(readableValue(null)).toBeNull();

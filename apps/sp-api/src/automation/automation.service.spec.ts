@@ -753,6 +753,31 @@ describe('AutomationService', () => {
       );
     });
 
+    it('keeps waiting when Stash’s job list doesn’t answer for a moment', async () => {
+      stash.rescanForPreviews.mockResolvedValue('rescan-job');
+      const running = {
+        id: '9',
+        status: 'RUNNING',
+        description: 'Generating for scanned files...',
+      };
+      let previewsMade = false;
+      stash.getJobQueue
+        .mockRejectedValueOnce(new Error('timeout'))
+        .mockResolvedValueOnce([running])
+        .mockImplementation(() => {
+          previewsMade = true;
+          return Promise.resolve([{ ...running, status: 'FINISHED' }]);
+        });
+      stash.scenesWithoutPreview.mockImplementation((_config, ids: string[]) =>
+        Promise.resolve(lacking(...(previewsMade ? [] : ids))),
+      );
+      await service.run('detected');
+      expect(stash.getJobQueue.mock.calls.length).toBeGreaterThanOrEqual(3);
+      expect(settings.lastRunMessage).toBe(
+        'Found 2 new scenes, previews generated, identified.',
+      );
+    });
+
     it('says so when it can’t confirm the previews, rather than claiming them', async () => {
       stash.scenesWithoutPreview
         .mockResolvedValueOnce(lacking())

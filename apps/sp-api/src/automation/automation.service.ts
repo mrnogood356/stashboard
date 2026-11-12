@@ -864,7 +864,12 @@ export class AutomationService
   ): Promise<void> {
     const deadline = Date.now() + SCAN_PREVIEWS_WAIT_MS;
     while (Date.now() < deadline) {
-      const queue = await this.stash.getJobQueue(config).catch(() => []);
+      const queue = await this.stash.getJobQueue(config).catch(() => null);
+      if (queue === null) {
+        // Stash didn't answer: not a sign it's done. Ask again in a moment.
+        await this.sleep(SCAN_PREVIEWS_POLL_MS);
+        continue;
+      }
       const generating = queue.some(
         (job) =>
           /generat/i.test(job.description) &&

@@ -41,8 +41,8 @@
   gap: 0.45rem;
 }
 
-:host ::ng-deep .request-modal-body .p-select,
-:host ::ng-deep .request-modal-body .p-multiselect {
+.request-modal-body ::ng-deep .p-select,
+.request-modal-body ::ng-deep .p-multiselect {
   width: 100%;
   border-radius: 10px;
   border-color: var(--border-subtle);
@@ -50,36 +50,36 @@
   color: var(--text-primary);
 }
 
-:host ::ng-deep .request-modal-body .p-select:not(.p-disabled):hover,
-:host ::ng-deep .request-modal-body .p-multiselect:not(.p-disabled):hover {
+.request-modal-body ::ng-deep .p-select:not(.p-disabled):hover,
+.request-modal-body ::ng-deep .p-multiselect:not(.p-disabled):hover {
   border-color: color-mix(in srgb, var(--focus-ring) 70%, var(--border-subtle));
 }
 
-:host ::ng-deep .request-modal-body .p-select.p-focus,
-:host ::ng-deep .request-modal-body .p-multiselect.p-focus {
+.request-modal-body ::ng-deep .p-select.p-focus,
+.request-modal-body ::ng-deep .p-multiselect.p-focus {
   border-color: var(--focus-ring);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--focus-ring) 48%, transparent);
 }
 
-:host ::ng-deep .request-modal-body .p-select-label,
-:host ::ng-deep .request-modal-body .p-multiselect-label,
-:host ::ng-deep .request-modal-body .p-select-option,
-:host ::ng-deep .request-modal-body .p-multiselect-option {
+.request-modal-body ::ng-deep .p-select-label,
+.request-modal-body ::ng-deep .p-multiselect-label,
+.request-modal-body ::ng-deep .p-select-option,
+.request-modal-body ::ng-deep .p-multiselect-option {
   font-size: 0.84rem;
 }
 
-:host ::ng-deep .request-modal-body .p-multiselect-chip {
+.request-modal-body ::ng-deep .p-multiselect-chip {
   background: var(--chip-bg);
   border: 1px solid var(--chip-border);
   color: var(--chip-text);
 }
 
-:host ::ng-deep .request-actions .p-button {
+.request-actions ::ng-deep .p-button {
   width: fit-content;
   border-radius: 10px;
 }
 
-:host ::ng-deep .request-actions .secondary.p-button {
+.request-actions ::ng-deep .secondary.p-button {
   color: var(--text-muted);
 }
 

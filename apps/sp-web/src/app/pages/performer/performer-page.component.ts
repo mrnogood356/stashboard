@@ -98,8 +98,8 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
     { value: 'DATE', label: 'Date' },
     { value: 'TITLE', label: 'Title' },
     { value: 'TRENDING', label: 'Trending' },
-    { value: 'CREATED_AT', label: 'Added to catalog' },
-    { value: 'UPDATED_AT', label: 'Recently updated' },
+    { value: 'CREATED_AT', label: 'Date added' },
+    { value: 'UPDATED_AT', label: 'Date updated' },
   ];
 
   private readonly discoverService = inject(DiscoverService);
