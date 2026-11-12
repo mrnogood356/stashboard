@@ -494,9 +494,13 @@ export class LocalLibraryService {
     page = 1,
     sort: LocalSceneSort = 'DATE',
     seed = 0,
+    narrow: CollectionNarrowing = {},
   ) {
     return this.scenePage(
-      { performers: { value: [performerId], modifier: 'INCLUDES_ALL' } },
+      {
+        performers: { value: [performerId], modifier: 'INCLUDES_ALL' },
+        ...narrowingFilter(narrow),
+      },
       page,
       sort,
       seed,
@@ -508,10 +512,14 @@ export class LocalLibraryService {
     page = 1,
     sort: LocalSceneSort = 'DATE',
     seed = 0,
+    narrow: CollectionNarrowing = {},
   ) {
     // depth -1 includes scenes from the studio's sub-studios.
     return this.scenePage(
-      { studios: { value: [studioId], modifier: 'INCLUDES', depth: -1 } },
+      {
+        studios: { value: [studioId], modifier: 'INCLUDES', depth: -1 },
+        ...narrowingFilter({ tagIds: narrow.tagIds }),
+      },
       page,
       sort,
       seed,
@@ -1674,4 +1682,26 @@ function sizeText(bytes: number): string {
     return `${Math.round(bytes / 1024 ** 2)} MB`;
   }
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+/** Categories and studios to narrow a performer's or studio's scenes to. */
+export interface CollectionNarrowing {
+  tagIds?: string[];
+  studioIds?: string[];
+}
+
+/** Stash scene filter parts: every picked category, any picked studio. */
+function narrowingFilter(narrow: CollectionNarrowing): Record<string, unknown> {
+  const filter: Record<string, unknown> = {};
+  if (narrow.tagIds?.length) {
+    filter.tags = { value: narrow.tagIds, modifier: 'INCLUDES_ALL', depth: 0 };
+  }
+  if (narrow.studioIds?.length) {
+    filter.studios = {
+      value: narrow.studioIds,
+      modifier: 'INCLUDES',
+      depth: -1,
+    };
+  }
+  return filter;
 }

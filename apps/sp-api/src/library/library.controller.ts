@@ -33,13 +33,19 @@ export class LibraryController {
   getLibraryTags(
     @Query() query: LibraryOptionsQueryDto,
   ): Promise<LibraryTagOptionDto[]> {
-    return this.libraryService.searchTags(query.query);
+    return this.libraryService.searchTags(query.query, {
+      performerId: query.performerId,
+      studioId: query.studioId,
+    });
   }
 
   @Get('studios')
   getLibraryStudios(
     @Query() query: LibraryOptionsQueryDto,
   ): Promise<LibraryStudioOptionDto[]> {
-    return this.libraryService.searchStudios(query.query);
+    return this.libraryService.searchStudios(query.query, {
+      performerId: query.performerId,
+      studioId: query.studioId,
+    });
   }
 }

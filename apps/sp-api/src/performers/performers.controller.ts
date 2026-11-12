@@ -1,3 +1,5 @@
+import type { StashdbSceneFacets } from '../providers/stashdb/stashdb.types';
+import { SceneFacetsService } from '../scene-facets/scene-facets.service';
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { DiscoverResponseDto } from '../discover/dto/discover-item.dto';
 import { PerformerDetailsDto } from './dto/performer-details.dto';
@@ -11,7 +13,10 @@ import { PerformersService } from './performers.service';
 
 @Controller('api/performers')
 export class PerformersController {
-  constructor(private readonly performersService: PerformersService) {}
+  constructor(
+    private readonly performersService: PerformersService,
+    private readonly sceneFacets: SceneFacetsService,
+  ) {}
 
   @Get()
   getPerformersFeed(
@@ -52,6 +57,14 @@ export class PerformersController {
         showHidden: query.showHidden,
       },
     );
+  }
+
+  /** Their own categories and studios, the most used first, with counts. */
+  @Get(':performerId/facets')
+  getPerformerFacets(
+    @Param('performerId') performerId: string,
+  ): Promise<StashdbSceneFacets> {
+    return this.sceneFacets.forPerformer(performerId);
   }
 
   @Get(':performerId')

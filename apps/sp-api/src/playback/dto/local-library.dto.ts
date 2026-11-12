@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -76,6 +76,32 @@ export class LocalScenesQueryDto {
   @Min(0)
   @Max(2_147_483_647)
   seed?: number;
+}
+
+/** A performer's or studio's scenes, optionally narrowed to some categories and studios. */
+export class LocalCollectionScenesQueryDto extends LocalScenesQueryDto {
+  @IsOptional()
+  @Transform(({ value }) => idList(value))
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  tagIds?: string[];
+
+  @IsOptional()
+  @Transform(({ value }) => idList(value))
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  studioIds?: string[];
+}
+
+/** "a,b" or ?x=a&x=b as ["a", "b"], without blanks or repeats. */
+function idList(value: unknown): string[] {
+  const parts = (Array.isArray(value) ? value : [value])
+    .flatMap((part) => (typeof part === 'string' ? part.split(',') : []))
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  return [...new Set(parts)];
 }
 
 export class FixScenesQueryDto extends LocalScenesQueryDto {
