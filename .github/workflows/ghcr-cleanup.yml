@@ -36,7 +36,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Never deleted: latest, edge and every release (v1.4.0, v1.4…), so
           # there's always a release to roll back to.
-          exclude-tags: "latest,edge,v*"
+          exclude-tags: "latest,edge,preview,v*"
           # Of the rest (sha-… builds of main in between), the newest 5 stay.
           keep-n-tagged: 5
           delete-untagged: true
