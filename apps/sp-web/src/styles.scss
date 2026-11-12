@@ -1200,6 +1200,16 @@ select:disabled {
   line-height: 1.08;
 }
 
+/* A Settings page's own title (Privacy, Logs…) at the same size as every
+   other page's, not a smaller section heading. */
+.settings-shell > * > section > header:first-child h2 {
+  margin: 0;
+  font-size: clamp(1.75rem, 2.6vw, 2.15rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+}
+
 .page-head-compact__title > p {
   margin: 0 !important;
   font-size: 0.86rem;

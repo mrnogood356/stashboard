@@ -285,9 +285,16 @@ a.media-studio:focus-visible {
    rather than the date cut off or a separator left dangling. Every card is
    then the same height. */
 @media (max-width: 640px) {
+  /* The button stays beside those two lines, not on a third. */
+  .media-meta-row {
+    flex-wrap: nowrap;
+    align-items: flex-end;
+  }
+
   .media-date {
     display: flex;
     flex-direction: column;
+    min-width: 0;
   }
 
   .media-date > * {
