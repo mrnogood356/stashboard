@@ -55,7 +55,7 @@ export class QuickHideService implements OnDestroy {
   private taps: Array<{ at: number; x: number; y: number }> = [];
   /** Takes the listeners and the idle timer away again. */
   private readonly stopListening = new AbortController();
-  private idleTimer: ReturnType<typeof setInterval> | null = null;
+  private idleTimer: number | null = null;
 
   start(): void {
     if (this.started || typeof window === 'undefined') {
@@ -86,7 +86,7 @@ export class QuickHideService implements OnDestroy {
   ngOnDestroy(): void {
     this.stopListening.abort();
     if (this.idleTimer !== null) {
-      clearInterval(this.idleTimer);
+      (this.document.defaultView ?? window).clearInterval(this.idleTimer);
       this.idleTimer = null;
     }
   }
