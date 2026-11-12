@@ -12,6 +12,7 @@ import {
 } from '../../core/api/local-library.service';
 import { SceneCardComponent } from '../../shared/scene-card/scene-card.component';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
+import { PerformerFact, readableCountry, readableDate } from '../performer/performer-facts';
 
 export type LocalCollectionKind = 'performer' | 'studio';
 
@@ -19,6 +20,8 @@ interface CollectionHeader {
   id: string;
   name: string;
   subtitle: string | null;
+  /** A performer's details, in the same grid as the catalog performer page. */
+  facts: PerformerFact[];
   imageUrl: string | null;
   favorite: boolean;
   sceneCount: number;
@@ -251,19 +254,20 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
   private toHeader(entity: LocalPerformer | LocalStudio): CollectionHeader {
     if ('gender' in entity) {
       const age = entity.deathDate ? null : ageFrom(entity.birthdate);
-      const subtitle = [
-        entity.disambiguation,
-        formatGender(entity.gender),
-        age !== null ? `${age} years old` : null,
-        entity.deathDate ? `Passed away ${entity.deathDate}` : null,
-        entity.country,
-      ]
-        .filter((part): part is string => !!part)
-        .join(' · ');
+      const born = readableDate(entity.birthdate);
+      const facts: PerformerFact[] = [
+        { label: 'Gender', value: formatGender(entity.gender) },
+        born
+          ? { label: 'Born', value: age !== null ? `${born} (${age})` : born }
+          : { label: 'Age', value: age !== null ? String(age) : null },
+        { label: 'Died', value: readableDate(entity.deathDate ?? null) },
+        { label: 'Country', value: readableCountry(entity.country) },
+      ].filter((fact): fact is PerformerFact => !!fact.value);
       return {
         id: entity.id,
         name: entity.name,
-        subtitle: subtitle || null,
+        subtitle: entity.disambiguation || null,
+        facts,
         imageUrl: entity.imageUrl,
         favorite: entity.favorite,
         sceneCount: entity.sceneCount,
@@ -276,6 +280,7 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
       id: entity.id,
       name: entity.name,
       subtitle: null,
+      facts: [],
       imageUrl: entity.imageUrl,
       favorite: entity.favorite,
       sceneCount: entity.sceneCount,

@@ -226,3 +226,9 @@ main {
     animation: none;
   }
 }
+
+/* The page's gap already spaces the back link: without its margin as well,
+   the title sits where it does on the other Library tools pages. */
+main > .app-back-link {
+  margin-bottom: -0.25rem;
+}
