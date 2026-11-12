@@ -1295,3 +1295,14 @@ p.warn {
 .auto-note {
   color: var(--warning-text, var(--warning));
 }
+
+/* A plain link, as elsewhere, not a blue one. */
+.link {
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link:hover {
+  color: var(--text-primary);
+}

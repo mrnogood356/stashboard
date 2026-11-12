@@ -543,3 +543,132 @@ app-stage-track {
     margin-top: 0;
   }
 }
+
+/* ---------- Current look: a plain list on the page, as on Requests ---------- */
+
+.block {
+  --app-section-radius: 0;
+  --app-section-padding: 0;
+  --app-section-border: 0;
+  --app-section-bg: transparent;
+}
+
+.block[data-tone]:not([data-tone='']) .title-row h2::before {
+  content: none;
+}
+
+.title-row h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.count {
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 400;
+}
+
+.cards {
+  gap: 0;
+}
+
+.card,
+.card[data-stage] {
+  grid-template-columns: minmax(120px, 176px) minmax(0, 1fr);
+  gap: 1rem;
+  padding: 0.9rem 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.card + .card {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.card-art {
+  border-radius: var(--radius-sm);
+}
+
+/* A status is a dot and a word, not a coloured pill. */
+.pill,
+.pill[data-stage],
+.pill[data-watch] {
+  gap: 0.4rem;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.pill::before {
+  content: '';
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.pill[data-stage='downloading']::before,
+.pill[data-stage='unpacking']::before,
+.pill[data-stage='moving']::before {
+  background: var(--warning);
+}
+
+.pill[data-stage='linking']::before,
+.pill[data-watch='watching']::before {
+  background: var(--info);
+}
+
+.pill[data-stage='done']::before {
+  background: var(--success);
+}
+
+.pill[data-stage='failed'],
+.pill[data-watch='problem'] {
+  color: var(--danger-text);
+}
+
+.pill[data-stage='failed']::before,
+.pill[data-watch='problem']::before {
+  background: var(--danger);
+}
+
+.pill[data-stage='ignored']::before,
+.pill[data-watch='off']::before {
+  background: var(--border-strong);
+}
+
+.source-tag {
+  min-height: 0;
+  padding: 0;
+  background: none;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .card,
+  .card[data-stage] {
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+    gap: 0.75rem;
+    padding: 0.75rem 0;
+  }
+}
+
+.head-action {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+}
+
+.head-action:hover {
+  border-color: var(--border-strong);
+}

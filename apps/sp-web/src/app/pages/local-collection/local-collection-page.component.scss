@@ -487,3 +487,31 @@ a.action {
     gap: 0.4rem;
   }
 }
+
+/* ---------- Current look: one filled button, the rest outlined; text on the page ---------- */
+
+.action.secondary {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+}
+
+.action.secondary:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+/* A favorite is a filled heart, not a tinted pill. */
+.action.favorite.on {
+  border-color: var(--border-subtle);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.action.favorite.on i {
+  color: #ff375f;
+}
+
+.about {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}

@@ -210,3 +210,40 @@
   font-weight: 600;
   cursor: pointer;
 }
+
+/* ---------- Current look: quiet links, a plain list, as on the rest of the app ---------- */
+
+.pass {
+  color: var(--text-muted);
+}
+
+.pass:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.retry {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.follow-list {
+  gap: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.follow-row {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.follow-list > li + li .follow-row {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.follow-row:hover {
+  background: var(--surface-1);
+}

@@ -11,71 +11,64 @@
 
 .hero-card {
   display: grid;
-  gap: 0.95rem;
-  padding: 1.1rem;
-  border: 1px solid var(--surface-panel-border);
-  border-radius: 18px;
-  background: var(--surface-panel-background);
-  box-shadow: var(--surface-panel-shadow);
-}
-
-.hero-card.tone-good {
-  border-color: var(--tone-success-border);
+  gap: 0.75rem;
 }
 
 .hero-head {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   justify-content: space-between;
   gap: 1rem;
 }
 
 .hero-copy {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.2rem;
 }
 
 .hero-copy h2 {
-  font-size: 1.3rem;
-  font-weight: 700;
+  font-size: 1.05rem;
+  font-weight: 600;
 }
 
 .hero-lead {
   color: var(--text-muted);
 }
 
+/* Said in words; colour only when something needs a look. */
 .status-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2rem;
-  padding: 0.3rem 0.7rem;
-  border-radius: var(--radius-sm);
-  background: var(--tone-warning-background);
-  color: var(--tone-warning-text);
-  font-size: 0.82rem;
-  font-weight: 700;
+  color: var(--text-muted);
+  font-size: 0.86rem;
   white-space: nowrap;
 }
 
-.status-pill.tone-good {
-  background: var(--tone-success-background);
-  color: var(--tone-success-text);
+.status-pill:not(.tone-good) {
+  color: var(--tone-warning-text);
 }
 
+/* The counts as plain figures in a row, each opening its list. */
 .hero-meta {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
 .meta-item {
   display: grid;
-  gap: 0.2rem;
-  padding: 0.65rem 0.8rem;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+  gap: 0.15rem;
+  padding: 0.7rem 0.9rem;
   color: var(--text-primary);
   text-decoration: none;
+}
+
+.meta-item + .meta-item {
+  border-left: 1px solid var(--border-subtle);
+}
+
+.meta-item:hover {
+  background: var(--surface-1);
 }
 
 .meta-item span {
@@ -84,150 +77,98 @@
 }
 
 .meta-item strong {
-  font-size: 1.25rem;
+  font-size: 1.15rem;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .meta-item:focus-visible {
   outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
+@media (max-width: 560px) {
+  .hero-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .meta-item:nth-child(3) {
+    border-left: 0;
+  }
+
+  .meta-item:nth-child(n + 3) {
+    border-top: 1px solid var(--border-subtle);
+  }
+}
+
+/* One plain grouped list, as on Settings: an icon, a name and a line about it. */
 .group-title {
-  margin: 0.6rem 0 -0.4rem;
-  font-size: 0.8rem;
-  font-weight: 600;
+  margin: 1rem 0 -0.5rem;
+  font-size: 0.85rem;
+  font-weight: 500;
   color: var(--text-muted);
 }
 
 .tool-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.8rem;
-}
-
-@media (min-width: 720px) {
-  .tool-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
 .tool {
+  position: relative;
   display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    'icon title chevron'
+    '. detail chevron';
   align-content: start;
-  gap: 0.45rem;
-  padding: 1.1rem;
-  border-radius: 18px;
-  background: var(--surface-1);
+  align-items: center;
+  column-gap: 0.75rem;
+  row-gap: 0.15rem;
+  padding: 0.85rem 1rem;
   color: var(--text-primary);
   text-decoration: none;
-  transition: transform 0.12s ease;
+}
+
+.tool + .tool {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.tool:hover {
+  background: var(--surface-1);
 }
 
 .tool:focus-visible {
   outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-.tool:active {
-  transform: scale(0.98);
+  outline-offset: -2px;
 }
 
 .tool i {
-  display: grid;
-  place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 12px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 1.1rem;
+  grid-area: icon;
+  color: var(--text-muted);
+  font-size: 1rem;
+}
+
+.tool::after {
+  content: '\e901';
+  grid-area: chevron;
+  font-family: 'primeicons';
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 .tool-title {
-  font-size: 1.05rem;
-  font-weight: 700;
+  grid-area: title;
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
 .tool-detail {
-  font-size: 0.86rem;
+  grid-area: detail;
+  font-size: 0.84rem;
   color: var(--text-muted);
   line-height: 1.4;
-}
-
-@media (max-width: 640px) {
-  .hero-head {
-    flex-direction: column;
-  }
-
-  .hero-meta {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tool {
-    transition: none;
-  }
-}
-
-/* Phones: one grouped list, like iOS Settings, instead of a tile per item. */
-@media (max-width: 719px) {
-  .tool-grid {
-    gap: 0;
-    overflow: hidden;
-    border-radius: 16px;
-    background: var(--surface-1);
-  }
-
-  .tool {
-    position: relative;
-    grid-template-columns: 2rem minmax(0, 1fr) auto;
-    grid-template-areas:
-      'icon title chevron'
-      'icon detail chevron';
-    column-gap: 0.8rem;
-    row-gap: 0.1rem;
-    align-items: center;
-    padding: 0.75rem 0.9rem;
-    border-radius: 0;
-    background: transparent;
-  }
-
-  .tool + .tool {
-    border-top: 1px solid var(--border-subtle);
-  }
-
-  .tool::after {
-    content: '\e901';
-    grid-area: chevron;
-    font-family: 'primeicons';
-    font-size: 0.8rem;
-    color: var(--text-muted);
-  }
-
-  .tool i {
-    grid-area: icon;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 9px;
-    font-size: 0.95rem;
-  }
-
-  .tool-title {
-    grid-area: title;
-    font-size: 0.98rem;
-    font-weight: 600;
-  }
-
-  .tool-detail {
-    grid-area: detail;
-    font-size: 0.8rem;
-    line-height: 1.3;
-  }
-
-  .tool:active {
-    transform: none;
-    background: var(--surface-2);
-  }
 }

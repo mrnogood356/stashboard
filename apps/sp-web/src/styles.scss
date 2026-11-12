@@ -1960,3 +1960,74 @@ body.app-sheet-open {
 .filter-bar__clear:hover {
   color: var(--text-primary);
 }
+
+/*
+ * Tabs, wherever a page has them (role="tablist"): words in a row with a
+ * line under the current one, as on Requests. Stronger than a page's own
+ * .segmented rules, which drew pills in a grey box (:not(#_) outweighs them).
+ */
+body .segmented[role='tablist']:not(#_) {
+  display: flex;
+  gap: 1.25rem;
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+body .segmented[role='tablist']:not(#_)::-webkit-scrollbar {
+  display: none;
+}
+
+body .segmented[role='tablist']:not(#_) > button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: auto;
+  min-width: 0;
+  height: 2.5rem;
+  min-height: 0;
+  margin-bottom: -1px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+body .segmented[role='tablist']:not(#_) > button:hover {
+  color: var(--text-primary);
+}
+
+body .segmented[role='tablist']:not(#_) > button:is(.active, [aria-selected='true']) {
+  border-bottom-color: var(--text-primary);
+  background: none;
+  box-shadow: none;
+  color: var(--text-primary);
+}
+
+/* A count in a tab is a plain figure, not a badge. */
+body .segmented[role='tablist']:not(#_) > button :is(.count-badge, .tab-count, .count) {
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}

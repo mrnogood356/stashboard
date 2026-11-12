@@ -860,3 +860,30 @@ h2 {
   background: var(--chip-bg);
   color: var(--text-primary);
 }
+
+/* Categories as quiet outlined chips, as on the catalog scene page; Edit is a plain link. */
+.tag {
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.tag:hover,
+.tag:focus-visible {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.link-button {
+  color: var(--text-secondary);
+}
+
+.link-button:hover {
+  color: var(--text-primary);
+}
+
+.tag-search {
+  border-radius: var(--radius-sm);
+}
