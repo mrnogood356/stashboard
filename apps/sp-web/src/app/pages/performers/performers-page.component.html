@@ -13,31 +13,57 @@
       }
     </div>
     <div class="page-head-compact__actions">
-      <button
-        type="button"
-        class="filter-toggle"
-        data-testid="performers-in-library"
-        [attr.aria-pressed]="inLibrary()"
-        (click)="toggleInLibrary()"
-      >
-        <i class="pi pi-folder-open" aria-hidden="true"></i>
-        <span>In my library</span>
-      </button>
       @if (!inLibrary()) {
         <app-catalog-provider-switch />
-        <button
-          type="button"
-          class="filters-toggle"
-          [class.active]="filtersOpen()"
-          [attr.aria-expanded]="filtersOpen()"
-          (click)="filtersOpen.set(!filtersOpen())"
-        >
-          <i class="pi pi-filter" aria-hidden="true"></i>
-          <span>Filters</span>
-        </button>
       }
     </div>
   </header>
+
+  <div class="filter-bar performers-filter-bar" data-testid="performers-filter-bar">
+    <button
+      type="button"
+      class="filter-toggle"
+      data-testid="performers-in-library"
+      [attr.aria-pressed]="inLibrary()"
+      (click)="toggleInLibrary()"
+    >
+      <i class="pi pi-folder-open" aria-hidden="true"></i>
+      <span>In my library</span>
+    </button>
+    @if (!inLibrary()) {
+      <app-filter-chip label="Gender" [value]="genderValue()" testId="performers-gender">
+        <ng-template appFilterPanel>
+          <app-filter-options
+            [options]="genderChoices"
+            [selected]="genderPicked()"
+            testId="performers-gender-option"
+            (changed)="onGenderPicked($event)"
+          />
+        </ng-template>
+      </app-filter-chip>
+      <button
+        type="button"
+        class="filter-toggle"
+        data-testid="performers-favorites"
+        [attr.aria-pressed]="favoritesOnly()"
+        (click)="onFavoritesOnlyChanged(!favoritesOnly())"
+      >
+        <i class="pi pi-star" aria-hidden="true"></i>
+        Favorites
+      </button>
+      <app-filter-chip label="Sort" [value]="sortValue()" neutral testId="performers-sort">
+        <ng-template appFilterPanel>
+          <app-filter-options
+            [options]="sortChoices"
+            [selected]="sortPicked()"
+            [clearable]="false"
+            testId="performers-sort-option"
+            (changed)="onSortPicked($event)"
+          />
+        </ng-template>
+      </app-filter-chip>
+    }
+  </div>
 
   @if (inLibrary()) {
     @if (libFailed()) {
@@ -84,82 +110,6 @@
       }
     }
   } @else {
-    <section
-      [class.filters-collapsed]="!filtersOpen()"
-      class="controls-shell app-control-shell"
-      aria-label="Performers controls"
-    >
-      <div class="controls-row">
-        <label class="control-field">
-          <span>Filter Performer Name</span>
-          <input
-            pInputText
-            type="text"
-            [ngModel]="nameFilter()"
-            placeholder="Search performer name"
-            (ngModelChange)="onNameFilterChanged($event)"
-          />
-        </label>
-
-        <div class="control-field">
-          <span id="performers-gender-label">Gender</span>
-          <p-select
-            inputId="performers-gender"
-            ariaLabelledBy="performers-gender-label"
-            [ngModel]="selectedGender()"
-            (ngModelChange)="onGenderChanged($event)"
-            [options]="genderOptions"
-            optionLabel="label"
-            optionValue="value"
-            [appendTo]="'body'"
-            panelStyleClass="app-overlay-panel"
-          />
-        </div>
-
-        <div class="control-field">
-          <span id="performers-sort-label">Sort</span>
-          <div class="sort-with-direction">
-            <p-select
-              inputId="performers-sort"
-              ariaLabelledBy="performers-sort-label"
-              [ngModel]="selectedSort()"
-              (ngModelChange)="onSortChanged($event)"
-              [options]="sortOptions"
-              optionLabel="label"
-              optionValue="value"
-              [appendTo]="'body'"
-              panelStyleClass="app-overlay-panel"
-            />
-            <button
-              type="button"
-              class="sort-direction-toggle app-sort-direction-toggle"
-              [attr.aria-label]="sortDirectionToggleLabel()"
-              [attr.title]="sortDirectionToggleLabel()"
-              (click)="toggleSortDirection()"
-            >
-              <i [class]="sortDirectionIconClass()" aria-hidden="true"></i>
-            </button>
-          </div>
-        </div>
-
-        <div class="control-field favorites-field">
-          <span>Favorites Only</span>
-          <div class="favorites-toggle-row app-control-switch-row">
-            <input
-              id="performers-favorites-only"
-              type="checkbox"
-              class="app-switch"
-              role="switch"
-              aria-label="Show favorites only"
-              [ngModel]="favoritesOnly()"
-              (ngModelChange)="onFavoritesOnlyChanged($event)"
-            />
-            <span class="favorites-toggle-label">Show favorites only</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
     @if (loading()) {
       <app-skeleton kind="portrait" [count]="12" label="Loading performers" />
     } @else if (error()) {

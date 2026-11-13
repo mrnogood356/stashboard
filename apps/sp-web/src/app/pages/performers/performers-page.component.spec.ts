@@ -77,6 +77,7 @@ describe('PerformersPageComponent', () => {
           provide: ActivatedRoute,
           useValue: {
             queryParamMap: new BehaviorSubject(convertToParamMap(options.query ?? {})),
+            snapshot: { queryParamMap: convertToParamMap(options.query ?? {}) },
           },
         },
         { provide: AppNotificationsService, useValue: notifications },
@@ -106,6 +107,38 @@ describe('PerformersPageComponent', () => {
     expect(
       root.querySelector('[data-testid="performers-in-library"]')?.getAttribute('aria-pressed'),
     ).toBe('true');
+  });
+
+  it('sorts and filters from the filter bar, like Scenes', async () => {
+    const { fixture, root, discover } = await render();
+    const open = (id: string) => {
+      (root.querySelector(`[data-testid="${id}"]`) as HTMLButtonElement).click();
+      fixture.detectChanges();
+    };
+
+    open('performers-sort');
+    open('performers-sort-option-SCENE_COUNT:DESC');
+    expect(discover.getPerformersFeed).toHaveBeenLastCalledWith(
+      1,
+      expect.any(Number),
+      expect.objectContaining({ sort: 'SCENE_COUNT', direction: 'DESC' }),
+    );
+
+    open('performers-gender');
+    open('performers-gender-option-FEMALE');
+    expect(discover.getPerformersFeed).toHaveBeenLastCalledWith(
+      1,
+      expect.any(Number),
+      expect.objectContaining({ gender: 'FEMALE' }),
+    );
+
+    open('performers-favorites');
+    expect(discover.getPerformersFeed).toHaveBeenLastCalledWith(
+      1,
+      expect.any(Number),
+      expect.objectContaining({ favoritesOnly: true }),
+    );
+    expect(root.querySelector('p-select')).toBeNull();
   });
 
   it('lists performers', async () => {
