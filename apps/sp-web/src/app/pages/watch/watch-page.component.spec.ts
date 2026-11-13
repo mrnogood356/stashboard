@@ -164,6 +164,30 @@ describe('WatchPageComponent', () => {
     expect(text).toContain('Start over');
   });
 
+  it('stops the video for good on the way out, so it can’t keep playing in the background', async () => {
+    const fixture = await render();
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    const pause = vi.spyOn(video, 'pause').mockImplementation(() => undefined);
+    const load = vi.spyOn(video, 'load').mockImplementation(() => undefined);
+    const handlers: Array<[string, unknown]> = [];
+    const session = (navigator as Navigator & { mediaSession?: MediaSession }).mediaSession;
+    if (session) {
+      vi.spyOn(session, 'setActionHandler').mockImplementation((action, handler) => {
+        handlers.push([action, handler]);
+      });
+    }
+
+    fixture.destroy();
+
+    expect(pause).toHaveBeenCalled();
+    expect(video.hasAttribute('src')).toBe(false);
+    expect(load).toHaveBeenCalled();
+    if (session) {
+      expect(handlers).toContainEqual(['play', null]);
+      expect(handlers).toContainEqual(['pause', null]);
+    }
+  });
+
   it('falls back to the converted stream when the original fails', async () => {
     const fixture = await render();
     const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;

@@ -394,6 +394,8 @@ img.thumbnail.is-failed {
 
 .media.is-previewing:has(.preview-video.is-playing) .play-button {
   opacity: 0;
+  /* Hidden, so a tap there opens the scene, not the player. */
+  pointer-events: none;
 }
 
 /* Touch screens show it all the time: small and in the corner, opposite the
