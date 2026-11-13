@@ -53,7 +53,7 @@ describe('ToolsPageComponent', () => {
     const root = await render(library);
 
     expect(detail(root, 'Fix my library')).toBe('3 not matched · 2 without tags · 1 not organized');
-    expect(detail(root, 'Match & rename')).toContain('3 not matched');
+    expect(detail(root, 'Match scenes')).toContain('3 not matched');
     expect(detail(root, 'Stash jobs')).toBe('2 jobs running');
     expect(tool(root, 'Fix my library').getAttribute('href')).toBe('/tools/fix');
     expect(tool(root, 'Duplicates').getAttribute('href')).toBe('/tools/duplicates');
@@ -69,7 +69,7 @@ describe('ToolsPageComponent', () => {
     const root = await render(library);
 
     expect(detail(root, 'Fix my library')).toBe('All clear');
-    expect(detail(root, 'Match & rename')).toContain('Every scene is matched');
+    expect(detail(root, 'Match scenes')).toContain('Every scene is matched');
     expect(detail(root, 'Stash jobs')).toBe('Stash is idle');
   });
 

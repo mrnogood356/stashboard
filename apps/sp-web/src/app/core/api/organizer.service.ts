@@ -97,7 +97,13 @@ export interface OrganizerRun {
 }
 
 export interface OrganizerSettings {
+  /** Your own pattern: used without Whisparr, or when its naming can't be. */
   renamePattern: string;
+  /**
+   * What renames use: Whisparr's own naming when it's set up, else
+   * renamePattern; problem says why Whisparr's couldn't be used.
+   */
+  naming?: { pattern: string; source: 'whisparr' | 'own'; problem: string | null };
   renameRoot: string;
   libraryRoots: string[];
   renameAfterMatch: boolean;

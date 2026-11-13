@@ -324,21 +324,14 @@ describe('SetupCheckService', () => {
     );
   });
 
-  it('suggests Whisparr’s naming when Stashboard’s pattern differs, and applies it', async () => {
+  it('never warns that names differ: renames follow Whisparr’s naming while it’s set up', async () => {
     organizer.getSettings.mockResolvedValue({
       renamePattern: '{studio}/{date} - {title}',
       whisparrPathFrom: '/data',
       whisparrPathTo: '/mnt/media',
     });
     const { checks } = await service.run();
-    expect(byId(checks, 'naming')).toMatchObject({
-      status: 'warn',
-      fix: { action: 'use-whisparr-naming', label: 'Use Whisparr’s naming' },
-    });
-    await service.fix('use-whisparr-naming');
-    expect(organizer.updateSettings).toHaveBeenCalledWith({
-      renamePattern: '{Studio Title}/{Scene Title}',
-    });
+    expect(byId(checks, 'naming')).toMatchObject({ status: 'ok' });
   });
 
   it('offers to add the webhook when Whisparr has none, and adds it', async () => {

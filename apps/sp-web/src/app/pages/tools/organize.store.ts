@@ -10,10 +10,10 @@ import {
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { OrganizeListStore } from './organize-list.store';
 import { OrganizeFilesStore } from './organize-files.store';
-import { OrganizeTab, OrganizeDetail } from './organize.shared';
+import { OrganizeTab, OrganizeDetail, OrganizeTool } from './organize.shared';
 
 /**
- * Match & rename, page-wide: settings, the tab, background runs and what the
+ * Match scenes and Rename files, page-wide: settings, the tab, background runs and what
  * Overview counts. The page provides it with OrganizeListStore and
  * OrganizeFilesStore; each reaches the others through the page.
  */
@@ -47,27 +47,29 @@ export class OrganizeStore implements OnDestroy {
 
   private poll: Subscription | null = null;
 
+  /** Match scenes or Rename files. */
+  readonly tool = signal<OrganizeTool>('rename');
+
   /** Reads everything the page shows; the page calls this once it opens. */
-  init(): void {
+  init(tool?: OrganizeTool): void {
     const requested = this.route.snapshot.queryParamMap.get('tab');
-    // Old links: ?tab=match opened the scene list, ?tab=rename the renames.
+    // Without a tool from the route, the tab asked for says which.
+    this.tool.set(tool ?? (requested === 'review' || requested === 'match' ? 'match' : 'rename'));
     this.tab.set(
-      requested === 'settings'
-        ? 'settings'
-        : requested === 'review' || requested === 'match'
-          ? 'review'
-          : 'overview',
+      requested === 'settings' ? 'settings' : this.tool() === 'match' ? 'review' : 'overview',
     );
     if (requested === 'rename') {
       this.opened.set('rename');
     }
-    // From Fix my library: ?q= opens the scene list already searched.
-    const query = this.route.snapshot.queryParamMap.get('q')?.trim();
-    if (query) {
-      this.list.listQuery.set(query);
-      this.tab.set('review');
+    if (this.tool() === 'match') {
+      // From Fix my library: ?q= opens the scene list already searched.
+      const query = this.route.snapshot.queryParamMap.get('q')?.trim();
+      if (query) {
+        this.list.listQuery.set(query);
+        this.tab.set('review');
+      }
+      this.loadWaiting();
     }
-    this.loadWaiting();
     this.api.settings().subscribe({
       next: (settings) => {
         this.settings.set(settings);
@@ -76,8 +78,9 @@ export class OrganizeStore implements OnDestroy {
         if (settings.run.running) {
           this.startPolling();
         }
-        // The Overview counts what needs renaming, repairing and cleaning.
-        if (this.tab() === 'overview') {
+        // To do counts what needs renaming, repairing and cleaning; its
+        // tab shows the count from Settings too.
+        if (this.tool() === 'rename') {
           this.files.loadPreview();
         }
       },
@@ -86,7 +89,9 @@ export class OrganizeStore implements OnDestroy {
           error?.error?.message ?? 'Couldn’t reach Stashboard. Try again in a moment.',
         ),
     });
-    this.list.loadScenes(1);
+    if (this.tool() === 'match') {
+      this.list.loadScenes(1);
+    }
   }
 
   select(tab: OrganizeTab): void {
@@ -118,13 +123,11 @@ export class OrganizeStore implements OnDestroy {
     this.opened.set(this.opened() === detail ? null : detail);
   }
 
-  /** How many Overview rows need you. */
+  /** How many To do rows on Rename files need you. */
   readonly todoCount = computed(() => {
     const settings = this.settings();
     const preview = this.files.preview();
     return [
-      this.waiting(),
-      this.list.total() ?? 0,
       this.files.stuckInWhisparr(),
       settings?.whisparrAvailable ? settings.missingInWhisparr : 0,
       this.files.repair()?.count ?? 0,
@@ -137,10 +140,7 @@ export class OrganizeStore implements OnDestroy {
 
   /** Still finding out what needs doing. */
   readonly checking = computed(
-    () =>
-      !this.settings() ||
-      (this.files.previewing() && !this.files.preview()) ||
-      this.list.total() === null,
+    () => !this.settings() || (this.files.previewing() && !this.files.preview()),
   );
 
   /** Matches waiting on Review; the list there keeps it current. */
@@ -379,12 +379,15 @@ export class OrganizeStore implements OnDestroy {
       this.loadWaiting();
     }
     // Every run fills in scenes or moves files: reload the lists they change.
-    if (run.kind !== 'rename' && run.kind !== 'whisparr') {
+    if (this.tool() === 'match' && run.kind !== 'rename' && run.kind !== 'whisparr') {
       // Matching, moving unmatched files or putting files back change the list on Review.
       if (run.kind !== 'undo') {
         this.list.matches.set({});
       }
       this.list.loadScenes(1);
+    }
+    if (this.tool() === 'match') {
+      return;
     }
     if (this.tab() === 'overview' || this.files.preview()) {
       this.files.loadPreview();

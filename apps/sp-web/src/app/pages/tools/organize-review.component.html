@@ -30,13 +30,46 @@
       <span class="muted">· {{ list.listTotal() }}</span>
     }
   </h2>
-  @if (list.scenes().length > 1) {
-    <button type="button" class="btn" [disabled]="list.lookingUpPage()" (click)="list.lookupPage()">
-      <i class="pi pi-search" aria-hidden="true"></i>
-      {{ list.lookingUpPage() ? 'Looking up…' : 'Find matches for these' }}
-    </button>
-  }
+  <div class="head-actions">
+    @if (list.scenes().length > 1) {
+      <button
+        type="button"
+        class="btn"
+        [disabled]="list.lookingUpPage()"
+        (click)="list.lookupPage()"
+      >
+        <i class="pi pi-search" aria-hidden="true"></i>
+        {{ list.lookingUpPage() ? 'Looking up…' : 'Find matches for these' }}
+      </button>
+    }
+    @if (list.total()) {
+      <button
+        type="button"
+        class="btn"
+        data-testid="match-all"
+        [disabled]="store.run()?.running"
+        (click)="list.matchAll()"
+      >
+        <i class="pi pi-sparkles" aria-hidden="true"></i> Match all
+      </button>
+    }
+  </div>
 </div>
+@if (list.toMove() && list.listScope() === 'unmatched') {
+  <p class="muted small to-move">
+    {{ list.toMove() }} unmatched {{ list.toMove() === 1 ? 'file isn’t' : 'files aren’t' }} in the
+    Unmatched folder yet.
+    <button
+      type="button"
+      class="link"
+      data-testid="move-unmatched"
+      [disabled]="store.run()?.running"
+      (click)="store.moveUnmatchedNow()"
+    >
+      Move {{ list.toMove() === 1 ? 'it' : 'them' }} now
+    </button>
+  </p>
+}
 
 <div class="list-filters" role="search">
   <label class="list-search">

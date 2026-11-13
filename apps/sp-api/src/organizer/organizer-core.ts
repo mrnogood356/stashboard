@@ -34,8 +34,10 @@ import {
   WhisparrHandoffService,
 } from './whisparr-handoff.service';
 import {
+  DEFAULT_RENAME_PATTERN,
   findRoot,
   formatResolution,
+  patternFromWhisparr,
   splitPath,
   validatePattern,
 } from './rename.util';
@@ -142,9 +144,33 @@ export abstract class OrganizerCore {
     const existing = await this.prisma.organizerSettings.findUnique({
       where: { key: KEY },
     });
-    return (
-      existing ?? this.prisma.organizerSettings.create({ data: { key: KEY } })
-    );
+    const settings =
+      existing ??
+      (await this.prisma.organizerSettings.create({ data: { key: KEY } }));
+    // Whisparr's files are Whisparr's: renames and moves always leave them.
+    return { ...settings, skipWhisparrFiles: true };
+  }
+
+  /**
+   * The pattern renames use. With Whisparr set up, its own naming (Scene
+   * Folder Format and Standard Scene Format), read fresh each time, so files
+   * Stashboard renames land where Whisparr would put them; your own pattern
+   * only without Whisparr, or when its naming can't be used (problem says why).
+   */
+  protected async renamingPattern(settings: OrganizerSettings): Promise<{
+    pattern: string;
+    source: 'whisparr' | 'own';
+    problem: string | null;
+  }> {
+    const own = settings.renamePattern?.trim() || DEFAULT_RENAME_PATTERN;
+    const naming = await this.handoff.namingConfig().catch(() => null);
+    if (!naming) {
+      return { pattern: own, source: 'own', problem: null };
+    }
+    const fromWhisparr = patternFromWhisparr(naming);
+    return fromWhisparr.pattern
+      ? { pattern: fromWhisparr.pattern, source: 'whisparr', problem: null }
+      : { pattern: own, source: 'own', problem: fromWhisparr.problem };
   }
 
   async getSettingsDto(): Promise<OrganizerSettingsDto> {
@@ -185,9 +211,6 @@ export abstract class OrganizerCore {
           : {}),
         ...(update.keepFolders !== undefined
           ? { keepFolders: checkKeepFolders(update.keepFolders) }
-          : {}),
-        ...(update.skipWhisparrFiles !== undefined
-          ? { skipWhisparrFiles: update.skipWhisparrFiles }
           : {}),
         ...(update.autoMatchNightly !== undefined
           ? { autoMatchNightly: update.autoMatchNightly }
@@ -677,6 +700,7 @@ export abstract class OrganizerCore {
       missingInWhisparr,
       sources,
       whisparrLeavesCopies,
+      naming,
     ] = await Promise.all([
       this.lastUndoBatch(),
       this.stashConfig()
@@ -690,9 +714,11 @@ export abstract class OrganizerCore {
         .catch(() => 0),
       this.describeSources(settings),
       this.handoff.leavesCopies(settings).catch(() => null),
+      this.renamingPattern(settings),
     ]);
     return {
       renamePattern: settings.renamePattern,
+      naming,
       renameRoot: settings.renameRoot ?? '',
       libraryRoots,
       renameAfterMatch: settings.renameAfterMatch,

@@ -5,7 +5,7 @@ import { MatchReviewComponent } from './match-review.component';
 import { OrganizeStore } from './organize.store';
 import { OrganizeListStore } from './organize-list.store';
 
-/** Match & rename → Review: found matches to save, and scenes to match one by one. */
+/** Match scenes → Review: found matches to save, and scenes to match one by one. */
 @Component({
   selector: 'app-organize-review',
   imports: [RouterLink, SelectionBarComponent, MatchReviewComponent],

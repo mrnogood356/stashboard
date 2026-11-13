@@ -2,6 +2,12 @@ import { MatchConfidence, RenameState, SceneMatches } from '../../core/api/organ
 
 export type OrganizeTab = 'overview' | 'review' | 'settings';
 
+/**
+ * Which tool the page is: Match scenes (Review, Settings) or Rename files
+ * (To do, Settings). Both share one store and the same background runs.
+ */
+export type OrganizeTool = 'match' | 'rename';
+
 /** Rows on the Overview that open to show their details. */
 export type OrganizeDetail = 'repair' | 'relocate' | 'rename' | 'skipped' | 'empty';
 

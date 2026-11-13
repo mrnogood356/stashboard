@@ -366,3 +366,24 @@ p.warn {
   font: inherit;
   font-size: 1rem;
 }
+
+/* Names come from Whisparr: shown, not edited here. */
+.follows-whisparr {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 14px;
+  background: var(--surface-1);
+
+  code {
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 0.86rem;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* A row that can't be switched off. */
+.fixed-row .pi-lock {
+  flex: 0 0 auto;
+  font-size: 0.95rem;
+}

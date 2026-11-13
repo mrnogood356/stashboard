@@ -1,3 +1,5 @@
+import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
 import { describe, expect, it } from 'vitest';
 import { routes } from './app.routes';
 import { requireFeedGuard, requirePlaybackGuard } from './core/guards/playback-route.guard';
@@ -34,6 +36,8 @@ describe('app routes', () => {
       'tools/activity',
       'tools/fix',
       'tools/organize',
+      'tools/match',
+      'tools/rename',
       'tools/jobs',
       'tools/samples',
       'tools/stats',
@@ -88,5 +92,27 @@ describe('app routes', () => {
       'about',
       'logs',
     ]);
+  });
+
+  it('sends Match & rename links to Match scenes or Rename files', () => {
+    TestBed.configureTestingModule({ providers: [provideRouter([])] });
+    const shell = routes.find((route) => route.path === '')?.children ?? [];
+    const organize = shell.find((route) => route.path === 'tools/organize')!;
+    const go = (queryParams: Record<string, string>) =>
+      TestBed.runInInjectionContext(() =>
+        TestBed.inject(Router).serializeUrl(
+          (organize.redirectTo as (route: { queryParams: Record<string, string> }) => never)({
+            queryParams,
+          }),
+        ),
+      );
+    expect(go({ tab: 'review' })).toBe('/tools/match');
+    expect(go({ tab: 'match' })).toBe('/tools/match');
+    expect(go({ q: 'Summer' })).toBe('/tools/match?q=Summer');
+    expect(go({})).toBe('/tools/rename');
+    expect(go({ tab: 'settings' })).toBe('/tools/rename?tab=settings');
+    expect(go({ tab: 'rename' })).toBe('/tools/rename?tab=rename');
+    expect(shell.find((route) => route.path === 'tools/match')?.data).toEqual({ tool: 'match' });
+    expect(shell.find((route) => route.path === 'tools/rename')?.data).toEqual({ tool: 'rename' });
   });
 });

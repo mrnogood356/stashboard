@@ -149,7 +149,7 @@ export class BackupService {
       }),
       defineSection({
         id: 'organizer',
-        label: 'Match & rename',
+        label: 'Match scenes and Rename files',
         dto: UpdateOrganizerSettingsDto,
         fields: [
           'renamePattern',

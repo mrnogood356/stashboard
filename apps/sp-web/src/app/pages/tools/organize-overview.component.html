@@ -7,41 +7,6 @@
 
 <h2 class="group-label">To do</h2>
 <ul class="todo panel" aria-label="To do">
-  @if (store.waiting() > 0) {
-    <li class="todo-row">
-      <span class="todo-count tone-warn">{{ store.waiting() }}</span>
-      <span class="todo-copy">
-        <strong>Matches waiting for you</strong>
-        <small>Found by name; nothing is saved until you check them</small>
-      </span>
-      <button type="button" class="btn primary" (click)="store.select('review')">Review</button>
-    </li>
-  }
-  @if (list.total()) {
-    <li class="todo-row">
-      <span class="todo-count">{{ list.total() }}</span>
-      <span class="todo-copy">
-        <strong>Not matched yet</strong>
-        <small>
-          @if (list.toMove()) {
-            <button
-              type="button"
-              class="link"
-              [disabled]="store.run()?.running"
-              (click)="store.moveUnmatchedNow()"
-            >
-              Move {{ list.toMove() }} to Unmatched
-            </button>
-          } @else {
-            Looked up by fingerprint, then by name
-          }
-        </small>
-      </span>
-      <button type="button" class="btn" [disabled]="store.run()?.running" (click)="list.matchAll()">
-        Find matches
-      </button>
-    </li>
-  }
   @if (store.settings(); as settings) {
     @if (settings.whisparrAvailable && settings.missingInWhisparr > 0) {
       <li class="todo-row">
@@ -237,7 +202,7 @@
         <span class="todo-copy">
           <strong>Need renaming</strong>
           <small
-            >{{ preview.counts.same }} already follow <code>{{ files.pattern() }}</code></small
+            >{{ preview.counts.same }} already follow <code>{{ preview.pattern }}</code></small
           >
         </span>
         <button
@@ -565,8 +530,8 @@
         <strong>{{ store.checking() ? 'Checking…' : 'All in order' }}</strong>
         <small>{{
           store.checking()
-            ? 'Looking at your library, names and Whisparr'
-            : 'Matched, named and in step with Whisparr'
+            ? 'Looking at your file names, folders and Whisparr'
+            : 'Named, tidy and in step with Whisparr'
         }}</small>
       </span>
     </li>
@@ -579,7 +544,6 @@
     <button type="button" class="link" (click)="store.select('settings')">Change</button>
   </div>
   <div class="auto-chips">
-    <span class="auto-chip" [class.on]="settings.autoMatchNightly">Match every night</span>
     <span class="auto-chip" [class.on]="settings.renameAfterMatch">Rename after a match</span>
     @if (settings.whisparrAvailable) {
       <span class="auto-chip" [class.on]="settings.sendToWhisparr">Send to Whisparr daily</span>
@@ -590,7 +554,6 @@
         <span class="auto-note">· can’t see your media folders</span>
       }
     </span>
-    <span class="auto-chip" [class.on]="settings.moveUnmatched">Move unmatched files</span>
   </div>
 
   <h2 class="group-label">Tools</h2>

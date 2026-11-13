@@ -1,10 +1,9 @@
 import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { OrganizeStore } from './organize.store';
-import { OrganizeListStore } from './organize-list.store';
 import { OrganizeFilesStore } from './organize-files.store';
 
-/** Match & rename → Overview: what needs doing, each with its fix. */
+/** Rename files → To do: what needs doing, each with its fix. */
 @Component({
   selector: 'app-organize-overview',
   imports: [RouterLink],
@@ -17,6 +16,5 @@ import { OrganizeFilesStore } from './organize-files.store';
 })
 export class OrganizeOverviewComponent {
   protected readonly store = inject(OrganizeStore);
-  protected readonly list = inject(OrganizeListStore);
   protected readonly files = inject(OrganizeFilesStore);
 }

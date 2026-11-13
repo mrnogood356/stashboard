@@ -65,12 +65,12 @@ describe('NeedsYouCardComponent', () => {
       of({ matchesToCheck: 2, failed: 3, waitingForImport: 1, unmatched: 12 }),
     );
 
-    expect(row(root, 'matchesToCheck')?.getAttribute('href')).toBe('/tools/organize?tab=match');
+    expect(row(root, 'matchesToCheck')?.getAttribute('href')).toBe('/tools/match');
     expect(row(root, 'failed')?.getAttribute('href')).toBe('/acquisition?lifecycle=FAILED');
     expect(row(root, 'waitingForImport')?.getAttribute('href')).toBe(
       '/acquisition?lifecycle=IMPORT_PENDING',
     );
-    expect(row(root, 'unmatched')?.getAttribute('href')).toBe('/tools/organize');
+    expect(row(root, 'unmatched')?.getAttribute('href')).toBe('/tools/match');
   });
 
   it('hides rows with nothing to do or an unreachable source', async () => {

@@ -12,7 +12,7 @@ import { OrganizeStore } from './organize.store';
 import { OrganizeFilesStore } from './organize-files.store';
 import { CONFIDENCE, MatchState } from './organize.shared';
 
-/** Match & rename → Review: the scene list, matching scenes one by one, and picking scenes. */
+/** Match scenes → Review: the scene list, matching scenes one by one, and picking scenes. */
 @Injectable()
 export class OrganizeListStore implements OnDestroy {
   private readonly api = inject(OrganizerApiService);

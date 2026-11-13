@@ -91,7 +91,7 @@ function stores(fixture: { debugElement: { injector: { get<T>(token: unknown): T
   );
 }
 
-async function render(api: Record<string, unknown>, tab?: string) {
+async function render(api: Record<string, unknown>, tab?: string, tool?: 'match' | 'rename') {
   const notifications = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
   await TestBed.configureTestingModule({
     imports: [OrganizePageComponent],
@@ -124,6 +124,12 @@ async function render(api: Record<string, unknown>, tab?: string) {
     await router.navigateByUrl(`/?tab=${tab}`);
   }
   const fixture = TestBed.createComponent(OrganizePageComponent);
+  if (tool) {
+    // As /tools/match or /tools/rename would give it.
+    (fixture.componentInstance as unknown as { route: unknown }).route = {
+      snapshot: { data: { tool } },
+    };
+  }
   fixture.detectChanges();
   await fixture.whenStable();
   fixture.detectChanges();
@@ -302,7 +308,7 @@ describe('OrganizePageComponent', () => {
       unmatched: vi.fn().mockReturnValue(of({ total: 0, page: 1, hasMore: false, items: [] })),
       update: vi.fn().mockReturnValue(of({ ...settings, autoMatchNightly: true })),
     };
-    const { root } = await render(api, 'settings');
+    const { root } = await render(api, 'settings', 'match');
     (root.querySelector('[role="switch"]') as HTMLButtonElement).click();
     expect(api.update).toHaveBeenCalledWith({ autoMatchNightly: true });
   });
@@ -415,7 +421,7 @@ describe('OrganizePageComponent', () => {
       unmatched: vi.fn().mockReturnValue(of({ total: 0, page: 1, hasMore: false, items: [] })),
       update: vi.fn().mockReturnValue(of({ ...settings, hasTpdbKey: true })),
     };
-    const { fixture, root } = await render(api, 'settings');
+    const { fixture, root } = await render(api, 'settings', 'match');
     expect(root.querySelector('.source-list')?.textContent).toContain('FansDB');
     // Stash's scrapers aren't a step of matching; they're offered one scene at a time.
     expect(root.querySelector('.source-list')?.textContent).not.toContain('Stash’s scrapers');
@@ -625,7 +631,7 @@ describe('OrganizePageComponent', () => {
       '/data/stash content',
       '/data/scenes',
     ]);
-    tab(fixture, root, 'Overview');
+    tab(fixture, root, 'To do');
 
     expect(row(root, 'Empty folders')).toContain('2');
     openRow(fixture, root, 'Empty folders');
@@ -915,11 +921,24 @@ describe('OrganizePageComponent', () => {
       unmatched: vi
         .fn()
         .mockReturnValue(of({ total: 533, toMove: 0, page: 1, hasMore: false, items: [scene] })),
+      moveUnmatched: vi.fn().mockReturnValue(of({ ...idle, running: true, kind: 'unmatched' })),
+      status: vi.fn().mockReturnValue(of(idle)),
     };
-    const { root } = await render(api, 'overview');
+    const { fixture, root } = await render(api, 'review');
 
-    expect(row(root, 'Not matched yet')).toContain('533');
-    expect(row(root, 'Not matched yet')).not.toContain('to Unmatched');
+    expect(root.querySelector('.list-title')?.textContent).toContain('533');
+    expect(root.querySelector('[data-testid="move-unmatched"]')).toBeNull();
+    expect(root.querySelector('[data-testid="match-all"]')).not.toBeNull();
+
+    api.unmatched.mockReturnValue(
+      of({ total: 533, toMove: 12, page: 1, hasMore: false, items: [scene] }),
+    );
+    stores(fixture).loadScenes(1);
+    fixture.detectChanges();
+    expect(root.querySelector('.to-move')?.textContent).toContain('12 unmatched files');
+    (root.querySelector('[data-testid="move-unmatched"]') as HTMLButtonElement).click();
+    expect(api.moveUnmatched).toHaveBeenCalled();
+    fixture.destroy();
   });
 
   it('shows the whole new folder when a file moves to another library folder', async () => {
@@ -1063,56 +1082,83 @@ describe('OrganizePageComponent', () => {
     }
   });
 
-  it('reloads the Match list and the Rename names after matching everything', async () => {
+  it('reloads the Match list after matching everything, and leaves renaming to Rename files', async () => {
     const api = renameApi({
       status: vi.fn().mockReturnValue(of({ ...idle, kind: 'match' })),
     });
-    const { fixture } = await render(api, 'rename');
+    const { fixture } = await render(api, 'review');
     const component = stores(fixture);
     vi.useFakeTimers();
     try {
       const lists = api.unmatched.mock.calls.length;
-      const previews = api.preview.mock.calls.length;
       component.run.set({ ...idle, running: true, kind: 'match' });
       component.startPolling();
       vi.advanceTimersByTime(2_000);
       expect(api.unmatched).toHaveBeenCalledTimes(lists + 1);
-      expect(api.preview).toHaveBeenCalledTimes(previews + 1);
+      expect(api.preview).not.toHaveBeenCalled();
     } finally {
       fixture.destroy();
       vi.useRealTimers();
     }
   });
 
-  it('works out names again on the Overview after a scene is matched', async () => {
-    const api = {
-      ...renameApi(),
-      unmatched: vi.fn().mockReturnValue(of({ total: 1, page: 1, hasMore: false, items: [scene] })),
-      lookup: vi
-        .fn()
-        .mockReturnValue(of([{ sceneId: '7', searchedFor: null, candidates: [candidate] }])),
-      apply: vi.fn().mockReturnValue(of({ sceneId: '7', renamedTo: null })),
-    };
-    const { fixture, root } = await render(api);
-    tab(fixture, root, 'Overview');
-    fixture.detectChanges();
-    expect(api.preview).toHaveBeenCalledTimes(1);
-    tab(fixture, root, 'Review');
-    fixture.detectChanges();
-    tab(fixture, root, 'Overview');
-    fixture.detectChanges();
-    // Nothing changed: the names on screen still hold.
-    expect(api.preview).toHaveBeenCalledTimes(1);
+  it('shows Whisparr’s naming instead of a pattern to edit, and never offers to rename Whisparr’s files', async () => {
+    const api = renameApi({
+      settings: vi.fn().mockReturnValue(
+        of({
+          ...settings,
+          naming: {
+            source: 'whisparr',
+            pattern: '{Studio Title}/{Release Date} - {Scene Title}',
+            problem: null,
+          },
+        }),
+      ),
+    });
+    const { root } = await render(api, 'settings', 'rename');
+    const naming = root.querySelector('[data-testid="naming-from-whisparr"]');
+    expect(naming?.textContent).toContain('{Studio Title}/{Release Date} - {Scene Title}');
+    expect(root.querySelector('#rename-file')).toBeNull();
+    expect(root.textContent).toContain('Whisparr’s files are left alone');
+    expect(root.querySelector('[aria-label="Leave Whisparr’s files alone"]')).toBeNull();
+  });
 
-    tab(fixture, root, 'Review');
-    fixture.detectChanges();
-    button(root, 'Find match').click();
-    fixture.detectChanges();
-    button(root, 'This one').click();
-    fixture.detectChanges();
-    tab(fixture, root, 'Overview');
-    expect(api.preview).toHaveBeenCalledTimes(2);
-    fixture.destroy();
+  it('edits your own pattern when Whisparr’s naming can’t be used, saying why', async () => {
+    const api = renameApi({
+      settings: vi.fn().mockReturnValue(
+        of({
+          ...settings,
+          naming: {
+            source: 'own',
+            pattern: settings.renamePattern,
+            problem: 'Whisparr has no Standard Scene Format set.',
+          },
+        }),
+      ),
+    });
+    const { root } = await render(api, 'settings', 'rename');
+    expect(root.querySelector('[data-testid="naming-problem"]')?.textContent).toContain(
+      'no Standard Scene Format',
+    );
+    expect(root.querySelector('#rename-file')).not.toBeNull();
+  });
+
+  it('is two tools: Match scenes (Review, Settings) and Rename files (To do, Settings)', async () => {
+    const api = renameApi();
+    const match = await render(api, undefined, 'match');
+    const tabs = (root: HTMLElement) =>
+      Array.from(root.querySelectorAll('[role="tab"]')).map((el) => el.textContent?.trim());
+    expect(match.root.querySelector('h1')?.textContent).toBe('Match scenes');
+    expect(tabs(match.root)).toEqual(['Review', 'Settings']);
+    expect(api.preview).not.toHaveBeenCalled();
+    match.fixture.destroy();
+    TestBed.resetTestingModule();
+
+    const rename = await render(renameApi(), undefined, 'rename');
+    expect(rename.root.querySelector('h1')?.textContent).toBe('Rename files');
+    expect(tabs(rename.root)[0]).toMatch(/^To do/);
+    expect(tabs(rename.root)[1]).toBe('Settings');
+    rename.fixture.destroy();
   });
 
   it('puts back only the setting that failed to save', async () => {

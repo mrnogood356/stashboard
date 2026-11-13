@@ -3,18 +3,18 @@ import { RouterLink } from '@angular/router';
 import { OrganizeStore } from './organize.store';
 import { OrganizeFilesStore } from './organize-files.store';
 
-/** Match & rename → Settings: sources, what happens after a match, naming and folders. */
+/** Rename files → Settings: naming, what happens after a match, Whisparr and folders. */
 @Component({
-  selector: 'app-organize-settings',
+  selector: 'app-organize-rename-settings',
   imports: [RouterLink],
-  templateUrl: './organize-settings.component.html',
+  templateUrl: './organize-rename-settings.component.html',
   styleUrls: [
     './tools-shared.scss',
     './organize-shared.scss',
     './organize-settings.component.scss',
   ],
 })
-export class OrganizeSettingsComponent {
+export class OrganizeRenameSettingsComponent {
   protected readonly store = inject(OrganizeStore);
   protected readonly files = inject(OrganizeFilesStore);
 

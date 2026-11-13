@@ -22,6 +22,7 @@ import {
   joinPath,
   splitPath,
   validatePattern,
+  patternFromWhisparr,
 } from './rename.util';
 import {
   DEFAULT_WHISPARR_NAMING,
@@ -61,7 +62,7 @@ import {
 } from './organizer-plan.util';
 import { OrganizerCore } from './organizer-core';
 import type { NewActivity } from '../activity/activity.model';
-import { trimSeparators, trimTrailingSeparators } from '../path-separators';
+import { trimTrailingSeparators } from '../path-separators';
 
 /**
  * The organizer's file work: renaming and undo, moving unmatched files,
@@ -572,19 +573,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
     if (!naming) {
       return null;
     }
-    if (!naming.fileFormat) {
-      return {
-        ...naming,
-        pattern: null,
-        problem: 'Whisparr has no Standard Scene Format set.',
-      };
-    }
-    const pattern = [naming.folderFormat, naming.fileFormat]
-      .filter((part): part is string => !!part)
-      .map((part) => trimSeparators(part))
-      .join('/');
-    const problem = validatePattern(pattern);
-    return { ...naming, pattern: problem ? null : pattern, problem };
+    return { ...naming, ...patternFromWhisparr(naming) };
   }
 
   /** How many scenes "Repair Whisparr" would fix. */
@@ -854,8 +843,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
   async renamePreview(patternOverride?: string): Promise<RenamePreviewDto> {
     const settings = await this.getSettings();
     const pattern =
-      (patternOverride ?? settings.renamePattern).trim() ||
-      DEFAULT_RENAME_PATTERN;
+      patternOverride?.trim() || (await this.renamingPattern(settings)).pattern;
     const problem = validatePattern(pattern);
     if (problem) {
       throw new BadRequestException(problem);
@@ -908,7 +896,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
     sceneIds: string[],
   ): Promise<{ pattern: string; plans: RenamePlanDto[] }> {
     const settings = await this.getSettings();
-    const pattern = settings.renamePattern || DEFAULT_RENAME_PATTERN;
+    const { pattern } = await this.renamingPattern(settings);
     const config = await this.stashConfig();
     const plans = await this.planScenes(
       config,
@@ -1178,7 +1166,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
     this.assertIdle();
     const settings = await this.getSettings();
     const config = await this.stashConfig();
-    const pattern = settings.renamePattern || DEFAULT_RENAME_PATTERN;
+    const { pattern } = await this.renamingPattern(settings);
     const plans = (
       await this.planScenes(config, settings, pattern, sceneIds, false)
     ).filter((plan) => plan.state === 'taken');
@@ -1285,7 +1273,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
   }> {
     const settings = await this.getSettings();
     const config = await this.stashConfig();
-    const pattern = settings.renamePattern || DEFAULT_RENAME_PATTERN;
+    const { pattern } = await this.renamingPattern(settings);
     let plans: RenamePlanDto[];
     if (sceneIds) {
       plans = await this.planScenes(config, settings, pattern, sceneIds);
@@ -1529,7 +1517,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
     });
     const config = await this.stashConfig();
     const settings = await this.getSettings();
-    const pattern = settings.renamePattern || DEFAULT_RENAME_PATTERN;
+    const { pattern } = await this.renamingPattern(settings);
     const [roots, scene] = await Promise.all([
       this.stash.getLibraryRoots(config),
       this.stash.getOrganizerScene(config, sceneId),
@@ -1664,7 +1652,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
     const config = await this.stashConfig();
     const plans = await this.planAll(
       config,
-      settings.renamePattern || DEFAULT_RENAME_PATTERN,
+      (await this.renamingPattern(settings)).pattern,
       settings.skipWhisparrFiles,
       settings.renameRoot,
     );

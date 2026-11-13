@@ -267,6 +267,7 @@ describe('OrganizerService', () => {
       rootFoldersAsStashSees: jest.fn().mockResolvedValue([]),
       repairPlan: jest.fn(),
       namingConfig: jest.fn().mockResolvedValue(null),
+      leavesCopies: jest.fn().mockResolvedValue(null),
       resetPaths: jest.fn().mockResolvedValue(undefined),
       scanWhereWhisparrPut: jest.fn().mockResolvedValue(undefined),
     };
@@ -1160,6 +1161,70 @@ describe('OrganizerService', () => {
     const preview = await service.renamePreview();
     expect(preview.counts.whisparr).toBe(1);
     expect(preview.counts.ready).toBe(0);
+  });
+
+  it('renames with Whisparr’s own naming when Whisparr is set up, not your pattern', async () => {
+    settings.renamePattern = '{title}';
+    handoff.namingConfig.mockResolvedValue({
+      folderFormat: '{Studio Title}',
+      fileFormat: '{Release Date} - {Scene Title}',
+    });
+    stash.findOrganizerScenes.mockResolvedValue({
+      total: 1,
+      items: [
+        localScene({
+          title: 'T',
+          date: '2020-01-02',
+          studio: { id: 's', name: 'S' },
+          stashIds: [{ endpoint: 'e', stashId: 'y' }],
+        }),
+      ],
+    });
+
+    const preview = await service.renamePreview();
+    expect(preview.pattern).toBe(
+      '{Studio Title}/{Release Date} - {Scene Title}',
+    );
+    await expect(service.getSettingsDto()).resolves.toMatchObject({
+      naming: {
+        source: 'whisparr',
+        pattern: '{Studio Title}/{Release Date} - {Scene Title}',
+        problem: null,
+      },
+    });
+
+    // Without a usable file format, your own pattern, saying why.
+    handoff.namingConfig.mockResolvedValue({
+      folderFormat: '{Studio Title}',
+      fileFormat: null,
+    });
+    await expect(service.getSettingsDto()).resolves.toMatchObject({
+      naming: {
+        source: 'own',
+        pattern: '{title}',
+        problem: 'Whisparr has no Standard Scene Format set.',
+      },
+    });
+  });
+
+  it('always leaves Whisparr’s files alone, whatever was saved before', async () => {
+    settings.skipWhisparrFiles = false;
+    handoff.trackedStashIds.mockResolvedValue(new Set(['x']));
+    stash.findOrganizerScenes.mockResolvedValue({
+      total: 1,
+      items: [
+        localScene({
+          title: 'T',
+          studio: { id: 's', name: 'S' },
+          stashIds: [{ endpoint: 'e', stashId: 'x' }],
+        }),
+      ],
+    });
+    const preview = await service.renamePreview();
+    expect(preview.counts.whisparr).toBe(1);
+    await expect(service.getSettingsDto()).resolves.toMatchObject({
+      skipWhisparrFiles: true,
+    });
   });
 
   it('renames nothing when it can’t ask Whisparr which files are its own', async () => {

@@ -2,36 +2,48 @@
   <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
   <header class="page-head-compact">
     <div class="page-head-compact__title">
-      <h1>Match &amp; rename</h1>
-      <p>Matches your scenes, keeps names tidy and keeps Stash and Whisparr in step.</p>
+      @if (store.tool() === 'match') {
+        <h1>Match scenes</h1>
+        <p>Finds which StashDB scene each of your files is, and fills in the details.</p>
+      } @else {
+        <h1>Rename files</h1>
+        <p>Tidy names and folders for files you added yourself, and Whisparr kept in step.</p>
+      }
     </div>
   </header>
 
-  <div class="app-tabs" role="tablist" aria-label="Organizer">
-    <button
-      type="button"
-      role="tab"
-      [class.active]="store.tab() === 'overview'"
-      [attr.aria-selected]="store.tab() === 'overview'"
-      (click)="store.select('overview')"
-    >
-      Overview
-      @if (store.todoCount() > 0) {
-        <span class="count-badge">{{ store.todoCount() }}</span>
-      }
-    </button>
-    <button
-      type="button"
-      role="tab"
-      [class.active]="store.tab() === 'review'"
-      [attr.aria-selected]="store.tab() === 'review'"
-      (click)="store.select('review')"
-    >
-      Review
-      @if (store.waiting() > 0) {
-        <span class="count-badge">{{ store.waiting() }}</span>
-      }
-    </button>
+  <div
+    class="app-tabs"
+    role="tablist"
+    [attr.aria-label]="store.tool() === 'match' ? 'Match scenes' : 'Rename files'"
+  >
+    @if (store.tool() === 'match') {
+      <button
+        type="button"
+        role="tab"
+        [class.active]="store.tab() === 'review'"
+        [attr.aria-selected]="store.tab() === 'review'"
+        (click)="store.select('review')"
+      >
+        Review
+        @if (store.waiting() > 0) {
+          <span class="count-badge">{{ store.waiting() }}</span>
+        }
+      </button>
+    } @else {
+      <button
+        type="button"
+        role="tab"
+        [class.active]="store.tab() === 'overview'"
+        [attr.aria-selected]="store.tab() === 'overview'"
+        (click)="store.select('overview')"
+      >
+        To do
+        @if (store.todoCount() > 0) {
+          <span class="count-badge">{{ store.todoCount() }}</span>
+        }
+      </button>
+    }
     <button
       type="button"
       role="tab"
@@ -95,7 +107,9 @@
     <app-organize-overview />
   } @else if (store.tab() === 'review') {
     <app-organize-review />
+  } @else if (store.tool() === 'match') {
+    <app-organize-match-settings />
   } @else {
-    <app-organize-settings />
+    <app-organize-rename-settings />
   }
 </main>

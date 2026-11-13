@@ -15,7 +15,7 @@ import { OrganizeStore } from './organize.store';
 import { OrganizeListStore } from './organize-list.store';
 import { SKIP_REASON, TOKEN_HELP, PREVIEW_DELAY_MS } from './organize.shared';
 
-/** Match & rename: the naming pattern, the rename preview and renames, folders, and Whisparr's folders. */
+/** Rename files: the naming pattern, the rename preview and renames, folders, and Whisparr's folders. */
 @Injectable()
 export class OrganizeFilesStore implements OnDestroy {
   private readonly api = inject(OrganizerApiService);
@@ -67,8 +67,14 @@ export class OrganizeFilesStore implements OnDestroy {
   private readonly previewedPattern = signal<string | null>(null);
 
   /** The pattern was edited since the preview: renaming now would use names nobody saw. */
+  /** Names come from Whisparr's naming, not a pattern typed here. */
+  readonly followsWhisparr = computed(() => this.store.settings()?.naming?.source === 'whisparr');
+
   readonly previewOutdated = computed(
-    () => this.preview() !== null && this.previewedPattern() !== this.pattern().trim(),
+    () =>
+      !this.followsWhisparr() &&
+      this.preview() !== null &&
+      this.previewedPattern() !== this.pattern().trim(),
   );
 
   private previewRequest = 0;
@@ -422,7 +428,8 @@ export class OrganizeFilesStore implements OnDestroy {
   /** Just the names for the pattern as typed. */
   private previewNames(): void {
     this.cancelQueuedPreview();
-    const pattern = this.pattern().trim();
+    // Following Whisparr, the server uses its naming: nothing typed is sent.
+    const pattern = this.followsWhisparr() ? '' : this.pattern().trim();
     this.previewing.set(true);
     this.previewError.set(null);
     this.confirmRename.set(false);

@@ -1,16 +1,18 @@
 import { Component, OnInit, inject } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { OrganizeStore } from './organize.store';
 import { OrganizeListStore } from './organize-list.store';
 import { OrganizeFilesStore } from './organize-files.store';
 import { OrganizeOverviewComponent } from './organize-overview.component';
 import { OrganizeReviewComponent } from './organize-review.component';
-import { OrganizeSettingsComponent } from './organize-settings.component';
+import { OrganizeMatchSettingsComponent } from './organize-match-settings.component';
+import { OrganizeRenameSettingsComponent } from './organize-rename-settings.component';
+import { OrganizeTool } from './organize.shared';
 
 /**
- * Library tools → Match & rename: match scenes to StashDB, rename files into
- * tidy folders, and keep Stash and Whisparr in step. The tabs share the three
- * stores provided here, one set per visit to the page.
+ * Library tools → Match scenes (route data tool: 'match') and Rename files
+ * (tool: 'rename'): one page, two tools. Their tabs share the three stores
+ * provided here, one set per visit to the page.
  */
 @Component({
   selector: 'app-organize-page',
@@ -18,7 +20,8 @@ import { OrganizeSettingsComponent } from './organize-settings.component';
     RouterLink,
     OrganizeOverviewComponent,
     OrganizeReviewComponent,
-    OrganizeSettingsComponent,
+    OrganizeMatchSettingsComponent,
+    OrganizeRenameSettingsComponent,
   ],
   providers: [OrganizeStore, OrganizeListStore, OrganizeFilesStore],
   templateUrl: './organize-page.component.html',
@@ -26,8 +29,9 @@ import { OrganizeSettingsComponent } from './organize-settings.component';
 })
 export class OrganizePageComponent implements OnInit {
   protected readonly store = inject(OrganizeStore);
+  private readonly route = inject(ActivatedRoute);
 
   ngOnInit(): void {
-    this.store.init();
+    this.store.init(this.route.snapshot.data?.['tool'] as OrganizeTool | undefined);
   }
 }

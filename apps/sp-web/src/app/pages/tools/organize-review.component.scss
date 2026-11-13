@@ -347,3 +347,13 @@
   font-size: 1.4rem;
   cursor: pointer;
 }
+
+.head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.to-move {
+  margin: -0.4rem 0 0.8rem;
+}
