@@ -1,0 +1,350 @@
+/* A tab inside the page: not a page of its own. */
+:host {
+  min-height: 0;
+  background: none;
+}
+
+/* ---------- cards ---------- */
+
+.card {
+  display: grid;
+  align-content: start;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.9rem;
+  margin-top: 1.1rem;
+  padding: 1rem;
+}
+
+.card-head {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.card-copy {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.card-copy h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.card-copy p {
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+/* Paths in card copy are long unbroken strings; let them wrap on phones. */
+.card code {
+  overflow-wrap: anywhere;
+}
+
+/* iOS-style switch row inside a card */
+.switches {
+  display: grid;
+  border-radius: 14px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.8rem 0.9rem;
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+}
+
+.switches .switch-row {
+  border-radius: 0;
+  background: none;
+}
+
+.switches .switch-row + .switch-row {
+  box-shadow: inset 0 1px 0 var(--separator, var(--border-subtle));
+}
+
+/* Only the switch itself toggles; the words beside it are just words. */
+.switch:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.row-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.row-copy small.warn,
+p.warn {
+  color: var(--warning-text, var(--warning, #b7791f));
+  font-weight: 600;
+}
+
+.row-copy small {
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.switch {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  width: 3.1rem;
+  height: 1.9rem;
+  border-radius: 999px;
+  background: var(--border-strong);
+  transition: background-color 0.2s ease;
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--switch-knob);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 25%);
+  transition: transform 0.2s cubic-bezier(0.3, 0.9, 0.3, 1.1);
+}
+
+.switch.on {
+  background: var(--success);
+}
+
+.switch.on::after {
+  transform: translateX(1.2rem);
+}
+
+/* ---------- rename ---------- */
+
+.field {
+  display: flex;
+}
+
+.pattern-fields {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.pattern-fields .field {
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.pattern-fields small {
+  line-height: 1.4;
+}
+
+.field input {
+  height: 2.9rem;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.92rem;
+  /* iOS zooms into inputs under 16px; keep it readable but not zoomed. */
+  font-size: max(16px, 0.92rem);
+}
+
+.tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: -0.3rem;
+}
+
+.token {
+  height: 1.9rem;
+  padding: 0 0.6rem;
+  border: 0;
+  border-radius: 8px;
+  background: var(--chip-bg);
+  color: var(--text-primary);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.token:active {
+  transform: scale(0.96);
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.8rem;
+}
+
+.example {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.example code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- sources ---------- */
+
+.source-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 14px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.source-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.85rem;
+}
+
+.source-list li + li {
+  box-shadow: inset 0 1px 0 var(--separator, var(--border-subtle));
+}
+
+.source-num {
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: var(--chip-bg);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.source-list i {
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+
+.source-name {
+  flex: 1 1 auto;
+  font-weight: 650;
+}
+
+.danger-link {
+  color: var(--danger);
+  justify-self: start;
+}
+
+.sources > .link {
+  justify-self: start;
+}
+
+.field-title {
+  font-weight: 650;
+  font-size: 0.92rem;
+}
+
+.mapping,
+.mode {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.mapping-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.mapping-link {
+  justify-self: start;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.mapping code {
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.segmented.compact {
+  margin-top: 0;
+}
+
+.root-field {
+  display: grid;
+  min-width: 0;
+  gap: 0.35rem;
+}
+
+.root-field select {
+  width: 100%;
+  min-width: 0;
+  height: 2.75rem;
+  padding: 0 0.85rem;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 16px;
+}
+
+.root-field select:focus-visible {
+  outline: 2px solid var(--focus-ring);
+}
+
+.root-field small {
+  line-height: 1.4;
+}
+
+.keep-folders {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.keep-add {
+  display: flex;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.keep-add input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 1rem;
+}

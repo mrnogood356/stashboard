@@ -1,0 +1,324 @@
+<!-- ================= REVIEW ================= -->
+<app-match-review
+  [reloadKey]="list.reviewKey()"
+  [busy]="store.run()?.running ?? false"
+  (started)="store.followRun($event)"
+  (counted)="store.waiting.set($event)"
+/>
+
+@if (list.withoutFingerprint() > 0) {
+  <div class="notice">
+    <i class="pi pi-info-circle" aria-hidden="true"></i>
+    <span
+      >{{ list.withoutFingerprint() }} of these have no video fingerprint yet, so they can only be
+      matched by name. Run <a routerLink="/tools/jobs">Generate</a> in Stash jobs to add
+      fingerprints for better matches.</span
+    >
+  </div>
+}
+
+<div class="list-head">
+  <h2 class="list-title">
+    {{
+      list.listScope() === 'all'
+        ? 'All scenes'
+        : list.listScope() === 'unlinked'
+          ? 'Not linked to StashDB'
+          : 'Not matched'
+    }}
+    @if (list.listTotal() !== null) {
+      <span class="muted">· {{ list.listTotal() }}</span>
+    }
+  </h2>
+  @if (list.scenes().length > 1) {
+    <button type="button" class="btn" [disabled]="list.lookingUpPage()" (click)="list.lookupPage()">
+      <i class="pi pi-search" aria-hidden="true"></i>
+      {{ list.lookingUpPage() ? 'Looking up…' : 'Find matches for these' }}
+    </button>
+  }
+</div>
+
+<div class="list-filters" role="search">
+  <label class="list-search">
+    <i class="pi pi-search" aria-hidden="true"></i>
+    <input
+      type="search"
+      placeholder="Search title, file or folder"
+      aria-label="Search scenes"
+      [value]="list.listQuery()"
+      (input)="list.search($any($event.target).value)"
+    />
+  </label>
+  <label class="list-select">
+    <span>Show</span>
+    <select
+      aria-label="Show"
+      [value]="list.listScope()"
+      (change)="list.setScope($any($event.target).value)"
+    >
+      <option value="unmatched">Not matched</option>
+      <option value="unlinked">Not linked to StashDB</option>
+      <option value="all">All scenes</option>
+    </select>
+  </label>
+  <label class="list-select">
+    <span>Sort</span>
+    <select
+      aria-label="Sort"
+      [value]="list.listSort()"
+      (change)="list.setSort($any($event.target).value)"
+    >
+      <option value="added-desc">Newest added</option>
+      <option value="added-asc">Oldest added</option>
+      <option value="title">Title</option>
+      <option value="path">File name</option>
+      <option value="date">Release date</option>
+    </select>
+  </label>
+</div>
+
+@if (!list.loadingScenes() && list.listTotal() === 0) {
+  <div class="empty">
+    <i class="pi pi-check-circle" aria-hidden="true"></i>
+    <p>{{ list.filtered() ? 'No scenes match.' : 'Every scene is matched.' }}</p>
+  </div>
+}
+
+@if (list.scenes().length > 0) {
+  <div class="select-row">
+    <button
+      type="button"
+      class="link"
+      [attr.aria-pressed]="list.selecting()"
+      (click)="list.selecting() ? list.stopSelecting() : list.startSelecting()"
+    >
+      {{ list.selecting() ? 'Done picking' : 'Pick scenes' }}
+    </button>
+  </div>
+}
+
+<ul class="scenes">
+  @for (scene of list.scenes(); track scene.id) {
+    <li
+      class="scene panel"
+      [class.compact]="!list.matchState(scene.id)"
+      [class.picked]="list.selecting() && list.isPicked(scene.id)"
+    >
+      @if (list.selecting()) {
+        <button
+          type="button"
+          class="pick-overlay"
+          [attr.aria-pressed]="list.isPicked(scene.id)"
+          [attr.aria-label]="(list.isPicked(scene.id) ? 'Unselect ' : 'Select ') + scene.fileName"
+          (click)="list.togglePick(scene.id)"
+        >
+          <i
+            class="pi"
+            [class.pi-check-circle]="list.isPicked(scene.id)"
+            [class.pi-circle]="!list.isPicked(scene.id)"
+            aria-hidden="true"
+          ></i>
+        </button>
+      }
+      <div class="scene-top">
+        <a
+          class="thumb"
+          [routerLink]="['/library/scene', scene.id]"
+          [queryParams]="{ returnTo: store.currentUrl() }"
+          [attr.aria-label]="'Open ' + scene.fileName"
+        >
+          @if (scene.imageUrl) {
+            <img [src]="scene.imageUrl" alt="" loading="lazy" />
+          } @else {
+            <i class="pi pi-video" aria-hidden="true"></i>
+          }
+        </a>
+        <div class="scene-copy">
+          <p class="file">{{ scene.fileName }}</p>
+          @if (scene.folder) {
+            <p class="muted folder" [title]="scene.folder">
+              <i class="pi pi-folder" aria-hidden="true"></i
+              ><span class="folder-path"
+                ><span dir="ltr">{{ scene.folder }}</span></span
+              >
+            </p>
+          }
+          <p class="muted meta">
+            @if (store.duration(scene.duration); as length) {
+              <span>{{ length }}</span>
+            }
+            @if (scene.resolution) {
+              <span>{{ scene.resolution }}</span>
+            }
+            @if (store.size(scene.size); as fileSize) {
+              <span>{{ fileSize }}</span>
+            }
+          </p>
+        </div>
+      </div>
+
+      @if (list.matchState(scene.id); as state) {
+        @if (state.loading) {
+          <p class="muted looking" role="status">
+            <span class="spinner" aria-hidden="true"></span> Looking on StashDB…
+          </p>
+        } @else if (state.error) {
+          <div class="notice error small-notice" role="alert">
+            <i class="pi pi-exclamation-circle" aria-hidden="true"></i
+            ><span>{{ state.error }}</span>
+          </div>
+        } @else if (state.result; as result) {
+          @if (result.candidates.length === 0) {
+            <p class="muted none">
+              No matches{{ result.searchedFor ? ' for “' + result.searchedFor + '”' : '' }}. Try
+              your own words below.
+            </p>
+          } @else {
+            <ul class="candidates" [attr.aria-label]="'Possible matches for ' + scene.fileName">
+              @for (candidate of result.candidates; track candidate.id) {
+                <li class="candidate" [class.top]="$first">
+                  <div class="candidate-art">
+                    @if (candidate.imageUrl) {
+                      <img
+                        [src]="candidate.imageUrl"
+                        alt=""
+                        loading="lazy"
+                        referrerpolicy="no-referrer"
+                      />
+                    }
+                  </div>
+                  <div class="candidate-copy">
+                    <span class="badge-row">
+                      <span class="badge" [attr.data-confidence]="candidate.confidence">{{
+                        list.confidenceLabel[candidate.confidence]
+                      }}</span>
+                      <span class="source-chip">{{ candidate.source }}</span>
+                    </span>
+                    <strong class="candidate-title">{{ candidate.title ?? 'Untitled' }}</strong>
+                    <span class="muted small">
+                      {{ candidate.studio ?? 'No studio' }}
+                      @if (candidate.date) {
+                        · {{ candidate.date }}
+                      }
+                      @if (store.duration(candidate.duration); as length) {
+                        · {{ length }}
+                      }
+                    </span>
+                    @if (candidate.performers.length) {
+                      <span class="muted small performers">{{
+                        candidate.performers.join(', ')
+                      }}</span>
+                    }
+                    @if (candidate.reasons.length || list.lengthDiff(scene, candidate)) {
+                      <span class="reasons">
+                        @for (reason of candidate.reasons; track reason) {
+                          <span class="reason" [class.bad]="reason === 'Different length'">{{
+                            reason
+                          }}</span>
+                        }
+                        @if (list.lengthDiff(scene, candidate); as diff) {
+                          <span class="reason faint">{{ diff }}</span>
+                        }
+                      </span>
+                    }
+                  </div>
+                  <button
+                    type="button"
+                    class="btn small"
+                    [class.primary]="$first && candidate.confidence !== 'weak'"
+                    [disabled]="state.applying !== null"
+                    (click)="list.apply(scene, candidate)"
+                    [attr.aria-label]="'Use ' + (candidate.title ?? 'this match')"
+                  >
+                    @if (state.applying === candidate.id) {
+                      <span class="spinner" aria-hidden="true"></span>
+                    } @else {
+                      <i class="pi pi-check" aria-hidden="true"></i>
+                    }
+                    <span class="label">This one</span>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+          <form
+            class="own-search"
+            (submit)="$event.preventDefault(); list.searchOwn(scene, ownQuery.value)"
+          >
+            <label class="sr-only" [attr.for]="'q-' + scene.id">Search all sources yourself</label>
+            <input
+              #ownQuery
+              [id]="'q-' + scene.id"
+              type="search"
+              enterkeyhint="search"
+              autocomplete="off"
+              placeholder="Search all sources yourself"
+              [value]="state.query"
+            />
+            <button type="submit" class="btn small">Search</button>
+          </form>
+          @if (store.settings()?.useStashScrapers && store.settings()?.scrapers?.length) {
+            <button
+              type="button"
+              class="link scrape-link"
+              [disabled]="list.isScraping(scene.id)"
+              (click)="list.tryScrapers(scene)"
+            >
+              @if (list.isScraping(scene.id)) {
+                <span class="spinner" aria-hidden="true"></span> Asking Stash’s scrapers… (up to a
+                few minutes)
+              } @else {
+                <i class="pi pi-code" aria-hidden="true"></i> Try Stash’s scrapers
+              }
+            </button>
+          }
+        }
+      } @else {
+        <div class="scene-actions">
+          <button type="button" class="btn small" (click)="list.lookup(scene)">
+            <i class="pi pi-search" aria-hidden="true"></i><span class="label">Find match</span>
+          </button>
+        </div>
+      }
+    </li>
+  }
+</ul>
+
+@if (list.loadingScenes()) {
+  <p class="muted loading" role="status">
+    <span class="spinner" aria-hidden="true"></span> Loading…
+  </p>
+} @else if (list.hasMore()) {
+  <div class="more">
+    <button type="button" class="btn" (click)="list.loadMore()">Show more</button>
+  </div>
+}
+
+@if (list.selecting()) {
+  <app-selection-bar
+    [count]="list.picked().size"
+    [visible]="list.scenes().length"
+    [busy]="!!store.run()?.running"
+    (selectAll)="list.pickAll()"
+    (clear)="list.pickNone()"
+    (done)="list.stopSelecting()"
+  >
+    <button
+      type="button"
+      class="bar-button"
+      [disabled]="list.picked().size === 0 || store.run()?.running"
+      (click)="list.matchPicked()"
+    >
+      Match picked
+    </button>
+    <button
+      type="button"
+      class="bar-button danger"
+      [class.confirm]="list.confirmMovePicked()"
+      [disabled]="list.picked().size === 0 || store.run()?.running"
+      (click)="list.movePicked()"
+    >
+      {{ list.confirmMovePicked() ? 'Tap again to move' : 'Move to Unmatched' }}
+    </button>
+  </app-selection-bar>
+}

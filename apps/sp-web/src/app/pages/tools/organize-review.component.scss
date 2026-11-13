@@ -1,0 +1,349 @@
+/* A tab inside the page: not a page of its own. */
+:host {
+  min-height: 0;
+  background: none;
+}
+
+.list-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0 0 0.9rem;
+}
+
+.list-search {
+  flex: 1 1 16rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  height: 2.6rem;
+  padding: 0 0.85rem;
+  border-radius: 12px;
+  background: var(--surface-2);
+
+  i {
+    opacity: 0.6;
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    outline: none;
+  }
+
+  &:focus-within {
+    outline: 2px solid var(--focus-ring);
+  }
+}
+
+.list-select {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  font-size: 0.9rem;
+
+  span {
+    opacity: 0.7;
+  }
+
+  select {
+    min-width: 0;
+    height: 2.6rem;
+    padding: 0 0.75rem;
+    border: 0;
+    border-radius: 12px;
+    background: var(--surface-2);
+    color: inherit;
+    font: inherit;
+  }
+
+  select:focus-visible {
+    outline: 2px solid var(--focus-ring);
+  }
+}
+
+@media (max-width: 560px) {
+  .list-search {
+    flex-basis: 100%;
+  }
+
+  /* Side by side; the options name themselves, so the labels go. */
+  .list-select {
+    flex: 1 1 calc(50% - 0.3rem);
+  }
+
+  .list-select span {
+    display: none;
+  }
+
+  .list-select select {
+    flex: 1 1 auto;
+    width: 100%;
+    font-size: 16px;
+  }
+}
+
+.scenes {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scene-top {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.scene-top .thumb {
+  width: 8.5rem;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+}
+
+.scene-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.folder {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  font-size: 0.76rem;
+}
+
+/* Long paths keep their end (the folder name) visible. */
+.folder-path {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+
+.folder i {
+  font-size: 0.7rem;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.scene-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.candidates {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.candidate {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.55rem;
+  border-radius: 14px;
+  background: var(--surface-2);
+  min-width: 0;
+}
+
+.candidate.top {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.candidate-art {
+  flex: 0 0 auto;
+  width: 6.5rem;
+  aspect-ratio: 16 / 9;
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--chip-bg);
+}
+
+.candidate-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.candidate-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+  justify-items: start;
+}
+
+.candidate-title {
+  font-size: 0.9rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.performers {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.badge {
+  padding: 0.1rem 0.45rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--chip-bg);
+  color: var(--text-muted);
+}
+
+.badge[data-confidence='exact'] {
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+  color: var(--success-text);
+}
+
+.badge[data-confidence='strong'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.badge[data-confidence='likely'] {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning-text);
+}
+
+:host-context([data-theme='dark']) .badge[data-confidence='exact'] {
+  color: var(--success-text);
+}
+
+:host-context([data-theme='dark']) .badge[data-confidence='likely'] {
+  color: var(--warning-text);
+}
+
+.reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.1rem;
+}
+
+.reason {
+  padding: 0.05rem 0.4rem;
+  border-radius: 5px;
+  background: var(--chip-bg);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.reason.bad {
+  color: var(--danger);
+}
+
+.reason.faint {
+  background: none;
+  padding-left: 0;
+}
+
+.candidate .btn {
+  flex: 0 0 auto;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+@media (max-width: 560px) {
+  .scene-top .thumb {
+    width: 6.5rem;
+  }
+
+  .candidate {
+    flex-wrap: wrap;
+  }
+
+  .candidate-art {
+    width: 5.2rem;
+  }
+
+  .candidate-copy {
+    flex-basis: calc(100% - 6rem);
+  }
+
+  .candidate .btn {
+    width: 100%;
+  }
+}
+
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.source-chip {
+  padding: 0.1rem 0.45rem;
+  border-radius: 6px;
+  background: var(--chip-bg);
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.scrape-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  justify-self: start;
+}
+
+.select-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 0.4rem;
+}
+
+.pick-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 0.7rem;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: var(--accent);
+  font-size: 1.4rem;
+  cursor: pointer;
+}

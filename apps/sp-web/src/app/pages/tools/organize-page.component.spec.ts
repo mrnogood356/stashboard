@@ -1,3 +1,7 @@
+import { isSignal } from '@angular/core';
+import { OrganizeStore } from './organize.store';
+import { OrganizeListStore } from './organize-list.store';
+import { OrganizeFilesStore } from './organize-files.store';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
@@ -69,6 +73,23 @@ const candidate = {
   confidence: 'exact',
   reasons: ['Same video fingerprint'],
 };
+
+/** The page's state, from whichever of its three stores holds it. */
+function stores(fixture: { debugElement: { injector: { get<T>(token: unknown): T } } }): any {
+  const all = [OrganizeStore, OrganizeListStore, OrganizeFilesStore].map((token) =>
+    fixture.debugElement.injector.get<Record<string, unknown>>(token),
+  );
+  return new Proxy(
+    {},
+    {
+      get: (_, key: string) => {
+        const owner = all.find((store) => key in store);
+        const value = owner?.[key];
+        return typeof value === 'function' && !isSignal(value) ? value.bind(owner) : value;
+      },
+    },
+  );
+}
 
 async function render(api: Record<string, unknown>, tab?: string) {
   const notifications = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
@@ -321,7 +342,7 @@ describe('OrganizePageComponent', () => {
     });
     expect(root.textContent).toContain('No scenes match.');
     // The Overview still counts every unmatched scene, not the search.
-    expect((fixture.componentInstance as unknown as { total(): number }).total()).toBe(12);
+    expect(stores(fixture).total()).toBe(12);
   });
 
   it('opens the scene list already searched when Fix my library links here', async () => {
@@ -691,7 +712,7 @@ describe('OrganizePageComponent', () => {
       ),
     };
     const { fixture, root } = await render(api, 'settings');
-    const component = fixture.componentInstance as any;
+    const component = stores(fixture);
 
     component.setPattern('{studio}/{date} - {title}');
     component.setFolderPart('scenes/{studio}');
@@ -796,7 +817,7 @@ describe('OrganizePageComponent', () => {
   it('won’t rename with a pattern nobody previewed', async () => {
     const api = renameApi();
     const { fixture, root } = await render(api, 'rename');
-    const component = fixture.componentInstance as any;
+    const component = stores(fixture);
 
     component.setPattern('{performers}/{title}');
     fixture.detectChanges();
@@ -814,7 +835,7 @@ describe('OrganizePageComponent', () => {
     const second = new Subject<unknown>();
     const api = renameApi();
     const { fixture } = await render(api, 'rename');
-    const component = fixture.componentInstance as any;
+    const component = stores(fixture);
     api.preview.mockReturnValueOnce(first).mockReturnValueOnce(second);
 
     component.setPattern('{title}');
@@ -832,7 +853,7 @@ describe('OrganizePageComponent', () => {
   it('keeps following a run after one status check fails', async () => {
     const api = renameApi();
     const { fixture } = await render(api, 'rename');
-    const component = fixture.componentInstance as any;
+    const component = stores(fixture);
     vi.useFakeTimers();
     try {
       api.status
@@ -929,7 +950,7 @@ describe('OrganizePageComponent', () => {
     api.preview.mockImplementation((pattern?: string) => of(renamePreview(pattern ?? '', 2)));
     const { fixture, root } = await render(api, 'settings');
     // Settings shows the names once they're worked out.
-    (fixture.componentInstance as any).loadPreview();
+    stores(fixture).loadPreview();
     fixture.detectChanges();
     vi.useFakeTimers();
     try {
@@ -971,8 +992,8 @@ describe('OrganizePageComponent', () => {
     const update = vi.fn().mockReturnValue(of({ ...settings, renamePattern: '{studio}/{title}' }));
     const api = renameApi({ update });
     const { fixture, root, notifications } = await render(api, 'settings');
-    (fixture.componentInstance as any).loadPreview();
-    const component = fixture.componentInstance as any;
+    stores(fixture).loadPreview();
+    const component = stores(fixture);
     const previews = api.preview.mock.calls.length;
     const repairs = api.whisparrRepair.mock.calls.length;
     const relocations = api.whisparrRelocation.mock.calls.length;
@@ -998,7 +1019,7 @@ describe('OrganizePageComponent', () => {
     const saved = new Subject<unknown>();
     const api = renameApi({ update: vi.fn().mockReturnValue(saved) });
     const { fixture } = await render(api, 'rename');
-    const component = fixture.componentInstance as any;
+    const component = stores(fixture);
 
     component.setPattern('{studio}/{Scene Title}');
     component.savePattern();
@@ -1047,7 +1068,7 @@ describe('OrganizePageComponent', () => {
       status: vi.fn().mockReturnValue(of({ ...idle, kind: 'match' })),
     });
     const { fixture } = await render(api, 'rename');
-    const component = fixture.componentInstance as any;
+    const component = stores(fixture);
     vi.useFakeTimers();
     try {
       const lists = api.unmatched.mock.calls.length;
@@ -1111,7 +1132,7 @@ describe('OrganizePageComponent', () => {
       update: vi.fn().mockReturnValue(saving),
     };
     const { fixture, root, notifications } = await render(api, 'settings');
-    const component = fixture.componentInstance as any;
+    const component = stores(fixture);
 
     button(root, 'Hardlink / copy').click();
     expect(component.settings().whisparrImportMode).toBe('copy');
