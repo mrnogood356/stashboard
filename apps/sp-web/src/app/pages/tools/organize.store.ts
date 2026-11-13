@@ -68,6 +68,11 @@ export class OrganizeStore implements OnDestroy {
         this.list.listQuery.set(query);
         this.tab.set('review');
       }
+      // ?scope=all: a scene that's matched, just to the wrong one.
+      const scope = this.route.snapshot.queryParamMap.get('scope');
+      if (scope === 'all' || scope === 'unlinked') {
+        this.list.listScope.set(scope);
+      }
       this.loadWaiting();
     }
     this.api.settings().subscribe({

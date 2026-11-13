@@ -1569,6 +1569,36 @@ export class OrganizerService
     return this.checkWaitingScenes();
   }
 
+  /**
+   * The other answer: Stash has this file linked to the wrong catalog scene
+   * (a download grabbed for another scene, say). Links Stash's scene to
+   * Whisparr's instead, which replaces the wrong link, so it stops waiting.
+   */
+  async linkToWaitingScene(stashId: string): Promise<WaitingCheckResult> {
+    const file = (await this.whisparrFiles()).find(
+      (entry) => entry.stashId === stashId,
+    );
+    if (!file) {
+      throw new NotFoundException('Whisparr no longer lists a file for it.');
+    }
+    const context = await this.context();
+    const [scene] = await this.stashScenesForFile(
+      context.config,
+      file.filePath,
+    );
+    if (!scene) {
+      throw new NotFoundException('Stash has no file at this path.');
+    }
+    const provider = await this.catalogProvider.getInstanceCatalogProvider();
+    await this.linkDownloadedScene(scene.id, {
+      provider: provider.providerKey,
+      sceneId: stashId,
+    });
+    this.linkProblems.delete(stashId);
+    await this.indexing.requestImmediateRefresh([stashId], 'waiting-link');
+    return this.checkWaitingScenes();
+  }
+
   /** Whisparr's stashId is the scene Stash has as aliasOf. */
   protected async rememberSameScene(
     stashId: string,

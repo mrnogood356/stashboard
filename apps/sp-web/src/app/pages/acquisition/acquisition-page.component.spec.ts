@@ -265,6 +265,7 @@ describe('AcquisitionPageComponent', () => {
         }),
       ),
       markSameScene: vi.fn(() => of({ checked: 1, fixed: 1, left: [] })),
+      linkToWaitingScene: vi.fn(() => of({ checked: 1, fixed: 1, left: [] })),
     };
     const notifications = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
     const timelineApi = {
@@ -728,6 +729,12 @@ describe('AcquisitionPageComponent', () => {
     const card = fixture.nativeElement.querySelector('[data-state="IMPORT_PENDING"]');
     expect(card?.textContent).toContain('different StashDB scene');
     expect(card?.textContent).toContain('/data/a/a.mp4');
+    // Or it's another scene: match it to this one, or pick another match.
+    expect(card?.querySelector('[data-testid="card-link-here-scene-waiting"]')).not.toBeNull();
+    const pick = Array.from<HTMLAnchorElement>(card?.querySelectorAll('a') ?? []).find((link) =>
+      link.textContent?.includes('Pick a different match'),
+    );
+    expect(pick?.getAttribute('href')).toBe('/tools/match?q=a&scope=all');
 
     (
       fixture.nativeElement.querySelector(

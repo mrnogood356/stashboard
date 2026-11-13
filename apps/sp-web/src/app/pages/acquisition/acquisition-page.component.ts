@@ -637,6 +637,42 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       });
   }
 
+  /** Stash has the file under the wrong scene: link it to this one instead. */
+  protected linkToWaitingScene(stashId: string): void {
+    if (this.checkingWaiting()) {
+      return;
+    }
+    this.checkingWaiting.set(true);
+    this.waitingCheckError.set(null);
+    this.organizerService
+      .linkToWaitingScene(stashId)
+      .pipe(finalize(() => this.checkingWaiting.set(false)))
+      .subscribe({
+        next: (result) => {
+          this.waitingCheck.set(result);
+          this.resetFeedAndReload();
+        },
+        error: (error: { error?: { message?: unknown } }) => {
+          const message = error?.error?.message;
+          this.waitingCheckError.set(
+            typeof message === 'string' && message
+              ? message
+              : 'Couldn’t link it to this scene. Try again.',
+          );
+        },
+      });
+  }
+
+  /** Match scenes, searched for this file among all scenes (it's matched, just wrongly). */
+  protected pickMatchParams(path: string | null): Record<string, string> {
+    const name =
+      (path ?? '')
+        .split(/[\\/]/)
+        .pop()
+        ?.replace(/\.[^.]+$/, '') ?? '';
+    return { q: name, scope: 'all' };
+  }
+
   /** Counts Whisparr's scene as the one Stash has, so it stops waiting. */
   protected markSameScene(stashId: string): void {
     if (this.checkingWaiting()) {

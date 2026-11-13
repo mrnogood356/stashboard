@@ -326,6 +326,21 @@
                             >
                               It’s the same scene
                             </button>
+                            <button
+                              type="button"
+                              class="secondary-action compact"
+                              [attr.data-testid]="'link-here-' + scene.stashId"
+                              [disabled]="checkingWaiting()"
+                              (click)="linkToWaitingScene(scene.stashId)"
+                            >
+                              Link the file to this scene
+                            </button>
+                            <a
+                              class="secondary-action compact"
+                              routerLink="/tools/match"
+                              [queryParams]="pickMatchParams(scene.path)"
+                              >Pick a different match</a
+                            >
                           }
                         </li>
                       }
@@ -471,6 +486,21 @@
                             >
                               It’s the same scene
                             </button>
+                            <button
+                              type="button"
+                              class="secondary-action compact"
+                              [attr.data-testid]="'card-link-here-' + item.id"
+                              [disabled]="checkingWaiting()"
+                              (click)="linkToWaitingScene(item.id)"
+                            >
+                              Link the file to this scene
+                            </button>
+                            <a
+                              class="secondary-action compact"
+                              routerLink="/tools/match"
+                              [queryParams]="pickMatchParams(waiting.path)"
+                              >Pick a different match</a
+                            >
                           }
                           @if (waiting.kind === 'not-linked') {
                             <a class="secondary-action compact" routerLink="/tools/match"

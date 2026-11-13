@@ -12,7 +12,7 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { Observable, Subscription } from 'rxjs';
 import {
   SceneTimeline,
   TimelineAction,
@@ -138,12 +138,21 @@ export class SceneTimelineComponent implements OnChanges, AfterViewInit, OnDestr
 
   /** Counts the file Stash has as this scene, then looks again. */
   protected markSameScene(): void {
+    this.link(this.organizer.markSameScene(this.stashId));
+  }
+
+  /** Stash has the file under the wrong scene: links it to this one instead. */
+  protected linkHere(): void {
+    this.link(this.organizer.linkToWaitingScene(this.stashId));
+  }
+
+  private link(request: Observable<unknown>): void {
     if (this.linking()) {
       return;
     }
     this.linking.set(true);
     this.error.set(null);
-    this.organizer.markSameScene(this.stashId).subscribe({
+    request.subscribe({
       next: () => {
         this.linking.set(false);
         this.load();

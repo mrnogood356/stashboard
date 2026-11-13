@@ -133,6 +133,12 @@ export class OrganizerController {
     return this.organizer.markSameScene(stashId);
   }
 
+  @Post('waiting/:stashId/link-here')
+  @HttpCode(200)
+  linkToWaitingScene(@Param('stashId', ParseUUIDPipe) stashId: string) {
+    return this.organizer.linkToWaitingScene(stashId);
+  }
+
   @Post('unmatched/move')
   @HttpCode(202)
   moveUnmatched(@Body() body: MoveUnmatchedDto) {

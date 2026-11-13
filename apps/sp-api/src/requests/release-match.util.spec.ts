@@ -101,4 +101,35 @@ describe('matchRelease', () => {
       }),
     ).toBeNull();
   });
+
+  it('calls another studio’s scene with the same performer on the same day weak', () => {
+    const scene = {
+      title: 'Maddie Wren’s Red-Lingerie Anal Escapade',
+      studio: 'Bang! Surprise',
+      releaseDate: '2026-10-21',
+      performers: ['Maddie Wren'],
+    };
+    expect(
+      matchRelease('TrueAnal.26.10.21.Maddie.Wren.XXX.1080p.MP4-NBQ', scene)
+        ?.strength,
+    ).toBe('weak');
+    expect(
+      matchRelease(
+        'Bang.Surprise.26.10.21.Maddie.Wren.XXX.1080p.MP4-WRB',
+        scene,
+      )?.strength,
+    ).toBe('strong');
+    // Written together, or shortened, it's still the studio.
+    expect(
+      matchRelease('BangSurprise.26.10.21.Maddie.Wren.XXX.1080p', scene)
+        ?.strength,
+    ).toBe('strong');
+    // No studio in front of the date: nothing to go on either way.
+    expect(
+      matchRelease(
+        'Maddie.Wren.Red.Lingerie.Anal.Escapade.26.10.21.1080p',
+        scene,
+      )?.strength,
+    ).toBe('strong');
+  });
 });

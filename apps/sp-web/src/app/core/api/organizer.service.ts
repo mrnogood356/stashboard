@@ -337,6 +337,17 @@ export class OrganizerApiService {
     return this.http.post<WaitingCheck>('/api/organizer/waiting/check', {});
   }
 
+  /**
+   * Stash has Whisparr's file under the wrong StashDB scene: link it to
+   * Whisparr's scene instead (replacing the wrong link).
+   */
+  linkToWaitingScene(stashId: string): Observable<WaitingCheck> {
+    return this.http.post<WaitingCheck>(
+      `/api/organizer/waiting/${encodeURIComponent(stashId)}/link-here`,
+      {},
+    );
+  }
+
   /** Counts Whisparr's StashDB scene as the one Stash has its file linked to. */
   markSameScene(stashId: string): Observable<WaitingCheck> {
     return this.http.post<WaitingCheck>(

@@ -276,4 +276,41 @@ describe('smaller copies', () => {
       expect(phashDistance('zz', 'ff')).toBeNull();
     });
   });
+
+  describe('pickRelease and which scene', () => {
+    it('never takes a release that names only a performer and a day', () => {
+      const release = (title: string, matched: string[]) => ({
+        guid: title,
+        indexerId: 1,
+        title,
+        size: 1 * 1024 ** 3,
+        protocol: 'usenet' as const,
+        match: { strength: 'strong' as const, matched },
+      });
+      const rules = { ...DEFAULT_RULES, target: '1080p' as const };
+      const file = { size: 6 * 1024 ** 3, duration: 1800 };
+      expect(
+        pickRelease(
+          [release('Other.26.10.21.Jane.Doe.1080p', ['date', 'performer'])],
+          file,
+          'too-big',
+          rules,
+        ),
+      ).toBeNull();
+      expect(
+        pickRelease(
+          [
+            release('Right.26.10.21.Jane.Doe.1080p', [
+              'studio',
+              'date',
+              'performer',
+            ]),
+          ],
+          file,
+          'too-big',
+          rules,
+        )?.title,
+      ).toBe('Right.26.10.21.Jane.Doe.1080p');
+    });
+  });
 });

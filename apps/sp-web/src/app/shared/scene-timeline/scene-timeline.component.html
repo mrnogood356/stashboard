@@ -59,6 +59,15 @@
                 >
                   {{ linking() ? 'Linking…' : action.label }}
                 </button>
+                <button
+                  type="button"
+                  class="timeline-action"
+                  data-testid="timeline-action-link-here"
+                  [disabled]="linking()"
+                  (click)="linkHere()"
+                >
+                  Link the file to this scene
+                </button>
               } @else if (action.kind === 'open-whisparr') {
                 @if (whisparrUrl) {
                   <a

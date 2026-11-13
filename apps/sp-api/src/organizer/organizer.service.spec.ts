@@ -2740,6 +2740,43 @@ describe('OrganizerService', () => {
     );
   });
 
+  it('links Stash’s scene to Whisparr’s instead when Stash has it under the wrong one', async () => {
+    const scene = localScene({
+      id: '26',
+      stashIds: [
+        { endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-wrong' },
+      ],
+      files: [{ ...localScene().files[0], id: 'f26', path: '/data/d/d.mp4' }],
+    });
+    handoff.filesAsStashSees = jest
+      .fn()
+      .mockResolvedValue([
+        { stashId: 'sdb-mine', filePath: '/data/d/d.mp4', folder: null },
+      ]);
+    stash.findOrganizerScenes.mockResolvedValue({ total: 1, items: [scene] });
+    catalog.getInstanceCatalogProvider.mockResolvedValue({
+      providerKey: 'STASHDB',
+      baseUrl: 'https://stashdb.org',
+      apiKey: 'k',
+    });
+    const link = jest
+      .spyOn(service, 'linkDownloadedScene')
+      .mockResolvedValue({ title: 'Mine' });
+
+    await service.linkToWaitingScene('sdb-mine');
+
+    expect(link).toHaveBeenCalledWith('26', {
+      provider: 'STASHDB',
+      sceneId: 'sdb-mine',
+    });
+    // Not remembered as the same scene: the wrong link is replaced instead.
+    expect(prisma.sceneStashAlias.upsert).not.toHaveBeenCalled();
+    expect(indexing.requestImmediateRefresh).toHaveBeenCalledWith(
+      ['sdb-mine'],
+      'waiting-link',
+    );
+  });
+
   it('never moves Whisparr’s own files to Unmatched, and refuses when Whisparr can’t be asked', async () => {
     const file = (id: string, path: string) => ({
       ...localScene().files[0],
