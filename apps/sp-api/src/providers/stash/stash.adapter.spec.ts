@@ -754,6 +754,17 @@ describe('StashAdapter', () => {
       ).resolves.toBe('52');
     });
 
+    it('gives a second ask for the same scenes the job being started, not another', async () => {
+      const first = adapter.startLibraryTask(config, 'generate', ['1']);
+      await settle();
+      // Running in Stash now: a second ask for the scene gets the same job.
+      queue = [{ id: '51', status: 'RUNNING' }];
+      const second = adapter.startLibraryTask(config, 'generate', ['1']);
+      await expect(first).resolves.toBe('51');
+      await expect(second).resolves.toBe('51');
+      expect(sent()).toHaveLength(1);
+    });
+
     it('starts what you asked for straight away, busy or not', async () => {
       queue = [{ id: '9', status: 'READY' }];
       await expect(

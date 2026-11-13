@@ -48,6 +48,11 @@ export abstract class StashJobsApi extends StashGraphqlClient {
    */
   private readonly lanes = new Map<string, Promise<unknown>>();
   private readonly batches = new Map<string, BackgroundBatch>();
+  /** Batches being handed to Stash right now, until it answers with an id. */
+  private readonly starting = new Map<
+    string,
+    { items: Set<string>; promise: Promise<string | null> }
+  >();
   /** Item → the job that took it, for asks that check back later. */
   private readonly startedFor = new Map<string, string>();
   /** For tests: how long to wait between looks at Stash's queue. */
@@ -83,6 +88,11 @@ export abstract class StashJobsApi extends StashGraphqlClient {
     const batchKey = `${config.baseUrl}|${kind}`;
     if (items.length === 0 || this.batches.get(batchKey)) {
       return null;
+    }
+    // Being handed to Stash this very moment: that one does it.
+    const starting = this.starting.get(batchKey);
+    if (starting && items.every((item) => starting.items.has(item))) {
+      return starting.promise;
     }
     const jobs = new Set(
       items.map((item) => this.startedFor.get(`${batchKey}|${item}`) ?? null),
@@ -120,9 +130,16 @@ export abstract class StashJobsApi extends StashGraphqlClient {
       .catch(() => undefined)
       .then(async () => {
         await this.untilStashHasRoom(config);
-        // From here on, new asks start a batch of their own.
+        // From here on, new asks start a batch of their own; ones for the
+        // same items wait for this job's id.
         this.batches.delete(batchKey);
-        const job = await start([...batch.items]);
+        const handing = start([...batch.items]);
+        this.starting.set(batchKey, { items: batch.items, promise: handing });
+        const job = await handing.finally(() => {
+          if (this.starting.get(batchKey)?.promise === handing) {
+            this.starting.delete(batchKey);
+          }
+        });
         this.logger.log(
           `Started Stash's ${KIND_NAMES[kind]} for ${batch.items.size} ${kind.endsWith('scan') ? 'folder(s)' : kind === 'task' ? 'library task' : 'scene(s)'}${job ? ` (job ${job})` : ''}.`,
         );
