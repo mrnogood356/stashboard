@@ -2076,3 +2076,93 @@ body .segmented[role='tablist']:not(#_) > button :is(.count-badge, .tab-count, .
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
+
+/* Soft, like the filter chips and cards: a quiet fill, no outline. */
+.filter-toggle {
+  border-color: transparent;
+  background: var(--surface-1);
+}
+
+.filter-toggle:not([aria-pressed='true']):hover {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--text-primary) 10%, var(--surface-1));
+}
+
+/*
+ * Secondary buttons, one look everywhere: a soft fill, no outline, the same
+ * quiet surface as the cards and filters. A tint of the text colour, so it
+ * shows on the page and on a card alike. (:not(#_) outweighs each page's
+ * own outlined style; danger buttons keep their red outline.)
+ */
+:is(
+    .app-btn:not(.app-btn--primary),
+    .action.secondary,
+    .btn:not(.primary):not(.danger):not(.quiet),
+    .head-action,
+    .card-actions :is(.primary-link, .secondary-link, .secondary-action),
+    .secondary-action,
+    .button.secondary,
+    .evidence-toggle,
+    .hide-menu-trigger,
+    .nav-button,
+    .today-button,
+    .pill.live,
+    .pill.refresh,
+    .pill.clear,
+    .request-button,
+    .request-cta,
+    .shuffle,
+    .task-run,
+    .select-toggle,
+    .filters-toggle,
+    button.chip
+  ):not(#_):not(.active):not(.is-active):not([aria-pressed='true']) {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+}
+
+:is(
+    .app-btn:not(.app-btn--primary),
+    .action.secondary,
+    .btn:not(.primary):not(.danger):not(.quiet),
+    .head-action,
+    .card-actions :is(.primary-link, .secondary-link, .secondary-action),
+    .secondary-action,
+    .button.secondary,
+    .evidence-toggle,
+    .hide-menu-trigger,
+    .nav-button,
+    .today-button,
+    .pill.live,
+    .pill.refresh,
+    .pill.clear,
+    .request-button,
+    .request-cta,
+    .shuffle,
+    .task-run,
+    .select-toggle,
+    .filters-toggle,
+    button.chip
+  ):not(#_):not(.active):not(.is-active):not([aria-pressed='true']):not(:disabled):hover {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--text-primary) 14%, transparent);
+}
+
+/* Switched on (Live, Saved, Watched): a stronger soft fill, not an outline. */
+:is(
+    .app-btn:not(.app-btn--primary),
+    .action.secondary,
+    .btn:not(.primary):not(.danger):not(.quiet),
+    .head-action,
+    .secondary-action,
+    .evidence-toggle,
+    .pill.live,
+    .shuffle,
+    .select-toggle,
+    .filters-toggle,
+    .toggle-chip
+  ):not(#_):not(.active):is([aria-pressed='true'], .on) {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--text-primary) 18%, transparent);
+  color: var(--text-primary);
+}

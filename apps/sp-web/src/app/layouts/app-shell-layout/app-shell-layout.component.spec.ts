@@ -250,7 +250,7 @@ describe('AppShellLayoutComponent', () => {
       'Library',
       'Swipe feed',
       'Tools',
-      'Requests',
+      'Queue',
       'Settings',
     ]);
     // Browse opens on Scenes; People and Studios are its other tabs.
@@ -299,7 +299,7 @@ describe('AppShellLayoutComponent', () => {
 
     expect(desktopSidebar).toBeNull();
     expect(bottomNav).toBeTruthy();
-    expect(bottomNavItems).toEqual(['Home', 'Browse', 'Library', 'Requests', 'More']);
+    expect(bottomNavItems).toEqual(['Home', 'Browse', 'Library', 'Queue', 'More']);
 
     moreTrigger?.click();
     fixture.detectChanges();

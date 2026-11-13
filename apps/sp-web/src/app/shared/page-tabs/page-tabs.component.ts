@@ -24,7 +24,7 @@ export const BROWSE_TABS: readonly PageTab[] = [
   { label: 'Studios', route: '/studios', testId: 'browse-tab-studios' },
 ];
 
-/** Requests, with the downloads they turn into folded in as a tab. */
+/** Queue: Requests, and the downloads they turn into, as two tabs. */
 export const REQUESTS_TABS: readonly PageTab[] = [
   { label: 'Requests', route: '/acquisition', testId: 'requests-tab-requests' },
   { label: 'Downloads', route: '/processing', testId: 'requests-tab-downloads' },

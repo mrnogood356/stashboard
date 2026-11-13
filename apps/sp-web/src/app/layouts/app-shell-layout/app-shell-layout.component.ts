@@ -51,9 +51,9 @@ const CALENDAR_NAV_ITEM: ShellNavItem = {
   exact: true,
 };
 
-/** Requests, with Downloads as its second tab. */
+/** Queue: what you asked for (Requests) and what's on its way (Downloads), as two tabs. */
 const ACQUISITION_NAV_ITEM: ShellNavItem = {
-  label: 'Requests',
+  label: 'Queue',
   route: '/acquisition',
   icon: 'pi pi-inbox',
   exact: false,
@@ -159,7 +159,7 @@ const DESKTOP_NAV_GROUPS: readonly ShellNavGroup[] = [
 ];
 
 // Browse holds search and everything to look through; Library and
-// Requests (with Downloads) are checked often, so they get tabs too.
+// Queue (Requests and Downloads) are checked often, so they get tabs too.
 const MOBILE_PRIMARY_NAV_ITEMS: readonly ShellNavItem[] = [
   HOME_NAV_ITEM,
   MOBILE_BROWSE_NAV_ITEM,

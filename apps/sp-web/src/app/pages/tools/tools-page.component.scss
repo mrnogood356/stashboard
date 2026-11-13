@@ -172,3 +172,21 @@
   color: var(--text-muted);
   line-height: 1.4;
 }
+
+/* ---------- Soft groups, like Settings: no outline, a quiet surface ---------- */
+
+.hero-meta,
+.tool-grid {
+  border: 0;
+  background: var(--surface-1);
+}
+
+.tool-grid,
+.hero-meta,
+.group-title {
+  max-width: 48rem;
+}
+
+.tool:hover {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}

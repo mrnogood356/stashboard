@@ -113,3 +113,13 @@ h1 {
 .page-tabs-clear:hover {
   color: var(--text-primary);
 }
+
+/* Soft, like the cards and filters: a quiet fill, no outline. */
+.page-tabs-search {
+  border-color: transparent;
+  background: var(--surface-1);
+}
+
+.page-tabs-search:hover {
+  border-color: transparent;
+}
