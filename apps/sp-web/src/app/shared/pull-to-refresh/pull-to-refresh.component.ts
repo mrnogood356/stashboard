@@ -37,6 +37,10 @@ const OWN_GESTURES = ['/watch', '/feed'];
     }
   `,
   styles: `
+    /* Takes no place in the page's layout: only its arrow shows, fixed on top. */
+    :host {
+      display: contents;
+    }
     .pull {
       position: fixed;
       top: env(safe-area-inset-top);

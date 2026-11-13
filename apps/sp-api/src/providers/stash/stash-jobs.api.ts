@@ -12,6 +12,15 @@ import { StashGraphqlClient } from './stash-graphql.client';
 export type BackgroundJobKind =
   'scan' | 'quick-scan' | 'generate' | 'identify' | 'preview-scan' | 'task';
 
+const KIND_NAMES: Record<BackgroundJobKind, string> = {
+  scan: 'scan',
+  'quick-scan': 'quick scan',
+  generate: 'Generate',
+  identify: 'Identify',
+  'preview-scan': 'preview rescan',
+  task: 'library task',
+};
+
 /** How often to look whether Stash's queue has room again. */
 const LANE_POLL_MS = 10_000;
 
@@ -50,7 +59,46 @@ export abstract class StashJobsApi extends StashGraphqlClient {
    * Adds these items to the waiting batch of this kind (or starts one), and
    * resolves with the job that does them once Stash has room for it.
    */
-  protected inBackground(
+  protected async inBackground(
+    config: StashAdapterBaseConfig,
+    kind: BackgroundJobKind,
+    items: string[],
+    start: (items: string[]) => Promise<string | null>,
+  ): Promise<string | null> {
+    // Already in a job of ours that's still waiting or running (a download's
+    // scan, and the folder watcher noticing the same file): that one does it.
+    const covering = await this.activeJobFor(config, kind, items);
+    if (covering) {
+      return covering;
+    }
+    return this.enqueue(config, kind, items, start);
+  }
+
+  /** The one job of ours, still waiting or running, that has all these items. */
+  private async activeJobFor(
+    config: StashAdapterBaseConfig,
+    kind: BackgroundJobKind,
+    items: string[],
+  ): Promise<string | null> {
+    const batchKey = `${config.baseUrl}|${kind}`;
+    if (items.length === 0 || this.batches.get(batchKey)) {
+      return null;
+    }
+    const jobs = new Set(
+      items.map((item) => this.startedFor.get(`${batchKey}|${item}`) ?? null),
+    );
+    const [job] = [...jobs];
+    if (jobs.size !== 1 || !job) {
+      return null;
+    }
+    const queue = await this.getJobQueue(config).catch(() => []);
+    const entry = queue.find((candidate) => candidate.id === job);
+    return entry && (entry.status === 'READY' || entry.status === 'RUNNING')
+      ? job
+      : null;
+  }
+
+  private enqueue(
     config: StashAdapterBaseConfig,
     kind: BackgroundJobKind,
     items: string[],
@@ -75,6 +123,9 @@ export abstract class StashJobsApi extends StashGraphqlClient {
         // From here on, new asks start a batch of their own.
         this.batches.delete(batchKey);
         const job = await start([...batch.items]);
+        this.logger.log(
+          `Started Stash's ${KIND_NAMES[kind]} for ${batch.items.size} ${kind.endsWith('scan') ? 'folder(s)' : kind === 'task' ? 'library task' : 'scene(s)'}${job ? ` (job ${job})` : ''}.`,
+        );
         if (job) {
           for (const item of batch.items) {
             this.startedFor.set(`${batchKey}|${item}`, job);

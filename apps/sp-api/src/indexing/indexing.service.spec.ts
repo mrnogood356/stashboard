@@ -555,6 +555,23 @@ function createPrismaMock(config: {
           return next;
         },
     ),
+    updateMany: jest.fn(
+      async (args: {
+        where: Record<string, unknown>;
+        data: Partial<LibrarySceneIndexRow>;
+      }) => {
+        const rows = Array.from(librarySceneIndexStore.values()).filter((row) =>
+          matchesWhere(row, args.where),
+        );
+        for (const row of rows) {
+          librarySceneIndexStore.set(String(row.stashSceneId), {
+            ...row,
+            ...args.data,
+          });
+        }
+        return { count: rows.length };
+      },
+    ),
     deleteMany: jest.fn(async (args?: Record<string, unknown>) => {
       const matchingIds = Array.from(librarySceneIndexStore.values())
         .filter((row) =>
@@ -1138,6 +1155,20 @@ describe('IndexingService', () => {
         computedLifecycle: 'NOT_REQUESTED',
       }),
     );
+
+    // Again with nothing changed in Stash: nothing is rewritten.
+    const pages = (await Promise.all(
+      getLocalLibraryScenePageMock.mock.results.map((result) => result.value),
+    )) as unknown[];
+    pages.forEach((page) =>
+      getLocalLibraryScenePageMock.mockResolvedValueOnce(page),
+    );
+    const upsert = prisma.librarySceneIndex.upsert as unknown as jest.Mock;
+    upsert.mockClear();
+    const again = await service.syncStashAvailability('test');
+    expect(upsert).not.toHaveBeenCalled();
+    expect(again?.updatedCount ?? 0).toBe(0);
+    expect(librarySceneIndexStore.get('local-1')).toBeDefined();
     expectInteractiveTransactionsToUseIndexWriteOptions(prisma);
   });
 

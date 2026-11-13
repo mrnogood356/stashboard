@@ -737,6 +737,21 @@ describe('StashAdapter', () => {
       await expect(generate).resolves.toBe('52');
     });
 
+    it('reuses a running scan of ours that has the folder, rather than queuing another', async () => {
+      const first = await adapter.scanLibraryFolders(config, ['/data/a']);
+      queue = [{ id: first!, status: 'RUNNING' }];
+      // The folder watcher noticing the file the download's scan is for.
+      await expect(
+        adapter.scanLibraryFolders(config, ['/data/a/']),
+      ).resolves.toBe(first);
+      expect(sent()).toHaveLength(1);
+      // Once it has finished, a new ask is a new scan.
+      queue = [];
+      await expect(
+        adapter.scanLibraryFolders(config, ['/data/a']),
+      ).resolves.toBe('52');
+    });
+
     it('starts what you asked for straight away, busy or not', async () => {
       queue = [{ id: '9', status: 'READY' }];
       await expect(
