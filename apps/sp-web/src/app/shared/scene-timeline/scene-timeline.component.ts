@@ -20,6 +20,7 @@ import {
   TimelineStepStatus,
   timelineTone,
 } from '../../core/api/timeline.service';
+import { OrganizerApiService } from '../../core/api/organizer.service';
 
 const STATUS_TEXT: Record<TimelineStepStatus, string> = {
   done: 'Done',
@@ -60,6 +61,7 @@ const ACTION_LINK: Partial<Record<TimelineAction['kind'], string>> = {
 })
 export class SceneTimelineComponent implements OnChanges, AfterViewInit, OnDestroy {
   private readonly api = inject(TimelineApiService);
+  private readonly organizer = inject(OrganizerApiService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private request: Subscription | null = null;
   private observer: IntersectionObserver | null = null;
@@ -128,6 +130,30 @@ export class SceneTimelineComponent implements OnChanges, AfterViewInit, OnDestr
           'Couldn’t get the timeline. Check that Stashboard is running and try again.',
         );
         this.loading.set(false);
+      },
+    });
+  }
+
+  protected readonly linking = signal(false);
+
+  /** Counts the file Stash has as this scene, then looks again. */
+  protected markSameScene(): void {
+    if (this.linking()) {
+      return;
+    }
+    this.linking.set(true);
+    this.error.set(null);
+    this.organizer.markSameScene(this.stashId).subscribe({
+      next: () => {
+        this.linking.set(false);
+        this.load();
+      },
+      error: (error: { error?: { message?: unknown } }) => {
+        this.linking.set(false);
+        const message = error?.error?.message;
+        this.error.set(
+          typeof message === 'string' && message ? message : 'Couldn’t link it. Try again.',
+        );
       },
     });
   }
