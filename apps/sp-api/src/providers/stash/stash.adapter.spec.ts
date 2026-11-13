@@ -661,8 +661,10 @@ describe('StashAdapter', () => {
       const lane = adapter as unknown as {
         lanePollMs: number;
         laneSleep: (ms: number) => Promise<void>;
+        startGraceMs: number;
       };
       lane.lanePollMs = 0;
+      lane.startGraceMs = 0;
       // Each look at a busy queue waits until the test says Stash moved on.
       lane.laneSleep = () =>
         new Promise<void>((resolve) => {
@@ -782,12 +784,20 @@ describe('StashAdapter', () => {
         '51',
       );
       adapter.forgetFolderScan(config, '/data/a/');
+      // Stash is free: the new scan starts at once.
       await expect(adapter.requestFolderScan(config, '/data/a')).resolves.toBe(
-        'waiting',
+        '52',
       );
       await settle();
       await settle();
       expect(sent()).toHaveLength(2);
+    });
+
+    it('hands back the scan at once when Stash is free, so one check can follow it', async () => {
+      (adapter as unknown as { startGraceMs: number }).startGraceMs = 1_000;
+      await expect(adapter.requestFolderScan(config, '/data/b')).resolves.toBe(
+        '51',
+      );
     });
 
     it('never runs Generate for the whole library when no named scene is real', async () => {

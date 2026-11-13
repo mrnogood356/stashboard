@@ -407,9 +407,20 @@ export abstract class StashJobsApi extends StashGraphqlClient {
     if (status) {
       return Promise.resolve(status);
     }
-    void this.scanLibraryFolders(config, [path]).catch(() => undefined);
-    return Promise.resolve('waiting');
+    // With Stash free it starts at once: wait a moment for that, so the
+    // same check can follow it, rather than saying "busy" until the next.
+    const started = this.scanLibraryFolders(config, [path]).catch(() => null);
+    return Promise.race([
+      started.then((job) => job ?? 'waiting'),
+      new Promise<string>((resolve) => {
+        const timer = setTimeout(() => resolve('waiting'), this.startGraceMs);
+        timer.unref?.();
+      }),
+    ]);
   }
+
+  /** How long an ask waits for its scan to start before saying "waiting". */
+  protected startGraceMs = 15_000;
 
   /** The folder's last scan has been looked at: the next ask scans again. */
   forgetFolderScan(config: StashAdapterBaseConfig, folder: string): void {
