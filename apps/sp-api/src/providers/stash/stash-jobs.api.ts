@@ -393,30 +393,27 @@ export abstract class StashJobsApi extends StashGraphqlClient {
   }
 
   /**
-   * Asks for a folder scan without waiting for it: the job's id once it has
-   * started, or 'waiting' while it waits its turn behind Stash's other jobs.
+   * Asks for a folder scan without waiting for it: 'waiting' while it waits
+   * its turn behind Stash's other jobs, then the job's id, running or done.
+   * Once a finished scan has been looked at, forgetFolderScan lets the next
+   * ask queue a new one: an ask never turns into a scan every check.
    */
-  async requestFolderScan(
+  requestFolderScan(
     config: StashAdapterBaseConfig,
     folder: string,
   ): Promise<string> {
     const path = trimTrailingSeparators(folder);
     const status = this.backgroundStatus(config, 'scan', path);
-    if (status === 'waiting') {
-      return status;
-    }
     if (status) {
-      const job = (await this.getJobQueue(config)).find(
-        (entry) => entry.id === status,
-      );
-      if (job && !['FINISHED', 'FAILED', 'CANCELLED'].includes(job.status)) {
-        return status;
-      }
-      // That scan has run: this ask needs another.
-      this.forgetBackground(config, 'scan', path);
+      return Promise.resolve(status);
     }
     void this.scanLibraryFolders(config, [path]).catch(() => undefined);
-    return 'waiting';
+    return Promise.resolve('waiting');
+  }
+
+  /** The folder's last scan has been looked at: the next ask scans again. */
+  forgetFolderScan(config: StashAdapterBaseConfig, folder: string): void {
+    this.forgetBackground(config, 'scan', trimTrailingSeparators(folder));
   }
 
   private async startFolderScan(

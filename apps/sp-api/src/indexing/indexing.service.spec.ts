@@ -1025,7 +1025,8 @@ describe('IndexingService', () => {
             tagIds: ['tag-1'],
             tagNames: ['Tag One'],
             releaseDate: '2026-03-24',
-            duration: 1800,
+            // Stash's lengths have decimals; the index keeps whole seconds.
+            duration: 1800.4,
             viewUrl: 'http://stash.local/scenes/local-1',
             createdAt: new Date('2026-03-23T00:00:00.000Z'),
             updatedAt: new Date('2026-03-24T00:00:00.000Z'),

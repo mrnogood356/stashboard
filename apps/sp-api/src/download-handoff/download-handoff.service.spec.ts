@@ -179,6 +179,9 @@ describe('DownloadHandoffService', () => {
       getLibraryRoots: jest.fn().mockResolvedValue([library]),
       scanLibraryFolders: jest.fn().mockResolvedValue('job-1'),
       requestFolderScan: jest.fn().mockResolvedValue('job-1'),
+      forgetFolderScan: jest.fn(),
+      findScenesByStashId: jest.fn().mockResolvedValue([]),
+      getOrganizerScene: jest.fn().mockResolvedValue(null),
       waitForJob: jest.fn().mockResolvedValue('FINISHED'),
       sceneIdsForPaths: jest.fn().mockResolvedValue(['77']),
       startLibraryTask: jest.fn().mockResolvedValue('job-2'),
@@ -866,6 +869,30 @@ describe('DownloadHandoffService', () => {
       expect(
         await exists(path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv')),
       ).toBe(true);
+    });
+
+    it('finds the scene in Stash by its catalog link once the file was moved, without scanning again', async () => {
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      rows.push(handoff({ id: 'h1' }));
+      await write(video());
+      sabnzbd.history.mockResolvedValue([historyEntry()]);
+      await service.checkOpen();
+      expect(row()).toMatchObject({ status: 'completed', attempts: 1 });
+
+      // Renamed into its own folder meanwhile, and linked in Stash.
+      const movedTo = path.join(destination, 'Studio', 'Beach Day.mkv');
+      await fs.rm(path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'));
+      stash.findScenesByStashId.mockResolvedValue([{ id: '88' }]);
+      stash.getOrganizerScene.mockResolvedValue({ files: [{ path: movedTo }] });
+      stash.requestFolderScan.mockClear();
+
+      await service.checkOpen();
+      expect(stash.requestFolderScan).not.toHaveBeenCalled();
+      expect(organizer.linkDownloadedScene).toHaveBeenCalledWith(
+        '88',
+        expect.anything(),
+      );
+      expect(row()).toMatchObject({ status: 'imported', stashSceneId: '88' });
     });
 
     it('does nothing while turned off', async () => {

@@ -776,8 +776,12 @@ describe('StashAdapter', () => {
       await expect(adapter.requestFolderScan(config, '/data/a')).resolves.toBe(
         '51',
       );
-      // Finished: the next ask is a new scan.
+      // Finished: still that scan, until it has been looked at.
       queue = [];
+      await expect(adapter.requestFolderScan(config, '/data/a')).resolves.toBe(
+        '51',
+      );
+      adapter.forgetFolderScan(config, '/data/a/');
       await expect(adapter.requestFolderScan(config, '/data/a')).resolves.toBe(
         'waiting',
       );
