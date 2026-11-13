@@ -1,3 +1,4 @@
+import { PageTabsComponent, REQUESTS_TABS } from '../../shared/page-tabs/page-tabs.component';
 import { DOCUMENT } from '@angular/common';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -13,7 +14,6 @@ import {
 } from '../../core/api/download-handoff.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { HANDOFF_STEPS, fileSize, relativeTime, stageLabel, stepIndex } from './processing.format';
-import { SectionBackComponent } from '../../shared/section-back/section-back.component';
 import { Stage, timeLeftText, percentText } from '../../shared/stage-track/stage-track';
 import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
 
@@ -34,11 +34,12 @@ const WATCH_LABELS: Record<DropInWatchStatus['state'], string> = {
  */
 @Component({
   selector: 'app-processing-page',
-  imports: [SectionBackComponent, RouterLink, StageTrackComponent],
+  imports: [PageTabsComponent, RouterLink, StageTrackComponent],
   templateUrl: './processing-page.component.html',
   styleUrls: ['../tools/tools-shared.scss', './processing-page.component.scss'],
 })
 export class ProcessingPageComponent implements OnInit, OnDestroy {
+  protected readonly pageTabs = REQUESTS_TABS;
   private readonly api = inject(DownloadHandoffApiService);
   private readonly notifications = inject(AppNotificationsService);
   private readonly document = inject(DOCUMENT);

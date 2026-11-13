@@ -275,3 +275,10 @@ main > .app-back-link {
   background: none;
   color: var(--text-muted);
 }
+
+/* Current look: Run is an outlined button, not a filled pill. */
+.task-run {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+}

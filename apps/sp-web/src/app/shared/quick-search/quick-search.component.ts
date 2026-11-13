@@ -90,13 +90,15 @@ export class QuickSearchComponent implements OnInit {
     const query = this.query().trim();
     const feed = this.playback.feedEnabled();
     if (!query) {
-      const recent = readRecent().map((value): QuickItem => ({
-        id: `recent:${value}`,
-        kind: 'recent',
-        label: value,
-        icon: 'pi-history',
-        url: `/search?q=${encodeURIComponent(value)}`,
-      }));
+      const recent = readRecent().map(
+        (value): QuickItem => ({
+          id: `recent:${value}`,
+          kind: 'recent',
+          label: value,
+          icon: 'pi-history',
+          url: `/search?q=${encodeURIComponent(value)}`,
+        }),
+      );
       return [
         { title: 'Recent searches', items: recent.slice(0, 4) },
         { title: 'Go to', items: startPages(feed) },
@@ -345,40 +347,42 @@ export class QuickSearchComponent implements OnInit {
           })),
         );
       }),
-      map((result): Found => ({
-        library: (result.library?.items ?? []).map((scene) => ({
-          id: `library:${scene.id}`,
-          kind: 'library',
-          label: scene.title,
-          detail: [scene.studio, scene.performerNames.slice(0, 2).join(', ')]
-            .filter(Boolean)
-            .join(' · '),
-          imageUrl: scene.cardImageUrl ?? scene.imageUrl,
-          icon: 'pi-video',
-          url: `/library/scene/${encodeURIComponent(scene.id)}`,
-        })),
-        // Library and catalog together, each once (as on Search).
-        performers: mergePerformers(
-          result.local.performers,
-          result.catalogPerformers?.items ?? [],
-          value,
-        )
-          .slice(0, 4)
-          .map((person) => peopleItem(person, 'performer', 'pi-user')),
-        studios: mergeStudios(result.local.studios, result.catalogStudios?.items ?? [], value)
-          .slice(0, 4)
-          .map((studio) => peopleItem(studio, 'studio', 'pi-building')),
-        // "Hide ones I have" applies here too, as on Scenes and Search.
-        catalog: this.hideOwned.filter(result.catalog?.items ?? []).map((scene) => ({
-          id: `catalog:${scene.id}`,
-          kind: 'catalog',
-          label: scene.title,
-          detail: [scene.studio, scene.releaseDate?.slice(0, 4)].filter(Boolean).join(' · '),
-          imageUrl: scene.cardImageUrl ?? scene.imageUrl,
-          icon: 'pi-video',
-          url: `/scene/${encodeURIComponent(scene.id)}`,
-        })),
-      })),
+      map(
+        (result): Found => ({
+          library: (result.library?.items ?? []).map((scene) => ({
+            id: `library:${scene.id}`,
+            kind: 'library',
+            label: scene.title,
+            detail: [scene.studio, scene.performerNames.slice(0, 2).join(', ')]
+              .filter(Boolean)
+              .join(' · '),
+            imageUrl: scene.cardImageUrl ?? scene.imageUrl,
+            icon: 'pi-video',
+            url: `/library/scene/${encodeURIComponent(scene.id)}`,
+          })),
+          // Library and catalog together, each once (as on Search).
+          performers: mergePerformers(
+            result.local.performers,
+            result.catalogPerformers?.items ?? [],
+            value,
+          )
+            .slice(0, 4)
+            .map((person) => peopleItem(person, 'performer', 'pi-user')),
+          studios: mergeStudios(result.local.studios, result.catalogStudios?.items ?? [], value)
+            .slice(0, 4)
+            .map((studio) => peopleItem(studio, 'studio', 'pi-building')),
+          // "Hide ones I have" applies here too, as on Scenes and Search.
+          catalog: this.hideOwned.filter(result.catalog?.items ?? []).map((scene) => ({
+            id: `catalog:${scene.id}`,
+            kind: 'catalog',
+            label: scene.title,
+            detail: [scene.studio, scene.releaseDate?.slice(0, 4)].filter(Boolean).join(' · '),
+            imageUrl: scene.cardImageUrl ?? scene.imageUrl,
+            icon: 'pi-video',
+            url: `/scene/${encodeURIComponent(scene.id)}`,
+          })),
+        }),
+      ),
     );
   }
 }

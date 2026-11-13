@@ -1,3 +1,4 @@
+import { PageTabsComponent, REQUESTS_TABS } from '../../shared/page-tabs/page-tabs.component';
 import { failureReason } from './failure-reason';
 import { YouMayEnjoyComponent } from '../../shared/you-may-enjoy/you-may-enjoy.component';
 import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
@@ -109,6 +110,7 @@ interface AcquisitionPageAlert {
 @Component({
   selector: 'app-acquisition-page',
   imports: [
+    PageTabsComponent,
     StageTrackComponent,
     SkeletonComponent,
     RouterLink,
@@ -123,6 +125,7 @@ interface AcquisitionPageAlert {
   styleUrl: './acquisition-page.component.scss',
 })
 export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestroy {
+  protected readonly pageTabs = REQUESTS_TABS;
   private static readonly PAGE_SIZE = 24;
   private static readonly EMPTY_COUNTS: AcquisitionCountsByLifecycle = {
     REQUESTED: 0,

@@ -3,7 +3,12 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 export type EvidenceSectionId =
-  'status' | 'whisparr' | 'downloads' | 'stash' | 'rename' | 'activity';
+  | 'status'
+  | 'whisparr'
+  | 'downloads'
+  | 'stash'
+  | 'rename'
+  | 'activity';
 
 export interface EvidenceFact {
   label: string;

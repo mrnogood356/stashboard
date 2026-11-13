@@ -4,7 +4,12 @@ import { Observable } from 'rxjs';
 import { CatalogProviderType } from './integrations.types';
 
 export type HandoffStatus =
-  'sent' | 'downloading' | 'completed' | 'imported' | 'failed' | 'ignored';
+  | 'sent'
+  | 'downloading'
+  | 'completed'
+  | 'imported'
+  | 'failed'
+  | 'ignored';
 
 export interface DownloadHandoffSettings {
   enabled: boolean;
@@ -126,7 +131,14 @@ export interface DropInWatchStatus {
 }
 
 export type HandoffStage =
-  'queued' | 'downloading' | 'unpacking' | 'moving' | 'linking' | 'done' | 'failed' | 'ignored';
+  | 'queued'
+  | 'downloading'
+  | 'unpacking'
+  | 'moving'
+  | 'linking'
+  | 'done'
+  | 'failed'
+  | 'ignored';
 
 /** The catalog scene a download was sent for, when Stashboard knows it. */
 export interface HandoffScene {

@@ -356,3 +356,28 @@ p {
 .thumb {
   border-radius: var(--radius-sm);
 }
+
+/* ---------- Current look: no boxes on the tools pages ---------- */
+/* :host so this wins over a page's own .panel and .notice. */
+
+:host .panel {
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  padding-inline: 0;
+}
+
+:host .notice {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+:host .notice a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

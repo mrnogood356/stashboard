@@ -19,7 +19,12 @@ export type TimelineStepId =
 export type TimelineStepStatus = 'done' | 'current' | 'failed' | 'skipped' | 'unknown' | 'next';
 
 export type TimelineActionKind =
-  'pick-release' | 'find-downloads' | 'check-matches' | 'scan' | 'generate' | 'open-whisparr';
+  | 'pick-release'
+  | 'find-downloads'
+  | 'check-matches'
+  | 'scan'
+  | 'generate'
+  | 'open-whisparr';
 
 export interface TimelineAction {
   kind: TimelineActionKind;

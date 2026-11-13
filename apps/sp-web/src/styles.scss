@@ -1185,6 +1185,11 @@ select:disabled {
   margin-bottom: 0.9rem;
 }
 
+/* Under a page's tabs (Browse, Requests) the title is above: buttons sit right. */
+app-page-tabs + .page-head-compact {
+  justify-content: flex-end;
+}
+
 .page-head-compact__title {
   display: flex;
   flex: 1 1 14rem;

@@ -1,3 +1,4 @@
+import { PageTabsComponent, BROWSE_TABS } from '../../shared/page-tabs/page-tabs.component';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import {
   AfterViewInit,
@@ -29,12 +30,11 @@ import {
 type GenderOption = PerformerGender | 'NONE';
 
 import { CatalogProviderSwitchComponent } from '../../shared/catalog-provider-switch/catalog-provider-switch.component';
-import { SectionBackComponent } from '../../shared/section-back/section-back.component';
 
 @Component({
   selector: 'app-performers-page',
   imports: [
-    SectionBackComponent,
+    PageTabsComponent,
     SkeletonComponent,
     CatalogProviderSwitchComponent,
     RouterLink,
@@ -48,6 +48,7 @@ import { SectionBackComponent } from '../../shared/section-back/section-back.com
   styleUrl: './performers-page.component.scss',
 })
 export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy {
+  protected readonly pageTabs = BROWSE_TABS;
   /** On phones the filter panel starts collapsed so results show first. */
   protected readonly filtersOpen = signal(false);
 

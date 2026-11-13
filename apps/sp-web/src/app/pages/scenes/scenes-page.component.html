@@ -1,7 +1,7 @@
 <main class="app-page-shell app-page-shell--wide">
+  <app-page-tabs title="Browse" [tabs]="pageTabs" search />
   <header class="page-head-compact">
     <div class="page-head-compact__title">
-      <h1>Scenes</h1>
       @if (!loading() && !error()) {
         <p class="state">{{ scenesTotalLabel() }}</p>
       }

@@ -1,8 +1,7 @@
 <main class="app-page-shell app-page-shell--wide">
-  <app-section-back />
+  <app-page-tabs title="Browse" [tabs]="pageTabs" search />
   <header class="page-head-compact">
     <div class="page-head-compact__title">
-      <h1>Studios</h1>
       @if (!loading() && !error()) {
         <p class="state">
           {{ total().toLocaleString() }} {{ total() === 1 ? 'studio' : 'studios' }}

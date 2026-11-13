@@ -147,3 +147,12 @@ a.bar-name:hover {
     grid-row: 2;
   }
 }
+
+/* Current look: each group is a plain section under a rule, not a box. */
+.block {
+  --app-section-radius: 0;
+  --app-section-padding: 1rem 0 0;
+  --app-section-border: 0;
+  --app-section-bg: transparent;
+  border-top: 1px solid var(--border-subtle);
+}
