@@ -1388,6 +1388,12 @@ html.app-shielded #privacy-cover {
   pointer-events: auto;
 }
 
+/* A playing video is drawn on its own layer on phones, which the cover above
+   doesn't always hide in the app switcher's picture: hide videos outright. */
+html.app-shielded video {
+  visibility: hidden !important;
+}
+
 /* A checkbox drawn as an iOS-style switch. Only the switch toggles. */
 input[type='checkbox'].app-switch {
   appearance: none;
