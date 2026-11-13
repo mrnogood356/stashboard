@@ -555,11 +555,45 @@ a {
 }
 
 .list-toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(10rem, 13rem);
-  gap: 0.6rem;
-  align-items: end;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   margin-bottom: 1rem;
+}
+
+/* The same soft search box as Browse's. */
+.toolbar-search {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  max-width: 36rem;
+  min-height: 2.5rem;
+  padding: 0 0.9rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-muted);
+}
+
+.toolbar-search:focus-within {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.toolbar-search input {
+  flex: 1;
+  min-width: 0;
+  height: 2.5rem;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  outline: none;
+}
+
+.toolbar-search input::placeholder {
+  color: var(--text-muted);
 }
 
 .toolbar-field {
@@ -574,12 +608,6 @@ a {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-@media (max-width: 560px) {
-  .list-toolbar {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 9rem);
-  }
 }
 
 .select-toggle {

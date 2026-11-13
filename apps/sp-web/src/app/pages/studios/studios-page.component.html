@@ -10,79 +10,32 @@
     </div>
     <div class="page-head-compact__actions">
       <app-catalog-provider-switch />
-      <button
-        type="button"
-        class="filters-toggle"
-        [class.active]="filtersOpen()"
-        [attr.aria-expanded]="filtersOpen()"
-        (click)="filtersOpen.set(!filtersOpen())"
-      >
-        <i class="pi pi-filter" aria-hidden="true"></i>
-        <span>Filters</span>
-      </button>
     </div>
   </header>
 
-  <section
-    [class.filters-collapsed]="!filtersOpen()"
-    class="controls-shell app-control-shell"
-    aria-label="Studios controls"
-  >
-    <div class="controls-row">
-      <label class="control-field">
-        <span>Filter Studio Name</span>
-        <input
-          pInputText
-          type="text"
-          [ngModel]="nameFilter()"
-          placeholder="Search studio name"
-          (ngModelChange)="onNameFilterChanged($event)"
+  <div class="filter-bar studios-filter-bar" data-testid="studios-filter-bar">
+    <button
+      type="button"
+      class="filter-toggle"
+      data-testid="studios-favorites"
+      [attr.aria-pressed]="favoritesOnly()"
+      (click)="onFavoritesOnlyChanged(!favoritesOnly())"
+    >
+      <i class="pi pi-star" aria-hidden="true"></i>
+      Favorites
+    </button>
+    <app-filter-chip label="Sort" [value]="sortValue()" neutral testId="studios-sort">
+      <ng-template appFilterPanel>
+        <app-filter-options
+          [options]="sortChoices"
+          [selected]="sortPicked()"
+          [clearable]="false"
+          testId="studios-sort-option"
+          (changed)="onSortPicked($event)"
         />
-      </label>
-
-      <div class="control-field">
-        <span id="studios-sort-label">Sort</span>
-        <div class="sort-with-direction">
-          <p-select
-            inputId="studios-sort"
-            ariaLabelledBy="studios-sort-label"
-            [ngModel]="selectedSort()"
-            (ngModelChange)="onSortChanged($event)"
-            [options]="sortOptions"
-            optionLabel="label"
-            optionValue="value"
-            [appendTo]="'body'"
-            panelStyleClass="app-overlay-panel"
-          />
-          <button
-            type="button"
-            class="sort-direction-toggle app-sort-direction-toggle"
-            [attr.aria-label]="sortDirectionToggleLabel()"
-            [attr.title]="sortDirectionToggleLabel()"
-            (click)="toggleSortDirection()"
-          >
-            <i [class]="sortDirectionIconClass()" aria-hidden="true"></i>
-          </button>
-        </div>
-      </div>
-
-      <div class="control-field favorites-field">
-        <span>Favorites Only</span>
-        <div class="favorites-toggle-row app-control-switch-row">
-          <input
-            id="studios-favorites-only"
-            type="checkbox"
-            class="app-switch"
-            role="switch"
-            aria-label="Show favorites only"
-            [ngModel]="favoritesOnly()"
-            (ngModelChange)="onFavoritesOnlyChanged($event)"
-          />
-          <span class="favorites-toggle-label">Show favorites only</span>
-        </div>
-      </div>
-    </div>
-  </section>
+      </ng-template>
+    </app-filter-chip>
+  </div>
 
   @if (loading()) {
     <app-skeleton kind="grid" [count]="12" label="Loading studios" />
