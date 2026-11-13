@@ -611,6 +611,12 @@
   --root-font-size: 112.5%;
 }
 
+/* Quick taps are taps, not a double-tap zoom (pinch still zooms): the
+   three-tap Quick hide needs each one to arrive at once. */
+html {
+  touch-action: manipulation;
+}
+
 html {
   font-size: var(--root-font-size);
   -webkit-text-size-adjust: 100%;
@@ -2062,4 +2068,18 @@ body.app-sheet-open {
 .filter-toggle:not([aria-pressed='true']):hover {
   border-color: transparent;
   background: color-mix(in srgb, var(--text-primary) 10%, var(--surface-1));
+}
+
+/*
+ * Blur pictures, one tap away on a phone: the eye button at the top of
+ * Home, Browse, Library and Queue. A desktop has it in the sidebar.
+ */
+.phone-eye {
+  display: none;
+}
+
+@media (max-width: 759px) {
+  .phone-eye {
+    display: inline-flex;
+  }
 }

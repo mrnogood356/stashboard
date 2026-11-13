@@ -1,3 +1,4 @@
+import { ImageObscurationToggleComponent } from '../image-obscuration-toggle/image-obscuration-toggle.component';
 import {
   Component,
   DestroyRef,
@@ -37,10 +38,13 @@ export const REQUESTS_TABS: readonly PageTab[] = [
  */
 @Component({
   selector: 'app-page-tabs',
-  imports: [RouterLink, RouterLinkActive],
+  imports: [ImageObscurationToggleComponent, RouterLink, RouterLinkActive],
   template: `
     <div class="page-tabs-head">
-      <h1>{{ title }}</h1>
+      <div class="page-tabs-title">
+        <h1>{{ title }}</h1>
+        <app-image-obscuration-toggle class="phone-eye" />
+      </div>
       @if (search) {
         <label class="page-tabs-search" data-testid="page-tabs-search">
           <i class="pi pi-search" aria-hidden="true"></i>
