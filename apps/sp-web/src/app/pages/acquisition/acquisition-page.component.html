@@ -382,8 +382,36 @@
                         <span class="added-at">{{ added }}</span>
                       }
 
-                      @if (cardMeta(item.releaseDate, item.studio); as meta) {
-                        <p class="card-meta">{{ meta }}</p>
+                      @if (cardMeta(item.releaseDate, null); as date) {
+                        <p class="card-meta">
+                          {{ date }}
+                          @if (item.studio) {
+                            ·
+                            @if (item.studioId) {
+                              <a
+                                class="studio-link"
+                                [routerLink]="['/studio', item.studioId]"
+                                [queryParams]="{ returnTo: currentRouteUrl() }"
+                                >{{ item.studio }}</a
+                              >
+                            } @else {
+                              {{ item.studio }}
+                            }
+                          }
+                        </p>
+                      } @else if (item.studio) {
+                        <p class="card-meta">
+                          @if (item.studioId) {
+                            <a
+                              class="studio-link"
+                              [routerLink]="['/studio', item.studioId]"
+                              [queryParams]="{ returnTo: currentRouteUrl() }"
+                              >{{ item.studio }}</a
+                            >
+                          } @else {
+                            {{ item.studio }}
+                          }
+                        </p>
                       }
                     </div>
 

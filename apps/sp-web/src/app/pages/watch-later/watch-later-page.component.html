@@ -46,8 +46,18 @@
             <div class="copy">
               <a class="title" [routerLink]="['/library/scene', item.id]">{{ item.title }}</a>
               <p class="meta">
-                {{ item.studio ?? '' }}{{ item.studio && item.duration ? ' · ' : ''
-                }}{{ duration(item.duration) }}
+                @if (item.studio) {
+                  @if (item.studioId) {
+                    <a
+                      class="studio-link"
+                      [routerLink]="['/library/studio', item.studioId, 'all']"
+                      >{{ item.studio }}</a
+                    >
+                  } @else {
+                    {{ item.studio }}
+                  }
+                }
+                {{ item.studio && item.duration ? ' · ' : '' }}{{ duration(item.duration) }}
               </p>
             </div>
             <div class="row-actions">
