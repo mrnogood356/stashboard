@@ -114,6 +114,18 @@
         >
           <i class="pi pi-palette" aria-hidden="true"></i>
         </button>
+        <button
+          type="button"
+          class="swatch artwork"
+          [class.active]="artworkAccent()"
+          [attr.aria-pressed]="artworkAccent()"
+          aria-label="Match the artwork"
+          title="Match the artwork"
+          data-testid="accent-artwork"
+          (click)="pickAccent(ARTWORK_ACCENT)"
+        >
+          <i class="pi pi-image" aria-hidden="true"></i>
+        </button>
         @for (swatch of swatches; track swatch.value) {
           <button
             type="button"
@@ -148,13 +160,20 @@
           />
         </label>
       </div>
-      <p class="muted contrast-note" data-testid="accent-contrast">
-        Contrast on cards {{ accentReport().ratio.toFixed(1) }}:1.
-        @if (accentReport().adjusted) {
-          Shown slightly {{ activeTheme().scheme === 'dark' ? 'lighter' : 'darker' }} on this theme
-          so it stays readable.
-        }
-      </p>
+      @if (artworkAccent()) {
+        <p class="muted contrast-note" data-testid="accent-artwork-note">
+          The accent takes its colour from the poster or photo on screen, and changes as you browse.
+          Pages without artwork use the theme's own accent.
+        </p>
+      } @else {
+        <p class="muted contrast-note" data-testid="accent-contrast">
+          Contrast on cards {{ accentReport().ratio.toFixed(1) }}:1.
+          @if (accentReport().adjusted) {
+            Shown slightly {{ activeTheme().scheme === 'dark' ? 'lighter' : 'darker' }} on this
+            theme so it stays readable.
+          }
+        </p>
+      }
     </section>
 
     <section class="card" aria-labelledby="appearance-style">

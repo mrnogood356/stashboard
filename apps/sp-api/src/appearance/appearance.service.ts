@@ -8,7 +8,7 @@ import {
   APPEARANCE_RADII,
   type AppearanceResponse,
   DARK_THEME_IDS,
-  HEX_COLOR_PATTERN,
+  ACCENT_PATTERN,
   LIGHT_THEME_IDS,
   UpdateAppearanceDto,
 } from './dto/appearance.dto';
@@ -107,7 +107,7 @@ function describe(row: AppearanceRow): AppearanceResponse {
       DEFAULT_APPEARANCE.darkTheme,
     ),
     accentColor:
-      row.accentColor && HEX_COLOR_PATTERN.test(row.accentColor)
+      row.accentColor && ACCENT_PATTERN.test(row.accentColor)
         ? row.accentColor
         : null,
     radius: pick(row.radius, APPEARANCE_RADII, DEFAULT_APPEARANCE.radius),

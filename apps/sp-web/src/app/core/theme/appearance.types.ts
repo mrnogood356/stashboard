@@ -12,7 +12,7 @@ export interface AppearanceSettings {
   mode: AppearanceMode;
   lightTheme: string;
   darkTheme: string;
-  /** #rrggbb, or null for the theme's own accent. */
+  /** #rrggbb, "artwork" (follows the artwork on screen), or null for the theme's own accent. */
   accentColor: string | null;
   radius: AppearanceRadius;
   density: AppearanceDensity;
@@ -25,6 +25,9 @@ export interface AppearanceResponse extends AppearanceSettings {
   /** Null until saved once; the defaults apply until then. */
   updatedAt: string | null;
 }
+
+/** The accent follows the poster or photo you're looking at. */
+export const ARTWORK_ACCENT = 'artwork';
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
   mode: 'system',
@@ -85,7 +88,8 @@ export function normalizeAppearance(value: unknown): AppearanceSettings {
     lightTheme: typeof input['lightTheme'] === 'string' ? input['lightTheme'] : d.lightTheme,
     darkTheme: typeof input['darkTheme'] === 'string' ? input['darkTheme'] : d.darkTheme,
     accentColor:
-      typeof input['accentColor'] === 'string' && /^#[0-9a-f]{6}$/i.test(input['accentColor'])
+      typeof input['accentColor'] === 'string' &&
+      (/^#[0-9a-f]{6}$/i.test(input['accentColor']) || input['accentColor'] === ARTWORK_ACCENT)
         ? input['accentColor'].toLowerCase()
         : null,
     radius: oneOf(input['radius'], ['sharp', 'default', 'round'] as const, d.radius),

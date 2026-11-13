@@ -1,5 +1,5 @@
 import { DOCUMENT } from '@angular/common';
-import { DestroyRef, EffectRef, Injectable, effect, inject } from '@angular/core';
+import { DestroyRef, EffectRef, Injectable, effect, inject, signal } from '@angular/core';
 
 /** Our own pages, http(s) images and inline images; nothing that could run. */
 const SAFE_URL = /^(?:https?:\/\/|\/(?!\/)|data:image\/)/i;
@@ -19,6 +19,8 @@ export class GlassArtService {
   private front = 0;
   private current: string | null = null;
   private request = 0;
+  /** The artwork on screen now (null between pages), for the artwork accent. */
+  readonly url = signal<string | null>(null);
 
   set(url: string | null | undefined): void {
     const next = url && SAFE_URL.test(url) ? url : null;
@@ -26,6 +28,7 @@ export class GlassArtService {
       return;
     }
     this.current = next;
+    this.url.set(next);
     const request = ++this.request;
     if (!next) {
       // Leaving a page clears its art, but the next page usually brings its

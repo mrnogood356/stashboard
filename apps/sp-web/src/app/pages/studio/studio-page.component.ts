@@ -1,3 +1,4 @@
+import { GlassArtService } from '../../core/theme/glass-art.service';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import {
   FilterChipComponent,
@@ -160,6 +161,8 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   protected readonly studioId = signal<string | null>(null);
   protected readonly studio = signal<StudioDetails | null>(null);
+  /** The photo behind adaptive glass, and the artwork accent's colour. */
+  private readonly glassArt = inject(GlassArtService).follow(() => this.studio()?.imageUrl);
   protected readonly loadingStudio = signal(false);
   protected readonly studioError = signal<string | null>(null);
   protected readonly activeImageIndex = signal(0);

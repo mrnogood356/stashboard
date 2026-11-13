@@ -20,6 +20,7 @@ import { QuickSearchComponent } from '../../shared/quick-search/quick-search.com
 import { WhatsNewComponent } from '../../shared/whats-new/whats-new.component';
 import { NavigationHistoryService } from '../../core/navigation/navigation-history.service';
 import { BackScrollService } from '../../core/navigation/back-scroll.service';
+import { ArtworkAccentService } from '../../core/theme/artwork-accent.service';
 
 interface ShellDegradedState {
   kind: 'setup' | 'runtime';
@@ -208,6 +209,8 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
   private readonly playbackSettings = inject(PlaybackSettingsService);
   private readonly navigationHistory = inject(NavigationHistoryService);
   private readonly backScroll = inject(BackScrollService);
+  /** Accent "Match the artwork": runs for as long as the app is open. */
+  protected readonly artworkAccent = inject(ArtworkAccentService);
   private readonly phoneShellMediaQuery = this.createPhoneShellMediaQuery();
   private readonly phoneShellMediaChangeHandler = (event: MediaQueryListEvent) => {
     this.mobileShell.set(event.matches);
