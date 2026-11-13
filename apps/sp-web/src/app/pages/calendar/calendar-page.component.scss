@@ -39,9 +39,9 @@
   min-width: 2.5rem;
   height: 2.5rem;
   padding: 0 0.9rem;
-  border: 0;
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  background: var(--chip-bg);
+  background: transparent;
   color: var(--text-primary);
   font: inherit;
   font-weight: 600;
@@ -60,7 +60,7 @@
 .whose {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
+  gap: 1.25rem;
   margin-top: 0.9rem;
   padding: 0.25rem;
   border-radius: 999px;
@@ -68,21 +68,22 @@
 }
 
 .whose button {
-  min-height: 2.2rem;
+  min-height: 2.5rem;
   padding: 0 0.9rem;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-secondary);
   font: inherit;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
+  margin-bottom: -1px;
 }
 
 .whose button.active {
   background: var(--surface-1);
   color: var(--text-primary);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+  box-shadow: none;
 }
 
 .calendar-lead,
@@ -97,8 +98,6 @@
   font-weight: 600;
   text-decoration: none;
 }
-
-/* ---------- month grid ---------- */
 
 .month {
   display: grid;
@@ -239,8 +238,6 @@
   color: var(--accent-text, var(--accent));
 }
 
-/* ---------- list ---------- */
-
 .agenda {
   display: grid;
   gap: 1.1rem;
@@ -267,19 +264,23 @@
 }
 
 .today-chip {
-  padding: 0.1rem 0.5rem;
+  padding: 0;
   border-radius: var(--radius-sm);
-  background: var(--accent-soft, color-mix(in srgb, var(--accent) 16%, transparent));
+  background: none;
   color: var(--accent-text, var(--accent));
   font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .agenda-day ul {
   display: grid;
-  gap: 0.5rem;
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  overflow: hidden;
 }
 
 .release {
@@ -287,9 +288,9 @@
   grid-template-columns: 6.5rem minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.8rem;
-  padding: 0.5rem;
-  border-radius: calc(14px * var(--radius-scale, 1));
-  background: var(--surface-1);
+  padding: 0.6rem 0.75rem;
+  border-radius: 0;
+  background: none;
 }
 
 .release-art {
@@ -334,22 +335,25 @@
 }
 
 .whisparr-tag {
-  padding: 0.05rem 0.45rem;
-  border-radius: 999px;
-  border: 1px solid var(--badge-import-pending-border);
-  background: var(--badge-import-pending-bg);
-  color: var(--badge-import-pending-text);
-  font-size: 0.7rem;
-  font-weight: 700;
+  padding: 0;
+  border-radius: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .request-button {
   min-height: 2.2rem;
   padding: 0 1rem;
-  border: 0;
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: var(--accent-contrast);
+  background: transparent;
+  color: var(--text-primary);
   font: inherit;
   font-weight: 650;
   cursor: pointer;
@@ -459,11 +463,8 @@
   }
 }
 
-/* ---------- Current look: underline tabs, outlined Request, as on the rest of the app ---------- */
-
 .whose {
   display: flex;
-  gap: 1.25rem;
   padding: 0;
   border-radius: 0;
   border-bottom: 1px solid var(--border-subtle);
@@ -475,54 +476,23 @@
 
 .whose button {
   flex: 0 0 auto;
-  min-height: 2.5rem;
-  margin-bottom: -1px;
   padding: 0;
   border-bottom: 2px solid transparent;
   border-radius: 0;
-  font-weight: 500;
   white-space: nowrap;
 }
 
 .whose button.active {
   border-bottom-color: var(--text-primary);
   background: none;
-  box-shadow: none;
-}
-
-.request-button {
-  border: 1px solid var(--border-subtle);
-  background: transparent;
-  color: var(--text-primary);
 }
 
 .request-button:hover:not(:disabled) {
   border-color: var(--border-strong);
 }
 
-/* ---------- Current look: releases as a plain list, status as a dot and words ---------- */
-
-.release {
-  padding: 0.6rem 0;
-  border-radius: 0;
-  background: none;
-}
-
 .release + .release {
   border-top: 1px solid var(--border-subtle);
-}
-
-.whisparr-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: none;
-  color: var(--text-muted);
-  font-size: 0.76rem;
-  font-weight: 500;
 }
 
 .whisparr-tag::before {
@@ -531,33 +501,4 @@
   height: 0.4rem;
   border-radius: 50%;
   background: var(--badge-import-pending-text);
-}
-
-.today-chip {
-  padding: 0;
-  background: none;
-  color: var(--accent-text, var(--accent));
-  font-weight: 500;
-}
-
-.agenda-day ul {
-  gap: 0;
-}
-
-.nav-button,
-.today-button {
-  border: 1px solid var(--border-subtle);
-  background: transparent;
-}
-
-/* ---------- A day's releases: one soft group, rows divided inside ---------- */
-
-.agenda-day ul {
-  border-radius: var(--radius-md);
-  background: var(--surface-1);
-  overflow: hidden;
-}
-
-.release {
-  padding: 0.6rem 0.75rem;
 }

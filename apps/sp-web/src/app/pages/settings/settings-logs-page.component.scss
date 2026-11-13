@@ -104,9 +104,12 @@ p {
   margin: 0;
   padding: 0;
   list-style: none;
-  border-radius: 18px;
+  border-radius: var(--radius-md);
   background: var(--surface-1);
   overflow: hidden;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  border: 0;
 }
 
 .entry + .entry,
@@ -125,6 +128,7 @@ p {
   font: inherit;
   text-align: left;
   cursor: pointer;
+  padding-inline: 1rem;
 }
 
 .entry-main:focus-visible {
@@ -265,7 +269,7 @@ p {
   align-items: center;
   min-height: 2.25rem;
   padding: 0 0.9rem;
-  border: 0;
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   color: var(--text-primary);
@@ -284,11 +288,13 @@ p {
 .pill.live.on {
   background: var(--accent);
   color: #fff;
+  border-color: var(--border-subtle);
 }
 
 .pill.danger {
   background: color-mix(in srgb, var(--danger) 14%, var(--surface-2));
   color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
 }
 
 .older {
@@ -326,35 +332,19 @@ p {
   color: var(--danger);
 }
 
-/* ---------- Current look: no boxes, outlined buttons ---------- */
-
 .card.settings-card {
-  padding: 0;
+  padding: 1rem;
   border: 0;
-  border-radius: 0;
-  background: none;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
   box-shadow: none;
 }
 
-.entries,
-.files {
-  border-radius: 0;
-  background: none;
-  border-top: 1px solid var(--border-subtle);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.entry-main {
-  padding-inline: 0;
-}
-
 .pill {
-  border: 1px solid var(--border-subtle);
   background: transparent;
 }
 
 .pill.live.on {
-  border-color: var(--border-subtle);
   background: transparent;
   color: var(--text-primary);
 }
@@ -364,24 +354,5 @@ p {
 }
 
 .pill.danger {
-  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
   background: transparent;
-}
-
-/* Soft surfaces: the logging settings and each list on their own. */
-.card.settings-card {
-  padding: 1rem;
-  border-radius: var(--radius-md);
-  background: var(--surface-1);
-}
-
-.entries,
-.files {
-  border: 0;
-  border-radius: var(--radius-md);
-  background: var(--surface-1);
-}
-
-.entry-main {
-  padding-inline: 1rem;
 }

@@ -115,14 +115,15 @@ p {
 }
 
 .count-badge {
-  min-width: 1.4rem;
-  padding: 0.05rem 0.4rem;
-  border-radius: 999px;
-  background: var(--accent-soft, color-mix(in srgb, var(--accent) 14%, transparent));
-  color: var(--accent);
-  font-size: 0.72rem;
-  font-weight: 700;
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .btn {
@@ -148,7 +149,7 @@ p {
 }
 
 .btn:active {
-  transform: scale(0.96);
+  transform: none;
 }
 
 .btn:disabled {
@@ -179,7 +180,7 @@ p {
 }
 
 .panel {
-  border-radius: 18px;
+  border-radius: var(--radius-md);
   background: var(--surface-1);
 }
 
@@ -189,7 +190,7 @@ p {
   align-items: flex-start;
   margin-top: 1rem;
   padding: 0.85rem 1rem;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--surface-1);
   color: var(--text-muted);
   font-size: 0.9rem;
@@ -207,6 +208,7 @@ p {
 
 .notice a {
   color: var(--accent);
+  text-decoration: underline;
 }
 
 .empty {
@@ -227,7 +229,7 @@ p {
   position: relative;
   flex: 0 0 auto;
   aspect-ratio: 16 / 9;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--surface-2);
 }
@@ -294,19 +296,6 @@ p {
   cursor: default;
 }
 
-/* ---------- Current look: quiet controls, as on the rest of the app ---------- */
-
-.count-badge {
-  min-width: 0;
-  padding: 0;
-  border-radius: 0;
-  background: none;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-
 .btn,
 .head-action {
   border: 1px solid var(--border-subtle);
@@ -318,10 +307,6 @@ p {
 .btn:hover:not(:disabled),
 .head-action:hover:not(:disabled) {
   border-color: var(--border-strong);
-}
-
-.btn:active {
-  transform: none;
 }
 
 .btn.primary {
@@ -336,28 +321,13 @@ p {
   color: var(--danger-text, var(--danger));
 }
 
-.panel {
-  border-radius: var(--radius-md);
-}
-
-.notice {
-  border-radius: var(--radius-md);
-}
-
 .notice i {
   color: var(--text-muted);
 }
 
 .notice a {
   color: var(--text-primary);
-  text-decoration: underline;
 }
-
-.thumb {
-  border-radius: var(--radius-sm);
-}
-
-/* ---------- Current look: soft cards, no borders, plain notices ---------- */
 /* :host so this wins over a page's own .panel and .notice. Each panel is a
    quiet surface of its own, so a list of them never runs together. */
 
@@ -380,8 +350,6 @@ p {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-
-/* ---------- Soft cards with room inside, never an outline (every tools page) ---------- */
 
 :host :is(.running, .review, .block.app-section-panel) {
   --app-section-padding: 1rem;

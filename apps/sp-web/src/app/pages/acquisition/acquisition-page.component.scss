@@ -38,10 +38,11 @@ a {
 .lifecycle-tabs {
   margin-top: 1rem;
   display: flex;
-  gap: 0.4rem;
+  gap: 1.25rem;
   overflow-x: auto;
   scrollbar-width: none;
   padding-bottom: 0.1rem;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .lifecycle-tabs::-webkit-scrollbar {
@@ -53,16 +54,17 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  height: 2.25rem;
-  padding: 0 0.85rem;
+  height: 2.5rem;
+  padding: 0;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   background: var(--surface-2);
   color: var(--text-muted);
   font: inherit;
   font-size: 0.88rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
+  border-bottom: 2px solid transparent;
 }
 
 .lifecycle-tab:hover {
@@ -72,16 +74,18 @@ a {
 .lifecycle-tab.is-active {
   background: var(--accent-soft);
   color: var(--accent-text);
+  border-bottom-color: var(--text-primary);
 }
 
 .lifecycle-tab-count {
-  min-width: 1.4rem;
-  padding: 0 0.4rem;
+  min-width: 0;
+  padding: 0;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  background: none;
   font-size: 0.78rem;
   line-height: 1.4rem;
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .lifecycle-tab[data-tone='attention'] .lifecycle-tab-count.has-count {
@@ -93,13 +97,12 @@ a {
   outline-offset: 2px;
 }
 
-/* ---------- where each request is ---------- */
-
 .download-progress {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   min-width: 0;
+  max-width: 28rem;
 }
 
 .download-bar {
@@ -156,8 +159,8 @@ a {
 }
 
 .lifecycle-section {
-  margin-top: 1rem;
-  --app-section-radius: 18px;
+  margin-top: 1.5rem;
+  --app-section-radius: 0;
   --app-section-padding: 0.95rem;
   --app-section-border: 1px solid color-mix(in srgb, var(--border-strong) 52%, transparent);
   --app-section-bg: color-mix(in srgb, var(--surface-elevated) 92%, var(--surface-1));
@@ -182,7 +185,7 @@ a {
 
 /* A small dot in the section's colour, instead of tinting the whole panel. */
 .lifecycle-section[data-tone]:not([data-tone='']) .section-title-row h3::before {
-  content: '';
+  content: none;
   display: inline-block;
   width: 0.55rem;
   height: 0.55rem;
@@ -226,20 +229,29 @@ a {
 }
 
 .section-count {
-  font-weight: 700;
+  font-weight: 400;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.86rem;
 }
 
 .section-priority {
-  border: 1px solid var(--acquisition-attention-border);
-  background: color-mix(in srgb, var(--badge-failed-bg) 82%, var(--surface-elevated));
-  color: var(--acquisition-attention-copy);
-  font-weight: 700;
+  border: 0;
+  background: none;
+  color: var(--danger-text);
+  font-weight: 500;
+  min-height: 0;
+  padding: 0;
+  font-size: 0.86rem;
 }
 
 .acquisition-list {
-  margin-top: 0.85rem;
+  margin-top: 0.5rem;
   display: grid;
-  gap: 0.8rem;
+  gap: 0.6rem;
 }
 
 .acquisition-card {
@@ -250,7 +262,8 @@ a {
   padding: 0.75rem;
   border-radius: 16px;
   border: 1px solid var(--acquisition-card-border);
-  background: var(--acquisition-card-bg);
+  background: var(--surface-1);
+  position: relative;
 }
 
 .acquisition-card[data-state='FAILED'] {
@@ -267,7 +280,7 @@ a {
 }
 
 .card-art-link {
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   min-height: 0;
   background: var(--surface-2);
@@ -287,10 +300,11 @@ a {
 .card-art {
   width: 100%;
   height: 100%;
-  min-height: 100%;
+  min-height: 0;
   aspect-ratio: 4 / 3;
   object-fit: cover;
   display: block;
+  border-radius: 12px;
 }
 
 .card-art.placeholder {
@@ -324,6 +338,7 @@ a {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  border: 0;
 }
 
 .card-copy {
@@ -337,6 +352,7 @@ a {
   overflow-wrap: anywhere;
   font-size: 1.08rem;
   line-height: 1.25;
+  font-weight: 600;
 }
 
 .card-title a {
@@ -384,7 +400,7 @@ a {
   padding: 0.45rem 0.88rem;
   text-decoration: none;
   font-size: 0.86rem;
-  font-weight: 700;
+  font-weight: 600;
   transition:
     transform 140ms ease,
     border-color 140ms ease,
@@ -394,7 +410,7 @@ a {
 .primary-link:hover,
 .secondary-link:hover,
 .secondary-action:hover {
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .primary-link {
@@ -410,6 +426,9 @@ a {
 
 .secondary-action {
   cursor: pointer;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--chip-bg);
 }
 
 .small,
@@ -491,27 +510,10 @@ a {
   }
 }
 
-/* ---------- 2026 look ---------- */
-
 .acquisition-card {
   border: 0;
   border-radius: 18px;
-  background: var(--surface-1);
   box-shadow: none;
-}
-
-.card-art {
-  border-radius: 12px;
-}
-
-.studio-pill {
-  border: 0;
-}
-
-.secondary-action {
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: var(--chip-bg);
 }
 
 .waiting-check {
@@ -550,8 +552,6 @@ a {
   justify-self: start;
   margin-top: 0.25rem;
 }
-
-/* ---------- search and sort ---------- */
 
 .list-toolbar {
   display: grid;
@@ -601,10 +601,6 @@ a {
 .select-toggle.active {
   background: var(--accent-soft, color-mix(in srgb, var(--accent) 14%, transparent));
   color: var(--accent);
-}
-
-.acquisition-card {
-  position: relative;
 }
 
 .acquisition-card.picked {
@@ -697,11 +693,9 @@ a {
   margin-top: 0.35rem;
 }
 
-/* ---------- card meta and actions ---------- */
-
 .card-meta {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   color: var(--text-muted);
 }
 
@@ -764,38 +758,15 @@ a {
   }
 }
 
-/* ---------- Current look: a plain list on the page, not panels of cards ---------- */
-
 .lifecycle-section {
-  margin-top: 1.5rem;
-  --app-section-radius: 0;
   --app-section-padding: 0;
   --app-section-border: 0;
   --app-section-bg: transparent;
 }
 
-.lifecycle-section[data-tone]:not([data-tone='']) .section-title-row h3::before {
-  content: none;
-}
-
 .section-title-row h3 {
   font-size: 1.1rem;
   font-weight: 600;
-}
-
-.section-count {
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--text-muted);
-  font-size: 0.86rem;
-  font-weight: 400;
-}
-
-.acquisition-list {
-  margin-top: 0.5rem;
-  gap: 0;
 }
 
 .acquisition-card,
@@ -804,46 +775,36 @@ a {
   gap: 1rem;
   padding: 0.9rem 0;
   border: 0;
-  border-radius: 0;
-  background: none;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
   box-shadow: none;
 }
 
 .acquisition-card + .acquisition-card {
-  border-top: 1px solid var(--border-subtle);
+  border-top: 0;
 }
 
 .card-art-link {
   align-self: start;
-  border-radius: var(--radius-sm);
 }
 
 .card-art {
   aspect-ratio: 16 / 9;
-  min-height: 0;
 }
 
 .card-title {
   font-size: 1rem;
-  font-weight: 600;
-}
-
-.card-meta {
-  color: var(--text-muted);
-  font-size: 0.84rem;
 }
 
 .primary-link,
 .secondary-link,
 .secondary-action {
   border-radius: var(--radius-sm);
-  font-weight: 600;
 }
 
 .primary-link:hover,
 .secondary-link:hover,
 .secondary-action:hover {
-  transform: none;
   border-color: var(--border-strong);
 }
 
@@ -856,33 +817,17 @@ a {
   color: var(--text-primary);
 }
 
-/* Tabs: words with an underline under the current one, counts in plain figures. */
-.lifecycle-tabs {
-  gap: 1.25rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
 .lifecycle-tab {
-  height: 2.5rem;
-  padding: 0;
-  border-radius: 0;
-  border-bottom: 2px solid transparent;
   background: none;
-  font-weight: 500;
 }
 
 .lifecycle-tab.is-active {
   background: none;
-  border-bottom-color: var(--text-primary);
   color: var(--text-primary);
 }
 
 .lifecycle-tab-count {
-  min-width: 0;
-  padding: 0;
-  background: none;
   color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 640px) {
@@ -893,27 +838,6 @@ a {
     padding: 0.75rem 0;
   }
 }
-
-.section-priority {
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--danger-text);
-  font-size: 0.86rem;
-  font-weight: 500;
-}
-
-.select-toggle {
-  border-radius: var(--radius-sm);
-}
-
-/* The download's own bar, as wide as the steps above it. */
-.download-progress {
-  max-width: 28rem;
-}
-
-/* ---------- Spacing: each card's buttons belong to that card ---------- */
 
 .acquisition-card,
 .acquisition-card[data-state] {
@@ -928,10 +852,6 @@ a {
   margin: 0;
 }
 
-.acquisition-card + .acquisition-card {
-  border-top: 1px solid var(--border-subtle);
-}
-
 @media (max-width: 640px) {
   .acquisition-card,
   .acquisition-card[data-state] {
@@ -944,21 +864,9 @@ a {
   }
 }
 
-/* ---------- Each scene a soft card of its own, so the list never runs together ---------- */
-
-.acquisition-list {
-  gap: 0.6rem;
-}
-
 .acquisition-card,
 .acquisition-card[data-state] {
   padding: 0.9rem;
-  border-radius: var(--radius-md);
-  background: var(--surface-1);
-}
-
-.acquisition-card + .acquisition-card {
-  border-top: 0;
 }
 
 @media (max-width: 640px) {

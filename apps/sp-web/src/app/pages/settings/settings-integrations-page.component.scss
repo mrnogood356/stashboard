@@ -184,6 +184,7 @@ p {
 
 .checklist-grid {
   margin-top: 0.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .overview-meta,
@@ -199,15 +200,12 @@ p {
   gap: 0.9rem;
 }
 
-.checklist-grid {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-}
-
 .checklist-item {
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--surface-panel-border);
   padding: 0.6rem 0.75rem;
   background: var(--surface-elevated);
+  box-shadow: none;
 }
 
 .checklist-item h3 {
@@ -222,15 +220,15 @@ p {
 
 .cards {
   align-items: start;
-  gap: 0.5rem;
+  gap: 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  overflow: hidden;
 }
 
 /* Health and Reset all: at the end, not in the way. */
 .operations-grid {
   margin-top: 1rem;
-}
-
-.operations-grid {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   align-items: start;
 }
@@ -305,20 +303,6 @@ p {
   margin: 0.4rem 0 0;
   color: var(--text-muted);
   font-size: 0.9rem;
-}
-
-/* ---------- Current look: no boxes; readiness is a line of text ---------- */
-
-.cards {
-  gap: 0;
-  border-radius: var(--radius-lg);
-  background: var(--surface-1);
-  overflow: hidden;
-}
-
-.checklist-item {
-  border-radius: var(--radius-sm);
-  box-shadow: none;
 }
 
 /* Refresh health is a side action: outlined, not the blue of Save & test. */
