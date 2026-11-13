@@ -9,7 +9,7 @@
 <ul class="todo panel" aria-label="To do">
   @if (store.settings(); as settings) {
     @if (settings.whisparrAvailable && settings.missingInWhisparr > 0) {
-      <li class="todo-row">
+      <li class="todo-row" [class.open]="store.isOpen('missing')">
         <span class="todo-count">{{ settings.missingInWhisparr }}</span>
         <span class="todo-copy">
           <strong>In Stash, not in Whisparr</strong>
@@ -22,11 +22,45 @@
         <button
           type="button"
           class="btn"
-          [disabled]="store.run()?.running"
-          (click)="store.sendAllToWhisparr()"
+          data-testid="missing-in-whisparr-why"
+          [attr.aria-expanded]="store.isOpen('missing')"
+          (click)="toggleMissing()"
         >
-          Send now
+          {{ store.isOpen('missing') ? 'Close' : 'Why' }}
         </button>
+        @if (store.isOpen('missing')) {
+          <div class="todo-detail">
+            @if (files.missingInWhisparr(); as scenes) {
+              <ul class="missing-list" data-testid="missing-in-whisparr">
+                @for (scene of scenes; track scene.stashId) {
+                  <li>
+                    <a [routerLink]="['/scene', scene.stashId]">{{
+                      scene.title || scene.stashId
+                    }}</a>
+                    @if (scene.studio) {
+                      <span class="muted small"> · {{ scene.studio }}</span>
+                    }
+                    <small class="missing-reason" [class.warn]="!!scene.reason">{{
+                      scene.reason ?? 'Not tried yet: it goes with the next send.'
+                    }}</small>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="muted small" role="status">Looking…</p>
+            }
+            <div class="card-actions">
+              <button
+                type="button"
+                class="btn"
+                [disabled]="store.run()?.running"
+                (click)="store.sendAllToWhisparr()"
+              >
+                Send now
+              </button>
+            </div>
+          </div>
+        }
       </li>
     }
   }

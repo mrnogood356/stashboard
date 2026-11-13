@@ -7,6 +7,7 @@ import {
   RenameState,
   WhisparrRepairPlan,
   WhisparrRepairScene,
+  MissingInWhisparrScene,
 } from '../../core/api/organizer.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { DownloadHandoffApiService } from '../../core/api/download-handoff.service';
@@ -30,6 +31,16 @@ export class OrganizeFilesStore implements OnDestroy {
 
   /** Downloads stuck at Whisparr's import step (Downloads → Waiting in Whisparr). */
   readonly stuckInWhisparr = signal(0);
+
+  /** In Stash, not in Whisparr: each scene and why it hasn't gone. */
+  readonly missingInWhisparr = signal<MissingInWhisparrScene[] | null>(null);
+
+  loadMissingInWhisparr(): void {
+    this.api.missingInWhisparr?.().subscribe({
+      next: (scenes) => this.missingInWhisparr.set(scenes),
+      error: () => this.missingInWhisparr.set([]),
+    });
+  }
 
   /** Where a placeholder button adds to: the field last typed in. */
   lastPatternField: 'folder' | 'file' = 'file';

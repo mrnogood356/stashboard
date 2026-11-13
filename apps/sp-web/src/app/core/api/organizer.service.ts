@@ -96,6 +96,15 @@ export interface OrganizerRun {
   message: string | null;
 }
 
+export interface MissingInWhisparrScene {
+  stashId: string;
+  title: string | null;
+  studio: string | null;
+  /** Why it didn't go on its last try; null when not tried yet. */
+  reason: string | null;
+  triedAt: string | null;
+}
+
 export interface OrganizerSettings {
   /** Your own pattern: used without Whisparr, or when its naming can't be. */
   renamePattern: string;
@@ -318,6 +327,11 @@ export class OrganizerApiService {
   /** Whisparr's folder and file formats as one pattern; null when Whisparr isn't set up. */
   whisparrNaming(): Observable<WhisparrNaming | null> {
     return this.http.get<WhisparrNaming | null>('/api/organizer/whisparr/naming');
+  }
+
+  /** Scenes Stash has that Whisparr wants without a file, each with why it hasn't gone. */
+  missingInWhisparr(): Observable<MissingInWhisparrScene[]> {
+    return this.http.get<MissingInWhisparrScene[]>('/api/organizer/whisparr/missing');
   }
 
   whisparrRepair(): Observable<WhisparrRepairPlan | null> {

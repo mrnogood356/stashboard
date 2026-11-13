@@ -381,6 +381,8 @@ export abstract class OrganizerFiles extends OrganizerCore {
   startSendAll(
     /** Only scenes Whisparr shows as missing, even with "add new ones" on. */
     missingOnly = false,
+    /** With "add new ones" on, only scenes added to Stash since then. */
+    addedSince: Date | null = null,
   ): OrganizerRunDto {
     this.assertIdle();
     this.runState = {
@@ -426,6 +428,14 @@ export abstract class OrganizerFiles extends OrganizerCore {
               perPage: 100,
               sceneFilter: {
                 stash_id_endpoint: { endpoint, modifier: 'NOT_NULL' },
+                ...(addedSince
+                  ? {
+                      created_at: {
+                        value: addedSince.toISOString(),
+                        modifier: 'GREATER_THAN',
+                      },
+                    }
+                  : {}),
               },
             });
             result.items.forEach((scene) => scenes.set(scene.id, scene));

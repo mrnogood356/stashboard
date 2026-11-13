@@ -565,7 +565,23 @@ describe('OrganizerService', () => {
 
       await service.sendMissingDaily();
 
-      expect(start).toHaveBeenCalledWith(true);
+      expect(start).toHaveBeenCalledWith(true, null);
+    });
+
+    it('with “Also add scenes Whisparr doesn’t have” on, adds the last two days’ new scenes too', async () => {
+      settings.sendToWhisparr = true;
+      settings.addToWhisparr = true;
+      handoff.missingInWhisparr.mockResolvedValue([]);
+      const start = jest
+        .spyOn(service, 'startSendAll')
+        .mockReturnValue(service.status());
+
+      await service.sendMissingDaily();
+
+      expect(start).toHaveBeenCalledWith(false, expect.any(Date));
+      const since = start.mock.calls[0][1] as Date;
+      expect(Date.now() - since.getTime()).toBeGreaterThan(47 * 3600_000);
+      expect(Date.now() - since.getTime()).toBeLessThan(49 * 3600_000);
     });
 
     it('does nothing when it is off or nothing is missing', async () => {

@@ -17,4 +17,12 @@ import { OrganizeFilesStore } from './organize-files.store';
 export class OrganizeOverviewComponent {
   protected readonly store = inject(OrganizeStore);
   protected readonly files = inject(OrganizeFilesStore);
+
+  /** Opens the list of what Whisparr still wants, reading it fresh. */
+  protected toggleMissing(): void {
+    if (!this.store.isOpen('missing')) {
+      this.files.loadMissingInWhisparr();
+    }
+    this.store.toggleOpen('missing');
+  }
 }

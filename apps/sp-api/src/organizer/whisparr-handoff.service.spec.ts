@@ -118,6 +118,13 @@ describe('WhisparrHandoffService', () => {
       requestImmediateRefresh: jest.fn().mockResolvedValue(undefined),
     };
     const prisma = {
+      sceneIndex: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { stashId: 'sdb-1', title: 'Scene One', studioName: 'Studio' },
+          ]),
+      },
       integrationConfig: {
         findUnique: jest.fn().mockResolvedValue({
           enabled: true,
@@ -548,6 +555,23 @@ describe('WhisparrHandoffService', () => {
     expect(result.sent).toHaveLength(0);
     expect(result.failed[0].reason).toMatch(/didn’t take/);
     expect(indexing.requestImmediateRefresh).not.toHaveBeenCalled();
+  });
+
+  it('remembers why each scene didn’t go, for the list of what Whisparr still wants', async () => {
+    await expect(service.missingInWhisparrScenes()).resolves.toEqual([
+      expect.objectContaining({
+        stashId: 'sdb-1',
+        title: 'Scene One',
+        reason: null,
+      }),
+    ]);
+    whisparr.findMovieByStashId
+      .mockReset()
+      .mockResolvedValue({ movieId: 5, stashId: 'sdb-1', hasFile: false });
+    await service.send({ baseUrl: 'http://stash' }, [scene()], settings);
+    const [missing] = await service.missingInWhisparrScenes();
+    expect(missing.reason).toMatch(/didn’t take/);
+    expect(missing.triedAt).toEqual(expect.any(String));
   });
 
   it('builds an import entry from the file’s resolution', () => {

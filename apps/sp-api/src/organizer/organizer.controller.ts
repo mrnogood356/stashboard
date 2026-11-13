@@ -97,6 +97,12 @@ export class OrganizerController {
     return this.organizer.whisparrNaming();
   }
 
+  /** Scenes Stash has that Whisparr wants, each with why it hasn't gone. */
+  @Get('whisparr/missing')
+  missingInWhisparr() {
+    return this.organizer.missingInWhisparrScenes();
+  }
+
   @Get('whisparr/repair')
   whisparrRepairCount() {
     return this.organizer.whisparrRepairCount();

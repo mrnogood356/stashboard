@@ -1143,6 +1143,33 @@ describe('OrganizePageComponent', () => {
     expect(root.querySelector('#rename-file')).not.toBeNull();
   });
 
+  it('lists what Whisparr still wants, each with why it hasn’t gone', async () => {
+    const api = renameApi({
+      settings: vi
+        .fn()
+        .mockReturnValue(of({ ...settings, whisparrAvailable: true, missingInWhisparr: 2 })),
+      missingInWhisparr: vi.fn().mockReturnValue(
+        of([
+          {
+            stashId: 'sdb-1',
+            title: 'Angel',
+            studio: 'HeavenPOV',
+            reason: 'Whisparr ran the import but didn’t take it.',
+            triedAt: '2026-11-13T21:53:00Z',
+          },
+          { stashId: 'sdb-2', title: 'New One', studio: null, reason: null, triedAt: null },
+        ]),
+      ),
+    });
+    const { fixture, root } = await render(api, 'overview', 'rename');
+    (root.querySelector('[data-testid="missing-in-whisparr-why"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const list = root.querySelector('[data-testid="missing-in-whisparr"]')?.textContent ?? '';
+    expect(list).toContain('Angel');
+    expect(list).toContain('didn’t take it');
+    expect(list).toContain('Not tried yet');
+  });
+
   it('is two tools: Match scenes (Review, Settings) and Rename files (To do, Settings)', async () => {
     const api = renameApi();
     const match = await render(api, undefined, 'match');
