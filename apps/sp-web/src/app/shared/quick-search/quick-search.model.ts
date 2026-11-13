@@ -51,7 +51,12 @@ export const QUICK_PAGES: readonly QuickPage[] = [
     keywords: 'markers playlist shuffle compilation',
   },
   { label: 'History', url: '/history', icon: 'pi-history', keywords: 'played watched recent' },
-  { label: 'Requests', url: '/acquisition', icon: 'pi-inbox', keywords: 'wanted whisparr queue' },
+  {
+    label: 'Wanted',
+    url: '/acquisition',
+    icon: 'pi-inbox',
+    keywords: 'requests requested whisparr queue',
+  },
   {
     label: 'You may enjoy',
     url: '/you-may-enjoy',

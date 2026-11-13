@@ -1122,7 +1122,7 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
       return 'Back to Scenes';
     }
     if (returnTo.startsWith('/acquisition')) {
-      return 'Back to Requests';
+      return 'Back to Wanted';
     }
     if (returnTo.startsWith('/processing')) {
       return 'Back to Downloads';

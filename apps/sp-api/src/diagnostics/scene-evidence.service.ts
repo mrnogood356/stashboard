@@ -221,7 +221,7 @@ export class SceneEvidenceService {
 
 const LIFECYCLE_LABEL: Record<SceneLifecycle, string> = {
   NOT_REQUESTED: 'Not requested',
-  REQUESTED: 'Requested',
+  REQUESTED: 'Wanted',
   DOWNLOADING: 'Downloading',
   IMPORT_PENDING: 'Awaiting import',
   AVAILABLE: 'In library',

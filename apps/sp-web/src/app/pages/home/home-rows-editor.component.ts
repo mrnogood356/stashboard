@@ -36,7 +36,7 @@ const FROM_LABEL: Record<HomeRowGalleryItem['from'], string> = {
   library: 'Your library',
   catalog: 'Catalog',
   whisparr: 'Whisparr',
-  requests: 'Requests',
+  requests: 'Wanted',
 };
 
 const SORT_LABEL: Record<string, string> = {
@@ -142,7 +142,7 @@ export class HomeRowsEditorComponent implements OnChanges, OnDestroy {
           : row.key === 'FOLLOWING'
             ? 'Catalog, from who you follow'
             : row.key === 'STILL_WAITING'
-              ? 'Requests'
+              ? 'Wanted'
               : row.source === 'STASH'
                 ? 'Your library'
                 : 'Catalog';

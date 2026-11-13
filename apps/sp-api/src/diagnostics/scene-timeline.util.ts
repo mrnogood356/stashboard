@@ -705,7 +705,8 @@ function nowLine(steps: TimelineStep[]): string {
   if (!next) {
     return done?.label ?? 'Not requested';
   }
-  const reached = done?.label ?? 'Requested';
+  // Requested and nothing since: it's wanted.
+  const reached = !done || done.step === 'requested' ? 'Wanted' : done.label;
   return next.status === 'unknown'
     ? `${reached} · ${next.label.toLowerCase()}: unknown`
     : `${reached} · next: ${next.label.toLowerCase()}`;

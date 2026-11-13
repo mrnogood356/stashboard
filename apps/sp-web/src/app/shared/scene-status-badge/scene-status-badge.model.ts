@@ -5,7 +5,7 @@ type SceneStatusLike = Pick<SceneStatus, 'state'>;
 export function sceneStatusBadgeLabel(status: SceneStatusLike): string {
   switch (status.state) {
     case 'REQUESTED':
-      return 'Requested';
+      return 'Wanted';
     case 'DOWNLOADING':
       return 'Downloading';
     case 'IMPORT_PENDING':

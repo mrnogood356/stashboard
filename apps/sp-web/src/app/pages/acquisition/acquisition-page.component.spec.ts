@@ -406,7 +406,7 @@ describe('AcquisitionPageComponent', () => {
     const root = fixture.nativeElement as HTMLElement;
 
     expect(stageStates(root, 'scene-downloading')).toEqual([
-      'Requested:done',
+      'Wanted:done',
       'Downloading:current',
       'Waiting for Stash:todo',
       'In library:todo',
@@ -670,7 +670,7 @@ describe('AcquisitionPageComponent', () => {
       sort: 'status',
     });
     expect(failedTab?.textContent).toContain('1');
-    expect(lifecycleHeadings).toEqual(['Failed', 'Downloading', 'Requested']);
+    expect(lifecycleHeadings).toEqual(['Failed', 'Downloading', 'Wanted']);
     // In plain words, with Whisparr's own words beneath.
     expect(text).toContain(
       'The download stalled: nobody was sending the file. Pick another release.',
@@ -932,7 +932,7 @@ describe('AcquisitionPageComponent', () => {
     const headings = Array.from(
       fixture.nativeElement.querySelectorAll('.lifecycle-section h3') as NodeListOf<HTMLElement>,
     ).map((element) => element.textContent?.trim());
-    expect(headings).toEqual(['Failed', 'Downloading', 'Waiting for Stash', 'Requested']);
+    expect(headings).toEqual(['Failed', 'Downloading', 'Waiting for Stash', 'Wanted']);
   });
 
   it('searches after a pause and keeps the search in the address', async () => {

@@ -898,7 +898,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
 
     switch (this.selectedLifecycle()) {
       case 'FAILED':
-        return 'Nothing has failed. Requests that fail show up here.';
+        return 'Nothing has failed. Wanted scenes that fail show up here.';
       case 'IMPORT_PENDING':
         return 'Downloads are not waiting on the final Stash handoff right now.';
       case 'DOWNLOADING':
@@ -906,7 +906,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       case 'REQUESTED':
         return 'Whisparr is not holding any queued requests that have not started yet.';
       case 'AVAILABLE':
-        return 'Requests show up here for two weeks once they’re in your library.';
+        return 'Wanted scenes show up here for two weeks once they’re in your library.';
       case 'ANY':
       default:
         return firstUseEmptyStateCopy('acquisition').message;
@@ -951,7 +951,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   private filterLabel(lifecycle: AcquisitionLifecycleFilter): string {
     switch (lifecycle) {
       case 'REQUESTED':
-        return 'Requested';
+        return 'Wanted';
       case 'DOWNLOADING':
         return 'Downloading';
       case 'IMPORT_PENDING':
@@ -978,7 +978,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
         return '';
       case 'REQUESTED':
       default:
-        return 'Waiting for Whisparr to start them.';
+        return 'In Whisparr, waiting for a release to grab.';
     }
   }
 
@@ -1085,7 +1085,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
           }
 
           if (isInitialPage) {
-            this.error.set('Requests couldn’t load. Try again.');
+            this.error.set('Couldn’t load what you want. Try again.');
           } else {
             this.loadMoreError.set('More requests couldn’t load. Try again.');
           }

@@ -6,12 +6,7 @@ export interface Stage {
   state: 'done' | 'current' | 'failed' | 'todo';
 }
 
-export const STAGE_LABELS = [
-  'Requested',
-  'Downloading',
-  'Waiting for Stash',
-  'In library',
-] as const;
+export const STAGE_LABELS = ['Wanted', 'Downloading', 'Waiting for Stash', 'In library'] as const;
 
 /**
  * The four steps with where it is now. `at` is the step it's on (0–3);
