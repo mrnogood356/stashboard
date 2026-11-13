@@ -3,11 +3,7 @@
 // Whisparr format here is the name Whisparr itself would give the scene.
 
 export type ColonReplacement =
-  | 'delete'
-  | 'dash'
-  | 'spaceDash'
-  | 'spaceDashSpace'
-  | 'smart';
+  'delete' | 'dash' | 'spaceDash' | 'spaceDashSpace' | 'smart';
 
 /** The parts of Whisparr's naming settings that change how names are written. */
 export interface WhisparrNamingOptions {

@@ -188,8 +188,7 @@ function matchesWhere(
 function sortRows(
   rows: SceneIndexRow[],
   orderBy?:
-    | Array<Record<string, 'asc' | 'desc'>>
-    | Record<string, 'asc' | 'desc'>,
+    Array<Record<string, 'asc' | 'desc'>> | Record<string, 'asc' | 'desc'>,
 ): SceneIndexRow[] {
   const clauses = Array.isArray(orderBy) ? orderBy : orderBy ? [orderBy] : [];
 

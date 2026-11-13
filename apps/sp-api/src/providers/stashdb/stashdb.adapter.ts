@@ -842,9 +842,7 @@ export class StashdbAdapter extends StashdbPeopleApi {
       .map((_, index): StashdbSceneMetadata | null => {
         const source =
           (data?.[`scene_${index}`] as
-            | StashdbSceneMetadataSource
-            | null
-            | undefined) ?? null;
+            StashdbSceneMetadataSource | null | undefined) ?? null;
         const scene = this.normalizeSceneMetadata(source);
         return scene
           ? { ...scene, performerNames: readPerformerNames(source) }
@@ -1093,9 +1091,7 @@ export class StashdbAdapter extends StashdbPeopleApi {
     ).flatMap((entry) => {
       const appearance = entry as Record<string, unknown> | null;
       const performer = appearance?.performer as
-        | Record<string, unknown>
-        | null
-        | undefined;
+        Record<string, unknown> | null | undefined;
       const performerId = this.normalizeOptionalString(performer?.id);
       const name = this.normalizeOptionalString(performer?.name);
       if (!performerId || !name) {

@@ -637,8 +637,7 @@ export class StashAdapter extends StashLibraryToolsApi {
     const imageUrl = this.parseAssetUrl(
       (
         payload.data as
-          | { findPerformer?: { image_path?: unknown } | null }
-          | undefined
+          { findPerformer?: { image_path?: unknown } | null } | undefined
       )?.findPerformer?.image_path,
     );
     if (!imageUrl) {
@@ -872,9 +871,7 @@ export class StashAdapter extends StashLibraryToolsApi {
     }
     const ref = (value: unknown) => {
       const entry = value as
-        | { id?: unknown; name?: unknown }
-        | null
-        | undefined;
+        { id?: unknown; name?: unknown } | null | undefined;
       const refId = this.normalizeOptionalString(entry?.id);
       const refName = this.normalizeOptionalString(entry?.name);
       return refId && refName ? { id: refId, name: refName } : null;
@@ -1155,9 +1152,7 @@ export class StashAdapter extends StashLibraryToolsApi {
           return [];
         }
         const tag = marker?.primary_tag as
-          | { name?: unknown }
-          | null
-          | undefined;
+          { name?: unknown } | null | undefined;
         const title =
           this.normalizeOptionalString(marker?.title) ??
           this.normalizeOptionalString(tag?.name) ??

@@ -1360,5 +1360,4 @@ export function candidateBases(rootFolders: string[]): string[] {
 
 /** What happened when Whisparr was told about a replaced file. */
 export type AdoptResult =
-  | { status: 'sent' }
-  | { status: 'skipped' | 'failed'; reason: string };
+  { status: 'sent' } | { status: 'skipped' | 'failed'; reason: string };
