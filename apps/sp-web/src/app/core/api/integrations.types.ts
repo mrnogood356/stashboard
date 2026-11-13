@@ -52,9 +52,7 @@ export interface UpdateIntegrationPayload {
 
 export function hasSavedIntegrationConfig(
   integration:
-    | Pick<IntegrationResponse, 'type' | 'name' | 'baseUrl' | 'hasApiKey'>
-    | null
-    | undefined,
+    Pick<IntegrationResponse, 'type' | 'name' | 'baseUrl' | 'hasApiKey'> | null | undefined,
 ): boolean {
   if (!integration) {
     return false;

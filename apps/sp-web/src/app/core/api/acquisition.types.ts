@@ -6,12 +6,7 @@ export type AcquisitionLifecycleFilter = 'ANY' | AcquisitionLifecycleState | 'AV
 
 /** 'status' is the pipeline order (failed first); the rest are by date or title. */
 export type AcquisitionSort =
-  | 'status'
-  | 'requested-desc'
-  | 'requested-asc'
-  | 'released-desc'
-  | 'released-asc'
-  | 'title';
+  'status' | 'requested-desc' | 'requested-asc' | 'released-desc' | 'released-asc' | 'title';
 
 export interface AcquisitionFeedOptions {
   /** Words in the title or studio. */

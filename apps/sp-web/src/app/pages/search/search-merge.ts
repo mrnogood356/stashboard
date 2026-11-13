@@ -25,8 +25,7 @@ export interface PersonResult {
 
 /** A scene once: the catalog's card (marked when you own it), or your library's when the catalog doesn't have it. */
 export type SceneResult =
-  | { from: 'catalog'; item: SceneExplorerItem }
-  | { from: 'library'; item: LibrarySceneItem };
+  { from: 'catalog'; item: SceneExplorerItem } | { from: 'library'; item: LibrarySceneItem };
 
 type LocalPerformer = LocalSearchResults['performers'][number];
 type LocalStudio = LocalSearchResults['studios'][number];

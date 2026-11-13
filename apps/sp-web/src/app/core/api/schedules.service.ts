@@ -3,11 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 export type ScheduledJob =
-  | 'organizer-match'
-  | 'send-missing'
-  | 'stash-scan'
-  | 'stash-generate'
-  | 'stash-clean';
+  'organizer-match' | 'send-missing' | 'stash-scan' | 'stash-generate' | 'stash-clean';
 
 export interface ScheduleTime {
   enabled: boolean;

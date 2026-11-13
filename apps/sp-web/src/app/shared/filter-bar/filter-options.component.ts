@@ -21,7 +21,8 @@ export interface FilterOption {
 }
 
 /**
- * A filter's choices, ready to tap: a tick by what's picked, how many scenes
+ * A filter's choices, ready to tap: a tick by what's picked (a checkbox on
+ * every row where several can be picked), how many scenes
  * each gives, and a box to narrow a long list (never needed to see it).
  * One choice closes the list; with several allowed it stays open.
  */
@@ -61,15 +62,22 @@ export interface FilterOption {
           [attr.data-testid]="testId ? testId + '-' + option.id : null"
           (click)="pick(option.id)"
         >
+          @if (multi) {
+            <span class="filter-option__box" [class.is-on]="isPicked(option.id)" aria-hidden="true">
+              <i class="pi pi-check"></i>
+            </span>
+          }
           <span class="filter-option__label">{{ option.label }}</span>
           @if (option.count !== null && option.count !== undefined) {
             <span class="filter-option__count">{{ option.count }}</span>
           }
-          <i
-            class="pi pi-check filter-option__tick"
-            [class.is-on]="isPicked(option.id)"
-            aria-hidden="true"
-          ></i>
+          @if (!multi) {
+            <i
+              class="pi pi-check filter-option__tick"
+              [class.is-on]="isPicked(option.id)"
+              aria-hidden="true"
+            ></i>
+          }
         </button>
       }
     </div>

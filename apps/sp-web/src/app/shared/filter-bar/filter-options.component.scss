@@ -150,3 +150,36 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Several can be picked: a checkbox on every row, so that's plain at a glance. */
+.filter-option__box {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-right: 0.15rem;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 0.3rem;
+  color: transparent;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.filter-option__box .pi {
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.filter-option__box.is-on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-option__box {
+    transition: none;
+  }
+}
