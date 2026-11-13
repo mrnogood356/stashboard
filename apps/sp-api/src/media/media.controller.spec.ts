@@ -21,7 +21,9 @@ describe('MediaController', () => {
       contentType: 'image/jpeg',
     }),
   } as unknown as MediaService;
-  const controller = new MediaController(service);
+  const controller = new MediaController(service, {
+    colorOf: jest.fn(),
+  } as never);
 
   it('lets the browser keep a versioned image for good, an unversioned one for a day', async () => {
     const versioned = fakeResponse();

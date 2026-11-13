@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { ArtworkAccentService, vividColor } from './artwork-accent.service';
 import { GlassArtService } from './glass-art.service';
@@ -77,5 +78,30 @@ describe('ArtworkAccentService', () => {
     await Promise.resolve();
     TestBed.tick();
     expect(document.documentElement.style.getPropertyValue('--accent')).toBe('');
+  });
+
+  it('asks the server for another site’s picture, which the browser can’t read', async () => {
+    const settings = signal<AppearanceSettings>({ ...DEFAULT_APPEARANCE, accentColor: 'artwork' });
+    const url = signal<string | null>('https://cdn.stashdb.org/images/a.jpg');
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: ThemeService,
+          useValue: { settings, activeTheme: signal(darkThemeOrDefault('dark')) },
+        },
+        { provide: GlassArtService, useValue: { url } },
+      ],
+    });
+    TestBed.inject(ArtworkAccentService);
+    TestBed.tick();
+    const http = TestBed.inject(HttpTestingController);
+    const call = http.expectOne((request) => request.url === '/api/media/accent');
+    expect(call.request.params.get('url')).toBe('https://cdn.stashdb.org/images/a.jpg');
+    call.flush({ color: '#2a6fe0' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    TestBed.tick();
+    expect(document.documentElement.style.getPropertyValue('--accent')).not.toBe('');
   });
 });

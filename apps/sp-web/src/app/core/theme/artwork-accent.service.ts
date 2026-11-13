@@ -1,4 +1,6 @@
 import { DOCUMENT } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { Injectable, effect, inject, signal } from '@angular/core';
 import { ARTWORK_ACCENT } from './appearance.types';
 import { GlassArtService } from './glass-art.service';
@@ -11,14 +13,16 @@ const SAMPLE = 32;
 /**
  * Accent "Match the artwork": the accent takes the most vivid colour of the
  * poster or photo on screen (GlassArtService's), contrast-checked against the
- * theme like any custom accent. No artwork, or one the browser won't let us
- * read (another site's image without CORS): the theme's own accent.
+ * theme like any custom accent. Our own pictures are read here; another
+ * site's (a catalog's, without CORS) by the server, which hands back only the
+ * colour. No artwork, or none to be had: the theme's own accent.
  */
 @Injectable({ providedIn: 'root' })
 export class ArtworkAccentService {
   private readonly document = inject(DOCUMENT);
   private readonly theme = inject(ThemeService);
   private readonly art = inject(GlassArtService);
+  private readonly http = inject(HttpClient);
   private readonly colors = new Map<string, string | null>();
   /** The colour taken from the current artwork, once read. */
   private readonly picked = signal<string | null>(null);
@@ -64,9 +68,24 @@ export class ArtworkAccentService {
     if (this.colors.has(url)) {
       return this.colors.get(url) ?? null;
     }
-    const color = await this.sample(url).catch(() => null);
+    const color = this.sameOrigin(url)
+      ? await this.sample(url).catch(() => null)
+      : await firstValueFrom(
+          this.http.get<{ color: string | null }>('/api/media/accent', { params: { url } }),
+        )
+          .then((answer) => answer.color)
+          .catch(() => null);
     this.colors.set(url, color);
     return color;
+  }
+
+  private sameOrigin(url: string): boolean {
+    try {
+      const origin = this.document.defaultView?.location.origin;
+      return new URL(url, origin).origin === origin;
+    } catch {
+      return false;
+    }
   }
 
   private async sample(url: string): Promise<string | null> {
