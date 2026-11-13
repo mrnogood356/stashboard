@@ -8,6 +8,19 @@ import { trimTrailingSeparators } from '../../path-separators';
 import { MAX_REMEMBERED_JOBS } from './stash-tools.shared';
 import { StashGraphqlClient } from './stash-graphql.client';
 
+/** What Stashboard asks Stash to do in the background, merged by kind. */
+export type BackgroundJobKind =
+  'scan' | 'quick-scan' | 'generate' | 'identify' | 'preview-scan' | 'task';
+
+/** How often to look whether Stash's queue has room again. */
+const LANE_POLL_MS = 10_000;
+
+interface BackgroundBatch {
+  kind: BackgroundJobKind;
+  items: Set<string>;
+  promise: Promise<string | null>;
+}
+
 /** Stash's jobs: scans, library tasks, the job queue, and finding what Generate still has to make. */
 export abstract class StashJobsApi extends StashGraphqlClient {
   /**
@@ -16,6 +29,111 @@ export abstract class StashJobsApi extends StashGraphqlClient {
    * same scenes' previews gets that job back instead of a copy behind it.
    */
   protected readonly queuedJobs = new Map<string, Promise<string | null>>();
+
+  /**
+   * Stashboard's background jobs, one Stash at a time: each waits until
+   * nothing is waiting in Stash's queue (anyone's jobs), so Stashboard never
+   * has more than one job waiting there. Asks that come in meanwhile join the
+   * batch of their kind: ten downloads make one scan, one Generate and one
+   * Identify, not thirty jobs.
+   */
+  private readonly lanes = new Map<string, Promise<unknown>>();
+  private readonly batches = new Map<string, BackgroundBatch>();
+  /** Item → the job that took it, for asks that check back later. */
+  private readonly startedFor = new Map<string, string>();
+  /** For tests: how long to wait between looks at Stash's queue. */
+  protected lanePollMs = LANE_POLL_MS;
+  protected laneSleep = (ms: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+  /**
+   * Adds these items to the waiting batch of this kind (or starts one), and
+   * resolves with the job that does them once Stash has room for it.
+   */
+  protected inBackground(
+    config: StashAdapterBaseConfig,
+    kind: BackgroundJobKind,
+    items: string[],
+    start: (items: string[]) => Promise<string | null>,
+  ): Promise<string | null> {
+    const batchKey = `${config.baseUrl}|${kind}`;
+    const waiting = this.batches.get(batchKey);
+    if (waiting) {
+      items.forEach((item) => waiting.items.add(item));
+      return waiting.promise;
+    }
+    const batch: BackgroundBatch = {
+      kind,
+      items: new Set(items),
+      promise: Promise.resolve(null),
+    };
+    const previous = this.lanes.get(config.baseUrl) ?? Promise.resolve();
+    batch.promise = previous
+      .catch(() => undefined)
+      .then(async () => {
+        await this.untilStashHasRoom(config);
+        // From here on, new asks start a batch of their own.
+        this.batches.delete(batchKey);
+        const job = await start([...batch.items]);
+        if (job) {
+          for (const item of batch.items) {
+            this.startedFor.set(`${batchKey}|${item}`, job);
+          }
+          while (this.startedFor.size > MAX_REMEMBERED_JOBS * 10) {
+            const oldest = this.startedFor.keys().next().value;
+            if (oldest === undefined) {
+              break;
+            }
+            this.startedFor.delete(oldest);
+          }
+        }
+        return job;
+      });
+    this.batches.set(batchKey, batch);
+    this.lanes.set(
+      config.baseUrl,
+      batch.promise.catch(() => undefined),
+    );
+    return batch.promise;
+  }
+
+  /**
+   * Where an item stands without waiting: 'waiting' while its batch waits for
+   * room in Stash, the job's id once started, null when it was never asked.
+   */
+  protected backgroundStatus(
+    config: StashAdapterBaseConfig,
+    kind: BackgroundJobKind,
+    item: string,
+  ): string | null {
+    const batchKey = `${config.baseUrl}|${kind}`;
+    if (this.batches.get(batchKey)?.items.has(item)) {
+      return 'waiting';
+    }
+    return this.startedFor.get(`${batchKey}|${item}`) ?? null;
+  }
+
+  protected forgetBackground(
+    config: StashAdapterBaseConfig,
+    kind: BackgroundJobKind,
+    item: string,
+  ): void {
+    this.startedFor.delete(`${config.baseUrl}|${kind}|${item}`);
+  }
+
+  /** Waits until no job is waiting its turn in Stash's queue. */
+  private async untilStashHasRoom(
+    config: StashAdapterBaseConfig,
+  ): Promise<void> {
+    for (;;) {
+      const queue = await this.getJobQueue(config).catch(() => null);
+      // Can't ask: go ahead rather than wait for ever; Stash queues it.
+      if (!queue || !queue.some((job) => job.status === 'READY')) {
+        return;
+      }
+      await this.laneSleep(this.lanePollMs);
+    }
+  }
 
   protected async queueOnce(
     config: StashAdapterBaseConfig,
@@ -178,26 +296,28 @@ export abstract class StashJobsApi extends StashGraphqlClient {
     if (unique.length === 0) {
       return null;
     }
-    const payload = (await this.executeQuery(
-      config,
-      `mutation QuickScan($input: ScanMetadataInput!) { metadataScan(input: $input) }`,
-      {
-        input: {
-          paths: unique,
-          scanGenerateCovers: false,
-          scanGeneratePreviews: false,
-          scanGenerateImagePreviews: false,
-          scanGenerateSprites: false,
-          scanGeneratePhashes: false,
-          scanGenerateThumbnails: false,
-          scanGenerateClipPreviews: false,
+    return this.inBackground(config, 'quick-scan', unique, async (batch) => {
+      const payload = (await this.executeQuery(
+        config,
+        `mutation QuickScan($input: ScanMetadataInput!) { metadataScan(input: $input) }`,
+        {
+          input: {
+            paths: batch,
+            scanGenerateCovers: false,
+            scanGeneratePreviews: false,
+            scanGenerateImagePreviews: false,
+            scanGenerateSprites: false,
+            scanGeneratePhashes: false,
+            scanGenerateThumbnails: false,
+            scanGenerateClipPreviews: false,
+          },
         },
-      },
-    )) as unknown as { data?: { metadataScan?: unknown } };
-    const job = payload.data?.metadataScan;
-    return typeof job === 'string' || typeof job === 'number'
-      ? String(job)
-      : null;
+      )) as unknown as { data?: { metadataScan?: unknown } };
+      const job = payload.data?.metadataScan;
+      return typeof job === 'string' || typeof job === 'number'
+        ? String(job)
+        : null;
+    });
   }
 
   /**
@@ -216,30 +336,64 @@ export abstract class StashJobsApi extends StashGraphqlClient {
     if (paths.length === 0) {
       return null;
     }
-    // A waiting scan of the same folders, or of everything, covers this one.
-    return this.queueOnce(
-      config,
-      `scan:${[...paths].sort().join('\n')}`,
-      async () => {
-        const payload = (await this.executeQuery(
-          config,
-          `mutation ScanFolders($input: ScanMetadataInput!) { metadataScan(input: $input) }`,
-          { input: { paths } },
-          false,
-        )) as unknown as { data?: { metadataScan?: unknown } };
-        const job = payload.data?.metadataScan;
-        return typeof job === 'string' || typeof job === 'number'
-          ? String(job)
-          : null;
-      },
-      ['scan:*'],
+    return this.inBackground(config, 'scan', paths, (batch) =>
+      this.startFolderScan(config, batch),
     );
   }
 
+  /**
+   * Asks for a folder scan without waiting for it: the job's id once it has
+   * started, or 'waiting' while it waits its turn behind Stash's other jobs.
+   */
+  async requestFolderScan(
+    config: StashAdapterBaseConfig,
+    folder: string,
+  ): Promise<string> {
+    const path = trimTrailingSeparators(folder);
+    const status = this.backgroundStatus(config, 'scan', path);
+    if (status === 'waiting') {
+      return status;
+    }
+    if (status) {
+      const job = (await this.getJobQueue(config)).find(
+        (entry) => entry.id === status,
+      );
+      if (job && !['FINISHED', 'FAILED', 'CANCELLED'].includes(job.status)) {
+        return status;
+      }
+      // That scan has run: this ask needs another.
+      this.forgetBackground(config, 'scan', path);
+    }
+    void this.scanLibraryFolders(config, [path]).catch(() => undefined);
+    return 'waiting';
+  }
+
+  private async startFolderScan(
+    config: StashAdapterBaseConfig,
+    paths: string[],
+  ): Promise<string | null> {
+    const payload = (await this.executeQuery(
+      config,
+      `mutation ScanFolders($input: ScanMetadataInput!) { metadataScan(input: $input) }`,
+      { input: { paths } },
+      false,
+    )) as unknown as { data?: { metadataScan?: unknown } };
+    const job = payload.data?.metadataScan;
+    return typeof job === 'string' || typeof job === 'number'
+      ? String(job)
+      : null;
+  }
+
+  /**
+   * Starts one of Stash's library tasks. In the background (the default)
+   * it waits its turn behind Stash's other jobs and joins others of its kind;
+   * `now` starts it straight away, for something you just tapped.
+   */
   async startLibraryTask(
     config: StashAdapterBaseConfig,
     task: StashLibraryTask,
     sceneIds?: string[],
+    options: { now?: boolean } = {},
   ): Promise<string | null> {
     const ids = sceneIds
       ?.map((id) => this.normalizeEntityId(id))
@@ -299,12 +453,11 @@ export abstract class StashJobsApi extends StashGraphqlClient {
         variables = { input: { dryRun: false } };
         break;
     }
-    const scope = ids?.length ? [...ids].sort().join(',') : '*';
-    return this.queueOnce(config, `${task}:${scope}`, async () => {
+    const run = async (vars: Record<string, unknown>) => {
       const payload = (await this.executeQuery(
         config,
         mutation,
-        variables,
+        vars,
         false,
       )) as unknown as {
         data?: Record<string, unknown>;
@@ -313,7 +466,20 @@ export abstract class StashJobsApi extends StashGraphqlClient {
       return typeof value === 'string' || typeof value === 'number'
         ? String(value)
         : null;
-    });
+    };
+    const scope = ids?.length ? [...ids].sort().join(',') : '*';
+    if (options.now) {
+      return this.queueOnce(config, `${task}:${scope}`, () => run(variables));
+    }
+    // Scenes' Generate or Identify: one job for every scene asked meanwhile.
+    if (ids?.length && (task === 'generate' || task === 'identify')) {
+      return this.inBackground(config, task, ids, (batch) => {
+        const input = variables['input'] as Record<string, unknown>;
+        return run({ input: { ...input, sceneIDs: batch } });
+      });
+    }
+    // A whole-library task: once, whoever asks while it waits.
+    return this.inBackground(config, 'task', [task], () => run(variables));
   }
 
   /**

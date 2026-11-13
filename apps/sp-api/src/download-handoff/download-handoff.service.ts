@@ -1446,11 +1446,16 @@ export class DownloadHandoffService {
       // That scan has run without finding it: scan again.
       this.scans.delete(file);
     }
-    const job = await this.stash.scanLibraryFolders(config, [folder]);
-    this.logger.log(`Asked Stash to scan ${folder}.`);
-    // The same scan another file is already waiting on (Stash hands back a
-    // queued one): it's still waiting its turn, so no need to wait again.
-    if (job && [...this.scans.values()].includes(job)) {
+    // One scan for every folder asked meanwhile, started once nothing is
+    // waiting in Stash's queue: until then, say Stash is busy.
+    const job = await this.stash.requestFolderScan(config, folder);
+    if (job === 'waiting') {
+      this.logger.debug(`Scan of ${folder} waits its turn in Stash.`);
+      throw new StashBusyError(folder);
+    }
+    // The same scan another file is already waiting on: it's still running,
+    // so no need to wait on it twice.
+    if ([...this.scans.values()].includes(job)) {
       this.scans.set(file, job);
       throw new StashBusyError(folder);
     }

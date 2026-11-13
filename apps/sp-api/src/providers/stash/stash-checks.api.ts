@@ -554,27 +554,29 @@ export abstract class StashChecksApi extends StashFilesApi {
     if (paths.length === 0) {
       return null;
     }
-    const payload = (await this.executeQuery(
-      config,
-      `mutation PreviewScan($input: ScanMetadataInput!) { metadataScan(input: $input) }`,
-      {
-        input: {
-          paths,
-          rescan: true,
-          scanGenerateCovers: false,
-          scanGeneratePreviews: true,
-          scanGenerateImagePreviews: true,
-          scanGenerateSprites: false,
-          scanGeneratePhashes: false,
-          scanGenerateThumbnails: false,
-          scanGenerateClipPreviews: false,
+    return this.inBackground(config, 'preview-scan', paths, async (batch) => {
+      const payload = (await this.executeQuery(
+        config,
+        `mutation PreviewScan($input: ScanMetadataInput!) { metadataScan(input: $input) }`,
+        {
+          input: {
+            paths: batch,
+            rescan: true,
+            scanGenerateCovers: false,
+            scanGeneratePreviews: true,
+            scanGenerateImagePreviews: true,
+            scanGenerateSprites: false,
+            scanGeneratePhashes: false,
+            scanGenerateThumbnails: false,
+            scanGenerateClipPreviews: false,
+          },
         },
-      },
-    )) as unknown as { data?: { metadataScan?: unknown } };
-    const job = payload.data?.metadataScan;
-    return typeof job === 'string' || typeof job === 'number'
-      ? String(job)
-      : null;
+      )) as unknown as { data?: { metadataScan?: unknown } };
+      const job = payload.data?.metadataScan;
+      return typeof job === 'string' || typeof job === 'number'
+        ? String(job)
+        : null;
+    });
   }
 
   /** Ids of every scene Stash says is missing this (one query, ids only). */

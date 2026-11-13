@@ -89,7 +89,7 @@ describe('schedules', () => {
     ]);
     on.service.now = () => at(2026, 11, 8, 3, 0);
     await on.service.tick();
-    expect(on.library.startJob).toHaveBeenCalledWith('scan');
+    expect(on.library.startJob).toHaveBeenCalledWith('scan', { now: false });
   });
 
   it('records a failure and carries on', async () => {

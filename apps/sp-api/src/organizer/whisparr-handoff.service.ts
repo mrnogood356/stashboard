@@ -1077,7 +1077,8 @@ export class WhisparrHandoffService {
             settings?.whisparrPathFrom,
           ),
         );
-      await this.stash.scanPaths(config, folders);
+      // Waits its turn behind Stash's other jobs.
+      void this.stash.scanPaths(config, folders).catch(() => undefined);
       this.logger.log(
         `Started a Stash scan of ${folders.length} folder(s) Whisparr put scenes in.`,
       );

@@ -155,13 +155,13 @@ export class SchedulesService {
           status = (await this.organizer?.sendMissingDaily()) ?? status;
           break;
         case 'stash-scan':
-          await this.library?.startJob('scan');
+          await this.library?.startJob('scan', { now: false });
           break;
         case 'stash-generate':
-          await this.library?.startJob('generate');
+          await this.library?.startJob('generate', { now: false });
           break;
         case 'stash-clean':
-          await this.library?.startJob('clean');
+          await this.library?.startJob('clean', { now: false });
           break;
         case 'follow-check':
           status = (await this.follows?.runScheduled()) ?? status;

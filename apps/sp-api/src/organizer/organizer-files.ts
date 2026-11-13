@@ -1223,7 +1223,12 @@ export abstract class OrganizerFiles extends OrganizerCore {
       }
     }
     if (folders.length > 0) {
-      await this.stash.scanPaths(config, folders);
+      // Waits its turn behind Stash's other jobs; no need to hold the answer.
+      void this.stash
+        .scanPaths(config, folders)
+        .catch((error: unknown) =>
+          this.logger.warn(`Couldn't ask Stash to rescan: ${messageOf(error)}`),
+        );
       this.markRescanned(folders);
     }
     const merged = lines.merged.length;

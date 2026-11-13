@@ -236,9 +236,12 @@ describe('StashAdapter', () => {
     await expect(
       adapter.rescanForPreviews({ baseUrl: 'http://stash.local' }, ['12']),
     ).resolves.toBe('77');
-    const scan = JSON.parse(
-      (fetchMock.mock.calls[1][1] as { body: string }).body,
-    ) as { variables: { input: Record<string, unknown> } };
+    const scanCall = fetchMock.mock.calls.find(([, init]) =>
+      String((init as { body?: string })?.body).includes('PreviewScan'),
+    )!;
+    const scan = JSON.parse((scanCall[1] as { body: string }).body) as {
+      variables: { input: Record<string, unknown> };
+    };
     expect(scan.variables.input).toMatchObject({
       paths: ['/data/a/scene.mp4'],
       rescan: true,
@@ -610,8 +613,10 @@ describe('StashAdapter', () => {
   });
 
   it('scans only the given folders, with Stash’s own scan settings', async () => {
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ data: { metadataScan: '41' } })),
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ data: { metadataScan: '41' } })),
+      ),
     );
 
     await expect(
@@ -622,7 +627,10 @@ describe('StashAdapter', () => {
       ]),
     ).resolves.toBe('41');
 
-    const [, init] = fetchMock.mock.calls[0] ?? [];
+    const [, init] =
+      fetchMock.mock.calls.find(([, call]) =>
+        String(call?.body).includes('ScanFolders'),
+      ) ?? [];
     const body = JSON.parse(String(init?.body)) as {
       variables: unknown;
     };
@@ -631,18 +639,35 @@ describe('StashAdapter', () => {
     });
   });
 
-  describe('queuing a job Stashboard already queued', () => {
+  describe('Stashboard’s background jobs', () => {
     const config = { baseUrl: 'http://stash.local' };
     let nextJob: number;
     let queue: Array<{ id: string; status: string }>;
-    const mutations = () =>
-      fetchMock.mock.calls.filter(([, init]) =>
-        String(init?.body).includes('mutation'),
-      ).length;
+    const sent = () =>
+      fetchMock.mock.calls
+        .map(([, init]) => String(init?.body))
+        .filter((body) => body.includes('mutation'))
+        .map(
+          (body) =>
+            JSON.parse(body) as {
+              variables: { input: Record<string, unknown> };
+            },
+        );
+    let wake: () => void;
 
     beforeEach(() => {
       nextJob = 50;
       queue = [];
+      const lane = adapter as unknown as {
+        lanePollMs: number;
+        laneSleep: (ms: number) => Promise<void>;
+      };
+      lane.lanePollMs = 0;
+      // Each look at a busy queue waits until the test says Stash moved on.
+      lane.laneSleep = () =>
+        new Promise<void>((resolve) => {
+          wake = resolve;
+        });
       fetchMock.mockImplementation((_url, init) => {
         const body = String(init?.body);
         if (body.includes('jobQueue')) {
@@ -653,68 +678,104 @@ describe('StashAdapter', () => {
         const id = String((nextJob += 1));
         const field = body.includes('metadataGenerate')
           ? 'metadataGenerate'
-          : 'metadataScan';
+          : body.includes('metadataIdentify')
+            ? 'metadataIdentify'
+            : 'metadataScan';
         return Promise.resolve(
           new Response(JSON.stringify({ data: { [field]: id } })),
         );
       });
     });
 
-    it('gets the waiting scan of the same folder back instead of another', async () => {
-      const first = await adapter.scanLibraryFolders(config, ['/data/a']);
-      queue = [{ id: first!, status: 'READY' }];
-      await expect(
-        adapter.scanLibraryFolders(config, ['/data/a/']),
-      ).resolves.toBe(first);
-      expect(mutations()).toBe(1);
-    });
-
-    it('queues another once the first has started, as it may have passed the folder', async () => {
-      const first = await adapter.scanLibraryFolders(config, ['/data/a']);
-      queue = [{ id: first!, status: 'RUNNING' }];
-      const second = await adapter.scanLibraryFolders(config, ['/data/a']);
-      expect(second).not.toBe(first);
-      expect(mutations()).toBe(2);
-    });
-
-    it('lets a waiting full scan cover a folder scan', async () => {
-      const full = await adapter.startLibraryTask(config, 'scan');
-      queue = [{ id: full!, status: 'READY' }];
-      await expect(
-        adapter.scanLibraryFolders(config, ['/data/b']),
-      ).resolves.toBe(full);
-      expect(mutations()).toBe(1);
-    });
-
-    it('forgets the oldest jobs rather than remembering every one for ever', async () => {
-      const first = await adapter.startLibraryTask(config, 'generate', ['0']);
-      for (let scene = 1; scene <= 200; scene += 1) {
-        await adapter.startLibraryTask(config, 'generate', [String(scene)]);
+    // Lets the fetches and the lane's looks at the queue run.
+    const settle = async () => {
+      for (let i = 0; i < 5; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
-      queue = [{ id: first!, status: 'READY' }];
-      // The first was pushed out, so asking again queues a new job.
-      await expect(
-        adapter.startLibraryTask(config, 'generate', ['0']),
-      ).resolves.not.toBe(first);
+    };
+
+    it('waits while anything waits in Stash’s queue, then scans every folder asked meanwhile in one job', async () => {
+      queue = [{ id: '9', status: 'READY' }];
+      const a = adapter.scanLibraryFolders(config, ['/data/a']);
+      await settle();
+      const b = adapter.scanLibraryFolders(config, ['/data/b/']);
+      expect(sent()).toHaveLength(0);
+
+      queue = [{ id: '9', status: 'RUNNING' }];
+      wake();
+      await expect(a).resolves.toBe('51');
+      await expect(b).resolves.toBe('51');
+      expect(sent()).toHaveLength(1);
+      expect(sent()[0].variables.input).toEqual({
+        paths: ['/data/a', '/data/b'],
+      });
     });
 
-    it('keeps different scenes’ previews apart', async () => {
-      const one = await adapter.startLibraryTask(config, 'generate', ['1']);
-      queue = [{ id: one!, status: 'READY' }];
+    it('makes one Generate for every scene asked while Stash is busy', async () => {
+      queue = [{ id: '9', status: 'READY' }];
+      const asks = ['1', '2', '3'].map((id) =>
+        adapter.startLibraryTask(config, 'generate', [id]),
+      );
+      await settle();
+      queue = [];
+      wake();
+      const jobs = await Promise.all(asks);
+      expect(new Set(jobs)).toEqual(new Set(['51']));
+      expect(sent()).toHaveLength(1);
+      expect(sent()[0].variables.input['sceneIDs']).toEqual(['1', '2', '3']);
+    });
+
+    it('starts one kind after another, never two waiting at once', async () => {
+      const scan = await adapter.scanLibraryFolders(config, ['/data/a']);
+      // The scan now waits its turn in Stash: the Generate waits for it.
+      queue = [{ id: scan!, status: 'READY' }];
+      const generate = adapter.startLibraryTask(config, 'generate', ['1']);
+      await settle();
+      expect(sent()).toHaveLength(1);
+      queue = [{ id: scan!, status: 'RUNNING' }];
+      wake();
+      await expect(generate).resolves.toBe('52');
+    });
+
+    it('starts what you asked for straight away, busy or not', async () => {
+      queue = [{ id: '9', status: 'READY' }];
       await expect(
-        adapter.startLibraryTask(config, 'generate', ['1']),
-      ).resolves.toBe(one);
-      await expect(
-        adapter.startLibraryTask(config, 'generate', ['2']),
-      ).resolves.not.toBe(one);
-      expect(mutations()).toBe(2);
+        adapter.startLibraryTask(config, 'generate', ['1'], { now: true }),
+      ).resolves.toBe('51');
+    });
+
+    it('says whether a folder’s scan still waits, and asks again once it has run', async () => {
+      queue = [{ id: '9', status: 'READY' }];
+      await expect(adapter.requestFolderScan(config, '/data/a')).resolves.toBe(
+        'waiting',
+      );
+      await expect(adapter.requestFolderScan(config, '/data/a')).resolves.toBe(
+        'waiting',
+      );
+      await settle();
+      queue = [];
+      wake();
+      await settle();
+      await settle();
+      queue = [{ id: '51', status: 'RUNNING' }];
+      await expect(adapter.requestFolderScan(config, '/data/a')).resolves.toBe(
+        '51',
+      );
+      // Finished: the next ask is a new scan.
+      queue = [];
+      await expect(adapter.requestFolderScan(config, '/data/a')).resolves.toBe(
+        'waiting',
+      );
+      await settle();
+      await settle();
+      expect(sent()).toHaveLength(2);
     });
 
     it('never runs Generate for the whole library when no named scene is real', async () => {
       await expect(
         adapter.startLibraryTask(config, 'generate', ['', '  ']),
       ).rejects.toThrow('None of those is a scene');
-      expect(mutations()).toBe(0);
+      expect(sent()).toHaveLength(0);
     });
   });
 
@@ -2474,12 +2535,14 @@ describe('StashAdapter', () => {
             },
           }),
         )
+        // Nothing waiting in Stash's queue: it starts.
+        .mockResolvedValueOnce(ok({ jobQueue: [] }))
         .mockResolvedValueOnce(ok({ metadataIdentify: '42' }));
 
       await expect(
         adapter.startLibraryTask(config, 'identify', ['5', '6']),
       ).resolves.toBe('42');
-      expect(sentBody(1).variables).toEqual({
+      expect(sentBody(2).variables).toEqual({
         input: {
           sources: [
             { source: { stash_box_endpoint: 'https://stashdb.org/graphql' } },
