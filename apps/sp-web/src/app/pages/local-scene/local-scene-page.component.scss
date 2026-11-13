@@ -887,3 +887,25 @@ h2 {
 .tag-search {
   border-radius: var(--radius-sm);
 }
+
+/* ---------- Current look: one main button, the rest a small row under it ---------- */
+
+@media (max-width: 720px) {
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .action.primary {
+    flex: 1 0 100%;
+  }
+
+  .action.secondary,
+  .action.secondary:last-child:nth-child(even) {
+    flex: 0 1 auto;
+    min-height: 2.25rem;
+    padding: 0 0.75rem;
+    background: transparent;
+    font-size: 0.84rem;
+  }
+}

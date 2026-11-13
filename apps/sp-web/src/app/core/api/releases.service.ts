@@ -118,7 +118,9 @@ export class ReleasesApiService {
         releases: ProwlarrRelease[];
         queries: string[];
         notice?: string;
-      }>(`/api/downloads/scenes/${encodeURIComponent(sceneId)}/releases`, { params: query?.trim() ? { provider, q: query.trim() } : { provider } })
+      }>(`/api/downloads/scenes/${encodeURIComponent(sceneId)}/releases`, {
+        params: query?.trim() ? { provider, q: query.trim() } : { provider },
+      })
       .pipe(
         map((result) => ({
           releases: result.releases.map(fromProwlarr),

@@ -196,7 +196,7 @@
               <a
                 class="action secondary"
                 [routerLink]="['/scene', scene.catalogSceneId]"
-                [queryParams]="{ returnTo: currentUrl() }"
+                [queryParams]="{ returnTo: currentUrl(), view: 'catalog' }"
               >
                 <i class="pi pi-info-circle" aria-hidden="true"></i>
                 <span>Catalog page</span>
