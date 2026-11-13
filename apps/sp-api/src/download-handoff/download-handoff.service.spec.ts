@@ -884,11 +884,15 @@ describe('DownloadHandoffService', () => {
       filePath: string,
       duration: number,
       size = 1,
+      shape: { width?: number; height?: number; phash?: string } = {},
     ) => ({
       id,
       path: filePath,
       duration,
       size,
+      width: shape.width ?? 1920,
+      height: shape.height ?? 1080,
+      fingerprints: shape.phash ? [{ type: 'phash', value: shape.phash }] : [],
     });
     const replace = (newPath = '/lib/new.mkv') =>
       (
@@ -916,7 +920,14 @@ describe('DownloadHandoffService', () => {
       attempts = jest.fn().mockResolvedValue({ count: 1 });
       prisma.smallerCopyAttempt = { updateMany: attempts };
       prisma.smallerCopySettings = {
-        findUnique: jest.fn(() => Promise.resolve({ oldCopy })),
+        findUnique: jest.fn(() =>
+          Promise.resolve({
+            oldCopy,
+            targetResolution: '1080p',
+            minSavingsPercent: 10,
+            studioNames: [],
+          }),
+        ),
         upsert: jest.fn().mockResolvedValue({}),
       };
       const scenes: Record<
@@ -924,7 +935,14 @@ describe('DownloadHandoffService', () => {
         { files: ReturnType<typeof file>[] } | null
       > = {
         '88': { files: [file('f-new', '/lib/new.mkv', 1800, 2e9)] },
-        '12': { files: [file('f-old', '/lib/old.mkv', 1805, 9e9)] },
+        '12': {
+          files: [
+            file('f-old', '/lib/old.mkv', 1805, 9e9, {
+              width: 3840,
+              height: 2160,
+            }),
+          ],
+        },
       };
       stash.getOrganizerScene = jest.fn((_c: unknown, id: string) =>
         Promise.resolve(scenes[id] ?? null),
@@ -1028,6 +1046,61 @@ describe('DownloadHandoffService', () => {
       expect(stash.mergeScenes).not.toHaveBeenCalled();
       expect(outcome().outcome).toBe('kept-both');
       expect(outcome().detail).toContain('10 min');
+    });
+
+    it('keeps both when the picture fingerprints say it’s another video', async () => {
+      stash.getOrganizerScene.mockImplementation((_c: unknown, id: string) =>
+        Promise.resolve(
+          id === '88'
+            ? {
+                files: [
+                  file('f-new', '/lib/new.mkv', 1800, 2e9, {
+                    phash: '0f0f0f0f0f0f0f0f',
+                  }),
+                ],
+              }
+            : {
+                files: [
+                  file('f-old', '/lib/old.mkv', 1800, 9e9, {
+                    width: 3840,
+                    height: 2160,
+                    phash: 'f0f0f0f0f0f0f0f0',
+                  }),
+                ],
+              },
+        ),
+      );
+      await replace();
+      expect(stash.mergeScenes).not.toHaveBeenCalled();
+      expect(outcome()).toMatchObject({ outcome: 'kept-both' });
+      expect(outcome().detail).toContain('different video');
+    });
+
+    it('keeps both when the real file isn’t what the release name promised', async () => {
+      stash.getOrganizerScene.mockImplementation((_c: unknown, id: string) =>
+        Promise.resolve(
+          id === '88'
+            ? {
+                files: [
+                  file('f-new', '/lib/new.mkv', 1800, 2e9, {
+                    width: 1280,
+                    height: 720,
+                  }),
+                ],
+              }
+            : {
+                files: [
+                  file('f-old', '/lib/old.mkv', 1800, 9e9, {
+                    width: 3840,
+                    height: 2160,
+                  }),
+                ],
+              },
+        ),
+      );
+      await replace();
+      expect(stash.mergeScenes).not.toHaveBeenCalled();
+      expect(outcome().detail).toContain('720p, not the 1080p');
     });
 
     it('keeps the new scene when the old one is gone, or the new file reads as 0 s', async () => {

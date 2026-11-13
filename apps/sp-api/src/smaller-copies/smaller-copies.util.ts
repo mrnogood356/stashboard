@@ -1,3 +1,20 @@
+/** The settings as Prisma stores them, as far as the rules go. */
+export interface StoredRules {
+  targetResolution: string;
+  replaceHigher: boolean;
+  upgradeLower: boolean;
+  maxGbPerHour: number | null;
+  minGbPerHour: number | null;
+  maxNewGbPerHour: number | null;
+  minNewGbPerHour: number | null;
+  minSavingsPercent: number;
+  codec: string;
+  prefer: string;
+  matchStrength: string;
+  studioMode: string;
+  studioNames: string[];
+}
+
 /** Resolutions a rule can aim for, by the short side of the picture. */
 export const TARGETS = ['2160p', '1080p', '720p'] as const;
 export type Target = (typeof TARGETS)[number];
@@ -65,12 +82,17 @@ export interface SmallerCopyRules {
   target: Target;
   replaceHigher: boolean;
   upgradeLower: boolean;
-  /** At the target but bigger than this: replace. */
-  maxFileSizeGb: number | null;
-  /** Leave files smaller than this alone. */
-  minFileSizeGb: number | null;
-  /** The new copy's size cap. */
-  maxNewSizeGb: number | null;
+  /**
+   * Sizes are per hour of video, so a rule means the same for a 20-minute
+   * scene and a 2-hour one. At the target but heavier than this: replace.
+   */
+  maxGbPerHour: number | null;
+  /** Leave files lighter than this alone. */
+  minGbPerHour: number | null;
+  /** The new copy's cap. */
+  maxNewGbPerHour: number | null;
+  /** The new copy's floor: anything lighter is too squeezed to swap in. */
+  minNewGbPerHour: number | null;
   minSavingsPercent: number;
   codec: (typeof CODEC_RULES)[number];
   prefer: (typeof PREFER)[number];
@@ -83,9 +105,10 @@ export const DEFAULT_RULES: SmallerCopyRules = {
   target: '1080p',
   replaceHigher: true,
   upgradeLower: false,
-  maxFileSizeGb: null,
-  minFileSizeGb: null,
-  maxNewSizeGb: null,
+  maxGbPerHour: null,
+  minGbPerHour: null,
+  maxNewGbPerHour: null,
+  minNewGbPerHour: null,
   minSavingsPercent: 10,
   codec: 'any',
   prefer: 'largest',
@@ -96,12 +119,24 @@ export const DEFAULT_RULES: SmallerCopyRules = {
 
 export type ReplaceReason = 'above-target' | 'below-target' | 'too-big';
 
+/** GB per hour of video; null when the length isn't known. */
+export function gbPerHour(
+  size: number | null | undefined,
+  durationSeconds: number | null | undefined,
+): number | null {
+  if (!size || !durationSeconds || durationSeconds <= 0) {
+    return null;
+  }
+  return size / GB / (durationSeconds / 3600);
+}
+
 /** Whether a library file is one the rules say to look for another copy of, and why. */
 export function needsReplacing(
   file: {
     width: number | null;
     height: number | null;
     size: number | null;
+    duration?: number | null;
     studioName?: string | null;
   },
   rules: SmallerCopyRules,
@@ -110,7 +145,8 @@ export function needsReplacing(
   if (!resolution || !file.size) {
     return null;
   }
-  if (rules.minFileSizeGb && file.size < rules.minFileSizeGb * GB) {
+  const density = gbPerHour(file.size, file.duration);
+  if (rules.minGbPerHour && density !== null && density < rules.minGbPerHour) {
     return null;
   }
   if (rules.studioMode !== 'all') {
@@ -126,7 +162,7 @@ export function needsReplacing(
   if (RANK[resolution] < RANK[rules.target]) {
     return rules.upgradeLower ? 'below-target' : null;
   }
-  return rules.maxFileSizeGb && file.size > rules.maxFileSizeGb * GB
+  return rules.maxGbPerHour && density !== null && density > rules.maxGbPerHour
     ? 'too-big'
     : null;
 }
@@ -154,7 +190,7 @@ export interface CandidateRelease {
  */
 export function pickRelease(
   releases: CandidateRelease[],
-  file: { size: number },
+  file: { size: number; duration?: number | null },
   reason: ReplaceReason,
   rules: SmallerCopyRules,
 ): CandidateRelease | null {
@@ -176,7 +212,20 @@ export function pickRelease(
     ) {
       return false;
     }
-    if (rules.maxNewSizeGb && release.size > rules.maxNewSizeGb * GB) {
+    // The release's own size over the scene's length: its weight per hour.
+    const density = gbPerHour(release.size, file.duration);
+    if (
+      rules.maxNewGbPerHour &&
+      density !== null &&
+      density > rules.maxNewGbPerHour
+    ) {
+      return false;
+    }
+    if (
+      rules.minNewGbPerHour &&
+      density !== null &&
+      density < rules.minNewGbPerHour
+    ) {
       return false;
     }
     if (
@@ -219,4 +268,151 @@ export function inActiveHours(
     return true;
   }
   return from < to ? hour >= from && hour < to : hour >= from || hour < to;
+}
+
+/** Two pictures this close (bits that differ in Stash's phash) are the same video. */
+export const SAME_VIDEO_PHASH_DISTANCE = 10;
+
+export interface CopyFile {
+  size: number | null;
+  duration: number | null;
+  width: number | null;
+  height: number | null;
+  /** Stash's perceptual hash, hex; null when not made yet. */
+  phash: string | null;
+}
+
+/** Bits that differ between two hex phashes; null when either can't be read. */
+export function phashDistance(
+  a: string | null,
+  b: string | null,
+): number | null {
+  if (!a || !b || !/^[0-9a-f]+$/i.test(a) || !/^[0-9a-f]+$/i.test(b)) {
+    return null;
+  }
+  let diff = BigInt(`0x${a}`) ^ BigInt(`0x${b}`);
+  let bits = 0;
+  while (diff > 0n) {
+    bits += Number(diff & 1n);
+    diff >>= 1n;
+  }
+  return bits;
+}
+
+/** Why a file was looked for again, from its resolution against the target. */
+export function reasonFor(
+  file: { width: number | null; height: number | null },
+  target: Target,
+): ReplaceReason {
+  const resolution = fileResolution(file.width, file.height);
+  if (resolution && RANK[resolution] < RANK[target]) {
+    return 'below-target';
+  }
+  return resolution && RANK[resolution] > RANK[target]
+    ? 'above-target'
+    : 'too-big';
+}
+
+/**
+ * The downloaded file, checked against the one it would replace before
+ * anything is deleted: the same video (Stash's picture fingerprints, or
+ * failing those a length within 3%), at the resolution its name promised,
+ * really smaller by the saving asked for (or really higher for an upgrade),
+ * and within the rules' weight per hour. Null when it passes; otherwise why
+ * not, in a sentence, and both files are kept.
+ */
+export function checkNewCopy(
+  old: CopyFile,
+  next: CopyFile,
+  reason: ReplaceReason,
+  rules: SmallerCopyRules,
+): string | null {
+  if (!next.duration || next.duration <= 0) {
+    return 'The new file reads as 0 seconds long.';
+  }
+  const distance = phashDistance(old.phash, next.phash);
+  if (distance !== null) {
+    if (distance > SAME_VIDEO_PHASH_DISTANCE) {
+      return 'The new file’s picture doesn’t match the old one’s, so it may be a different video.';
+    }
+  } else if (old.duration && old.duration > 0) {
+    const gap = Math.abs(next.duration - old.duration);
+    if (gap > Math.max(20, old.duration * 0.03)) {
+      return `The new file runs ${minutes(next.duration)} and the old one ${minutes(old.duration)}.`;
+    }
+  }
+  const before = fileResolution(old.width, old.height);
+  const after = fileResolution(next.width, next.height);
+  if (!after) {
+    return 'Stash couldn’t read the new file’s picture size.';
+  }
+  if (reason === 'below-target') {
+    if (before && RANK[after] <= RANK[before]) {
+      return `The new file is ${after}, no better than the old ${before}.`;
+    }
+  } else {
+    if (after !== rules.target) {
+      return `The new file is ${after}, not the ${rules.target} its name said.`;
+    }
+    if (
+      old.size &&
+      next.size &&
+      next.size > old.size * (1 - rules.minSavingsPercent / 100)
+    ) {
+      return `The new file saves less than ${rules.minSavingsPercent}% of the old one’s size.`;
+    }
+  }
+  const density = gbPerHour(next.size, next.duration);
+  if (density !== null) {
+    if (rules.minNewGbPerHour && density < rules.minNewGbPerHour) {
+      return `The new file is ${density.toFixed(1)} GB an hour, under the ${rules.minNewGbPerHour} GB floor.`;
+    }
+    if (rules.maxNewGbPerHour && density > rules.maxNewGbPerHour) {
+      return `The new file is ${density.toFixed(1)} GB an hour, over the ${rules.maxNewGbPerHour} GB cap.`;
+    }
+  }
+  return null;
+}
+
+function minutes(seconds: number): string {
+  return `${Math.round(seconds / 60)} min`;
+}
+
+/** The rules out of the stored settings, unknown values back to the defaults. */
+export function rulesOf(settings: StoredRules): SmallerCopyRules {
+  return {
+    target: oneOf<Target>(
+      TARGETS,
+      settings.targetResolution,
+      DEFAULT_RULES.target,
+    ),
+    replaceHigher: settings.replaceHigher,
+    upgradeLower: settings.upgradeLower,
+    maxGbPerHour: settings.maxGbPerHour,
+    minGbPerHour: settings.minGbPerHour,
+    maxNewGbPerHour: settings.maxNewGbPerHour,
+    minNewGbPerHour: settings.minNewGbPerHour,
+    minSavingsPercent: settings.minSavingsPercent,
+    codec: oneOf(CODEC_RULES, settings.codec, DEFAULT_RULES.codec),
+    prefer: oneOf(PREFER, settings.prefer, DEFAULT_RULES.prefer),
+    matchStrength: oneOf(
+      MATCH,
+      settings.matchStrength,
+      DEFAULT_RULES.matchStrength,
+    ),
+    studioMode: oneOf(
+      STUDIO_MODES,
+      settings.studioMode,
+      DEFAULT_RULES.studioMode,
+    ),
+    studioNames: settings.studioNames,
+  };
+}
+
+function oneOf<T extends string>(
+  list: readonly T[],
+  value: string,
+  fallback: T,
+): T {
+  return (list as readonly string[]).includes(value) ? (value as T) : fallback;
 }

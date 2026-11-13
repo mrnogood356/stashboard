@@ -198,3 +198,76 @@
   background: none;
   font-weight: 600;
 }
+
+/* Presets: three choices before any numbers. */
+.presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 0.6rem;
+}
+
+.preset {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.9rem 1rem;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.preset span {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.preset:hover {
+  background: color-mix(in srgb, var(--text-primary) 6%, var(--surface-1));
+}
+
+.preset.active {
+  border-color: var(--accent);
+}
+
+.preset:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* The detailed rules, out of the way until asked for. */
+.fine-tune {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.fine-tune > summary {
+  width: fit-content;
+  padding: 0.4rem 0;
+  color: var(--text-secondary);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fine-tune[open] > summary {
+  margin-bottom: 0.25rem;
+}
+
+.empty-matches {
+  max-width: 36rem;
+  margin-top: 1rem;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}

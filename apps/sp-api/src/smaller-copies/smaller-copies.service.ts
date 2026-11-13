@@ -16,7 +16,6 @@ import { CatalogProviderService } from '../providers/catalog/catalog-provider.se
 import { StashAdapter } from '../providers/stash/stash.adapter';
 import {
   CODEC_RULES,
-  DEFAULT_RULES,
   inActiveHours,
   MATCH,
   needsReplacing,
@@ -27,7 +26,7 @@ import {
   TARGETS,
   type ReplaceReason,
   type SmallerCopyRules,
-  type Target,
+  rulesOf,
 } from './smaller-copies.util';
 
 const KEY = 'GLOBAL';
@@ -142,9 +141,10 @@ export class SmallerCopiesService {
       targetResolution: oneOf(TARGETS, input.target, '1080p'),
       replaceHigher: input.replaceHigher,
       upgradeLower: input.upgradeLower,
-      maxFileSizeGb: positive(input.maxFileSizeGb),
-      minFileSizeGb: positive(input.minFileSizeGb),
-      maxNewSizeGb: positive(input.maxNewSizeGb),
+      maxGbPerHour: positive(input.maxGbPerHour),
+      minGbPerHour: positive(input.minGbPerHour),
+      maxNewGbPerHour: positive(input.maxNewGbPerHour),
+      minNewGbPerHour: positive(input.minNewGbPerHour),
       minSavingsPercent: Math.min(
         90,
         Math.max(0, Math.round(input.minSavingsPercent)),
@@ -334,7 +334,7 @@ export class SmallerCopiesService {
       const taken = new Set(before?.grabbedGuids ?? []);
       const release = pickRelease(
         found.releases.filter((candidate) => !taken.has(candidate.guid)),
-        { size: file.size ?? 0 },
+        { size: file.size ?? 0, duration: file.duration },
         reason,
         rules,
       );
@@ -546,41 +546,12 @@ function oneOf<T extends string>(
   return (list as readonly string[]).includes(value) ? (value as T) : fallback;
 }
 
-function rulesOf(settings: SmallerCopySettings): SmallerCopyRules {
-  return {
-    target: oneOf<Target>(
-      TARGETS,
-      settings.targetResolution,
-      DEFAULT_RULES.target,
-    ),
-    replaceHigher: settings.replaceHigher,
-    upgradeLower: settings.upgradeLower,
-    maxFileSizeGb: settings.maxFileSizeGb,
-    minFileSizeGb: settings.minFileSizeGb,
-    maxNewSizeGb: settings.maxNewSizeGb,
-    minSavingsPercent: settings.minSavingsPercent,
-    codec: oneOf(CODEC_RULES, settings.codec, DEFAULT_RULES.codec),
-    prefer: oneOf(PREFER, settings.prefer, DEFAULT_RULES.prefer),
-    matchStrength: oneOf(
-      MATCH,
-      settings.matchStrength,
-      DEFAULT_RULES.matchStrength,
-    ),
-    studioMode: oneOf(
-      STUDIO_MODES,
-      settings.studioMode,
-      DEFAULT_RULES.studioMode,
-    ),
-    studioNames: settings.studioNames,
-  };
-}
-
 function settingsOf(settings: SmallerCopySettings): SmallerCopySettingsInput {
   return {
     ...rulesOf(settings),
     enabled: settings.enabled,
     autoGrab: settings.autoGrab,
-    oldCopy: oneOf(OLD_COPY, settings.oldCopy, 'delete'),
+    oldCopy: oneOf(OLD_COPY, settings.oldCopy, 'keep'),
     scenesPerHour: settings.scenesPerHour,
     activeFromHour: settings.activeFromHour,
     activeToHour: settings.activeToHour,

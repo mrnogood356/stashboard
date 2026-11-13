@@ -1,4 +1,11 @@
 import {
+  DEFAULT_RULES,
+  checkNewCopy,
+  reasonFor,
+  rulesOf,
+  type CopyFile,
+} from '../smaller-copies/smaller-copies.util';
+import {
   BadRequestException,
   ConflictException,
   Inject,
@@ -1129,10 +1136,11 @@ export class DownloadHandoffService {
   }
 
   /**
-   * Smaller copies: the new download joins the scene it replaces (plays,
+   * Better copies: the new download joins the scene it replaces (plays,
    * chapters and details stay with it), then that scene's other files are
-   * deleted. Only when the new file has a length close to the old one's;
-   * otherwise both are kept and the attempt says why.
+   * deleted. Only when the new file passes checkNewCopy (the same video by
+   * its picture fingerprint, the resolution and saving promised, within the
+   * rules); otherwise both are kept and the attempt says why.
    */
   private async replaceOldCopy(
     config: StashAdapterBaseConfig,
@@ -1175,25 +1183,30 @@ export class DownloadHandoffService {
         fresh?.files.find((file) => samePath(file.path, newPath)) ??
         fresh?.files[0] ??
         null;
-      const oldLength = Math.max(
-        0,
-        ...old.files.map((file) => file.duration ?? 0),
-      );
-      const newLength = newFile?.duration ?? 0;
-      if (!newFile || newLength <= 0) {
+      const settings = await this.prisma.smallerCopySettings
+        .findUnique({ where: { key: 'GLOBAL' } })
+        .catch(() => null);
+      const rules = settings ? rulesOf(settings) : DEFAULT_RULES;
+      // The old scene's main file: its biggest, the one the rules looked at.
+      const oldFile =
+        [...old.files].sort((a, b) => (b.size ?? 0) - (a.size ?? 0))[0] ?? null;
+      if (!newFile) {
         await record(
           'kept-both',
-          'The new file reads as 0 seconds long, so the old one was kept.',
+          'Stash hasn’t got the new file on a scene yet, so the old one was kept.',
         );
         return;
       }
-      if (
-        oldLength > 0 &&
-        Math.abs(newLength - oldLength) > Math.max(60, oldLength * 0.1)
-      ) {
+      const problem = checkNewCopy(
+        copyFileOf(oldFile),
+        copyFileOf(newFile),
+        oldFile ? reasonFor(oldFile, rules.target) : 'too-big',
+        rules,
+      );
+      if (problem) {
         await record(
           'kept-both',
-          `The new file runs ${Math.round(newLength / 60)} min and the old one ${Math.round(oldLength / 60)} min, so both were kept to check by hand.`,
+          `${problem} Both were kept to check by hand.`,
           newFile.size,
         );
         return;
@@ -1210,10 +1223,7 @@ export class DownloadHandoffService {
         );
         return;
       }
-      const settings = await this.prisma.smallerCopySettings
-        .findUnique({ where: { key: 'GLOBAL' } })
-        .catch(() => null);
-      if (settings?.oldCopy === 'keep') {
+      if (settings?.oldCopy !== 'delete') {
         await this.prisma.downloadHandoff.update({
           where: { id: row.id },
           data: { stashSceneId: oldSceneId },
@@ -1823,4 +1833,25 @@ function messageOf(error: unknown): string {
 function samePath(a: string, b: string): boolean {
   const flat = (path: string) => path.replace(/[\\/]+$/, '').toLowerCase();
   return flat(a) === flat(b);
+}
+
+/** A Stash file as the Better copies check reads it. */
+function copyFileOf(
+  file: {
+    size: number | null;
+    duration: number | null;
+    width: number | null;
+    height: number | null;
+    fingerprints: Array<{ type: string; value: string }>;
+  } | null,
+): CopyFile {
+  return {
+    size: file?.size ?? null,
+    duration: file?.duration ?? null,
+    width: file?.width ?? null,
+    height: file?.height ?? null,
+    phash:
+      file?.fingerprints.find((print) => print.type.toLowerCase() === 'phash')
+        ?.value ?? null,
+  };
 }

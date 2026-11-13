@@ -58,21 +58,28 @@ export class SmallerCopySettingsDto implements SmallerCopySettingsInput {
   @IsNumber()
   @Min(0)
   @Max(500)
-  maxFileSizeGb!: number | null;
+  maxGbPerHour!: number | null;
 
   @Transform(toNumberOrNull)
   @IsOptional()
   @IsNumber()
   @Min(0)
   @Max(500)
-  minFileSizeGb!: number | null;
+  minGbPerHour!: number | null;
 
   @Transform(toNumberOrNull)
   @IsOptional()
   @IsNumber()
   @Min(0)
   @Max(500)
-  maxNewSizeGb!: number | null;
+  maxNewGbPerHour!: number | null;
+
+  @Transform(toNumberOrNull)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(500)
+  minNewGbPerHour!: number | null;
 
   @Type(() => Number)
   @IsInt()
