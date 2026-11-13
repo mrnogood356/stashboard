@@ -1,3 +1,4 @@
+import { SheetComponent } from '../../shared/sheet/sheet.component';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { LocalLibraryService, SampleScene } from '../../core/api/local-library.service';
@@ -19,7 +20,7 @@ const LENGTHS: Array<{ value: ShorterThan; label: string }> = [
  */
 @Component({
   selector: 'app-samples-page',
-  imports: [RouterLink],
+  imports: [RouterLink, SheetComponent],
   templateUrl: './samples-page.component.html',
   styleUrls: [
     './tools-shared.scss',

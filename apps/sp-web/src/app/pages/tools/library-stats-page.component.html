@@ -47,10 +47,12 @@
         <span class="total-label">of video</span>
       </div>
       @if (s.reencode.files > 0) {
-        <div class="total">
+        <a class="total total--link" routerLink="/tools/better-copies" data-testid="reencode-link">
           <span class="total-value">≈ {{ size(s.reencode.saving) }}</span>
-          <span class="total-label">re-encoding could save</span>
-        </div>
+          <span class="total-label"
+            >re-encoding could save <i class="pi pi-chevron-right" aria-hidden="true"></i
+          ></span>
+        </a>
       }
     </section>
 
@@ -119,6 +121,7 @@
           an older codec. Re-encoded to HEVC or AV1 at the same quality, they’d be roughly half the
           size: about {{ size(s.reencode.saving) }} in all. A rule of thumb, not a promise: it
           depends on the encoder and settings.
+          <a routerLink="/tools/better-copies">Better copies</a> can find smaller releases for you.
         </p>
         <ol class="files">
           @for (file of s.reencode.top; track $index) {

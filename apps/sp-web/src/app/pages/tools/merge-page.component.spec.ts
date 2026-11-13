@@ -63,8 +63,11 @@ describe('MergePageComponent', () => {
     button.click();
     fixture.detectChanges();
     expect(library.merge).not.toHaveBeenCalled();
-    expect(button.textContent).toContain('Tap again');
-    button.click();
+    const sheet = document.querySelector('[data-testid="merge-sheet"]')!;
+    expect(sheet.textContent).toContain('Merge into Jane Doe?');
+    expect(sheet.textContent).toContain('can’t be undone');
+    expect(sheet.querySelectorAll('[data-testid="merge-going"] li')).toHaveLength(1);
+    (sheet.querySelector('[data-testid="confirm-merge"]') as HTMLButtonElement).click();
     expect(library.merge).toHaveBeenCalledWith('performers', '2', ['1']);
   });
 
@@ -85,7 +88,8 @@ describe('MergePageComponent', () => {
       const manual = root.querySelector('.by-hand [data-testid="merge-set"]')!;
       const button = manual.querySelector('[data-testid="merge-button"]') as HTMLButtonElement;
       button.click();
-      button.click();
+      fixture.detectChanges();
+      (document.querySelector('[data-testid="confirm-merge"]') as HTMLButtonElement).click();
       expect(library.merge).toHaveBeenCalledWith('performers', '7', ['8']);
 
       (

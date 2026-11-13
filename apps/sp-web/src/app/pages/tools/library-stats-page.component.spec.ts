@@ -75,6 +75,9 @@ describe('LibraryStatsPageComponent', () => {
     expect(text).toContain('Studio One');
     expect(text).toContain('Old encode');
     expect(text).toContain('Big one');
+    expect(root.querySelector('[data-testid="reencode-link"]')?.getAttribute('href')).toBe(
+      '/tools/better-copies',
+    );
     // The biggest bucket fills the bar; the next one is in proportion.
     const bars = [...root.querySelectorAll<HTMLElement>('.bar')].map((bar) => bar.style.width);
     expect(bars.slice(0, 2)).toEqual(['100%', '50%']);

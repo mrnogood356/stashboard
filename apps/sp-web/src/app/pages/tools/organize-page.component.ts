@@ -193,6 +193,12 @@ export class OrganizePageComponent implements OnInit, OnDestroy {
     if (requested === 'rename') {
       this.opened.set('rename');
     }
+    // From Fix my library: ?q= opens the scene list already searched.
+    const query = this.route.snapshot.queryParamMap.get('q')?.trim();
+    if (query) {
+      this.listQuery.set(query);
+      this.tab.set('review');
+    }
     this.loadWaiting();
     this.api.settings().subscribe({
       next: (settings) => {

@@ -1,3 +1,4 @@
+import { SheetComponent } from '../../shared/sheet/sheet.component';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { Router, RouterLink } from '@angular/router';
@@ -23,7 +24,7 @@ const ACCURACY: Array<{ value: Accuracy; label: string }> = [
  */
 @Component({
   selector: 'app-duplicates-page',
-  imports: [RouterLink, FormsModule],
+  imports: [RouterLink, FormsModule, SheetComponent],
   templateUrl: './duplicates-page.component.html',
   styleUrls: ['./tools-shared.scss', './duplicates-page.component.scss'],
 })

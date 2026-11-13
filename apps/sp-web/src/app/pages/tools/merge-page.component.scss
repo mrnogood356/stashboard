@@ -140,3 +140,21 @@
   display: flex;
   justify-content: flex-end;
 }
+
+.going {
+  margin: 0 0 0.75rem;
+  padding-left: 1.1rem;
+
+  li {
+    margin: 0.2rem 0;
+  }
+}
+
+.warn-undo {
+  margin: 0 0 1rem;
+}
+
+.sheet-actions {
+  display: grid;
+  gap: 0.5rem;
+}
