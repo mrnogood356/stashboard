@@ -112,13 +112,22 @@
   color: rgb(255 255 255 / 80%);
 }
 
+/* "New to you": a dot and words, as statuses are everywhere else. */
 .badge {
-  padding: 0.12rem 0.5rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 85%, transparent);
-  color: var(--accent-contrast);
-  font-size: 0.72rem;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.badge::before {
+  content: '';
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 .slide-actions {
