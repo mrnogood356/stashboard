@@ -78,7 +78,7 @@
     }
   }
 
-  @if (store.settings()?.undo; as lastBatch) {
+  @if (store.tab() === 'overview' && store.settings()?.undo; as lastBatch) {
     @if (!store.run()?.running) {
       <div class="notice undo">
         <i class="pi pi-history" aria-hidden="true"></i>

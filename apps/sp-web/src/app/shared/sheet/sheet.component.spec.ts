@@ -1,6 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SheetComponent } from './sheet.component';
 
 @Component({
@@ -95,5 +95,61 @@ describe('SheetComponent', () => {
     fixture.destroy();
     expect(document.querySelector('.sheet-portal')).toBeNull();
     expect(document.body.classList.contains('app-sheet-open')).toBe(false);
+  });
+
+  describe('on a phone', () => {
+    const pointer = (type: string, clientY: number, target: EventTarget, timeStamp = 0) => {
+      const event = new MouseEvent(type, { bubbles: true, clientY });
+      Object.defineProperty(event, 'pointerType', { value: 'touch' });
+      Object.defineProperty(event, 'timeStamp', { value: timeStamp });
+      target.dispatchEvent(event);
+    };
+    let width: number;
+    beforeEach(() => {
+      width = window.innerWidth;
+      Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true });
+    });
+    afterEach(() => {
+      Object.defineProperty(window, 'innerWidth', { value: width, configurable: true });
+      vi.useRealTimers();
+    });
+
+    it('closes when pulled down by its top, and springs back from a short pull', async () => {
+      const { host, show } = await render();
+      show();
+      vi.useFakeTimers();
+      const grabber = document.querySelector('.sheet-grabber')!;
+      const panel = document.querySelector('.sheet') as HTMLElement;
+
+      pointer('pointerdown', 100, grabber, 0);
+      pointer('pointermove', 130, window, 400);
+      expect(panel.style.transform).toBe('translate(-50%, 30px)');
+      pointer('pointerup', 130, window, 400);
+      vi.advanceTimersByTime(300);
+      expect(host.closed).not.toHaveBeenCalled();
+      expect(panel.style.transform).toBe('');
+
+      pointer('pointerdown', 100, document.querySelector('.sheet-head')!, 0);
+      pointer('pointermove', 260, window, 200);
+      pointer('pointerup', 260, window, 200);
+      vi.advanceTimersByTime(300);
+      expect(host.closed).toHaveBeenCalledTimes(1);
+    });
+
+    it('can’t be pulled shut while busy, or from its close button', async () => {
+      const { host, show, fixture } = await render();
+      show();
+      vi.useFakeTimers();
+      pointer('pointerdown', 100, document.querySelector('.sheet-close')!, 0);
+      pointer('pointermove', 300, window, 100);
+      pointer('pointerup', 300, window, 100);
+      host.busy.set(true);
+      fixture.detectChanges();
+      pointer('pointerdown', 100, document.querySelector('.sheet-grabber')!, 0);
+      pointer('pointermove', 300, window, 100);
+      pointer('pointerup', 300, window, 100);
+      vi.advanceTimersByTime(300);
+      expect(host.closed).not.toHaveBeenCalled();
+    });
   });
 });

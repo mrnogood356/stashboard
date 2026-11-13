@@ -57,8 +57,8 @@ let nextSheetId = 0;
             ></div>
             <div class="sheet-art-shade" aria-hidden="true"></div>
           }
-          <span class="sheet-grabber" aria-hidden="true"></span>
-          <header class="sheet-head">
+          <span class="sheet-grabber" aria-hidden="true" (pointerdown)="startDrag($event)"></span>
+          <header class="sheet-head" (pointerdown)="startDrag($event)">
             <ng-content select="[sheetLead]" />
             <div class="sheet-head-copy">
               <h2 [id]="titleId">{{ title }}</h2>
@@ -132,14 +132,96 @@ export class SheetComponent implements OnChanges, OnDestroy {
       const active = this.document.activeElement;
       this.opener = active instanceof HTMLElement ? active : null;
       this.lockScroll(true);
+      this.followKeyboard(true);
       setTimeout(() => this.panel?.nativeElement.focus({ preventScroll: true }));
     } else if (change.previousValue) {
       this.lockScroll(false);
+      this.followKeyboard(false);
       this.restoreFocus();
     }
   }
 
+  /**
+   * A phone's keyboard covers the bottom of the screen without making the
+   * page smaller, so a sheet with a search box would sit behind it. While
+   * open, the sheet sits on top of the keyboard and fits the room left.
+   */
+  private followKeyboard(on: boolean): void {
+    const view = this.document.defaultView;
+    const viewport = view?.visualViewport;
+    if (!view || !viewport) {
+      return;
+    }
+    if (!on) {
+      if (this.keyboardListener) {
+        viewport.removeEventListener('resize', this.keyboardListener);
+        viewport.removeEventListener('scroll', this.keyboardListener);
+        this.keyboardListener = null;
+      }
+      return;
+    }
+    if (this.keyboardListener) {
+      return;
+    }
+    this.keyboardListener = () => {
+      const panel = this.panel?.nativeElement;
+      if (!panel) {
+        return;
+      }
+      const covered = Math.max(0, view.innerHeight - viewport.height - viewport.offsetTop);
+      panel.style.setProperty('--sheet-keyboard', `${Math.round(covered)}px`);
+      panel.style.setProperty('--sheet-room', `${Math.round(viewport.height)}px`);
+    };
+    viewport.addEventListener('resize', this.keyboardListener);
+    viewport.addEventListener('scroll', this.keyboardListener);
+    setTimeout(() => this.keyboardListener?.());
+  }
+
+  private keyboardListener: (() => void) | null = null;
+
+  /** Pulled down by its top on a phone: closes past a short way, else springs back. */
+  protected startDrag(event: PointerEvent): void {
+    const panel = this.panel?.nativeElement;
+    const view = this.document.defaultView;
+    if (
+      !panel ||
+      !view ||
+      this.busy ||
+      view.innerWidth >= 760 ||
+      (event.pointerType === 'mouse' && event.button !== 0) ||
+      (event.target as HTMLElement).closest('button, a, input, select, textarea')
+    ) {
+      return;
+    }
+    const startY = event.clientY;
+    const startTime = event.timeStamp;
+    let pulled = 0;
+    const move = (next: PointerEvent) => {
+      pulled = Math.max(0, next.clientY - startY);
+      panel.style.transition = 'none';
+      panel.style.transform = `translate(-50%, ${pulled}px)`;
+    };
+    const end = (last: PointerEvent) => {
+      view.removeEventListener('pointermove', move);
+      view.removeEventListener('pointerup', end);
+      view.removeEventListener('pointercancel', end);
+      const speed = pulled / Math.max(1, last.timeStamp - startTime);
+      const close = last.type === 'pointerup' && (pulled > 90 || (pulled > 30 && speed > 0.5));
+      panel.style.transition = 'transform 0.2s ease';
+      panel.style.transform = close ? 'translate(-50%, 100%)' : '';
+      if (close) {
+        setTimeout(() => this.requestClose(), 150);
+      } else {
+        setTimeout(() => (panel.style.transition = ''), 200);
+      }
+    };
+    view.addEventListener('pointermove', move);
+    view.addEventListener('pointerup', end);
+    view.addEventListener('pointercancel', end);
+  }
+
   ngOnDestroy(): void {
+    this.followKeyboard(false);
     // Removed while open (a page that shows it only while it's open).
     if (this.open) {
       this.restoreFocus();

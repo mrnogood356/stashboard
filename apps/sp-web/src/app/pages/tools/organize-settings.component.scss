@@ -6,13 +6,17 @@
 
 /* ---------- cards ---------- */
 
-.card {
+/* Sections sit on the page, set apart by space; only their rows are boxed. */
+.card,
+.card.panel {
   display: grid;
   align-content: start;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.9rem;
-  margin-top: 1.1rem;
-  padding: 1rem;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  padding: 0;
+  border-radius: 0;
+  background: none;
 }
 
 .card-head {
@@ -46,7 +50,7 @@
 .switches {
   display: grid;
   border-radius: 14px;
-  background: var(--surface-2);
+  background: var(--surface-1);
   overflow: hidden;
 }
 
@@ -58,7 +62,7 @@
   padding: 0.8rem 0.9rem;
   border: 0;
   border-radius: 14px;
-  background: var(--surface-2);
+  background: var(--surface-1);
   color: var(--text-primary);
   font: inherit;
   text-align: left;
@@ -69,7 +73,21 @@
   background: none;
 }
 
+/* Switches one after another read as one list, like Settings. */
+.switch-row:has(+ .switch-row) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.switch-row + .switch-row {
+  margin-top: calc(-0.75rem);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  box-shadow: inset 0 1px 0 var(--separator, var(--border-subtle));
+}
+
 .switches .switch-row + .switch-row {
+  margin-top: 0;
   box-shadow: inset 0 1px 0 var(--separator, var(--border-subtle));
 }
 
@@ -200,7 +218,7 @@ p.warn {
   gap: 0.25rem;
   padding: 0.65rem 0.8rem;
   border-radius: 12px;
-  background: var(--surface-2);
+  background: var(--surface-1);
 }
 
 .example code {
@@ -217,7 +235,7 @@ p.warn {
   padding: 0;
   list-style: none;
   border-radius: 14px;
-  background: var(--surface-2);
+  background: var(--surface-1);
   overflow: hidden;
 }
 
@@ -310,7 +328,7 @@ p.warn {
   padding: 0 0.85rem;
   border: 0;
   border-radius: 12px;
-  background: var(--surface-2);
+  background: var(--surface-1);
   color: var(--text-primary);
   font: inherit;
   font-size: 16px;
@@ -343,7 +361,7 @@ p.warn {
   padding: 0 0.75rem;
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
-  background: var(--surface-2);
+  background: var(--surface-1);
   color: var(--text-primary);
   font: inherit;
   font-size: 1rem;
