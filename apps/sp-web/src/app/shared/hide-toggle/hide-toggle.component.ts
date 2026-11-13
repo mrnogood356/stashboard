@@ -121,8 +121,9 @@ const NOUN: Record<HiddenItemKind, string> = {
       height: 2.25rem;
       padding: 0;
       border: 1px solid var(--border-subtle);
+      border-color: transparent;
       border-radius: 50%;
-      background: transparent;
+      background: var(--soft-fill);
       color: var(--text-secondary);
       cursor: pointer;
     }

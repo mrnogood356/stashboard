@@ -421,14 +421,15 @@ a {
 .secondary-link,
 .secondary-action {
   border: 1px solid color-mix(in srgb, var(--border-strong) 56%, transparent);
-  background: color-mix(in srgb, var(--surface-elevated) 96%, var(--surface-1));
+  border-color: transparent;
+  background: var(--soft-fill);
 }
 
 .secondary-action {
   cursor: pointer;
   border: 0;
   border-radius: var(--radius-sm);
-  background: var(--chip-bg);
+  background: var(--soft-fill);
 }
 
 .small,
@@ -590,7 +591,7 @@ a {
   padding: 0 0.9rem;
   border: 0;
   border-radius: var(--radius-sm);
-  background: var(--chip-bg);
+  background: var(--soft-fill);
   color: var(--text-primary);
   font: inherit;
   font-size: 0.88rem;

@@ -54,7 +54,7 @@
 
   @if (!showOwnedWarning() && !loading() && !error() && releases().length > 0) {
     <div class="toolbar">
-      <div class="segmented" role="tablist" aria-label="Sort releases">
+      <div class="app-tabs" role="tablist" aria-label="Sort releases">
         @for (option of sorts; track option.id) {
           <button
             type="button"

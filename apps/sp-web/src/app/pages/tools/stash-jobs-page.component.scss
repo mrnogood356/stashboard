@@ -216,11 +216,12 @@ main {
   min-height: 2rem;
   padding: 0 0.85rem;
   border-radius: var(--radius-sm);
-  background: transparent;
+  background: var(--soft-fill);
   font-size: 0.82rem;
   font-weight: 650;
   white-space: nowrap;
   border: 1px solid var(--border-subtle);
+  border-color: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {

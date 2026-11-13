@@ -40,8 +40,9 @@
   height: 2.5rem;
   padding: 0 0.9rem;
   border: 1px solid var(--border-subtle);
+  border-color: transparent;
   border-radius: var(--radius-sm);
-  background: transparent;
+  background: var(--soft-fill);
   color: var(--text-primary);
   font: inherit;
   font-weight: 600;
@@ -351,8 +352,9 @@
   min-height: 2.2rem;
   padding: 0 1rem;
   border: 1px solid var(--border-subtle);
+  border-color: transparent;
   border-radius: var(--radius-sm);
-  background: transparent;
+  background: var(--soft-fill);
   color: var(--text-primary);
   font: inherit;
   font-weight: 650;

@@ -76,7 +76,7 @@ describe('SamplesPageComponent', () => {
     };
     const { fixture, root } = await render(library);
 
-    const tabs = Array.from(root.querySelectorAll('.segmented button')) as HTMLButtonElement[];
+    const tabs = Array.from(root.querySelectorAll('.app-tabs button')) as HTMLButtonElement[];
     tabs[2].click();
     fixture.detectChanges();
 

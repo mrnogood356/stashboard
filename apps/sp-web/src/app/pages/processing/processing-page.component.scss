@@ -17,7 +17,7 @@
   height: 2.25rem;
   padding: 0 0.9rem;
   border-radius: var(--radius-sm);
-  background: transparent;
+  background: var(--soft-fill);
   color: var(--text-primary);
   font-size: 0.86rem;
   font-weight: 600;
@@ -30,6 +30,7 @@ button.head-action {
   font-size: 0.86rem;
   font-weight: 600;
   cursor: pointer;
+  background: var(--soft-fill);
 }
 
 button.head-action:disabled {
@@ -626,10 +627,13 @@ app-stage-track {
 
 .head-action {
   border: 1px solid var(--border-subtle);
+  border-color: transparent;
+  background: var(--soft-fill);
 }
 
 .head-action:hover {
-  border-color: var(--border-strong);
+  border-color: transparent;
+  background: var(--soft-fill-hover);
 }
 
 .footnote a {

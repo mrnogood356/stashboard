@@ -59,7 +59,7 @@ async function render(library: Record<string, unknown>, query: Record<string, st
 }
 
 function tab(root: HTMLElement, label: string): HTMLButtonElement {
-  return Array.from(root.querySelectorAll<HTMLButtonElement>('.segmented button')).find((entry) =>
+  return Array.from(root.querySelectorAll<HTMLButtonElement>('.app-tabs button')).find((entry) =>
     entry.textContent?.includes(label),
   )!;
 }

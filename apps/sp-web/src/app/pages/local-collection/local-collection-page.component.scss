@@ -186,6 +186,7 @@ h1 {
     transform 0.1s ease,
     background-color 0.15s ease,
     color 0.15s ease;
+  background: var(--soft-fill);
 }
 
 .action:active {
@@ -203,9 +204,10 @@ h1 {
 }
 
 .action.secondary {
-  background: var(--chip-bg);
+  background: var(--soft-fill);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
+  border-color: transparent;
 }
 
 .action.favorite.on {
@@ -461,7 +463,7 @@ a.action {
 }
 
 .action.secondary {
-  background: transparent;
+  background: var(--soft-fill);
 }
 
 .action.secondary:hover:not(:disabled) {
@@ -470,8 +472,8 @@ a.action {
 
 /* A favorite is a filled heart, not a tinted pill. */
 .action.favorite.on {
-  border-color: var(--border-subtle);
-  background: transparent;
+  border-color: transparent;
+  background: var(--soft-fill-on);
 }
 
 .action.favorite.on i {

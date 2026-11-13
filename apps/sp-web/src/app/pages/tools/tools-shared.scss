@@ -35,6 +35,10 @@ p {
   line-height: 1.5;
 }
 
+.app-tabs {
+  margin-top: 1.1rem;
+}
+
 .segmented {
   display: flex;
   gap: 0.2rem;
@@ -135,7 +139,7 @@ p {
   padding: 0 1rem;
   border: 0;
   border-radius: var(--radius-sm);
-  background: var(--chip-bg);
+  background: var(--soft-fill);
   color: var(--text-primary);
   font: inherit;
   font-size: 0.88rem;
@@ -283,7 +287,7 @@ p {
   padding: 0 0.9rem;
   border: 0;
   border-radius: var(--radius-sm);
-  background: var(--chip-bg);
+  background: var(--soft-fill);
   color: var(--text-primary);
   font: inherit;
   font-size: 0.86rem;
@@ -299,7 +303,8 @@ p {
 .btn,
 .head-action {
   border: 1px solid var(--border-subtle);
-  background: transparent;
+  border-color: transparent;
+  background: var(--soft-fill);
   color: var(--text-primary);
   font-weight: 600;
 }

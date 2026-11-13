@@ -253,7 +253,8 @@ h1 {
   text-decoration: none;
   cursor: pointer;
   border: 1px solid var(--media-detail-action-border);
-  background: var(--media-detail-action-background);
+  border-color: transparent;
+  background: var(--soft-fill);
   color: var(--media-detail-action-text);
   transition:
     background-color 0.15s ease,
@@ -288,7 +289,8 @@ h1 {
 }
 
 .action.secondary:hover {
-  border-color: color-mix(in srgb, var(--focus-ring) 60%, var(--border-strong));
+  border-color: transparent;
+  background: var(--soft-fill-hover);
 }
 
 .sections {
@@ -805,8 +807,11 @@ h2 {
   background: transparent;
 }
 
-.toggle-chip.on {
-  background: var(--chip-bg);
+.toggle-chip.on,
+.action.secondary[aria-pressed='true'] {
+  border-color: transparent;
+  background: var(--soft-fill-on);
+  color: var(--text-primary);
 }
 
 /* Categories as quiet outlined chips, as on the catalog scene page; Edit is a plain link. */
@@ -843,7 +848,7 @@ h2 {
     flex: 0 1 auto;
     min-height: 2.25rem;
     padding: 0 0.75rem;
-    background: transparent;
+    background: var(--soft-fill);
     font-size: 0.84rem;
   }
 }

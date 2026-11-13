@@ -75,7 +75,7 @@ describe('Library tools', () => {
     root.querySelector<HTMLButtonElement>('.list-head .btn')!.click();
     expect(library.identify).toHaveBeenLastCalledWith(['1', '2']);
 
-    Array.from(root.querySelectorAll<HTMLButtonElement>('.segmented button'))[2].click();
+    Array.from(root.querySelectorAll<HTMLButtonElement>('.app-tabs button'))[2].click();
     fixture.detectChanges();
     root.querySelector<HTMLButtonElement>('.row .btn')!.click();
     fixture.detectChanges();
