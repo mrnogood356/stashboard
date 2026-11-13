@@ -8,13 +8,16 @@ import {
   LocalLibraryService,
   type MergeCandidate,
   type MergeKind,
+  type MergeReason,
 } from '../../core/api/local-library.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { SheetComponent } from '../../shared/sheet/sheet.component';
 
+type SetItem = MergeCandidate & { match?: { reason: MergeReason; with: string } };
+
 interface MergeSet {
   key: string;
-  items: MergeCandidate[];
+  items: SetItem[];
   keepId: string;
   /** Ones ticked to merge into the kept one. */
   merge: ReadonlySet<string>;
@@ -129,6 +132,23 @@ export class MergePageComponent implements OnInit {
     this.update(set, { merge });
   }
 
+  /** Why it's suggested, in a few words. */
+  protected why(item: SetItem): string | null {
+    const match = item.match;
+    if (!match) {
+      return null;
+    }
+    return match.reason === 'catalog'
+      ? `Same StashDB entry as ${match.with}`
+      : match.reason === 'name'
+        ? 'Same name'
+        : item.aliases.some(
+              (alias) => alias.trim().toLowerCase() === match.with.trim().toLowerCase(),
+            )
+          ? `Lists ${match.with} as an alias`
+          : `${match.with} lists this name as an alias`;
+  }
+
   protected keptName(set: MergeSet): string {
     return set.items.find((item) => item.id === set.keepId)?.name ?? '';
   }
@@ -213,8 +233,11 @@ export class MergePageComponent implements OnInit {
             key: group.items.map((item) => item.id).join(','),
             items: group.items,
             keepId: group.keepId,
+            // Only an alias in common: ticked by you, not for you.
             merge: new Set(
-              group.items.filter((item) => item.id !== group.keepId).map((item) => item.id),
+              group.items
+                .filter((item) => item.id !== group.keepId && item.match?.reason !== 'alias')
+                .map((item) => item.id),
             ),
           })),
         );

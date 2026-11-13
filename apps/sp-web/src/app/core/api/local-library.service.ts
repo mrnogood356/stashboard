@@ -37,8 +37,15 @@ export interface MergeCandidate {
   deathDate: string | null;
 }
 
+/** Why Merge suggests two as one, strongest first. */
+export type MergeReason = 'catalog' | 'name' | 'alias';
+
 export interface MergeCandidates {
-  groups: Array<{ keepId: string; items: MergeCandidate[] }>;
+  /** Each item says why it's in the set, and with whom. */
+  groups: Array<{
+    keepId: string;
+    items: Array<MergeCandidate & { match?: { reason: MergeReason; with: string } }>;
+  }>;
   matches: MergeCandidate[];
 }
 

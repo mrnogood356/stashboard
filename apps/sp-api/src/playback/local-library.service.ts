@@ -5,7 +5,7 @@ import {
   nameKey,
   type SimilarTagGroup,
   cannotBeOne,
-  splitUnmergeable,
+  groupMergeCandidates,
 } from './tag-cleanup.util';
 import type {
   StashBackgroundProblemKind,
@@ -630,19 +630,7 @@ export class LocalLibraryService {
   ): Promise<MergeCandidatesDto> {
     const config = await this.playback.getStashConfig();
     const all = await this.stash.listForMerge(config, kind);
-    const byId = new Map(all.map((item) => [item.id, item]));
-    const groups = groupSimilarTags(
-      all.map(({ id, name, aliases, sceneCount }) => ({
-        id,
-        name,
-        aliases,
-        sceneCount,
-      })),
-      nameKey,
-    ).flatMap((group) =>
-      // Same name, but not if StashDB or Stash itself tells them apart.
-      splitUnmergeable(group.tags.map((tag) => byId.get(tag.id)!)),
-    );
+    const groups = groupMergeCandidates(all);
     const words = nameKey(typeof query === 'string' ? query.slice(0, 100) : '');
     const matches = words
       ? all
