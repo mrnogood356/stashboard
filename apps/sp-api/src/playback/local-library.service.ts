@@ -4,6 +4,8 @@ import {
   groupSimilarTags,
   nameKey,
   type SimilarTagGroup,
+  cannotBeOne,
+  splitUnmergeable,
 } from './tag-cleanup.util';
 import type {
   StashBackgroundProblemKind,
@@ -194,6 +196,8 @@ const FIX_FILTERS: Record<FixKind, Record<string, unknown>> = {
 };
 
 const DUPLICATE_DISTANCE = { exact: 0, high: 4, medium: 8 } as const;
+/** Longer than this, "sample" in the path is a folder's name, not a sample clip. */
+const NAMED_SAMPLE_MAX_SECONDS = 10 * 60;
 
 export interface LocalSearchDto {
   performers: Array<{
@@ -793,10 +797,10 @@ export class LocalLibraryService {
         sceneCount,
       })),
       nameKey,
-    ).map((group) => ({
-      keepId: group.keepId,
-      items: group.tags.map((tag) => byId.get(tag.id)!),
-    }));
+    ).flatMap((group) =>
+      // Same name, but not if StashDB or Stash itself tells them apart.
+      splitUnmergeable(group.tags.map((tag) => byId.get(tag.id)!)),
+    );
     const words = nameKey(typeof query === 'string' ? query.slice(0, 100) : '');
     const matches = words
       ? all
@@ -834,6 +838,14 @@ export class LocalLibraryService {
     if (!keep || sources.some((id) => !all.has(id))) {
       throw new BadRequestException(
         `One of those ${kind}s is gone from Stash. Look again.`,
+      );
+    }
+    const apart = sources
+      .map((id) => all.get(id)!)
+      .filter((item) => cannotBeOne(keep, item));
+    if (apart.length > 0) {
+      throw new BadRequestException(
+        `${apart.map((item) => item.name).join(', ')} ${apart.length === 1 ? 'is' : 'are'} linked to a different catalog entry, or told apart in Stash, so ${apart.length === 1 ? 'isn’t' : 'aren’t'} the same as ${keep.name}.`,
       );
     }
     if (kind === 'performer') {
@@ -1314,7 +1326,12 @@ export class LocalLibraryService {
     const limit = shorterThanMinutes * 60;
     const scenes = await this.stash.findSampleScenes(config, limit);
     return scenes.flatMap(({ screenshotVersion, ...scene }) => {
-      const named = isSamplePath(scene.file?.path ?? '');
+      // "sample" in the path counts only for a short file: a real scene in
+      // a folder called Samples is still a real scene.
+      const named =
+        isSamplePath(scene.file?.path ?? '') &&
+        (scene.file?.duration == null ||
+          scene.file.duration < NAMED_SAMPLE_MAX_SECONDS);
       const short =
         limit > 0 &&
         scene.file?.duration != null &&

@@ -51,6 +51,8 @@ export interface StashMergeCandidate {
   note: string | null;
   /** Performers: when they died, when Stash has it. */
   deathDate: string | null;
+  /** Its StashDB/FansDB links, as "endpoint|id". */
+  links: string[];
 }
 
 /** The kept one's aliases and links, plus the merged ones' names, aliases and links. */
@@ -1894,12 +1896,12 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
       kind === 'performer'
         ? `query MergePerformers($filter: FindFilterType) {
             findPerformers(filter: $filter) {
-              performers { id name disambiguation alias_list scene_count death_date }
+              performers { id name disambiguation alias_list scene_count death_date stash_ids { endpoint stash_id } }
             }
           }`
         : `query MergeStudios($filter: FindFilterType) {
             findStudios(filter: $filter) {
-              studios { id name aliases scene_count parent_studio { name } }
+              studios { id name aliases scene_count parent_studio { name } stash_ids { endpoint stash_id } }
             }
           }`;
     const payload = (await this.executeQuery(config, query, {
@@ -1946,6 +1948,15 @@ export abstract class StashLibraryToolsApi extends StashGraphqlClient {
             typeof row['death_date'] === 'string' && row['death_date']
               ? row['death_date']
               : null,
+          links: (Array.isArray(row['stash_ids'])
+            ? row['stash_ids']
+            : []
+          ).flatMap((link: Record<string, unknown>) =>
+            typeof link?.['endpoint'] === 'string' &&
+            typeof link?.['stash_id'] === 'string'
+              ? [`${link['endpoint']}|${link['stash_id']}`]
+              : [],
+          ),
         },
       ];
     });

@@ -48,7 +48,12 @@
       <p class="muted summary">
         {{ groups().length }} {{ groups().length === 1 ? 'set' : 'sets' }} of copies
       </p>
-      @if (extraCount() > 1) {
+      @if (extraCount() > 1 && accuracy() !== 'exact') {
+        <p class="muted small" data-testid="check-each-set">
+          Looser matches can pair different scenes, so remove copies set by set here.
+        </p>
+      }
+      @if (extraCount() > 1 && accuracy() === 'exact') {
         <button
           type="button"
           class="btn small danger"

@@ -259,6 +259,34 @@ describe('DuplicatesPageComponent', () => {
     expect(root.querySelectorAll('.copy').length).toBe(0);
   });
 
+  it('only offers removing every extra copy at once for exact matches', async () => {
+    const scene = (id: string) => ({
+      id,
+      title: id,
+      date: null,
+      imageUrl: null,
+      studio: null,
+      playCount: 0,
+      organized: false,
+      file: null,
+    });
+    const groups = [
+      { suggestedKeepId: 'a', scenes: [scene('a'), scene('b')] },
+      { suggestedKeepId: 'c', scenes: [scene('c'), scene('d')] },
+    ];
+    const library = {
+      duplicates: vi.fn().mockReturnValue(of(groups)),
+      deleteScene: vi.fn().mockReturnValue(of(undefined)),
+    };
+    const { fixture, root } = await render(library);
+    expect(root.querySelector('[data-testid="remove-all-extras"]')).not.toBeNull();
+    button(root, 'Close').click();
+    await settle(fixture);
+    // A looser match can pair two different scenes: set by set only.
+    expect(root.querySelector('[data-testid="remove-all-extras"]')).toBeNull();
+    expect(root.querySelector('[data-testid="check-each-set"]')).not.toBeNull();
+  });
+
   it('stops at the first copy that fails and keeps the rest to try again', async () => {
     const groups: DuplicateGroup[] = [
       { suggestedKeepId: 'a', scenes: [scene('a', 1080), scene('b', 720), scene('c', 480)] },
