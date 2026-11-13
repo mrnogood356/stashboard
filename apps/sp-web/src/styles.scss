@@ -1845,10 +1845,42 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
 }
 
 :root[data-material='glass'] .mobile-bottom-nav {
-  /* Labels sit over moving content here, so it frosts more than the panels. */
-  background-color: color-mix(in srgb, var(--surface-1) 84%, transparent);
+  /* Frosted like the desktop sidebar: what scrolls under it shows through,
+     blurred, with a little more fill so the labels stay readable. */
+  background-color: color-mix(in srgb, var(--surface-1) 62%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  backdrop-filter: blur(30px) saturate(180%);
   border-top-color: var(--glass-edge-soft);
   box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+
+/* Sheets on a phone (filters, Follow, More) and the filter dropdowns on a
+   desktop: the same frosted glass as the bars, a denser fill for reading. */
+:root[data-material='glass'] :is(.sheet-portal .sheet, .filter-dropdown) {
+  border-color: var(--glass-edge-soft);
+  background-color: var(--glass-fill-strong);
+  background-image: var(--glass-shine);
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    var(--glass-shadow);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+/* The phone's status bar area in the home-screen app: frosted, so pages
+   scroll under it like they do under the tab bar. */
+@media (max-width: 759px) {
+  :root[data-material='glass'] body::after {
+    content: '';
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 1000;
+    height: env(safe-area-inset-top);
+    pointer-events: none;
+    background-color: color-mix(in srgb, var(--surface-1) 62%, transparent);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    backdrop-filter: blur(30px) saturate(180%);
+  }
 }
 
 /* Reduce Transparency (iOS and macOS accessibility): solid panels instead. */
@@ -1874,7 +1906,9 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
       #{$glass-settings-cards},
       .content .actions-bar,
       .content .hero-shell,
-      .content .processing-card
+      .content .processing-card,
+      .sheet-portal .sheet,
+      .filter-dropdown
     ) {
     background-color: var(--surface-1);
     background-image: none;
