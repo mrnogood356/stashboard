@@ -1,3 +1,4 @@
+import { LibraryService } from '../../core/api/library.service';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject, of, throwError } from 'rxjs';
@@ -44,8 +45,22 @@ describe('PerformersPageComponent', () => {
       query?: Record<string, string>;
       feed?: ReturnType<typeof vi.fn>;
       favorite?: ReturnType<typeof vi.fn>;
+      library?: ReturnType<typeof vi.fn>;
     } = {},
   ) {
+    const library = {
+      listPerformers:
+        options.library ??
+        vi.fn().mockReturnValue(
+          of({
+            total: 1,
+            page: 1,
+            perPage: 48,
+            hasMore: false,
+            items: [{ id: '7', name: 'Lena Moss', count: 12, imageUrl: '/img/7' }],
+          }),
+        ),
+    };
     const discover = {
       getPerformersFeed: options.feed ?? vi.fn().mockReturnValue(feedOf([performer()])),
       favoritePerformer:
@@ -57,6 +72,7 @@ describe('PerformersPageComponent', () => {
       providers: [
         provideRouter([]),
         { provide: DiscoverService, useValue: discover },
+        { provide: LibraryService, useValue: library },
         {
           provide: ActivatedRoute,
           useValue: {
@@ -71,8 +87,26 @@ describe('PerformersPageComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
-    return { fixture, root: fixture.nativeElement as HTMLElement, discover, notifications };
+    return {
+      fixture,
+      root: fixture.nativeElement as HTMLElement,
+      discover,
+      notifications,
+      library,
+    };
   }
+
+  it('lists only people in your own scenes with In my library, searched by name', async () => {
+    const { root, library } = await render({ query: { lib: '1', q: 'lena' } });
+    expect(library.listPerformers).toHaveBeenCalledWith('lena', 1);
+    const grid = root.querySelector('[data-testid="library-performers"]');
+    expect(grid?.textContent).toContain('Lena Moss');
+    expect(grid?.textContent).toContain('12 scenes of yours');
+    expect(grid?.querySelector('a')?.getAttribute('href')).toContain('/library/performer/7/all');
+    expect(
+      root.querySelector('[data-testid="performers-in-library"]')?.getAttribute('aria-pressed'),
+    ).toBe('true');
+  });
 
   it('lists performers', async () => {
     const { root, discover } = await render();

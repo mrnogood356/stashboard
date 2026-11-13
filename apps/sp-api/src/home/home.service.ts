@@ -86,7 +86,8 @@ import {
 } from './home-rail-hybrid.internal';
 
 type HomeRailStoredSceneConfig =
-  HomeRailSceneConfigDto | LegacyHomeRailHybridSceneConfig;
+  | HomeRailSceneConfigDto
+  | LegacyHomeRailHybridSceneConfig;
 
 /** Progress past which a scene counts as finished for Continue Watching. */
 const CONTINUE_WATCHING_FINISHED = 0.95;
@@ -802,23 +803,25 @@ export class HomeService {
         this.railLimit(rail),
       );
       return {
-        items: items.map((item): HomeRailItemDto => ({
-          id: item.id,
-          title: item.title,
-          description: item.description,
-          imageUrl: item.imageUrl,
-          cardImageUrl: item.cardImageUrl,
-          studioId: item.studioId,
-          studio: item.studio,
-          studioImageUrl: item.studioImageUrl,
-          releaseDate: item.releaseDate,
-          duration: item.duration,
-          type: 'SCENE',
-          source: item.source,
-          status: item.status,
-          requestable: item.requestable,
-          viewUrl: null,
-        })),
+        items: items.map(
+          (item): HomeRailItemDto => ({
+            id: item.id,
+            title: item.title,
+            description: item.description,
+            imageUrl: item.imageUrl,
+            cardImageUrl: item.cardImageUrl,
+            studioId: item.studioId,
+            studio: item.studio,
+            studioImageUrl: item.studioImageUrl,
+            releaseDate: item.releaseDate,
+            duration: item.duration,
+            type: 'SCENE',
+            source: item.source,
+            status: item.status,
+            requestable: item.requestable,
+            viewUrl: null,
+          }),
+        ),
         message:
           items.length === 0
             ? 'Follow performers and studios from their pages to see their new scenes here.'
@@ -843,23 +846,25 @@ export class HomeService {
         this.railLimit(rail),
       );
       return {
-        items: items.map((item): HomeRailItemDto => ({
-          id: item.id,
-          title: item.title,
-          description: item.description,
-          imageUrl: item.imageUrl,
-          cardImageUrl: item.cardImageUrl,
-          studioId: item.studioId,
-          studio: item.studio,
-          studioImageUrl: item.studioImageUrl,
-          releaseDate: item.releaseDate,
-          duration: item.duration,
-          type: 'SCENE',
-          source: item.source,
-          status: item.status,
-          requestable: item.requestable,
-          viewUrl: null,
-        })),
+        items: items.map(
+          (item): HomeRailItemDto => ({
+            id: item.id,
+            title: item.title,
+            description: item.description,
+            imageUrl: item.imageUrl,
+            cardImageUrl: item.cardImageUrl,
+            studioId: item.studioId,
+            studio: item.studio,
+            studioImageUrl: item.studioImageUrl,
+            releaseDate: item.releaseDate,
+            duration: item.duration,
+            type: 'SCENE',
+            source: item.source,
+            status: item.status,
+            requestable: item.requestable,
+            viewUrl: null,
+          }),
+        ),
         message,
       };
     } catch (error) {
@@ -901,23 +906,25 @@ export class HomeService {
           (a.releaseDate ?? '').localeCompare(b.releaseDate ?? ''),
         )
         .slice(0, this.railLimit(rail))
-        .map((item): HomeRailItemDto => ({
-          id: item.id,
-          title: item.title,
-          description: item.description,
-          imageUrl: item.imageUrl,
-          cardImageUrl: item.cardImageUrl,
-          studioId: item.studioId,
-          studio: item.studio,
-          studioImageUrl: item.studioImageUrl,
-          releaseDate: item.releaseDate,
-          duration: item.duration,
-          type: 'SCENE',
-          source: item.source,
-          status: item.status,
-          requestable: false,
-          viewUrl: null,
-        }));
+        .map(
+          (item): HomeRailItemDto => ({
+            id: item.id,
+            title: item.title,
+            description: item.description,
+            imageUrl: item.imageUrl,
+            cardImageUrl: item.cardImageUrl,
+            studioId: item.studioId,
+            studio: item.studio,
+            studioImageUrl: item.studioImageUrl,
+            releaseDate: item.releaseDate,
+            duration: item.duration,
+            type: 'SCENE',
+            source: item.source,
+            status: item.status,
+            requestable: false,
+            viewUrl: null,
+          }),
+        );
       return {
         items,
         message:

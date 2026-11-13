@@ -105,7 +105,10 @@ export const DEFAULT_HOME_ROW_DISPLAY: HomeRowDisplay = {
 };
 
 export type HomeRowGalleryId =
-  HomeRailKey | 'NEW_FROM_FAVORITE_PERFORMERS' | 'NEW_RELEASES' | 'TRENDING';
+  | HomeRailKey
+  | 'NEW_FROM_FAVORITE_PERFORMERS'
+  | 'NEW_RELEASES'
+  | 'TRENDING';
 
 /** A ready-made row "Add a row" offers. */
 export interface HomeRowGalleryItem {

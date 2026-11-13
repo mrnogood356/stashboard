@@ -178,7 +178,11 @@ export interface StashDuplicateScene {
 }
 
 export type StashLibraryTask =
-  'scan' | 'generate' | 'identify' | 'auto-tag' | 'clean';
+  | 'scan'
+  | 'generate'
+  | 'identify'
+  | 'auto-tag'
+  | 'clean';
 
 export interface StashLocalScenePage {
   total: number;
@@ -483,7 +487,11 @@ export interface StashTagSummary {
 
 /** What Library tools → Broken files lists. */
 export type StashProblemKind =
-  'no-file' | 'no-length' | 'unreadable' | 'generate' | 'file-check';
+  | 'no-file'
+  | 'no-length'
+  | 'unreadable'
+  | 'generate'
+  | 'file-check';
 
 /** Kinds Stash can't filter for: each file is asked about, in the background. */
 export type StashBackgroundProblemKind = 'generate' | 'file-check';

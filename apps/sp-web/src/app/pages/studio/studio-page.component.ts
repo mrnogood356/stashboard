@@ -379,21 +379,6 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.activeImageIndex.set((this.activeImageIndex() - 1 + imageCount) % imageCount);
   }
 
-  protected metadataRows(studio: StudioDetails): Array<{ label: string; value: string }> {
-    const rows: Array<{ label: string; value: string }> = [];
-    const pushIfValue = (label: string, value: string | number | null) => {
-      if (value === null || value === undefined || value === '') {
-        return;
-      }
-      rows.push({ label, value: String(value) });
-    };
-
-    pushIfValue('Created', studio.createdAt);
-    pushIfValue('Updated', studio.updatedAt);
-
-    return rows;
-  }
-
   protected childInitial(name: string): string {
     const trimmed = name.trim();
     return trimmed.length > 0 ? trimmed[0]!.toUpperCase() : '?';

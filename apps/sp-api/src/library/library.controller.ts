@@ -1,6 +1,10 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { LibraryService } from './library.service';
 import { LibraryOptionsQueryDto } from './dto/library-options-query.dto';
+import {
+  type LibraryPerformersDto,
+  LibraryPerformersQueryDto,
+} from './dto/library-performers.dto';
 import { LibraryScenesFeedDto } from './dto/library-scenes-feed.dto';
 import { LibraryScenesQueryDto } from './dto/library-scenes-query.dto';
 import { LibraryStudioOptionDto } from './dto/library-studio-option.dto';
@@ -37,6 +41,18 @@ export class LibraryController {
       performerId: query.performerId,
       studioId: query.studioId,
     });
+  }
+
+  /** Everyone in your own scenes, most scenes first. */
+  @Get('performers')
+  getLibraryPerformers(
+    @Query() query: LibraryPerformersQueryDto,
+  ): Promise<LibraryPerformersDto> {
+    return this.libraryService.listPerformers(
+      query.query,
+      query.page,
+      query.perPage,
+    );
   }
 
   @Get('studios')

@@ -86,7 +86,8 @@ export class HomeRailStashSceneConfigDto {
 }
 
 export type HomeRailSceneConfigDto =
-  HomeRailStashdbSceneConfigDto | HomeRailStashSceneConfigDto;
+  | HomeRailStashdbSceneConfigDto
+  | HomeRailStashSceneConfigDto;
 
 export const HOME_ROW_SIZE_VALUES = ['small', 'regular', 'large'] as const;
 export type HomeRowSize = (typeof HOME_ROW_SIZE_VALUES)[number];

@@ -1,7 +1,12 @@
 import { CatalogProviderType } from './integrations.types';
 
 export type SceneStatusState =
-  'NOT_REQUESTED' | 'REQUESTED' | 'DOWNLOADING' | 'IMPORT_PENDING' | 'AVAILABLE' | 'FAILED';
+  | 'NOT_REQUESTED'
+  | 'REQUESTED'
+  | 'DOWNLOADING'
+  | 'IMPORT_PENDING'
+  | 'AVAILABLE'
+  | 'FAILED';
 
 export interface SceneStatus {
   state: SceneStatusState;

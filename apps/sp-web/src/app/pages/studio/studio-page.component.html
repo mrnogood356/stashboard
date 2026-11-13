@@ -100,17 +100,6 @@
               <span class="meta-chip warning">Marked Deleted</span>
             </div>
           }
-
-          @if (metadataRows(studio).length > 0) {
-            <div class="metadata-grid">
-              @for (row of metadataRows(studio); track row.label) {
-                <div class="metadata-item">
-                  <span class="label">{{ row.label }}</span>
-                  <span class="value">{{ row.value }}</span>
-                </div>
-              }
-            </div>
-          }
         </div>
       </div>
     </section>
@@ -118,7 +107,7 @@
     <div class="content-shell app-section-stack">
       @if (studio.parentStudio; as parentStudio) {
         <section class="section app-section-panel">
-          <h2>Parent Studio</h2>
+          <h2>Part of</h2>
           <article class="hierarchy-card">
             <a
               class="hierarchy-link-stretch"
@@ -136,7 +125,7 @@
 
       @if (studio.childStudios.length > 0) {
         <section class="section app-section-panel">
-          <h2>Child Studios</h2>
+          <h2>Its studios</h2>
           <div class="child-grid">
             @for (child of studio.childStudios; track child.id) {
               <article class="child-card">
@@ -175,7 +164,7 @@
 
       @if (studio.urls.length > 0) {
         <section class="section app-section-panel">
-          <h2>Source Links</h2>
+          <h2>Links</h2>
           <ul class="source-list">
             @for (entry of studio.urls; track entry.url) {
               <li>

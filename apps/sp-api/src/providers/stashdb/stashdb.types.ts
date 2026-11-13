@@ -14,7 +14,11 @@ export interface StashdbAdapterTrendingConfig extends StashdbAdapterBaseConfig {
 }
 
 export type StashdbSceneFeedSort =
-  'DATE' | 'TRENDING' | 'TITLE' | 'CREATED_AT' | 'UPDATED_AT';
+  | 'DATE'
+  | 'TRENDING'
+  | 'TITLE'
+  | 'CREATED_AT'
+  | 'UPDATED_AT';
 export type StashdbSortDirection = 'ASC' | 'DESC';
 
 export interface StashdbAdapterSceneFeedConfig extends StashdbAdapterTrendingConfig {

@@ -575,3 +575,21 @@ ul {
     gap: 1.1rem 0.75rem;
   }
 }
+
+/* ---------- Sections as soft cards; links as a plain row ---------- */
+
+.section.app-section-panel {
+  --app-section-padding: 1rem;
+  --app-section-radius: var(--radius-md);
+  --app-section-bg: var(--surface-1);
+  --app-section-border: 0;
+}
+
+.content-shell.app-section-stack {
+  gap: 0.75rem;
+}
+
+.section h2 {
+  font-size: 1rem;
+  font-weight: 600;
+}

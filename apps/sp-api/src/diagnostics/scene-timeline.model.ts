@@ -23,7 +23,12 @@ export type TimelineStepId =
  * step expected after the last one reached.
  */
 export type TimelineStepStatus =
-  'done' | 'current' | 'failed' | 'skipped' | 'unknown' | 'next';
+  | 'done'
+  | 'current'
+  | 'failed'
+  | 'skipped'
+  | 'unknown'
+  | 'next';
 
 /** How it was asked for. library: it was never requested, it's just in Stash. */
 export type TimelineRoute = 'whisparr' | 'prowlarr' | 'sabnzbd' | 'library';

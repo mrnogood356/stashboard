@@ -23,7 +23,7 @@ describe('PageTabsComponent', () => {
     expect(root.querySelector('h1')?.textContent).toBe('Browse');
     expect(root.querySelector('[data-testid="page-tabs-search-input"]')).toBeTruthy();
     const tabs = Array.from(root.querySelectorAll('.page-tab'));
-    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Scenes', 'People', 'Studios']);
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Scenes', 'Performers', 'Studios']);
     expect(tabs.map((tab) => tab.getAttribute('href'))).toEqual([
       '/scenes',
       '/performers',

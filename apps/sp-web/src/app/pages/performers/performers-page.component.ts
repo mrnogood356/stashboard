@@ -3,6 +3,7 @@ import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import {
   AfterViewInit,
   Component,
+  DestroyRef,
   ElementRef,
   OnDestroy,
   OnInit,
@@ -19,6 +20,8 @@ import { Message } from 'primeng/message';
 import { Select } from 'primeng/select';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DiscoverService } from '../../core/api/discover.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { LibraryPerformer, LibraryService } from '../../core/api/library.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import {
   PerformerFeedItem,
@@ -90,6 +93,19 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
   private readonly notifications = inject(AppNotificationsService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly libraryApi = inject(LibraryService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  /** "In my library" ("lib=1" in the URL): only people in your own scenes. */
+  protected readonly inLibrary = signal(false);
+  protected readonly libItems = signal<LibraryPerformer[]>([]);
+  protected readonly libTotal = signal(0);
+  protected readonly libHasMore = signal(false);
+  protected readonly libLoading = signal(false);
+  protected readonly libFailed = signal(false);
+  private libPage = 1;
+  protected libQuery: string | null = null;
+  private libRequest: Subscription | null = null;
   private readonly nameFilterTerms = new Subject<string>();
   private nameFilterSubscription: Subscription | null = null;
   private queryParamSubscription: Subscription | null = null;
@@ -141,6 +157,52 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
   ngOnInit(): void {
     this.setupNameFilterDebounce();
     this.setupUrlStateSync();
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const on = params.get('lib') === '1';
+      const query = (params.get('q') ?? '').trim();
+      this.inLibrary.set(on);
+      if (on && query !== this.libQuery) {
+        this.libQuery = query;
+        this.loadLibrary(true);
+      }
+      if (!on) {
+        this.libQuery = null;
+      }
+    });
+  }
+
+  protected toggleInLibrary(): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { lib: this.inLibrary() ? null : '1' },
+      queryParamsHandling: 'merge',
+    });
+  }
+
+  protected showMoreLibrary(): void {
+    this.loadLibrary(false);
+  }
+
+  private loadLibrary(reset: boolean): void {
+    if (reset) {
+      this.libPage = 1;
+      this.libItems.set([]);
+    }
+    this.libRequest?.unsubscribe();
+    this.libLoading.set(true);
+    this.libFailed.set(false);
+    this.libRequest = this.libraryApi
+      .listPerformers(this.libQuery ?? '', this.libPage)
+      .pipe(finalize(() => this.libLoading.set(false)))
+      .subscribe({
+        next: (result) => {
+          this.libItems.update((items) => (reset ? result.items : [...items, ...result.items]));
+          this.libTotal.set(result.total);
+          this.libHasMore.set(result.hasMore);
+          this.libPage = result.page + 1;
+        },
+        error: () => this.libFailed.set(true),
+      });
   }
 
   ngAfterViewInit(): void {

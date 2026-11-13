@@ -17,10 +17,10 @@ export interface PageTab {
   testId: string;
 }
 
-/** Browse: Scenes, People and Studios, one page with a tab each. */
+/** Browse: Scenes, Performers and Studios, one page with a tab each. */
 export const BROWSE_TABS: readonly PageTab[] = [
   { label: 'Scenes', route: '/scenes', testId: 'browse-tab-scenes' },
-  { label: 'People', route: '/performers', testId: 'browse-tab-people' },
+  { label: 'Performers', route: '/performers', testId: 'browse-tab-performers' },
   { label: 'Studios', route: '/studios', testId: 'browse-tab-studios' },
 ];
 
@@ -101,7 +101,7 @@ export class PageTabsComponent implements OnInit {
   @Input({ required: true }) tabs: readonly PageTab[] = [];
   /**
    * A search box that searches the tab you're on, as you type ("q" in the
-   * URL, which Scenes, People and Studios each read), and goes with you to
+   * URL, which Scenes, Performers and Studios each read), and goes with you to
    * the other tabs.
    */
   @Input({ transform: booleanAttribute }) search = false;

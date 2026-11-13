@@ -380,3 +380,35 @@ p {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* ---------- Soft cards with room inside, never an outline (every tools page) ---------- */
+
+:host :is(.running, .review, .block.app-section-panel) {
+  --app-section-padding: 1rem;
+  --app-section-radius: var(--radius-md);
+  --app-section-bg: var(--surface-1);
+  --app-section-border: 0;
+}
+
+:host :is(.task-list, .review-item) {
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+}
+
+:host .job {
+  padding: 0.75rem 0.9rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+}
+
+:host :is(.chip, .keep-btn, .auto-chip):not(.active) {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+}
+
+/* A results list with nothing in it shows no empty bar. */
+:host :is(.samples, .copies, .groups, .rows, .entries):empty {
+  display: none;
+}

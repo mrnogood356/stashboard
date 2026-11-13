@@ -46,7 +46,12 @@ export interface DiskHealth {
 }
 
 export type JobHealthStatus =
-  'ok' | 'running' | 'warn' | 'failed' | 'off' | 'never';
+  | 'ok'
+  | 'running'
+  | 'warn'
+  | 'failed'
+  | 'off'
+  | 'never';
 
 export interface JobHealth {
   id: string;

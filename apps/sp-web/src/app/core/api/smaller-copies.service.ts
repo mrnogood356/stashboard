@@ -26,7 +26,13 @@ export interface SmallerCopySettings {
 }
 
 export type SmallerCopyOutcome =
-  'grabbed' | 'found' | 'none-found' | 'no-catalog-id' | 'failed' | 'replaced' | 'kept-both';
+  | 'grabbed'
+  | 'found'
+  | 'none-found'
+  | 'no-catalog-id'
+  | 'failed'
+  | 'replaced'
+  | 'kept-both';
 
 export interface SmallerCopyAttempt {
   stashSceneId: string;

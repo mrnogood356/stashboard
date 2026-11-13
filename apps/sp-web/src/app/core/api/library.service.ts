@@ -80,6 +80,32 @@ export class LibraryService {
       params: optionParams(query, scope),
     });
   }
+
+  /** Everyone in your own scenes, most scenes first. */
+  listPerformers(query: string, page = 1, perPage = 48): Observable<LibraryPerformers> {
+    let params = new HttpParams().set('page', page).set('perPage', perPage);
+    if (query.trim()) {
+      params = params.set('query', query.trim());
+    }
+    return this.http.get<LibraryPerformers>('/api/library/performers', { params });
+  }
+}
+
+/** A performer in your own scenes, by their Stash id. */
+export interface LibraryPerformer {
+  id: string;
+  name: string;
+  /** Scenes of yours they're in. */
+  count: number;
+  imageUrl: string;
+}
+
+export interface LibraryPerformers {
+  total: number;
+  page: number;
+  perPage: number;
+  hasMore: boolean;
+  items: LibraryPerformer[];
 }
 
 /** Options from one performer's or studio's scenes only. */

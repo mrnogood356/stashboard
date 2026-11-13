@@ -945,7 +945,9 @@ export class WhisparrAdapter {
           return [];
         }
         const movieFile = row.movieFile as
-          Record<string, unknown> | null | undefined;
+          | Record<string, unknown>
+          | null
+          | undefined;
         return [
           {
             id,
@@ -1232,7 +1234,8 @@ export class WhisparrAdapter {
     }
     const quality = (
       row.quality as
-        { quality?: { name?: unknown; resolution?: unknown } } | undefined
+        | { quality?: { name?: unknown; resolution?: unknown } }
+        | undefined
     )?.quality;
     const rejections = Array.isArray(row.rejections)
       ? row.rejections.flatMap((reason) => {

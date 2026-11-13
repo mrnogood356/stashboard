@@ -1785,10 +1785,8 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
     .p-popover,
     .p-toast-message,
     .quick-search-panel,
-    .content .app-section-panel:not(.section-shell),
     #{$glass-settings-cards},
     .content .actions-bar,
-    .content .hero-shell,
     .content .processing-card
   ) {
   background-color: var(--glass-fill);
@@ -1907,10 +1905,8 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
       .p-autocomplete-overlay,
       .p-toast-message,
       .quick-search-panel,
-      .content .app-section-panel:not(.section-shell),
       #{$glass-settings-cards},
       .content .actions-bar,
-      .content .hero-shell,
       .content .processing-card,
       .sheet-portal .sheet,
       .filter-dropdown
