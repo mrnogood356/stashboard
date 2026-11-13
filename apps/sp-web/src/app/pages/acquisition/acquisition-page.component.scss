@@ -943,3 +943,27 @@ a {
     grid-column: 1 / -1;
   }
 }
+
+/* ---------- Each scene a soft card of its own, so the list never runs together ---------- */
+
+.acquisition-list {
+  gap: 0.6rem;
+}
+
+.acquisition-card,
+.acquisition-card[data-state] {
+  padding: 0.9rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+}
+
+.acquisition-card + .acquisition-card {
+  border-top: 0;
+}
+
+@media (max-width: 640px) {
+  .acquisition-card,
+  .acquisition-card[data-state] {
+    padding: 0.8rem;
+  }
+}

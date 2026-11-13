@@ -148,11 +148,10 @@ a.bar-name:hover {
   }
 }
 
-/* Current look: each group is a plain section under a rule, not a box. */
+/* Current look: each group a soft card of its own, no border. */
 .block {
-  --app-section-radius: 0;
-  --app-section-padding: 1rem 0 0;
+  --app-section-radius: var(--radius-md);
+  --app-section-padding: 1rem;
   --app-section-border: 0;
-  --app-section-bg: transparent;
-  border-top: 1px solid var(--border-subtle);
+  --app-section-bg: var(--surface-1);
 }

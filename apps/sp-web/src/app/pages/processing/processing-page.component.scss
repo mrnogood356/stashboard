@@ -691,3 +691,29 @@ app-stage-track {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* ---------- Each download a soft card; finished ones one soft group ---------- */
+
+.cards {
+  gap: 0.6rem;
+}
+
+.card,
+.card[data-stage] {
+  padding: 0.9rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+}
+
+.card + .card {
+  border-top: 0;
+}
+
+.rows {
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+}
+
+.row {
+  padding: 0.75rem 0.9rem;
+}

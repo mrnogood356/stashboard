@@ -549,3 +549,15 @@
   border: 1px solid var(--border-subtle);
   background: transparent;
 }
+
+/* ---------- A day's releases: one soft group, rows divided inside ---------- */
+
+.agenda-day ul {
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  overflow: hidden;
+}
+
+.release {
+  padding: 0.6rem 0.75rem;
+}

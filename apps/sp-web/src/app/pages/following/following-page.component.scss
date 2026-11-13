@@ -247,3 +247,13 @@
 .follow-row:hover {
   background: var(--surface-1);
 }
+
+/* Soft group: the list sits on its own surface, rows divided inside. */
+.follow-list {
+  border: 0;
+  background: var(--surface-1);
+}
+
+.follow-row:hover {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}

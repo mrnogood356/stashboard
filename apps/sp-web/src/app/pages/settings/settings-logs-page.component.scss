@@ -367,3 +367,21 @@ p {
   border-color: color-mix(in srgb, var(--danger) 45%, transparent);
   background: transparent;
 }
+
+/* Soft surfaces: the logging settings and each list on their own. */
+.card.settings-card {
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+}
+
+.entries,
+.files {
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+}
+
+.entry-main {
+  padding-inline: 1rem;
+}

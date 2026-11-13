@@ -191,3 +191,10 @@
 .badge[data-outcome='failed'] {
   color: var(--danger);
 }
+
+/* Outcome as coloured words, not a chip. */
+.badge {
+  padding: 0;
+  background: none;
+  font-weight: 600;
+}

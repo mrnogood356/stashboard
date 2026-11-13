@@ -357,16 +357,15 @@ p {
   border-radius: var(--radius-sm);
 }
 
-/* ---------- Current look: no boxes on the tools pages ---------- */
-/* :host so this wins over a page's own .panel and .notice. */
+/* ---------- Current look: soft cards, no borders, plain notices ---------- */
+/* :host so this wins over a page's own .panel and .notice. Each panel is a
+   quiet surface of its own, so a list of them never runs together. */
 
 :host .panel {
-  border-radius: 0;
-  background: none;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
   box-shadow: none;
-  border-top: 1px solid var(--border-subtle);
-  border-bottom: 1px solid var(--border-subtle);
-  padding-inline: 0;
 }
 
 :host .notice {

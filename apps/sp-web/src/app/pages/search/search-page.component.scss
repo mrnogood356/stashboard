@@ -622,3 +622,9 @@ h1 {
   border-radius: var(--radius-md);
   background: transparent;
 }
+
+/* The top match on a soft card of its own. */
+.top-result {
+  padding: 0.75rem;
+  background: var(--surface-1);
+}

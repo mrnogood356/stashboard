@@ -668,3 +668,11 @@ button {
   max-width: 40rem;
   margin: 0.4rem 0 0.2rem;
 }
+
+/* Overview and Performers each a soft card, like the library scene page. */
+.section.app-section-panel:not(.lifecycle-section) {
+  --app-section-padding: 1rem;
+  --app-section-radius: var(--radius-md);
+  --app-section-bg: var(--surface-1);
+  --app-section-border: 0;
+}

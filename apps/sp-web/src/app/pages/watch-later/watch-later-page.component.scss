@@ -168,3 +168,14 @@
   border-radius: var(--radius-md);
   background: var(--surface-1);
 }
+
+/* Soft group: the list on its own surface, rows divided inside. */
+.list {
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  overflow: hidden;
+}
+
+.row {
+  padding: 0.7rem 0.85rem;
+}
