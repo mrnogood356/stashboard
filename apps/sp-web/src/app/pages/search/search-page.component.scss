@@ -628,3 +628,9 @@ h1 {
   padding: 0.75rem;
   background: var(--surface-1);
 }
+
+/* Glass: the page shows its backdrop, so a page-coloured bar reads as a black
+   box. Clear at rest; it still frosts what scrolls under it. */
+:host-context(:root[data-material='glass']) .search-head {
+  background: transparent;
+}

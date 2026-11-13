@@ -195,3 +195,45 @@ p {
     transition: none;
   }
 }
+
+/* ---------- One list on every screen, like Library tools: a soft group,
+   rows divided inside, a chevron to say each one opens ---------- */
+
+.tool-grid,
+.tool-grid:is(*) {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 48rem;
+  border: 0;
+  background: var(--surface-1);
+}
+
+.tool,
+.tool:is(*) {
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    'icon title chevron'
+    '. detail chevron';
+}
+
+.tool + .tool,
+.tool + .tool:is(*) {
+  border-left: 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.tool::after {
+  content: '\e901';
+  grid-area: chevron;
+  font-family: 'primeicons';
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.tool:hover {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+.status-summary,
+.group-title {
+  max-width: 48rem;
+}

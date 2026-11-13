@@ -16,7 +16,7 @@ h1 {
   line-height: 1.15;
 }
 
-/* Looks like a search box; opens Search, where typing happens. */
+/* Searches the tab you're on as you type. */
 .page-tabs-search {
   display: flex;
   align-items: center;
@@ -33,12 +33,6 @@ h1 {
 
 .page-tabs-search:hover {
   border-color: var(--border-strong);
-  color: var(--text-primary);
-}
-
-.page-tabs-search:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
 }
 
 .page-tabs {
@@ -77,4 +71,45 @@ h1 {
 .page-tab:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
+}
+
+.page-tabs-search input {
+  flex: 1;
+  min-width: 0;
+  height: 2.5rem;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  outline: none;
+}
+
+.page-tabs-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.page-tabs-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.page-tabs-search:focus-within {
+  border-color: var(--border-strong);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.page-tabs-clear {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.page-tabs-clear:hover {
+  color: var(--text-primary);
 }
