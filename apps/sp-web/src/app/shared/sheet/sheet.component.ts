@@ -14,6 +14,8 @@ import {
   inject,
 } from '@angular/core';
 
+import { lockPageScroll, unlockPageScroll } from '../../core/navigation/page-scroll-lock';
+
 let nextSheetId = 0;
 
 /**
@@ -250,7 +252,11 @@ export class SheetComponent implements OnChanges, OnDestroy {
       return;
     }
     this.scrollLocked = lock;
-    this.document.body.classList.toggle('app-sheet-open', lock);
+    if (lock) {
+      lockPageScroll(this.document);
+    } else {
+      unlockPageScroll(this.document);
+    }
   }
 
   /** Back to what opened it, unless something else has taken focus since. */

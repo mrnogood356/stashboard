@@ -1905,8 +1905,12 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
   }
 }
 
-/* A sheet is open: the page behind it doesn't scroll. */
+/* A sheet or menu is open: the page behind it doesn't scroll, on an iPhone
+   too (pinned where it was; core/navigation/page-scroll-lock.ts). */
 body.app-sheet-open {
+  position: fixed;
+  right: 0;
+  left: 0;
   overflow: hidden;
 }
 

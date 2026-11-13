@@ -1,7 +1,18 @@
 import { AcquisitionService } from '../../core/api/acquisition.service';
 import { AppLockService } from '../../core/app-lock/app-lock.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Component, DestroyRef, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  OnDestroy,
+  OnInit,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import { lockPageScroll, unlockPageScroll } from '../../core/navigation/page-scroll-lock';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { finalize, merge, of, switchMap, timer } from 'rxjs';
 import { catchError, filter } from 'rxjs/operators';
@@ -246,6 +257,22 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
     typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform ?? '');
   protected readonly mobileShell = signal(this.phoneShellMediaQuery?.matches ?? false);
   protected readonly moreMenuOpen = signal(false);
+  private readonly shellDocument = inject(DOCUMENT);
+  private moreMenuLocked = false;
+  /** The page behind the More menu stays put while it's open. */
+  private readonly lockBehindMoreMenu = effect(() => {
+    const open = this.moreMenuOpen();
+    if (open === this.moreMenuLocked) {
+      return;
+    }
+    this.moreMenuLocked = open;
+    const doc = this.shellDocument;
+    if (open) {
+      lockPageScroll(doc);
+    } else {
+      unlockPageScroll(doc);
+    }
+  });
   protected readonly loggingOut = signal(false);
   protected readonly currentUrl = signal(this.router.url);
   protected readonly authStatus = this.authService.status;
@@ -356,6 +383,9 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.moreMenuLocked) {
+      unlockPageScroll(this.shellDocument);
+    }
     this.phoneShellMediaQuery?.removeEventListener('change', this.phoneShellMediaChangeHandler);
     this.runtimeHealthService.stop();
   }
