@@ -77,10 +77,10 @@ export class OrganizeFilesStore implements OnDestroy {
   /** The pattern the preview on screen was worked out for. */
   private readonly previewedPattern = signal<string | null>(null);
 
-  /** The pattern was edited since the preview: renaming now would use names nobody saw. */
   /** Names come from Whisparr's naming, not a pattern typed here. */
   readonly followsWhisparr = computed(() => this.store.settings()?.naming?.source === 'whisparr');
 
+  /** The pattern was edited since the preview: renaming now would use names nobody saw. */
   readonly previewOutdated = computed(
     () =>
       !this.followsWhisparr() &&
@@ -376,20 +376,41 @@ export class OrganizeFilesStore implements OnDestroy {
       return;
     }
     this.renamingOne.set(sceneId);
-    this.api.rename([sceneId]).subscribe({
-      next: (result) => {
-        this.renamingOne.set(null);
-        const failed = result.failed[0];
-        if (failed) {
-          this.notifications.error('Couldn’t rename it', failed.reason);
-        } else {
-          this.notifications.success('Renamed', result.moved[0]?.to ?? 'Done.');
-        }
-        this.loadPreview();
+    const start = () =>
+      this.api.rename([sceneId]).subscribe({
+        next: (result) => {
+          this.renamingOne.set(null);
+          const failed = result.failed[0];
+          if (failed) {
+            this.notifications.error('Couldn’t rename it', failed.reason);
+          } else {
+            this.notifications.success('Renamed', result.moved[0]?.to ?? 'Done.');
+          }
+          this.loadPreview();
+        },
+        error: (error: { error?: { message?: string } }) => {
+          this.renamingOne.set(null);
+          this.notifications.error('Couldn’t rename it', error?.error?.message ?? 'Try again.');
+        },
+      });
+    // The server names it from the saved pattern: save the one previewed first.
+    if (this.followsWhisparr() || !this.patternDirty()) {
+      start();
+      return;
+    }
+    const pattern = this.pattern().trim();
+    this.api.update({ renamePattern: pattern }).subscribe({
+      next: (saved) => {
+        this.store.settings.set(saved);
+        this.useSavedPattern(pattern, saved);
+        start();
       },
       error: (error: { error?: { message?: string } }) => {
         this.renamingOne.set(null);
-        this.notifications.error('Couldn’t rename it', error?.error?.message ?? 'Try again.');
+        this.notifications.error(
+          'Couldn’t save the pattern',
+          error?.error?.message ?? 'Try again.',
+        );
       },
     });
   }
@@ -627,7 +648,9 @@ export class OrganizeFilesStore implements OnDestroy {
     }
     this.confirmTaken.set(null);
     this.fixingTaken.set(true);
-    this.api.fixTaken(sceneIds).subscribe({
+    // The fix agreed to: if Stash's view changed since, the server says so
+    // and the preview below shows what fixing it takes now.
+    this.api.fixTaken(sceneIds, fix).subscribe({
       next: (result) => {
         this.fixingTaken.set(false);
         if (result.merged || result.scanned) {

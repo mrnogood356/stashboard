@@ -848,6 +848,24 @@ describe('StashAdapter', () => {
       );
     });
 
+    it('keeps different whole-library tasks apart while they wait', async () => {
+      queue = [{ id: '9', status: 'READY' }];
+      const scan = adapter.startLibraryTask(config, 'scan');
+      const clean = adapter.startLibraryTask(config, 'clean');
+      await settle();
+      queue = [];
+      wake();
+      await settle();
+      await settle();
+      const [scanJob, cleanJob] = await Promise.all([scan, clean]);
+      expect(scanJob).not.toBe(cleanJob);
+      const bodies = fetchMock.mock.calls
+        .map(([, init]) => String(init?.body))
+        .filter((body) => body.includes('mutation'));
+      expect(bodies.some((body) => body.includes('metadataScan'))).toBe(true);
+      expect(bodies.some((body) => body.includes('metadataClean'))).toBe(true);
+    });
+
     it('never runs Generate for the whole library when no named scene is real', async () => {
       await expect(
         adapter.startLibraryTask(config, 'generate', ['', '  ']),

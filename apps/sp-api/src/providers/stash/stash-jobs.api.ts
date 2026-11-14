@@ -98,23 +98,25 @@ export abstract class StashJobsApi extends StashGraphqlClient {
     kind: BackgroundJobKind,
     items: string[],
     start: (items: string[]) => Promise<string | null>,
+    /** Batches of one kind that mustn't join, such as Scan and Clean. */
+    group: string = kind,
   ): Promise<string | null> {
     // Already in a job of ours that's still waiting or running (a download's
     // scan, and the folder watcher noticing the same file): that one does it.
-    const covering = await this.activeJobFor(config, kind, items);
+    const covering = await this.activeJobFor(config, group, items);
     if (covering) {
       return covering;
     }
-    return this.enqueue(config, kind, items, start);
+    return this.enqueue(config, kind, group, items, start);
   }
 
   /** The one job of ours, still waiting or running, that has all these items. */
   private async activeJobFor(
     config: StashAdapterBaseConfig,
-    kind: BackgroundJobKind,
+    group: string,
     items: string[],
   ): Promise<string | null> {
-    const batchKey = `${config.baseUrl}|${kind}`;
+    const batchKey = `${config.baseUrl}|${group}`;
     if (items.length === 0 || this.batches.get(batchKey)) {
       return null;
     }
@@ -140,10 +142,11 @@ export abstract class StashJobsApi extends StashGraphqlClient {
   private enqueue(
     config: StashAdapterBaseConfig,
     kind: BackgroundJobKind,
+    group: string,
     items: string[],
     start: (items: string[]) => Promise<string | null>,
   ): Promise<string | null> {
-    const batchKey = `${config.baseUrl}|${kind}`;
+    const batchKey = `${config.baseUrl}|${group}`;
     const waiting = this.batches.get(batchKey);
     if (waiting) {
       items.forEach((item) => waiting.items.add(item));
@@ -605,7 +608,13 @@ export abstract class StashJobsApi extends StashGraphqlClient {
       });
     }
     // A whole-library task: once, whoever asks while it waits.
-    return this.inBackground(config, 'task', [task], () => run(variables));
+    return this.inBackground(
+      config,
+      'task',
+      [task],
+      () => run(variables),
+      `task:${task}`,
+    );
   }
 
   /**

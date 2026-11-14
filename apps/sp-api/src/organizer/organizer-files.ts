@@ -1234,9 +1234,13 @@ export abstract class OrganizerFiles extends OrganizerCore {
   /**
    * Fixes "taken" files the safe way: has Stash scan the other file's
    * folder, or merges the other file's scene into this one and deletes this
-   * extra copy. Anything that might be a different video is left alone.
+   * extra copy. Anything that might be a different video is left alone, and
+   * so is anything whose fix isn't the one agreed to from the preview.
    */
-  async fixTaken(sceneIds: string[]): Promise<{
+  async fixTaken(
+    sceneIds: string[],
+    agreed?: 'scan' | 'merge',
+  ): Promise<{
     scanned: number;
     merged: number;
     skipped: Array<{ sceneId: string; reason: string }>;
@@ -1262,6 +1266,16 @@ export abstract class OrganizerFiles extends OrganizerCore {
     }
     for (const plan of plans) {
       const taken = plan.taken;
+      // Stash may have found the other file since the preview, turning a
+      // scan into a merge that deletes: back to the preview, never past it.
+      if (agreed && taken?.fix !== agreed) {
+        skipped.push({
+          sceneId: plan.sceneId,
+          reason:
+            'What fixing it takes has changed since the preview; look again.',
+        });
+        continue;
+      }
       if (taken?.fix === 'scan') {
         folders.push(splitPath(plan.to!).folder);
         lines.scanned.push(plan.to!);

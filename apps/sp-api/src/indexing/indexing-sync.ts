@@ -1028,9 +1028,12 @@ export abstract class IndexingSync extends IndexingCore {
       previouslyAvailableRows.map((row) => row.stashId),
     );
 
-    // Only what changed: newly in the library, or gone from it.
+    // Only what changed gets a patch: newly in the library, or gone from it.
+    // The rest were just confirmed, so only their checked-at times move on.
+    const confirmed: string[] = [];
     for (const stashId of availableStashIds) {
       if (wasAvailable.has(stashId)) {
+        confirmed.push(stashId);
         continue;
       }
       patches.push({
@@ -1055,6 +1058,14 @@ export abstract class IndexingSync extends IndexingCore {
     }
 
     await this.applySceneIndexPatches(patches);
+    for (let i = 0; i < confirmed.length; i += UNCHANGED_TOUCH_CHUNK) {
+      await this.prisma.sceneIndex.updateMany({
+        where: {
+          stashId: { in: confirmed.slice(i, i + UNCHANGED_TOUCH_CHUNK) },
+        },
+        data: { lastSyncedAt: syncedAt, stashLastSyncedAt: syncedAt },
+      });
+    }
     return this.mergePatchesByStashId(patches).length;
   }
 
