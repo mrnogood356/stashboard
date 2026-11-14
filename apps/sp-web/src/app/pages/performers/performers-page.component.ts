@@ -207,6 +207,10 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
       const on = params.get('lib') === '1';
       const query = (params.get('q') ?? '').trim();
       this.inLibrary.set(on);
+      if (on) {
+        // The catalog list is hidden: its sentinel no longer asks for pages.
+        this.sentinelIntersecting = false;
+      }
       if (on && query !== this.libQuery) {
         this.libQuery = query;
         this.loadLibrary(true);
@@ -227,6 +231,11 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
 
   protected showMoreLibrary(): void {
     this.loadLibrary(false);
+  }
+
+  /** After a failed page: the first page again, or the one that failed. */
+  protected retryLibrary(): void {
+    this.loadLibrary(this.libItems().length === 0);
   }
 
   private loadLibrary(reset: boolean): void {
@@ -434,7 +443,7 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
             this.loadingMore.set(false);
           }
 
-          if (this.sentinelIntersecting && this.hasMore()) {
+          if (this.sentinelIntersecting && this.hasMore() && !this.inLibrary()) {
             this.loadNextPage();
           }
         }),
@@ -638,7 +647,7 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
             return;
           }
 
-          if (this.inFlight() || !this.hasMore()) {
+          if (this.inFlight() || !this.hasMore() || this.inLibrary()) {
             return;
           }
 
