@@ -122,7 +122,17 @@ export class FilterChipComponent implements FilterChipHandle {
   }
 
   close(): void {
+    // Closed from inside the list under the chip (an option, Clear, Done):
+    // focus goes back to the chip, not to the top of the page. A sheet on a
+    // phone puts it back itself; a click elsewhere leaves focus there.
+    const host = this.host.nativeElement;
+    const focused = host.ownerDocument.activeElement;
+    const fromInside =
+      this.open() && !this.phone() && !!focused && focused !== host && host.contains(focused);
     this.open.set(false);
+    if (fromInside) {
+      (host.querySelector('.filter-chip') as HTMLElement | null)?.focus();
+    }
   }
 
   /** A tap or click anywhere else closes the list under the chip. */
