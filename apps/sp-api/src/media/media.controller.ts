@@ -14,10 +14,14 @@ export class MediaController {
   /** The vivid colour of a catalog picture, for the "Match the artwork" accent. */
   @Get('accent')
   async getAccent(
-    @Query('url') url: string | undefined,
+    @Query('url') url: unknown,
   ): Promise<{ color: string | null }> {
+    // One address only: ?url=a&url=b arrives as a list.
     return {
-      color: url ? await this.artworkColor.colorOf(url.slice(0, 2048)) : null,
+      color:
+        typeof url === 'string' && url
+          ? await this.artworkColor.colorOf(url.slice(0, 2048))
+          : null,
     };
   }
 

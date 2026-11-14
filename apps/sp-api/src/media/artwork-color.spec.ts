@@ -1,23 +1,28 @@
 import sharp from 'sharp';
 import { ArtworkColorService } from './artwork-color.service';
-import { allowedImageHost, vividColor } from './artwork-color.util';
+import { catalogImageUrl, vividColor } from './artwork-color.util';
 
 describe('artwork colour', () => {
-  it('only fetches from the catalog’s own sites', () => {
+  it('only fetches from the catalog’s own sites, at an address it builds', () => {
     const hosts = ['stashdb.org'];
-    expect(
-      allowedImageHost(new URL('https://cdn.stashdb.org/images/a'), hosts),
-    ).toBe(true);
-    expect(
-      allowedImageHost(new URL('https://stashdb.org/images/a'), hosts),
-    ).toBe(true);
-    expect(allowedImageHost(new URL('https://evilstashdb.org/a'), hosts)).toBe(
-      false,
+    const at = (raw: string) =>
+      catalogImageUrl(new URL(raw), hosts)?.href ?? null;
+    expect(at('https://cdn.stashdb.org/images/a?x=1')).toBe(
+      'https://cdn.stashdb.org/images/a?x=1',
     );
-    expect(allowedImageHost(new URL('http://192.168.1.10/a'), hosts)).toBe(
-      false,
+    expect(at('https://stashdb.org/images/a')).toBe(
+      'https://stashdb.org/images/a',
     );
-    expect(allowedImageHost(new URL('file:///etc/passwd'), hosts)).toBe(false);
+    expect(at('https://evilstashdb.org/a')).toBeNull();
+    expect(at('https://evil.cdn.stashdb.org/a')).toBeNull();
+    expect(at('https://user:pw@stashdb.org.evil.com/a')).toBeNull();
+    expect(at('http://192.168.1.10/a')).toBeNull();
+    expect(at('file:///etc/passwd')).toBeNull();
+    // A self-hosted catalog on its own port.
+    expect(
+      catalogImageUrl(new URL('http://box.lan:9998/img/a'), ['box.lan:9998'])
+        ?.href,
+    ).toBe('http://box.lan:9998/img/a');
   });
 
   it('picks the vivid hue, and nothing from a grey picture', () => {
