@@ -53,7 +53,7 @@ export const SETTINGS_SECTIONS: readonly SettingsNavItem[] = [
     group: 'behaviour',
     route: '/settings/notifications',
     icon: 'pi-bell',
-    detail: 'Get told when your requests download',
+    detail: 'Get told when wanted scenes download',
   },
   {
     label: 'Automation',

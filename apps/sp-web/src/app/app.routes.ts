@@ -12,6 +12,7 @@ import {
   requireSetupCompleteGuard,
   setupOnlyWhenIncompleteGuard,
 } from './core/guards/setup-route.guard';
+import { unsavedChangesGuard } from './core/navigation/unsaved-changes.guard';
 import { AppShellLayoutComponent } from './layouts/app-shell-layout/app-shell-layout.component';
 import { UnreachablePageComponent } from './features/unreachable/unreachable-page.component';
 
@@ -322,6 +323,7 @@ export const routes: Routes = [
           },
           {
             path: 'notifications',
+            canDeactivate: [unsavedChangesGuard],
             loadComponent: () =>
               import('./pages/settings/settings-notifications-page.component').then(
                 (m) => m.SettingsNotificationsPageComponent,
@@ -336,6 +338,7 @@ export const routes: Routes = [
           },
           {
             path: 'hidden',
+            canDeactivate: [unsavedChangesGuard],
             loadComponent: () =>
               import('./pages/settings/settings-hidden-page.component').then(
                 (m) => m.SettingsHiddenPageComponent,
@@ -350,6 +353,7 @@ export const routes: Routes = [
           },
           {
             path: 'appearance',
+            canDeactivate: [unsavedChangesGuard],
             loadComponent: () =>
               import('./pages/settings/settings-appearance-page.component').then(
                 (m) => m.SettingsAppearancePageComponent,
