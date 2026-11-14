@@ -300,6 +300,14 @@ export class AutomationService
       `${waiting.length} scene(s) Whisparr has a file for aren't in Stash yet; checking them.`,
     );
     if (scanOnImport) {
+      // Just the folders Whisparr put their files in, never the whole
+      // library: a scene that never turns up would otherwise rescan
+      // everything again and again.
+      const files =
+        (await this.organizer
+          ?.whisparrFilesFor(waiting.map((row) => row.stashId))
+          .catch(() => [] as string[])) ?? [];
+      files.forEach((file) => this.pendingLocalFolders.add(parentFolder(file)));
       await this.run(
         'detected',
         waiting.map((row) => row.stashId),
@@ -428,16 +436,21 @@ export class AutomationService
       await this.record(
         reason,
         'RUNNING',
-        folders
-          ? reason === 'files'
-            ? `Scanning ${folders.length === 1 ? 'a folder' : `${folders.length} folders`} with new files in Stash…`
-            : `Scanning ${folders.length === 1 ? 'the imported folder' : `${folders.length} imported folders`} in Stash…`
-          : 'Scanning Stash for new files…',
+        folders !== null && folders.length === 0
+          ? 'Nothing new to scan; checking what Stash already has…'
+          : folders
+            ? reason === 'files'
+              ? `Scanning ${folders.length === 1 ? 'a folder' : `${folders.length} folders`} with new files in Stash…`
+              : `Scanning ${folders.length === 1 ? 'the imported folder' : `${folders.length} imported folders`} in Stash…`
+            : 'Scanning Stash for new files…',
       );
 
-      const scanJob = folders
-        ? await this.stash.scanLibraryFolders(config, folders)
-        : await this.stash.startLibraryTask(config, 'scan');
+      const scanJob =
+        folders === null
+          ? await this.stash.startLibraryTask(config, 'scan')
+          : folders.length > 0
+            ? await this.stash.scanLibraryFolders(config, folders)
+            : null;
       const scanResult = scanJob
         ? await this.stash.waitForJob(config, scanJob, { sleep: this.sleep })
         : 'FINISHED';
@@ -904,6 +917,11 @@ export class AutomationService
     return false;
   }
 
+  /**
+   * The folders to scan, as Stash sees them. Null means the whole library,
+   * which only Run now asks for: on its own, Stashboard scans just where
+   * new files are, and an empty list means there's nothing to scan.
+   */
   private async foldersToScan(
     reason: AutomationReason,
     config: StashAdapterBaseConfig,
@@ -914,12 +932,16 @@ export class AutomationService
     this.pendingFolders = new Set();
     this.pendingLocalFolders = new Set();
     this.pendingFullScan = false;
-    if (
-      !['webhook', 'files'].includes(reason) ||
-      fullScan ||
-      folders.length + local.length === 0
-    ) {
+    if (reason === 'manual') {
       return null;
+    }
+    if (fullScan) {
+      this.logger.warn(
+        'Whisparr sent an import without its folder, so it isn’t scanned on its own. Run now scans the whole library if it doesn’t show up.',
+      );
+    }
+    if (folders.length + local.length === 0) {
+      return [];
     }
     try {
       const [settings, roots] = await Promise.all([
@@ -932,18 +954,18 @@ export class AutomationService
       const inLibrary = (folder: string) =>
         roots.some((root) => isInsideFolder(folder, root));
       const all = [...new Set([...mapped, ...local])];
-      if (!all.every(inLibrary)) {
-        this.logger.debug(
-          'An imported folder is outside Stash’s library folders; scanning everything.',
+      const outside = all.filter((folder) => !inLibrary(folder));
+      if (outside.length > 0) {
+        this.logger.warn(
+          `Not scanning ${outside.join(', ')}: ${outside.length === 1 ? 'it isn’t' : 'they aren’t'} inside any of Stash’s library folders. Check the Whisparr → Stash path mapping in Settings → Automation → Rename files.`,
         );
-        return null;
       }
-      return all;
+      return all.filter(inLibrary);
     } catch (error) {
-      this.logger.debug(
-        `Couldn't work out which folders to scan, so scanning everything: ${messageOf(error)}`,
+      this.logger.warn(
+        `Couldn't work out which folders to scan, so nothing was scanned this time: ${messageOf(error)}`,
       );
-      return null;
+      return [];
     }
   }
 
