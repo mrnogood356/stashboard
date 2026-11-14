@@ -20,16 +20,20 @@ const OWN_GESTURES = ['/watch', '/feed'];
         class="pull"
         role="status"
         [class.ready]="pulled() >= threshold"
+        [class.reloading]="reloading()"
         [style.transform]="'translate(-50%, ' + (Math.min(pulled(), threshold * 1.4) - 44) + 'px)'"
+        [style.opacity]="Math.min(1, pulled() / (threshold * 0.6))"
       >
-        <i
-          class="pi"
-          [class.pi-arrow-down]="!reloading()"
-          [class.pi-spinner]="reloading()"
-          [class.pi-spin]="reloading()"
-          [style.transform]="'rotate(' + (pulled() >= threshold ? 180 : 0) + 'deg)'"
-          aria-hidden="true"
-        ></i>
+        @if (reloading()) {
+          <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
+        } @else {
+          <!-- Points up once letting go reloads. -->
+          <i
+            class="pi pi-arrow-down"
+            [style.transform]="pulled() >= threshold ? 'rotate(180deg)' : null"
+            aria-hidden="true"
+          ></i>
+        }
         <span class="visually-hidden">{{
           reloading() ? 'Reloading' : pulled() >= threshold ? 'Let go to reload' : 'Pull to reload'
         }}</span>
@@ -37,7 +41,7 @@ const OWN_GESTURES = ['/watch', '/feed'];
     }
   `,
   styles: `
-    /* Takes no place in the page's layout: only its arrow shows, fixed on top. */
+    /* Takes no place in the page's layout: only its round marker shows, fixed on top. */
     :host {
       display: contents;
     }
@@ -48,19 +52,25 @@ const OWN_GESTURES = ['/watch', '/feed'];
       z-index: 1200;
       display: grid;
       place-items: center;
-      width: 2.5rem;
-      height: 2.5rem;
+      width: 2.25rem;
+      height: 2.25rem;
       border-radius: 50%;
       background: var(--surface-elevated, var(--surface-1));
-      color: var(--text-muted);
-      box-shadow: 0 6px 18px rgb(0 0 0 / 30%);
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      box-shadow: 0 4px 14px rgb(0 0 0 / 28%);
       pointer-events: none;
-    }
-    .pull.ready {
-      color: var(--accent);
+      transition:
+        background-color 0.15s ease,
+        color 0.15s ease;
     }
     .pull .pi {
       transition: transform 0.15s ease;
+    }
+    .pull.ready,
+    .pull.reloading {
+      background: var(--accent);
+      color: var(--accent-contrast, #fff);
     }
   `,
 })
