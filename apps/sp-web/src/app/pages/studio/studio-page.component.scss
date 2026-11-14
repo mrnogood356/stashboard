@@ -581,6 +581,17 @@ ul {
   display: none;
 }
 
+/* With no picture behind them, the name and aliases sit on the page itself:
+   the page's text colours, so they read in the light theme too. The chips
+   keep their own dark fill and light text. */
+.hero-info {
+  color: var(--text-primary);
+}
+
+.aliases {
+  color: var(--text-secondary);
+}
+
 .hero-layout {
   padding: 0.25rem 0 0;
   gap: 2rem;
