@@ -260,7 +260,7 @@ describe('ScenePageComponent', () => {
   it('keeps the normal request CTA for NOT_REQUESTED scenes', async () => {
     const { fixture } = await renderScene(buildScene());
 
-    expect(fixture.nativeElement.textContent).toContain('Request in Whisparr');
+    expect(fixture.nativeElement.textContent).toContain('Add to Wanted');
   });
 
   it('opens the studio on the catalog from its name and its logo', async () => {

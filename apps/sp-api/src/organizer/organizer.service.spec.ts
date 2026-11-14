@@ -164,7 +164,10 @@ describe('OrganizerService', () => {
         update: jest.fn().mockResolvedValue({}),
       },
       sceneIndex: { findMany: jest.fn().mockResolvedValue([]) },
-      sceneStashAlias: { upsert: jest.fn().mockResolvedValue({}) },
+      sceneStashAlias: {
+        upsert: jest.fn().mockResolvedValue({}),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       matchProposal: {
         findMany: jest.fn(() =>
           Promise.resolve(
@@ -253,6 +256,7 @@ describe('OrganizerService', () => {
       requestImmediateRefresh: jest.fn().mockResolvedValue(undefined),
     };
     handoff = {
+      noteNotInStash: jest.fn(),
       send: jest.fn().mockResolvedValue({ sent: [], skipped: {}, failed: [] }),
       isAvailable: jest.fn().mockResolvedValue(true),
       missingInWhisparr: jest.fn().mockResolvedValue([]),
@@ -565,7 +569,23 @@ describe('OrganizerService', () => {
 
       await service.sendMissingDaily();
 
-      expect(start).toHaveBeenCalledWith(true);
+      expect(start).toHaveBeenCalledWith(true, null);
+    });
+
+    it('with “Also add scenes Whisparr doesn’t have” on, adds the last two days’ new scenes too', async () => {
+      settings.sendToWhisparr = true;
+      settings.addToWhisparr = true;
+      handoff.missingInWhisparr.mockResolvedValue([]);
+      const start = jest
+        .spyOn(service, 'startSendAll')
+        .mockReturnValue(service.status());
+
+      await service.sendMissingDaily();
+
+      expect(start).toHaveBeenCalledWith(false, expect.any(Date));
+      const since = start.mock.calls[0][1] as Date;
+      expect(Date.now() - since.getTime()).toBeGreaterThan(47 * 3600_000);
+      expect(Date.now() - since.getTime()).toBeLessThan(49 * 3600_000);
     });
 
     it('does nothing when it is off or nothing is missing', async () => {
@@ -993,6 +1013,81 @@ describe('OrganizerService', () => {
       kind: 'whisparr',
     });
     expect(service.status().message).toBe('Sent 1 to Whisparr.');
+  });
+
+  it('sends the file of a scene you said is the same as another, to Whisparr’s entry', async () => {
+    handoff.missingInWhisparr.mockResolvedValue(['sdb-whisparr']);
+    prisma.sceneStashAlias.findMany.mockResolvedValue([
+      { stashId: 'sdb-whisparr', aliasOf: 'sdb-stash' },
+    ]);
+    const inStash = localScene({
+      id: '31',
+      stashIds: [
+        { endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-stash' },
+      ],
+    });
+    stash.findOrganizerScenes.mockImplementation(
+      (
+        _config: unknown,
+        query: { sceneFilter: { stash_id_endpoint: { stash_id: string } } },
+      ) =>
+        Promise.resolve(
+          query.sceneFilter.stash_id_endpoint.stash_id === 'sdb-stash'
+            ? { total: 1, items: [inStash] }
+            : { total: 0, items: [] },
+        ),
+    );
+    handoff.send.mockResolvedValue({ sent: [], skipped: {}, failed: [] });
+
+    service.startSendAll();
+    await waitUntilIdle(service);
+
+    const [, sent] = handoff.send.mock.calls[0] as [
+      unknown,
+      Array<{ id: string; stashIds: unknown[] }>,
+    ];
+    expect(sent).toHaveLength(1);
+    expect(sent[0].id).toBe('31');
+    expect(sent[0].stashIds).toEqual([
+      { endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-whisparr' },
+    ]);
+  });
+
+  it('finds the file the other way round too, when Whisparr has the main scene of the pair', async () => {
+    handoff.missingInWhisparr.mockResolvedValue(['sdb-main']);
+    prisma.sceneStashAlias.findMany.mockResolvedValue([
+      { stashId: 'sdb-other', aliasOf: 'sdb-main' },
+    ]);
+    const inStash = localScene({
+      id: '32',
+      stashIds: [
+        { endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-other' },
+      ],
+    });
+    stash.findOrganizerScenes.mockImplementation(
+      (
+        _config: unknown,
+        query: { sceneFilter: { stash_id_endpoint: { stash_id: string } } },
+      ) =>
+        Promise.resolve(
+          query.sceneFilter.stash_id_endpoint.stash_id === 'sdb-other'
+            ? { total: 1, items: [inStash] }
+            : { total: 0, items: [] },
+        ),
+    );
+    handoff.send.mockResolvedValue({ sent: [], skipped: {}, failed: [] });
+
+    service.startSendAll();
+    await waitUntilIdle(service);
+
+    const [, sent] = handoff.send.mock.calls[0] as [
+      unknown,
+      Array<{ id: string; stashIds: unknown[] }>,
+    ];
+    expect(sent.map((scene) => scene.id)).toEqual(['32']);
+    expect(sent[0].stashIds).toEqual([
+      { endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-main' },
+    ]);
   });
 
   it('leaves scenes the rename can name out of Unmatched, so the two don’t undo each other', async () => {
@@ -2740,6 +2835,43 @@ describe('OrganizerService', () => {
       update: { aliasOf: 'sdb-other' },
     });
     expect(stash.applySceneMatch).not.toHaveBeenCalled();
+    expect(indexing.requestImmediateRefresh).toHaveBeenCalledWith(
+      ['sdb-mine'],
+      'waiting-link',
+    );
+  });
+
+  it('links Stash’s scene to Whisparr’s instead when Stash has it under the wrong one', async () => {
+    const scene = localScene({
+      id: '26',
+      stashIds: [
+        { endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-wrong' },
+      ],
+      files: [{ ...localScene().files[0], id: 'f26', path: '/data/d/d.mp4' }],
+    });
+    handoff.filesAsStashSees = jest
+      .fn()
+      .mockResolvedValue([
+        { stashId: 'sdb-mine', filePath: '/data/d/d.mp4', folder: null },
+      ]);
+    stash.findOrganizerScenes.mockResolvedValue({ total: 1, items: [scene] });
+    catalog.getInstanceCatalogProvider.mockResolvedValue({
+      providerKey: 'STASHDB',
+      baseUrl: 'https://stashdb.org',
+      apiKey: 'k',
+    });
+    const link = jest
+      .spyOn(service, 'linkDownloadedScene')
+      .mockResolvedValue({ title: 'Mine' });
+
+    await service.linkToWaitingScene('sdb-mine');
+
+    expect(link).toHaveBeenCalledWith('26', {
+      provider: 'STASHDB',
+      sceneId: 'sdb-mine',
+    });
+    // Not remembered as the same scene: the wrong link is replaced instead.
+    expect(prisma.sceneStashAlias.upsert).not.toHaveBeenCalled();
     expect(indexing.requestImmediateRefresh).toHaveBeenCalledWith(
       ['sdb-mine'],
       'waiting-link',

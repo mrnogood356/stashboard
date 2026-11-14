@@ -170,6 +170,10 @@ const CHECK_MATCHES: TimelineAction = {
   kind: 'check-matches',
   label: 'Check these matches',
 };
+const SAME_SCENE: TimelineAction = {
+  kind: 'same-scene',
+  label: 'It’s the same scene',
+};
 const SCAN: TimelineAction = { kind: 'scan', label: 'Scan in Stash' };
 
 type Draft = Partial<Omit<TimelineStep, 'step' | 'label' | 'status'>> & {
@@ -563,10 +567,15 @@ function librarySteps(
       detail: handoff.error ?? 'Waiting to be linked to this scene.',
       action: CHECK_MATCHES,
     };
-  } else if (
-    waiting?.kind === 'not-linked' ||
-    waiting?.kind === 'other-scene'
-  ) {
+  } else if (waiting?.kind === 'other-scene') {
+    // Matched already, to another catalog entry: Match scenes has nothing
+    // to show for it. Saying it's the same scene is the fix.
+    drafts.matched = {
+      status: 'failed',
+      detail: waiting.reason,
+      action: SAME_SCENE,
+    };
+  } else if (waiting?.kind === 'not-linked') {
     drafts.matched = {
       status: 'failed',
       detail: waiting.reason,
@@ -696,7 +705,8 @@ function nowLine(steps: TimelineStep[]): string {
   if (!next) {
     return done?.label ?? 'Not requested';
   }
-  const reached = done?.label ?? 'Requested';
+  // Requested and nothing since: it's wanted.
+  const reached = !done || done.step === 'requested' ? 'Wanted' : done.label;
   return next.status === 'unknown'
     ? `${reached} · ${next.label.toLowerCase()}: unknown`
     : `${reached} · next: ${next.label.toLowerCase()}`;

@@ -299,7 +299,7 @@ describe('SettingsIntegrationsPageComponent', () => {
 
     // The other provider is offered for browsing only and isn't a required service.
     expect(component.sectionLabel('FANSDB')).toBe('Optional browse provider');
-    expect(component.catalogProviderHelp('FANSDB')).toContain('Requests keep using StashDB');
+    expect(component.catalogProviderHelp('FANSDB')).toContain('Wanted scenes keep using StashDB');
     expect(component.readinessSummary('FANSDB')).toBe(
       'FansDB is not added. Enter its URL and API key, then Save & Test to browse it.',
     );

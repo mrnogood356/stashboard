@@ -28,7 +28,7 @@ describe('OwnedCopiesWarningComponent', () => {
     whisparrUrl: 'http://whisparr.local/movie/3',
   };
 
-  async function render(copies: OwnedCopy[], proceedLabel = 'Request anyway') {
+  async function render(copies: OwnedCopy[], proceedLabel = 'Want anyway') {
     await TestBed.configureTestingModule({
       imports: [OwnedCopiesWarningComponent],
       providers: [provideRouter([])],

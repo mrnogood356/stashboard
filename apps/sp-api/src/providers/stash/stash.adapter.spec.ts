@@ -661,8 +661,10 @@ describe('StashAdapter', () => {
       const lane = adapter as unknown as {
         lanePollMs: number;
         laneSleep: (ms: number) => Promise<void>;
+        startGraceMs: number;
       };
       lane.lanePollMs = 0;
+      lane.startGraceMs = 0;
       // Each look at a busy queue waits until the test says Stash moved on.
       lane.laneSleep = () =>
         new Promise<void>((resolve) => {
@@ -711,6 +713,15 @@ describe('StashAdapter', () => {
       });
     });
 
+    it('goes ahead once Stash’s queue has been stuck too long', async () => {
+      (adapter as unknown as { laneMaxWaitMs: number }).laneMaxWaitMs = 0;
+      queue = [{ id: '9', status: 'READY' }];
+      await expect(
+        adapter.scanLibraryFolders(config, ['/data/stuck']),
+      ).resolves.toBe('51');
+      expect(sent()).toHaveLength(1);
+    });
+
     it('makes one Generate for every scene asked while Stash is busy', async () => {
       queue = [{ id: '9', status: 'READY' }];
       const asks = ['1', '2', '3'].map((id) =>
@@ -752,6 +763,17 @@ describe('StashAdapter', () => {
       ).resolves.toBe('52');
     });
 
+    it('gives a second ask for the same scenes the job being started, not another', async () => {
+      const first = adapter.startLibraryTask(config, 'generate', ['1']);
+      await settle();
+      // Running in Stash now: a second ask for the scene gets the same job.
+      queue = [{ id: '51', status: 'RUNNING' }];
+      const second = adapter.startLibraryTask(config, 'generate', ['1']);
+      await expect(first).resolves.toBe('51');
+      await expect(second).resolves.toBe('51');
+      expect(sent()).toHaveLength(1);
+    });
+
     it('starts what you asked for straight away, busy or not', async () => {
       queue = [{ id: '9', status: 'READY' }];
       await expect(
@@ -776,18 +798,26 @@ describe('StashAdapter', () => {
       await expect(adapter.requestFolderScan(config, '/data/a')).resolves.toBe(
         '51',
       );
-      // Finished: said once, so the caller can look for the file; the ask
-      // after that is a new scan.
+      // Finished: still that scan, until it has been looked at.
       queue = [];
       await expect(adapter.requestFolderScan(config, '/data/a')).resolves.toBe(
-        'scanned',
+        '51',
       );
+      adapter.forgetFolderScan(config, '/data/a/');
+      // Stash is free: the new scan starts at once.
       await expect(adapter.requestFolderScan(config, '/data/a')).resolves.toBe(
-        'waiting',
+        '52',
       );
       await settle();
       await settle();
       expect(sent()).toHaveLength(2);
+    });
+
+    it('hands back the scan at once when Stash is free, so one check can follow it', async () => {
+      (adapter as unknown as { startGraceMs: number }).startGraceMs = 1_000;
+      await expect(adapter.requestFolderScan(config, '/data/b')).resolves.toBe(
+        '51',
+      );
     });
 
     it('doesn’t scan a folder twice when asked again while its scan is being started', async () => {

@@ -103,4 +103,34 @@ describe('artwork colour', () => {
       global.fetch = realFetch;
     }
   });
+
+  it('stops reading a picture that runs past the size limit with no length given', async () => {
+    let sent = 0;
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        sent += 1024 * 1024;
+        controller.enqueue(new Uint8Array(1024 * 1024));
+      },
+    });
+    const realFetch = global.fetch;
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(new Response(endless, { status: 200 })) as never;
+    try {
+      const prisma = {
+        integrationConfig: {
+          findMany: jest
+            .fn()
+            .mockResolvedValue([{ baseUrl: 'https://stashdb.org/graphql' }]),
+        },
+      };
+      const service = new ArtworkColorService(prisma as never);
+      await expect(
+        service.colorOf('https://cdn.stashdb.org/images/huge.jpg'),
+      ).resolves.toBeNull();
+      expect(sent).toBeLessThan(12 * 1024 * 1024);
+    } finally {
+      global.fetch = realFetch;
+    }
+  });
 });

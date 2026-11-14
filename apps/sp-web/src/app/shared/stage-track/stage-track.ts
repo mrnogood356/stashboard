@@ -6,12 +6,7 @@ export interface Stage {
   state: 'done' | 'current' | 'failed' | 'todo';
 }
 
-export const STAGE_LABELS = [
-  'Requested',
-  'Downloading',
-  'Waiting for Stash',
-  'In library',
-] as const;
+export const STAGE_LABELS = ['Wanted', 'Downloading', 'Waiting for Stash', 'In library'] as const;
 
 /**
  * The four steps with where it is now. `at` is the step it's on (0–3);
@@ -62,7 +57,7 @@ export function stagesForStatus(state: SceneStatusState, queueState?: string | n
 export function stageNowText(stages: Stage[]): string {
   const index = stages.findIndex((stage) => stage.state === 'current' || stage.state === 'failed');
   if (index === -1) {
-    return stages.every((stage) => stage.state === 'done') ? 'In library' : 'Not requested';
+    return stages.every((stage) => stage.state === 'done') ? 'In library' : 'Not added';
   }
   const stage = stages[index];
   return `Step ${index + 1} of ${stages.length} · ${stage.label}${stage.state === 'failed' ? ' failed' : ''}`;

@@ -122,6 +122,6 @@ describe('PageTabsComponent', () => {
     expect(root.querySelector('[data-testid="page-tabs-search"]')).toBeNull();
     expect(
       Array.from(root.querySelectorAll('.page-tab')).map((tab) => tab.textContent?.trim()),
-    ).toEqual(['Requests', 'Downloads']);
+    ).toEqual(['Wanted', 'Downloads']);
   });
 });

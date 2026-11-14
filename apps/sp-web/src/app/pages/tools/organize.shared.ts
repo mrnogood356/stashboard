@@ -9,7 +9,7 @@ export type OrganizeTab = 'overview' | 'review' | 'settings';
 export type OrganizeTool = 'match' | 'rename';
 
 /** Rows on the Overview that open to show their details. */
-export type OrganizeDetail = 'repair' | 'relocate' | 'rename' | 'skipped' | 'empty';
+export type OrganizeDetail = 'repair' | 'relocate' | 'rename' | 'skipped' | 'empty' | 'missing';
 
 export const CONFIDENCE: Record<MatchConfidence, string> = {
   exact: 'Same video',

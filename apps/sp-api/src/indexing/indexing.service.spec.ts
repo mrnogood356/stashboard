@@ -777,6 +777,34 @@ describe('IndexingService', () => {
     );
   });
 
+  it('counts both scenes of a same-scene pair as in Stash, whichever one Stash has', async () => {
+    const { prisma } = createPrismaMock({
+      aliases: [{ stashId: 'scene-alias', aliasOf: 'scene-main' }],
+    });
+    const service = new IndexingService(
+      prisma,
+      integrationsService,
+      catalogProviderService,
+      whisparrAdapter,
+      stashAdapter,
+      stashdbAdapter,
+      syncStateService,
+    );
+    const withAliases = (ids: string[]) =>
+      (
+        service as unknown as {
+          withAliases: (ids: Set<string>) => Promise<Set<string>>;
+        }
+      ).withAliases(new Set(ids));
+
+    await expect(withAliases(['scene-main'])).resolves.toEqual(
+      new Set(['scene-main', 'scene-alias']),
+    );
+    await expect(withAliases(['scene-alias'])).resolves.toEqual(
+      new Set(['scene-alias', 'scene-main']),
+    );
+  });
+
   it('bootstraps a fresh request row into the local scene index', async () => {
     const { prisma, sceneIndexStore } = createPrismaMock({
       requestRows: [
@@ -1039,7 +1067,8 @@ describe('IndexingService', () => {
             tagIds: ['tag-1'],
             tagNames: ['Tag One'],
             releaseDate: '2026-03-24',
-            duration: 1800,
+            // Stash's lengths have decimals; the index keeps whole seconds.
+            duration: 1800.4,
             viewUrl: 'http://stash.local/scenes/local-1',
             createdAt: new Date('2026-03-23T00:00:00.000Z'),
             updatedAt: new Date('2026-03-24T00:00:00.000Z'),

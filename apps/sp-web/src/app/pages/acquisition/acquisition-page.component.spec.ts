@@ -265,6 +265,7 @@ describe('AcquisitionPageComponent', () => {
         }),
       ),
       markSameScene: vi.fn(() => of({ checked: 1, fixed: 1, left: [] })),
+      linkToWaitingScene: vi.fn(() => of({ checked: 1, fixed: 1, left: [] })),
     };
     const notifications = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
     const timelineApi = {
@@ -405,7 +406,7 @@ describe('AcquisitionPageComponent', () => {
     const root = fixture.nativeElement as HTMLElement;
 
     expect(stageStates(root, 'scene-downloading')).toEqual([
-      'Requested:done',
+      'Wanted:done',
       'Downloading:current',
       'Waiting for Stash:todo',
       'In library:todo',
@@ -669,7 +670,7 @@ describe('AcquisitionPageComponent', () => {
       sort: 'status',
     });
     expect(failedTab?.textContent).toContain('1');
-    expect(lifecycleHeadings).toEqual(['Failed', 'Downloading', 'Requested']);
+    expect(lifecycleHeadings).toEqual(['Failed', 'Downloading', 'Wanted']);
     // In plain words, with Whisparr's own words beneath.
     expect(text).toContain(
       'The download stalled: nobody was sending the file. Pick another release.',
@@ -728,6 +729,12 @@ describe('AcquisitionPageComponent', () => {
     const card = fixture.nativeElement.querySelector('[data-state="IMPORT_PENDING"]');
     expect(card?.textContent).toContain('different StashDB scene');
     expect(card?.textContent).toContain('/data/a/a.mp4');
+    // Or it's another scene: match it to this one, or pick another match.
+    expect(card?.querySelector('[data-testid="card-link-here-scene-waiting"]')).not.toBeNull();
+    const pick = Array.from<HTMLAnchorElement>(card?.querySelectorAll('a') ?? []).find((link) =>
+      link.textContent?.includes('Pick a different match'),
+    );
+    expect(pick?.getAttribute('href')).toBe('/tools/match?q=a&scope=all');
 
     (
       fixture.nativeElement.querySelector(
@@ -925,7 +932,7 @@ describe('AcquisitionPageComponent', () => {
     const headings = Array.from(
       fixture.nativeElement.querySelectorAll('.lifecycle-section h3') as NodeListOf<HTMLElement>,
     ).map((element) => element.textContent?.trim());
-    expect(headings).toEqual(['Failed', 'Downloading', 'Waiting for Stash', 'Requested']);
+    expect(headings).toEqual(['Failed', 'Downloading', 'Waiting for Stash', 'Wanted']);
   });
 
   it('searches after a pause and keeps the search in the address', async () => {

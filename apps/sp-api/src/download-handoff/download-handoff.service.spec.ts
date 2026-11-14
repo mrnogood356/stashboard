@@ -179,6 +179,9 @@ describe('DownloadHandoffService', () => {
       getLibraryRoots: jest.fn().mockResolvedValue([library]),
       scanLibraryFolders: jest.fn().mockResolvedValue('job-1'),
       requestFolderScan: jest.fn().mockResolvedValue('job-1'),
+      forgetFolderScan: jest.fn(),
+      findScenesByStashId: jest.fn().mockResolvedValue([]),
+      getOrganizerScene: jest.fn().mockResolvedValue(null),
       waitForJob: jest.fn().mockResolvedValue('FINISHED'),
       sceneIdsForPaths: jest.fn().mockResolvedValue(['77']),
       startLibraryTask: jest.fn().mockResolvedValue('job-2'),
@@ -405,7 +408,8 @@ describe('DownloadHandoffService', () => {
       // Waits its turn, then has run: never found.
       stash.requestFolderScan
         .mockResolvedValueOnce('waiting')
-        .mockResolvedValueOnce('scanned');
+        .mockResolvedValueOnce('job-2');
+      stash.waitForJob.mockResolvedValue('FINISHED');
 
       await service.checkOpen();
       expect(row()).toMatchObject({ attempts: 0 });
@@ -882,6 +886,62 @@ describe('DownloadHandoffService', () => {
       expect(
         await exists(path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv')),
       ).toBe(true);
+    });
+
+    it('finds the scene in Stash by its catalog link once the file was moved, without scanning again', async () => {
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      rows.push(handoff({ id: 'h1' }));
+      await write(video());
+      sabnzbd.history.mockResolvedValue([historyEntry()]);
+      await service.checkOpen();
+      expect(row()).toMatchObject({ status: 'completed', attempts: 1 });
+
+      // Renamed into its own folder meanwhile, and linked in Stash.
+      const movedTo = path.join(destination, 'Studio', 'Beach Day.mkv');
+      await fs.rm(path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'));
+      stash.findScenesByStashId.mockResolvedValue([{ id: '88' }]);
+      stash.getOrganizerScene.mockResolvedValue({ files: [{ path: movedTo }] });
+      stash.requestFolderScan.mockClear();
+
+      await service.checkOpen();
+      expect(stash.requestFolderScan).not.toHaveBeenCalled();
+      expect(organizer.linkDownloadedScene).toHaveBeenCalledWith(
+        '88',
+        expect.anything(),
+      );
+      expect(row()).toMatchObject({ status: 'imported', stashSceneId: '88' });
+    });
+
+    it('with an older copy in Stash too, links the scene that has this download’s file', async () => {
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      rows.push(handoff({ id: 'h1' }));
+      await write(video());
+      sabnzbd.history.mockResolvedValue([historyEntry()]);
+      await service.checkOpen();
+
+      const movedTo = path.join(
+        destination,
+        'Studio',
+        'Jane.Doe.Beach.Day.1080p.mkv',
+      );
+      await fs.rm(path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'));
+      stash.findScenesByStashId.mockResolvedValue([{ id: '70' }, { id: '88' }]);
+      stash.getOrganizerScene.mockImplementation(
+        (_config: unknown, id: string) =>
+          Promise.resolve({
+            files: [{ path: id === '70' ? '/library/old-copy.mp4' : movedTo }],
+          }),
+      );
+
+      await service.checkOpen();
+      expect(organizer.linkDownloadedScene).toHaveBeenCalledWith(
+        '88',
+        expect.anything(),
+      );
+      expect(organizer.linkDownloadedScene).not.toHaveBeenCalledWith(
+        '70',
+        expect.anything(),
+      );
     });
 
     it('does nothing while turned off', async () => {

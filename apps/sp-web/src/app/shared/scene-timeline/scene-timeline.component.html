@@ -49,6 +49,25 @@
             @if (step.action; as action) {
               @if (actionLink[action.kind]; as link) {
                 <a class="timeline-action" [routerLink]="link">{{ action.label }}</a>
+              } @else if (action.kind === 'same-scene') {
+                <button
+                  type="button"
+                  class="timeline-action"
+                  data-testid="timeline-action-same-scene"
+                  [disabled]="linking()"
+                  (click)="markSameScene()"
+                >
+                  {{ linking() ? 'Linking…' : action.label }}
+                </button>
+                <button
+                  type="button"
+                  class="timeline-action"
+                  data-testid="timeline-action-link-here"
+                  [disabled]="linking()"
+                  (click)="linkHere()"
+                >
+                  Link the file to this scene
+                </button>
               } @else if (action.kind === 'open-whisparr') {
                 @if (whisparrUrl) {
                   <a

@@ -375,12 +375,93 @@ export abstract class OrganizerFiles extends OrganizerCore {
   // ---------- Whisparr ----------
 
   /**
+   * Stash's scene for each of Whisparr's catalog scenes, by its link. For a
+   * scene you said is the same as another, Stash has the file under that
+   * other one: it's found there and handed back as Whisparr's scene, so its
+   * file goes to Whisparr's entry.
+   */
+  protected async stashScenesForWhisparr(
+    config: StashAdapterBaseConfig,
+    endpoint: string,
+    stashIds: string[],
+  ): Promise<Map<string, StashOrganizerScene>> {
+    // "Same scene" works both ways: Whisparr may have either id of the pair.
+    const pairs = await this.prisma.sceneStashAlias
+      .findMany({
+        where: {
+          OR: [{ stashId: { in: stashIds } }, { aliasOf: { in: stashIds } }],
+        },
+      })
+      .catch(() => [] as Array<{ stashId: string; aliasOf: string }>);
+    const othersOf = (stashId: string) =>
+      pairs.flatMap((row) =>
+        row.stashId === stashId
+          ? [row.aliasOf]
+          : row.aliasOf === stashId
+            ? [row.stashId]
+            : [],
+      );
+    const findLinked = (stashId: string) =>
+      this.stash
+        .findOrganizerScenes(config, {
+          page: 1,
+          perPage: 1,
+          sceneFilter: {
+            stash_id_endpoint: {
+              endpoint,
+              stash_id: stashId,
+              modifier: 'EQUALS',
+            },
+          },
+        })
+        .then((found) => found.items[0] ?? null)
+        .catch(() => null);
+    const found = new Map<string, StashOrganizerScene>();
+    const lookUp = async (stashId: string) => {
+      const direct = await findLinked(stashId);
+      if (direct) {
+        found.set(stashId, direct);
+        return;
+      }
+      for (const other of othersOf(stashId)) {
+        const viaOther = await findLinked(other);
+        if (viaOther) {
+          found.set(stashId, {
+            ...viaOther,
+            stashIds: [
+              ...viaOther.stashIds.filter(
+                (entry) => entry.endpoint !== endpoint,
+              ),
+              { endpoint, stashId },
+            ],
+          });
+          return;
+        }
+      }
+    };
+    // A few at a time: quick reads, without a long line of one-by-one asks.
+    let next = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(4, stashIds.length) }, async () => {
+        while (next < stashIds.length) {
+          const stashId = stashIds[next];
+          next += 1;
+          await lookUp(stashId);
+        }
+      }),
+    );
+    return found;
+  }
+
+  /**
    * Sends every scene Stash has that Whisparr still shows as missing (and,
    * if that's switched on, scenes Whisparr doesn't know yet).
    */
   startSendAll(
     /** Only scenes Whisparr shows as missing, even with "add new ones" on. */
     missingOnly = false,
+    /** With "add new ones" on, only scenes added to Stash since then. */
+    addedSince: Date | null = null,
   ): OrganizerRunDto {
     this.assertIdle();
     this.runState = {
@@ -403,21 +484,19 @@ export abstract class OrganizerFiles extends OrganizerCore {
           );
         }
         const scenes = new Map<string, StashOrganizerScene>();
-        for (const stashId of await this.handoff.missingInWhisparr()) {
-          const found = await this.stash
-            .findOrganizerScenes(config, {
-              page: 1,
-              perPage: 1,
-              sceneFilter: {
-                stash_id_endpoint: {
-                  endpoint,
-                  stash_id: stashId,
-                  modifier: 'EQUALS',
-                },
-              },
-            })
-            .catch(() => ({ total: 0, items: [] as StashOrganizerScene[] }));
-          found.items.forEach((scene) => scenes.set(scene.id, scene));
+        const missing = await this.handoff.missingInWhisparr();
+        const found = await this.stashScenesForWhisparr(
+          config,
+          endpoint,
+          missing,
+        );
+        for (const stashId of missing) {
+          const scene = found.get(stashId);
+          if (scene) {
+            scenes.set(scene.id, scene);
+          } else {
+            this.handoff.noteNotInStash(stashId);
+          }
         }
         if (settings.addToWhisparr && !missingOnly) {
           for (let page = 1; page <= MAX_BACKLOG / 100; page += 1) {
@@ -426,6 +505,14 @@ export abstract class OrganizerFiles extends OrganizerCore {
               perPage: 100,
               sceneFilter: {
                 stash_id_endpoint: { endpoint, modifier: 'NOT_NULL' },
+                ...(addedSince
+                  ? {
+                      created_at: {
+                        value: addedSince.toISOString(),
+                        modifier: 'GREATER_THAN',
+                      },
+                    }
+                  : {}),
               },
             });
             result.items.forEach((scene) => scenes.set(scene.id, scene));
@@ -725,26 +812,17 @@ export abstract class OrganizerFiles extends OrganizerCore {
           this.runState.message = message;
         });
         const endpoint = await this.handoff.catalogEndpoint(config);
-        const scenes: StashOrganizerScene[] = [];
-        for (const entry of plan.lost) {
-          if (!endpoint) {
-            break;
-          }
-          const result = await this.stash
-            .findOrganizerScenes(config, {
-              page: 1,
-              perPage: 1,
-              sceneFilter: {
-                stash_id_endpoint: {
+        const scenes: StashOrganizerScene[] = endpoint
+          ? [
+              ...(
+                await this.stashScenesForWhisparr(
+                  config,
                   endpoint,
-                  stash_id: entry.stashId,
-                  modifier: 'EQUALS',
-                },
-              },
-            })
-            .catch(() => ({ total: 0, items: [] as StashOrganizerScene[] }));
-          scenes.push(...result.items);
-        }
+                  plan.lost.map((entry) => entry.stashId),
+                )
+              ).values(),
+            ]
+          : [];
         const totals: HandoffResult = { sent: [], skipped: {}, failed: [] };
         // Import into Whisparr's own folders, whatever the copy setting says.
         const moveSettings = { ...settings, whisparrImportMode: 'move' };

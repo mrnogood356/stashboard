@@ -56,7 +56,7 @@ export const JOB_INFO: Record<
   'follow-check': {
     label: 'Check who you follow',
     detail:
-      'Looks for new scenes from the performers and studios you follow. Those set to request on their own go straight to Whisparr.',
+      'Looks for new scenes from the performers and studios you follow. Those set to want new scenes on their own add them to Whisparr.',
     defaults: { enabled: true, hour: 6, minute: 15, days: [] },
   },
 };

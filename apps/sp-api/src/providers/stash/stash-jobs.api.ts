@@ -23,6 +23,8 @@ const KIND_NAMES: Record<BackgroundJobKind, string> = {
 
 /** How often to look whether Stash's queue has room again. */
 const LANE_POLL_MS = 10_000;
+/** A queue stuck this long (a job that never starts) doesn't hold Stashboard up for ever. */
+const LANE_MAX_WAIT_MS = 30 * 60_000;
 
 interface BackgroundBatch {
   kind: BackgroundJobKind;
@@ -48,10 +50,16 @@ export abstract class StashJobsApi extends StashGraphqlClient {
    */
   private readonly lanes = new Map<string, Promise<unknown>>();
   private readonly batches = new Map<string, BackgroundBatch>();
+  /** Batches being handed to Stash right now, until it answers with an id. */
+  private readonly starting = new Map<
+    string,
+    { items: Set<string>; promise: Promise<string | null> }
+  >();
   /** Item → the job that took it, for asks that check back later. */
   private readonly startedFor = new Map<string, string>();
   /** For tests: how long to wait between looks at Stash's queue. */
   protected lanePollMs = LANE_POLL_MS;
+  protected laneMaxWaitMs = LANE_MAX_WAIT_MS;
   protected laneSleep = (ms: number) =>
     new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -85,6 +93,11 @@ export abstract class StashJobsApi extends StashGraphqlClient {
     const batchKey = `${config.baseUrl}|${group}`;
     if (items.length === 0 || this.batches.get(batchKey)) {
       return null;
+    }
+    // Being handed to Stash this very moment: that one does it.
+    const starting = this.starting.get(batchKey);
+    if (starting && items.every((item) => starting.items.has(item))) {
+      return starting.promise;
     }
     const jobs = new Set(
       items.map((item) => this.startedFor.get(`${batchKey}|${item}`) ?? null),
@@ -123,17 +136,16 @@ export abstract class StashJobsApi extends StashGraphqlClient {
       .catch(() => undefined)
       .then(async () => {
         await this.untilStashHasRoom(config);
-        // From here on, new asks start a batch of their own.
+        // From here on, new asks start a batch of their own; ones for the
+        // same items wait for this job's id.
         this.batches.delete(batchKey);
-        // A batch ahead of this one may have taken all of it meanwhile (asked
-        // again while that one was being started): that job does it.
-        const covering = await this.activeJobFor(config, group, [
-          ...batch.items,
-        ]);
-        if (covering) {
-          return covering;
-        }
-        const job = await start([...batch.items]);
+        const handing = start([...batch.items]);
+        this.starting.set(batchKey, { items: batch.items, promise: handing });
+        const job = await handing.finally(() => {
+          if (this.starting.get(batchKey)?.promise === handing) {
+            this.starting.delete(batchKey);
+          }
+        });
         this.logger.log(
           `Started Stash's ${KIND_NAMES[kind]} for ${batch.items.size} ${kind.endsWith('scan') ? 'folder(s)' : kind === 'task' ? 'library task' : 'scene(s)'}${job ? ` (job ${job})` : ''}.`,
         );
@@ -183,14 +195,24 @@ export abstract class StashJobsApi extends StashGraphqlClient {
     this.startedFor.delete(`${config.baseUrl}|${kind}|${item}`);
   }
 
-  /** Waits until no job is waiting its turn in Stash's queue. */
+  /**
+   * Waits until no job is waiting its turn in Stash's queue, or until it has
+   * waited laneMaxWaitMs: a stuck queue gets one job of ours, not none for ever.
+   */
   private async untilStashHasRoom(
     config: StashAdapterBaseConfig,
   ): Promise<void> {
+    const since = Date.now();
     for (;;) {
       const queue = await this.getJobQueue(config).catch(() => null);
       // Can't ask: go ahead rather than wait for ever; Stash queues it.
       if (!queue || !queue.some((job) => job.status === 'READY')) {
+        return;
+      }
+      if (Date.now() - since >= this.laneMaxWaitMs) {
+        this.logger.warn(
+          `Stash's job queue hasn't moved in ${Math.round(this.laneMaxWaitMs / 60_000)} minutes; adding Stashboard's job anyway. Check Stash's Tasks page for a stuck job.`,
+        );
         return;
       }
       await this.laneSleep(this.lanePollMs);
@@ -404,33 +426,38 @@ export abstract class StashJobsApi extends StashGraphqlClient {
   }
 
   /**
-   * Asks for a folder scan without waiting for it: the job's id once it has
-   * started, 'waiting' while it waits its turn behind Stash's other jobs, or
-   * 'scanned' once when the scan asked for earlier has finished.
+   * Asks for a folder scan without waiting for it: 'waiting' while it waits
+   * its turn behind Stash's other jobs, then the job's id, running or done.
+   * Once a finished scan has been looked at, forgetFolderScan lets the next
+   * ask queue a new one: an ask never turns into a scan every check.
    */
-  async requestFolderScan(
+  requestFolderScan(
     config: StashAdapterBaseConfig,
     folder: string,
   ): Promise<string> {
     const path = trimTrailingSeparators(folder);
     const status = this.backgroundStatus(config, 'scan', path);
-    if (status === 'waiting') {
-      return status;
-    }
     if (status) {
-      const job = (await this.getJobQueue(config)).find(
-        (entry) => entry.id === status,
-      );
-      if (job && !['FINISHED', 'FAILED', 'CANCELLED'].includes(job.status)) {
-        return status;
-      }
-      // That scan has run: say so once, so the caller can look for the file
-      // before asking again; the next ask is a new scan.
-      this.forgetBackground(config, 'scan', path);
-      return 'scanned';
+      return Promise.resolve(status);
     }
-    void this.scanLibraryFolders(config, [path]).catch(() => undefined);
-    return 'waiting';
+    // With Stash free it starts at once: wait a moment for that, so the
+    // same check can follow it, rather than saying "busy" until the next.
+    const started = this.scanLibraryFolders(config, [path]).catch(() => null);
+    return Promise.race([
+      started.then((job) => job ?? 'waiting'),
+      new Promise<string>((resolve) => {
+        const timer = setTimeout(() => resolve('waiting'), this.startGraceMs);
+        timer.unref?.();
+      }),
+    ]);
+  }
+
+  /** How long an ask waits for its scan to start before saying "waiting". */
+  protected startGraceMs = 15_000;
+
+  /** The folder's last scan has been looked at: the next ask scans again. */
+  forgetFolderScan(config: StashAdapterBaseConfig, folder: string): void {
+    this.forgetBackground(config, 'scan', trimTrailingSeparators(folder));
   }
 
   private async startFolderScan(

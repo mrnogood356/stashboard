@@ -127,7 +127,7 @@ describe('SceneCardComponent', () => {
     expect(studioBadgeLink?.getAttribute('href')).toContain('/scenes');
     expect(studioBadgeLink?.getAttribute('href')).toContain('studios=studio-1');
     expect(studioBadgeLink?.getAttribute('href')).toContain('studioNames=Studio%20One');
-    expect(requestButton?.textContent?.trim()).toBe('Request');
+    expect(requestButton?.textContent?.trim()).toBe('Want');
 
     requestButton?.click();
 

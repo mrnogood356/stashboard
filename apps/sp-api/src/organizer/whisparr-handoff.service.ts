@@ -27,7 +27,25 @@ export type HandoffSkip =
 export interface HandoffResult {
   sent: Array<{ sceneId: string; title: string }>;
   skipped: Partial<Record<HandoffSkip, number>>;
-  failed: Array<{ sceneId: string; title: string; reason: string }>;
+  /** Catalog scenes Whisparr turned out to have a file for already. */
+  alreadyHad?: string[];
+  failed: Array<{
+    sceneId: string;
+    title: string;
+    reason: string;
+    /** The catalog scene, when known, so the reason can be shown for it. */
+    stashId?: string;
+  }>;
+}
+
+/** Why a scene in Stash hasn't gone to Whisparr, from the last try. */
+export interface MissingInWhisparrScene {
+  stashId: string;
+  title: string | null;
+  studio: string | null;
+  /** Null when it hasn't been tried yet. */
+  reason: string | null;
+  triedAt: string | null;
 }
 
 export interface RepairPlan {
@@ -116,8 +134,85 @@ export class WhisparrHandoffService {
     return (await this.whisparrConfig()) !== null;
   }
 
+  /** Why each scene that didn't go to Whisparr didn't, from its last try. */
+  private readonly sendProblems = new Map<
+    string,
+    { reason: string; at: Date }
+  >();
+
   /** Sends these Stash scenes to Whisparr. Only scenes linked to your main catalog (StashDB) can go. */
   async send(
+    config: StashAdapterBaseConfig,
+    scenes: StashOrganizerScene[],
+    settings: OrganizerSettings,
+    onProgress?: (done: number) => void,
+  ): Promise<HandoffResult> {
+    const result = await this.sendScenes(config, scenes, settings, onProgress);
+    // Whisparr has them after all: what Stashboard knows about them was out
+    // of date, so they'd keep showing as missing.
+    if (result.alreadyHad?.length) {
+      await this.indexing
+        .requestImmediateRefresh(result.alreadyHad, 'whisparr-has-file')
+        .catch(() => undefined);
+      result.alreadyHad.forEach((stashId) => this.sendProblems.delete(stashId));
+    }
+    const now = new Date();
+    for (const failed of result.failed) {
+      if (failed.stashId) {
+        this.sendProblems.set(failed.stashId, {
+          reason: failed.reason,
+          at: now,
+        });
+      }
+    }
+    const sentIds = new Set(result.sent.map((entry) => entry.sceneId));
+    for (const scene of scenes) {
+      if (sentIds.has(scene.id)) {
+        scene.stashIds.forEach((entry) =>
+          this.sendProblems.delete(entry.stashId),
+        );
+      }
+    }
+    return result;
+  }
+
+  /** Stash has no scene linked to it (nor to one it's the same as). */
+  noteNotInStash(stashId: string): void {
+    this.sendProblems.set(stashId, {
+      reason:
+        'Stash has no scene linked to this StashDB scene, so there’s no file to send. Match its file in Match scenes, or say it’s the same scene as the one Stash has.',
+      at: new Date(),
+    });
+  }
+
+  /**
+   * The scenes Whisparr tracks without a file that Stash has, each with why
+   * it didn't go on its last try (or that it hasn't been tried yet).
+   */
+  async missingInWhisparrScenes(): Promise<MissingInWhisparrScene[]> {
+    const rows = await this.prisma.sceneIndex.findMany({
+      where: {
+        whisparrMovieId: { not: null },
+        NOT: { whisparrHasFile: true },
+        stashAvailable: true,
+      },
+      select: { stashId: true, title: true, studioName: true },
+      orderBy: { title: 'asc' },
+      take: 200,
+    });
+    return rows.map((row) => {
+      const problem = this.sendProblems.get(row.stashId);
+      return {
+        stashId: row.stashId,
+        title: row.title ?? null,
+        studio: row.studioName ?? null,
+        reason: problem?.reason ?? null,
+        triedAt: problem?.at.toISOString() ?? null,
+      };
+    });
+  }
+
+  private async sendScenes(
     config: StashAdapterBaseConfig,
     scenes: StashOrganizerScene[],
     settings: OrganizerSettings,
@@ -192,6 +287,7 @@ export class WhisparrHandoffService {
           if (created === null) {
             result.failed.push({
               sceneId: scene.id,
+              stashId,
               title,
               reason: 'Whisparr didn’t add the scene.',
             });
@@ -201,6 +297,7 @@ export class WhisparrHandoffService {
         }
         if (movie.hasFile) {
           skip('already-has-file');
+          (result.alreadyHad ??= []).push(stashId);
           continue;
         }
         const whisparrPath = mapPath(
@@ -218,6 +315,7 @@ export class WhisparrHandoffService {
         if (!item) {
           result.failed.push({
             sceneId: scene.id,
+            stashId,
             title,
             reason: await this.explainMissing(
               whisparrConfig,
@@ -231,6 +329,7 @@ export class WhisparrHandoffService {
       } catch (error) {
         result.failed.push({
           sceneId: scene.id,
+          stashId,
           title,
           reason: messageOf(error),
         });
@@ -263,6 +362,7 @@ export class WhisparrHandoffService {
         for (const entry of files) {
           result.failed.push({
             sceneId: entry.scene.id,
+            stashId: entry.stashId,
             title: entry.scene.title ?? entry.scene.id,
             reason: `Whisparr import ${outcome}.`,
           });
@@ -277,6 +377,7 @@ export class WhisparrHandoffService {
       for (const entry of files) {
         result.failed.push({
           sceneId: entry.scene.id,
+          stashId: entry.stashId,
           title: entry.scene.title ?? entry.scene.id,
           reason: messageOf(error),
         });
@@ -297,6 +398,7 @@ export class WhisparrHandoffService {
         const why = entry.item.rejections.filter(Boolean);
         result.failed.push({
           sceneId: entry.scene.id,
+          stashId: entry.stashId,
           title,
           reason: why.length
             ? `Whisparr didn’t take ${entry.item.path}: ${why.join('; ')}.`

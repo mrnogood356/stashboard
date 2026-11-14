@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { OrganizerApiService } from '../../core/api/organizer.service';
 import {
   SceneTimeline,
   TimelineAction,
@@ -57,7 +58,12 @@ describe('SceneTimelineComponent', () => {
   });
 
   async function render(
-    options: { scene?: ReturnType<typeof vi.fn>; heading?: boolean; observe?: boolean } = {},
+    options: {
+      scene?: ReturnType<typeof vi.fn>;
+      heading?: boolean;
+      observe?: boolean;
+      organizer?: Record<string, unknown>;
+    } = {},
   ) {
     // Without IntersectionObserver (as in jsdom) it loads straight away.
     let reveal: (() => void) | null = null;
@@ -76,7 +82,11 @@ describe('SceneTimelineComponent', () => {
     const api = { scene: options.scene ?? vi.fn().mockReturnValue(of(timeline())) };
     await TestBed.configureTestingModule({
       imports: [SceneTimelineComponent],
-      providers: [provideRouter([]), { provide: TimelineApiService, useValue: api }],
+      providers: [
+        provideRouter([]),
+        { provide: TimelineApiService, useValue: api },
+        { provide: OrganizerApiService, useValue: options.organizer ?? {} },
+      ],
     }).compileComponents();
     const fixture = TestBed.createComponent(SceneTimelineComponent);
     fixture.componentRef.setInput('stashId', 'sdb-1');
@@ -94,6 +104,32 @@ describe('SceneTimelineComponent', () => {
       },
     };
   }
+
+  it('counts the file Stash has as this scene, right from the stuck step, then looks again', async () => {
+    const stuck = timeline({
+      steps: [
+        {
+          step: 'matched',
+          label: 'Matched',
+          at: null,
+          status: 'failed',
+          detail: 'Stash links this file to a different StashDB scene (sdb-other).',
+          progress: null,
+          action: { kind: 'same-scene', label: 'It’s the same scene' },
+        },
+      ],
+    });
+    const organizer = {
+      markSameScene: vi.fn().mockReturnValue(of({ checked: 1, fixed: 1, left: [] })),
+    };
+    const scene = vi.fn().mockReturnValue(of(stuck));
+    const { root, fixture } = await render({ scene, organizer });
+
+    (root.querySelector('[data-testid="timeline-action-same-scene"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(organizer.markSameScene).toHaveBeenCalledWith('sdb-1');
+    expect(scene).toHaveBeenCalledTimes(2);
+  });
 
   it('tells the story step by step, with the stuck step’s reason and what to do', async () => {
     const { root, api } = await render();

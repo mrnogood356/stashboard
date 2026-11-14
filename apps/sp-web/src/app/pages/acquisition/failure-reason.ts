@@ -49,7 +49,7 @@ const RULES: Array<{ test: RegExp; reason: FailureReason }> = [
     test: /not an upgrade|existing file|already (exists|imported)|quality cutoff|cutoff (already )?met/i,
     reason: {
       reason: 'Whisparr already has a copy as good as this one, so it skipped it.',
-      next: 'Nothing to do if you have the scene; remove this request if it’s stuck.',
+      next: 'Nothing to do if you have the scene; remove it from Wanted if it’s stuck.',
     },
   },
   {

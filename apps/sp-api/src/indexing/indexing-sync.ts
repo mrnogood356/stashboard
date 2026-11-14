@@ -908,9 +908,9 @@ export abstract class IndexingSync extends IndexingCore {
       tagNames: item.tagNames,
       releaseDate: item.releaseDate,
       productionDate: item.productionDate,
-      duration: item.duration,
-      width: item.width,
-      height: item.height,
+      duration: wholeNumber(item.duration),
+      width: wholeNumber(item.width),
+      height: wholeNumber(item.height),
       viewUrl: item.viewUrl,
       localCreatedAt: item.createdAt,
       localUpdatedAt: item.updatedAt,
@@ -1228,6 +1228,16 @@ export abstract class IndexingSync extends IndexingCore {
   }
 }
 
+/**
+ * Stored as whole numbers: Stash's 1820.48 seconds is 1820 here, so it's
+ * written that way and compares the same next time.
+ */
+function wholeNumber(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.round(value)
+    : null;
+}
+
 /** Whether a stored value and a fresh one are the same (dates and lists by content). */
 function sameValue(stored: unknown, fresh: unknown): boolean {
   const plain = (value: unknown): unknown =>
@@ -1250,5 +1260,25 @@ function sameValue(stored: unknown, fresh: unknown): boolean {
       return true;
     }
   }
-  return JSON.stringify(a) === JSON.stringify(b);
+  return stableJson(a) === stableJson(b);
+}
+
+/**
+ * JSON with object keys in one order: the database hands stored JSON back
+ * with its keys reordered, which isn't a change.
+ */
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableJson).join(',')}]`;
+  }
+  if (value instanceof Date) {
+    return JSON.stringify(value.toISOString());
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+    return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`).join(',')}}`;
+  }
+  return JSON.stringify(value ?? null);
 }

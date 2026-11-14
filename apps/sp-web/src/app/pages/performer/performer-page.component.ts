@@ -59,7 +59,13 @@ import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.com
 import { HideToggleComponent } from '../../shared/hide-toggle/hide-toggle.component';
 import { FollowButtonComponent } from '../../shared/follow-button/follow-button.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
-import { PerformerFact, performerFacts, readableDate } from './performer-facts';
+import {
+  PerformerFact,
+  PerformerFactGroup,
+  performerFactGroups,
+  performerFacts,
+  readableDate,
+} from './performer-facts';
 
 interface SelectedStudioChip {
   id: string;
@@ -604,6 +610,10 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
     return performerFacts(performer);
   }
 
+  protected factGroups(performer: PerformerDetails): PerformerFactGroup[] {
+    return performerFactGroups(performer);
+  }
+
   protected readableDate(value: string | null): string | null {
     return readableDate(value);
   }
@@ -1122,7 +1132,7 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
       return 'Back to Scenes';
     }
     if (returnTo.startsWith('/acquisition')) {
-      return 'Back to Requests';
+      return 'Back to Wanted';
     }
     if (returnTo.startsWith('/processing')) {
       return 'Back to Downloads';

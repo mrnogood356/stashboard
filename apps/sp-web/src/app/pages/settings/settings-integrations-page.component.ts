@@ -311,7 +311,7 @@ export class SettingsIntegrationsPageComponent implements OnInit {
 
     const catalogProvider = this.catalogProvider();
     if (this.isBrowseProvider(type) && catalogProvider) {
-      return `Optional. Add ${this.labelFor(type)} to browse it next to ${this.labelFor(catalogProvider)} on the Scenes, Performers and Studios pages. Requests keep using ${this.labelFor(catalogProvider)}, and ${this.labelFor(type)} scenes show library status but can't be requested.`;
+      return `Optional. Add ${this.labelFor(type)} to browse it next to ${this.labelFor(catalogProvider)} on the Scenes, Performers and Studios pages. Wanted scenes keep using ${this.labelFor(catalogProvider)}, and ${this.labelFor(type)} scenes show library status but can't be added to Wanted.`;
     }
 
     if (!this.isCatalogProvider(type) || catalogProvider !== type) {
