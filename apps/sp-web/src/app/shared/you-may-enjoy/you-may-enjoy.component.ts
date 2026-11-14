@@ -81,6 +81,12 @@ export class YouMayEnjoyComponent implements OnInit, OnDestroy {
   protected readonly shuffling = signal(false);
   /** Taken off here (Not interested, requested), so a refill never brings them back. */
   private readonly removed = new Set<string>();
+  /**
+   * Counts category changes: a list, shuffle or refill asked for an earlier
+   * set of categories is dropped when it answers, so it can't replace (or be
+   * saved over) the one now picked.
+   */
+  private selection = 0;
 
   /** On a desktop the rest wait behind Show more; a phone swipes through them all. */
   protected readonly first = FIRST;
@@ -198,19 +204,27 @@ export class YouMayEnjoyComponent implements OnInit, OnDestroy {
     }
     this.state.setTags(picked);
     this.expanded.set(false);
+    this.selection += 1;
     this.load();
   }
 
   private load(): void {
+    const selection = this.selection;
     this.loading.set(true);
     this.failed.set(false);
     this.api.list(this.limit, this.tagIds()).subscribe({
       next: (result) => {
+        if (selection !== this.selection) {
+          return;
+        }
         this.items.set(result.items.filter((item) => !this.removed.has(item.id)));
         this.message.set(result.message);
         this.loading.set(false);
       },
       error: () => {
+        if (selection !== this.selection) {
+          return;
+        }
         this.failed.set(true);
         this.loading.set(false);
       },
@@ -244,14 +258,18 @@ export class YouMayEnjoyComponent implements OnInit, OnDestroy {
     if (this.shuffling()) {
       return;
     }
+    const selection = this.selection;
     this.shuffling.set(true);
     this.api.shuffle(this.limit, this.tagIds()).subscribe({
       next: (result) => {
+        this.shuffling.set(false);
+        if (selection !== this.selection) {
+          return;
+        }
         this.items.set(result.items.filter((item) => !this.removed.has(item.id)));
         this.message.set(result.message);
         this.expanded.set(false);
         this.failed.set(false);
-        this.shuffling.set(false);
       },
       error: () => {
         this.shuffling.set(false);
@@ -275,8 +293,12 @@ export class YouMayEnjoyComponent implements OnInit, OnDestroy {
 
   /** The next picks in line fill the gaps, after what's already shown. */
   private refill(): void {
+    const selection = this.selection;
     this.api.list(this.limit, this.tagIds()).subscribe({
       next: (result) => {
+        if (selection !== this.selection) {
+          return;
+        }
         const shown = new Set(this.items().map((item) => item.id));
         const fresh = result.items.filter(
           (item) => !shown.has(item.id) && !this.removed.has(item.id),
