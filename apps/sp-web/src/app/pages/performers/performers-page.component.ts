@@ -437,7 +437,12 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
           if (requestVersion !== this.feedVersion) {
             if (this.pendingReload) {
               this.pendingReload = false;
-              this.loadNextPage();
+              // Gone to In my library meanwhile: the catalog reloads on the way back.
+              if (this.route.snapshot.queryParamMap.get('lib') === '1') {
+                this.catalogStale = true;
+              } else {
+                this.loadNextPage();
+              }
             }
             return;
           }
