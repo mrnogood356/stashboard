@@ -25,6 +25,32 @@
   </header>
 
   @if (!searched()) {
+    <section class="block" aria-labelledby="search-browse-title">
+      <h2 id="search-browse-title">Browse</h2>
+      <div class="shortcuts" data-testid="search-browse">
+        <a class="shortcut" routerLink="/scenes">
+          <i class="pi pi-video" aria-hidden="true"></i>
+          <span>All scenes</span>
+        </a>
+        <a class="shortcut" routerLink="/performers">
+          <i class="pi pi-users" aria-hidden="true"></i>
+          <span>Performers</span>
+        </a>
+        <a class="shortcut" routerLink="/studios">
+          <i class="pi pi-building" aria-hidden="true"></i>
+          <span>Studios</span>
+        </a>
+        <a class="shortcut" routerLink="/following">
+          <i class="pi pi-bell" aria-hidden="true"></i>
+          <span>Following</span>
+        </a>
+        <a class="shortcut" routerLink="/calendar">
+          <i class="pi pi-calendar" aria-hidden="true"></i>
+          <span>Calendar</span>
+        </a>
+      </div>
+    </section>
+
     @if (recent().length > 0) {
       <section class="block">
         <div class="block-head">
@@ -53,7 +79,7 @@
     }
 
     <section class="block">
-      <h2>Explore</h2>
+      <h2>Your library</h2>
       <div class="shortcuts">
         @if (feedOn()) {
           <a class="shortcut" routerLink="/feed">

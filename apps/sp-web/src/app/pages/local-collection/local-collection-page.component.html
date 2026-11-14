@@ -140,23 +140,59 @@
 
     <div class="toolbar">
       <h2>Scenes</h2>
-      <div class="segmented" role="tablist" aria-label="Sort scenes">
-        @for (option of sorts; track option.value) {
-          <button
-            type="button"
-            role="tab"
-            [class.active]="sort() === option.value"
-            [attr.aria-selected]="sort() === option.value"
-            (click)="setSort(option.value)"
-          >
-            {{ option.label }}
+      <div class="filter-bar" data-testid="collection-filter-bar">
+        <app-filter-chip label="Category" [value]="categoryValue()" testId="collection-category">
+          <ng-template appFilterPanel>
+            <app-filter-options
+              [options]="categoryChoices()"
+              [selected]="pickedTagIds()"
+              multi
+              searchable
+              [loading]="optionsLoading()"
+              searchLabel="Find a category"
+              emptyText="No categories on these scenes."
+              testId="collection-category-option"
+              (changed)="onCategoriesPicked($event)"
+            />
+          </ng-template>
+        </app-filter-chip>
+        @if (offersStudios()) {
+          <app-filter-chip label="Studio" [value]="studioValue()" testId="collection-studio">
+            <ng-template appFilterPanel>
+              <app-filter-options
+                [options]="studioChoices()"
+                [selected]="pickedStudioIds()"
+                multi
+                searchable
+                searchLabel="Find a studio"
+                testId="collection-studio-option"
+                (changed)="onStudiosPicked($event)"
+              />
+            </ng-template>
+          </app-filter-chip>
+        }
+        <app-filter-chip label="Sort" [value]="sortValue()" neutral testId="collection-sort">
+          <ng-template appFilterPanel>
+            <app-filter-options
+              [options]="sortChoices"
+              [selected]="sortPicked()"
+              [clearable]="false"
+              (changed)="onSortPicked($event)"
+            />
+          </ng-template>
+        </app-filter-chip>
+        @if (narrowed()) {
+          <button type="button" class="filter-bar__clear" (click)="clearFilters()">
+            Clear all
           </button>
         }
       </div>
     </div>
 
     @if (items().length === 0 && !loadingScenes()) {
-      <p class="empty">No scenes in your library yet.</p>
+      <p class="empty">
+        {{ narrowed() ? 'None of these scenes match.' : 'No scenes in your library yet.' }}
+      </p>
     }
 
     <section class="grid">

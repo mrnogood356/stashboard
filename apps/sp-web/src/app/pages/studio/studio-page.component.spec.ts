@@ -66,6 +66,7 @@ describe('StudioPageComponent', () => {
     const paramMap$ = new BehaviorSubject(convertToParamMap({ studioId: 'studio-1' }));
     const queryParamMap$ = new BehaviorSubject(convertToParamMap({}));
     const discoverService = {
+      getStudioFacets: vi.fn(() => of({ total: 0, scanned: 0, tags: [], studios: [] })),
       getStudioDetails: vi.fn().mockReturnValue(of(buildStudio())),
       getPerformersFeed: vi
         .fn()

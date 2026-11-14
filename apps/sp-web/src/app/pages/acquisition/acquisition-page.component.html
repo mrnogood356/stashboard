@@ -300,7 +300,9 @@
               @if (waitingCheck(); as check) {
                 <div class="waiting-check" data-testid="waiting-check" role="status">
                   <p class="waiting-check-summary">
-                    Checked {{ check.checked }}.
+                    @if (check.checked > 0) {
+                      Checked {{ countLabel(check.checked, 'scene') }}.
+                    }
                     @if (check.fixed > 0) {
                       {{ check.fixed }} {{ check.fixed === 1 ? 'is' : 'are' }} no longer waiting.
                     }

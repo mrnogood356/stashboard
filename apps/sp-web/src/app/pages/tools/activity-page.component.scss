@@ -199,3 +199,22 @@
 .moves .to {
   overflow-wrap: anywhere;
 }
+
+/* The same look as a filter bar's one-tap filters. */
+.chip {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.chip.active {
+  border-color: var(--text-primary);
+  background: var(--text-primary);
+  color: var(--app-bg);
+}

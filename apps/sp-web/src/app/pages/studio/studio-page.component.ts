@@ -1,5 +1,18 @@
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import {
+  FilterChipComponent,
+  FilterPanelDirective,
+} from '../../shared/filter-bar/filter-chip.component';
+import { FilterOptionsComponent } from '../../shared/filter-bar/filter-options.component';
+import {
+  SortChoice,
+  facetOptions,
+  pickedLabel,
+  sortChoiceId,
+  sortChoiceLabel,
+  sortChoiceOptions,
+} from '../../shared/filter-bar/filter-values';
+import {
   AfterViewInit,
   Component,
   ElementRef,
@@ -10,7 +23,6 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import {
   Subject,
@@ -26,13 +38,12 @@ import {
 } from 'rxjs';
 import { ButtonDirective } from 'primeng/button';
 import { Message } from 'primeng/message';
-import { MultiSelect } from 'primeng/multiselect';
-import { Select } from 'primeng/select';
 import { DiscoverService } from '../../core/api/discover.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import {
   DiscoverItem,
   SceneFavoritesFilter,
+  SceneFacets,
   SceneFeedSort,
   SceneRequestContext,
   SceneTagMatchMode,
@@ -65,15 +76,15 @@ interface MultiSelectOption {
     HideToggleComponent,
     FollowButtonComponent,
     RouterLink,
-    FormsModule,
     Message,
-    Select,
-    MultiSelect,
     ButtonDirective,
     SceneCardComponent,
     OwnedNoteComponent,
     SceneRequestModalComponent,
     HiddenCountComponent,
+    FilterChipComponent,
+    FilterPanelDirective,
+    FilterOptionsComponent,
   ],
   templateUrl: './studio-page.component.html',
   styleUrl: './studio-page.component.scss',
@@ -181,8 +192,6 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly scenesHasMore = signal(true);
   /** Show scenes Settings → Hidden content leaves out, for this list only. */
   protected readonly showHidden = signal(false);
-  /** On a phone the scene filters fold away behind one button. */
-  protected readonly filtersOpen = signal(false);
   protected readonly activeFilters = computed(
     () =>
       (this.selectedFavorites() !== StudioPageComponent.DEFAULT_FAVORITES ? 1 : 0) +
@@ -205,6 +214,47 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly backLinkLabel = signal('Back to Studios');
 
   protected readonly sceneSortOptions = StudioPageComponent.SCENE_SORT_OPTIONS;
+
+  /** Sort and direction as one plain choice, for the filter bar. */
+  private static readonly SORT_CHOICES: SortChoice<SceneFeedSort>[] = [
+    { label: 'Newest first', sort: 'DATE', direction: 'DESC' },
+    { label: 'Oldest first', sort: 'DATE', direction: 'ASC' },
+    { label: 'Trending', sort: 'TRENDING', direction: 'DESC' },
+    { label: 'Title A to Z', sort: 'TITLE', direction: 'ASC' },
+    { label: 'Recently added', sort: 'CREATED_AT', direction: 'DESC' },
+    { label: 'Recently updated', sort: 'UPDATED_AT', direction: 'DESC' },
+  ];
+  protected readonly sortOptions = sortChoiceOptions(StudioPageComponent.SORT_CHOICES);
+  protected readonly sortValue = computed(() =>
+    sortChoiceLabel(StudioPageComponent.SORT_CHOICES, this.sceneSort(), this.sceneSortDirection()),
+  );
+  protected readonly sortPicked = computed(() => [
+    sortChoiceId(this.sceneSort(), this.sceneSortDirection()),
+  ]);
+  protected readonly favoriteOptions = [
+    { id: 'ALL', label: 'Any favorite' },
+    { id: 'PERFORMER', label: 'Favorite performers' },
+    { id: 'STUDIO', label: 'Favorite studios' },
+  ];
+  protected readonly favoriteValue = computed(
+    () =>
+      this.favoriteOptions.find((option) => option.id === this.selectedFavorites())?.label ?? null,
+  );
+  protected readonly favoritePicked = computed(() =>
+    this.selectedFavorites() === StudioPageComponent.DEFAULT_FAVORITES
+      ? []
+      : [this.selectedFavorites()],
+  );
+
+  /** The studio's own categories, the most used first, with counts. */
+  protected readonly facets = signal<SceneFacets | null>(null);
+  protected readonly facetsLoading = signal(false);
+  protected readonly categoryOptions = computed(() =>
+    facetOptions(this.facets()?.tags ?? [], this.selectedTags()),
+  );
+  protected readonly categoryValue = computed(() =>
+    pickedLabel(this.selectedTags().map((tag) => tag.name)),
+  );
   protected readonly favoritesOptions = StudioPageComponent.FAVORITES_OPTIONS;
   protected readonly tagMatchOptions = StudioPageComponent.TAG_MATCH_OPTIONS;
 
@@ -549,6 +599,64 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.router.url;
   }
 
+  /** A pick from the Category list: its names are the counted ones. */
+  protected onCategoriesPicked(ids: string[]): void {
+    const known = new Map(this.tagOptions().map((tag) => [tag.id, tag]));
+    for (const facet of this.facets()?.tags ?? []) {
+      if (!known.has(facet.id)) {
+        known.set(facet.id, { id: facet.id, name: facet.name, description: null, aliases: [] });
+      }
+    }
+    this.tagOptions.set([...known.values()]);
+    this.onTagSelectionChanged(ids);
+  }
+
+  protected onFavoritesPicked(ids: string[]): void {
+    this.onFavoritesChanged(ids[0] ?? StudioPageComponent.DEFAULT_FAVORITES);
+  }
+
+  protected onSortPicked(ids: string[]): void {
+    const choice = StudioPageComponent.SORT_CHOICES.find(
+      (option) => sortChoiceId(option.sort, option.direction) === ids[0],
+    );
+    if (
+      !choice ||
+      (choice.sort === this.sceneSort() && choice.direction === this.sceneSortDirection())
+    ) {
+      return;
+    }
+    this.sceneSort.set(choice.sort);
+    this.sceneSortDirection.set(choice.direction);
+    this.syncUrlWithCurrentFilters(false);
+    this.resetScenesAndReload();
+  }
+
+  protected clearFilters(): void {
+    this.selectedFavorites.set(StudioPageComponent.DEFAULT_FAVORITES);
+    this.selectedTagMode.set(StudioPageComponent.DEFAULT_TAG_MODE);
+    this.selectedTags.set([]);
+    this.tagSelectedIdsModel.set([]);
+    this.syncUrlWithCurrentFilters(false);
+    this.resetScenesAndReload();
+  }
+
+  private loadFacets(studioId: string): void {
+    this.facets.set(null);
+    this.facetsLoading.set(true);
+    this.discoverService
+      .getStudioFacets(studioId)
+      .pipe(finalize(() => this.facetsLoading.set(false)))
+      .subscribe({
+        next: (facets) => {
+          if (this.studioId() === studioId) {
+            this.facets.set(facets);
+          }
+        },
+        // Without counts the list still holds what's picked.
+        error: () => undefined,
+      });
+  }
+
   private loadStudio(): void {
     const currentStudioId = this.studioId();
     if (!currentStudioId) {
@@ -558,6 +666,7 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.loadingStudio.set(true);
     this.studioError.set(null);
     this.activeImageIndex.set(0);
+    this.loadFacets(currentStudioId);
 
     this.discoverService
       .getStudioDetails(currentStudioId)

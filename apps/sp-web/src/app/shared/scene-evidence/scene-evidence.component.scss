@@ -7,39 +7,45 @@
   font-size: inherit;
 }
 
+/* One row until opened, like a studio's Performers: "Status details ⌄". */
 .evidence-toggle {
-  display: flex;
-  width: 100%;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0 0.85rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
   font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
   text-align: left;
   cursor: pointer;
 }
 
+.evidence-toggle:hover {
+  border-color: var(--border-strong);
+}
+
 .evidence-toggle:focus-visible {
   outline: 2px solid var(--focus-ring);
-  outline-offset: 4px;
-  border-radius: var(--radius-sm);
+  outline-offset: 2px;
 }
 
-.evidence-toggle-copy {
-  display: grid;
-  gap: 0.2rem;
+.evidence-toggle .pi {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
 }
 
-.evidence-title {
-  font-size: 1.15rem;
-  font-weight: 700;
+.evidence-toggle .pi.is-open {
+  transform: rotate(180deg);
 }
 
-.evidence-subtitle,
 .evidence-note {
+  margin: 0;
   color: var(--text-muted);
   font-size: 0.85rem;
 }
@@ -47,6 +53,7 @@
 .evidence-body {
   display: grid;
   gap: 1rem;
+  margin-top: 1rem;
 }
 
 .evidence-actions {
@@ -62,23 +69,29 @@
   border-top: 1px solid var(--separator);
 
   h3 {
+    margin: 0;
     font-size: 0.95rem;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   h4 {
+    margin: 0;
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-muted);
   }
 }
 
 .evidence-summary {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
   line-height: 1.5;
 }
 
 .evidence-error {
-  color: var(--danger);
+  margin: 0;
+  color: var(--danger-text, var(--danger));
   line-height: 1.5;
 }
 

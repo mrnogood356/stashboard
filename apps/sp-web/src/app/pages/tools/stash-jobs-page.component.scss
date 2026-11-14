@@ -230,3 +230,48 @@ main {
 main > .app-back-link {
   margin-bottom: -0.25rem;
 }
+
+/* ---------- Current look: on the page, plain icons, as on the rest of the app ---------- */
+
+.running {
+  --app-section-border: 0;
+  --app-section-bg: transparent;
+  --app-section-padding: 0;
+  --app-section-radius: 0;
+}
+
+.title-row h2::before {
+  content: none;
+}
+
+.count {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.job {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: transparent;
+}
+
+.task-list {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: transparent;
+}
+
+.task:hover:not(:disabled) {
+  background: var(--surface-1);
+}
+
+.task i {
+  width: 1.25rem;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  color: var(--text-muted);
+}

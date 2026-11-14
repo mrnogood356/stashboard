@@ -141,3 +141,30 @@
 .muted {
   color: var(--text-muted);
 }
+
+/* ---------- Current look: a plain list on the page ---------- */
+
+.list {
+  gap: 0;
+}
+
+.row {
+  padding: 0.6rem 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.thumb {
+  border-radius: var(--radius-sm);
+}
+
+.notice {
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+}

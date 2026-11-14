@@ -42,6 +42,25 @@ async function render() {
 const settle = () => new Promise((resolve) => setTimeout(resolve, 300));
 
 describe('StudioPerformersComponent', () => {
+  it('starts folded to one row with the count, so the scenes come first', async () => {
+    const { fixture, root } = await render();
+    await new Promise((resolve) => setTimeout(resolve));
+    fixture.detectChanges();
+
+    const toggle = root.querySelector(
+      '[data-testid="studio-performers-toggle"]',
+    ) as HTMLButtonElement;
+    const body = root.querySelector('#studio-performers-body') as HTMLElement;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(body.hidden).toBe(true);
+    expect(toggle.textContent).toMatch(/Performers\s*\d+/);
+
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(body.hidden).toBe(false);
+  });
+
   it('lists the studio’s performers, searches them by name, and loads more', async () => {
     const { fixture, root, getPerformersFeed } = await render();
     await settle();

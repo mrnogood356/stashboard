@@ -289,3 +289,12 @@ ol {
     align-self: flex-start;
   }
 }
+
+/* A plain icon, as on Settings, not a blue tile. */
+.link-icon {
+  width: 1.25rem;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  color: var(--text-muted);
+}

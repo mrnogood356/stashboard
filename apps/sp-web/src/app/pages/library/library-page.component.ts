@@ -1,4 +1,20 @@
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
+import {
+  FilterChipComponent,
+  FilterPanelDirective,
+} from '../../shared/filter-bar/filter-chip.component';
+import {
+  FilterOption,
+  FilterOptionsComponent,
+} from '../../shared/filter-bar/filter-options.component';
+import {
+  SortChoice,
+  facetOptions,
+  pickedLabel,
+  sortChoiceId,
+  sortChoiceLabel,
+  sortChoiceOptions,
+} from '../../shared/filter-bar/filter-values';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   AfterViewInit,
@@ -25,8 +41,6 @@ import {
   switchMap,
 } from 'rxjs';
 import { Message } from 'primeng/message';
-import { MultiSelect } from 'primeng/multiselect';
-import { Select } from 'primeng/select';
 import { LibraryService } from '../../core/api/library.service';
 import { LocalLibraryService } from '../../core/api/local-library.service';
 import { WatchLaterService } from '../../core/api/watch-later.service';
@@ -75,18 +89,16 @@ interface LibraryPageAlert {
     RouterLink,
     FormsModule,
     Message,
-    Select,
-    MultiSelect,
     SceneCardComponent,
     SelectionBarComponent,
+    FilterChipComponent,
+    FilterPanelDirective,
+    FilterOptionsComponent,
   ],
   templateUrl: './library-page.component.html',
   styleUrl: './library-page.component.scss',
 })
 export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
-  /** On phones the filter panel starts collapsed so results show first. */
-  protected readonly filtersOpen = signal(false);
-
   private static readonly PAGE_SIZE = 24;
   private static readonly SEARCH_DEBOUNCE_MS = 250;
   private static readonly DEFAULT_SORT: LibrarySceneSort = 'RELEASE_DATE';
@@ -281,6 +293,106 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly studioSearchError = signal<string | null>(null);
   protected readonly sortOptions = LibraryPageComponent.SORT_OPTIONS;
   protected readonly tagMatchOptions = LibraryPageComponent.TAG_MATCH_OPTIONS;
+
+  /** Sort and direction as one plain choice, for the filter bar. */
+  private static readonly SORT_CHOICES: SortChoice<LibrarySceneSort>[] = [
+    { label: 'Newest first', sort: 'RELEASE_DATE', direction: 'DESC' },
+    { label: 'Oldest first', sort: 'RELEASE_DATE', direction: 'ASC' },
+    { label: 'Recently added', sort: 'CREATED_AT', direction: 'DESC' },
+    { label: 'Recently updated', sort: 'UPDATED_AT', direction: 'DESC' },
+    { label: 'Filmed, newest first', sort: 'PRODUCTION_DATE', direction: 'DESC' },
+    { label: 'Title A to Z', sort: 'TITLE', direction: 'ASC' },
+  ];
+  protected readonly sortChoices = sortChoiceOptions(LibraryPageComponent.SORT_CHOICES);
+  protected readonly sortValue = computed(() =>
+    sortChoiceLabel(
+      LibraryPageComponent.SORT_CHOICES,
+      this.selectedSort(),
+      this.selectedDirection(),
+    ),
+  );
+  protected readonly sortPicked = computed(() => [
+    sortChoiceId(this.selectedSort(), this.selectedDirection()),
+  ]);
+
+  /** Your most used categories and studios, with counts, before anything is typed. */
+  private readonly topTags = signal<LibraryTagOption[]>([]);
+  private readonly topStudios = signal<LibraryStudioOption[]>([]);
+  protected readonly categoryValue = computed(() =>
+    pickedLabel(this.selectedTags().map((tag) => tag.name)),
+  );
+  protected readonly studioValue = computed(() =>
+    pickedLabel(this.selectedStudios().map((studio) => studio.label)),
+  );
+  protected readonly categoryChoices = computed<FilterOption[]>(() =>
+    this.tagSearchTerm().trim()
+      ? this.tagOptions().map((tag) => ({ id: tag.id, label: tag.name, count: tag.count }))
+      : facetOptions(
+          this.topTags().map((tag) => ({ ...tag, count: tag.count ?? 0 })),
+          this.selectedTags(),
+        ),
+  );
+  protected readonly studioChoices = computed<FilterOption[]>(() =>
+    this.studioSearchTerm().trim()
+      ? this.studioOptions().map((studio) => ({
+          id: studio.id,
+          label: studio.name,
+          count: studio.count,
+        }))
+      : facetOptions(
+          this.topStudios().map((studio) => ({ ...studio, count: studio.count ?? 0 })),
+          this.selectedStudios().map((studio) => ({ id: studio.id, name: studio.label })),
+        ),
+  );
+
+  protected onCategoriesPicked(ids: string[]): void {
+    const known = new Map(this.tagOptions().map((tag) => [tag.id, tag]));
+    for (const tag of this.topTags()) {
+      if (!known.has(tag.id)) {
+        known.set(tag.id, tag);
+      }
+    }
+    this.tagOptions.set([...known.values()]);
+    this.onTagSelectionChanged(ids);
+  }
+
+  protected onStudiosPicked(ids: string[]): void {
+    const known = new Map(this.studioOptions().map((studio) => [studio.id, studio]));
+    for (const studio of this.topStudios()) {
+      if (!known.has(studio.id)) {
+        known.set(studio.id, studio);
+      }
+    }
+    this.studioOptions.set([...known.values()]);
+    this.onStudioSelectionChanged(ids);
+  }
+
+  protected onSortPicked(ids: string[]): void {
+    const choice = LibraryPageComponent.SORT_CHOICES.find(
+      (option) => sortChoiceId(option.sort, option.direction) === ids[0],
+    );
+    if (
+      !choice ||
+      (choice.sort === this.selectedSort() && choice.direction === this.selectedDirection())
+    ) {
+      return;
+    }
+    this.selectedSort.set(choice.sort);
+    this.selectedDirection.set(choice.direction);
+    this.syncUrlWithCurrentFilters(false);
+    this.resetFeedAndReload();
+  }
+
+  private loadTopOptions(): void {
+    this.libraryService.searchTags('').subscribe({
+      next: (tags) => this.topTags.set(tags),
+      error: () => undefined,
+    });
+    this.libraryService.searchStudios('').subscribe({
+      next: (studios) => this.topStudios.set(studios),
+      error: () => undefined,
+    });
+  }
   protected readonly pageAlert = computed<LibraryPageAlert | null>(() => {
     const alert = buildReadinessPageAlert(
       'library',
@@ -331,6 +443,7 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.setupStudioSearch();
     this.setupTagSearch();
     this.setupUrlStateSync();
+    this.loadTopOptions();
   }
 
   ngAfterViewInit(): void {

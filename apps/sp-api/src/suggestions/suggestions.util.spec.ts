@@ -1,7 +1,9 @@
 import {
   type WatchedScene,
   buildTasteProfile,
+  pickSources,
   rankCandidates,
+  reshuffle,
 } from './suggestions.util';
 
 const NOW = Date.parse('2026-11-05T12:00:00Z');
@@ -126,5 +128,37 @@ describe('You may enjoy', () => {
         NOW,
       )[0].scene.id,
     ).toBe('a');
+  });
+
+  it('asks the ones you watch most every time, and draws a few more by weight', () => {
+    const entries = ['a', 'b', 'c', 'd', 'e', 'f'].map((name, index) => ({
+      catalogId: name,
+      name,
+      weight: 10 - index,
+    }));
+    const rolls = [0.99, 0];
+    const picked = pickSources(entries, 2, 2, 3, () => rolls.shift() ?? 0);
+
+    expect(picked.map((entry) => entry.catalogId)).toEqual([
+      'a',
+      'b',
+      'e',
+      'c',
+    ]);
+    expect(
+      pickSources(entries.slice(0, 2), 2, 2, 3).map((entry) => entry.catalogId),
+    ).toEqual(['a', 'b']);
+  });
+
+  it('reshuffles with a nudge, pushing what was just shown down', () => {
+    const ranked = ['a', 'b', 'c'].map((id, index) => ({
+      scene: { id, studioId: null, releaseDate: null },
+      score: 3 - index,
+      reason: { key: 'performer:x', text: 'x' },
+    }));
+    const order = reshuffle(ranked, new Set(['a']), () => 0.5).map(
+      (entry) => entry.scene.id,
+    );
+    expect(order).toEqual(['b', 'c', 'a']);
   });
 });

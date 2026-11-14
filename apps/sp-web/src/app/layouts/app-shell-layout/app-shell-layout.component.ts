@@ -19,6 +19,7 @@ import { PlaybackSettingsService } from '../../core/playback/playback-settings.s
 import { QuickSearchComponent } from '../../shared/quick-search/quick-search.component';
 import { WhatsNewComponent } from '../../shared/whats-new/whats-new.component';
 import { NavigationHistoryService } from '../../core/navigation/navigation-history.service';
+import { BackScrollService } from '../../core/navigation/back-scroll.service';
 
 interface ShellDegradedState {
   kind: 'setup' | 'runtime';
@@ -133,6 +134,47 @@ const TOOLS_NAV_ITEM: ShellNavItem = {
   activePrefixes: ['/tools'],
 };
 
+const WATCH_LATER_NAV_ITEM: ShellNavItem = {
+  label: 'Watch later',
+  route: '/watch-later',
+  icon: 'pi pi-bookmark',
+  exact: true,
+};
+
+const HISTORY_NAV_ITEM: ShellNavItem = {
+  label: 'History',
+  route: '/history',
+  icon: 'pi pi-history',
+  exact: true,
+};
+
+const CHAPTERS_NAV_ITEM: ShellNavItem = {
+  label: 'Chapters',
+  route: '/chapters',
+  icon: 'pi pi-list',
+  exact: true,
+};
+
+/**
+ * The phone's Search tab: search, and the browsing it leads to (Scenes,
+ * Performers, Studios…), so it stays lit while you browse from it.
+ */
+const MOBILE_SEARCH_NAV_ITEM: ShellNavItem = {
+  ...SEARCH_NAV_ITEM,
+  exact: false,
+  activePrefixes: [
+    '/search',
+    '/scenes',
+    '/scene/',
+    '/performers',
+    '/performer/',
+    '/studios',
+    '/studio/',
+    '/calendar',
+    '/following',
+  ],
+};
+
 interface ShellNavGroup {
   /** Shown above the group in the sidebar; none for the first and last. */
   label: string | null;
@@ -156,25 +198,33 @@ const DESKTOP_NAV_GROUPS: readonly ShellNavGroup[] = [
   { label: null, items: [SETTINGS_NAV_ITEM] },
 ];
 
-// Requests is checked often, so it gets a tab; Search is one tap from
-// Home's header (and first under More).
+// Search is one tap from anywhere and leads to everything to browse;
+// Requests is checked often, so it gets a tab too.
 const MOBILE_PRIMARY_NAV_ITEMS: readonly ShellNavItem[] = [
   HOME_NAV_ITEM,
-  SCENES_NAV_ITEM,
+  MOBILE_SEARCH_NAV_ITEM,
   ACQUISITION_NAV_ITEM,
   LIBRARY_NAV_ITEM,
 ];
 
-const MOBILE_SECONDARY_NAV_ITEMS: readonly ShellNavItem[] = [
-  SEARCH_NAV_ITEM,
-  CALENDAR_NAV_ITEM,
-  PERFORMERS_NAV_ITEM,
-  STUDIOS_NAV_ITEM,
-  FOLLOWING_NAV_ITEM,
-  FEED_NAV_ITEM,
-  TOOLS_NAV_ITEM,
-  PROCESSING_NAV_ITEM,
-  SETTINGS_NAV_ITEM,
+/** More, on a phone: the rest, in a few short groups. */
+const MOBILE_SECONDARY_NAV_GROUPS: readonly ShellNavGroup[] = [
+  {
+    label: 'Browse',
+    items: [
+      SCENES_NAV_ITEM,
+      PERFORMERS_NAV_ITEM,
+      STUDIOS_NAV_ITEM,
+      FOLLOWING_NAV_ITEM,
+      CALENDAR_NAV_ITEM,
+    ],
+  },
+  {
+    label: 'Watching',
+    items: [WATCH_LATER_NAV_ITEM, HISTORY_NAV_ITEM, CHAPTERS_NAV_ITEM, FEED_NAV_ITEM],
+  },
+  { label: 'Your library', items: [PROCESSING_NAV_ITEM, TOOLS_NAV_ITEM] },
+  { label: null, items: [SETTINGS_NAV_ITEM] },
 ];
 
 @Component({
@@ -206,6 +256,7 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
   private readonly themeService = inject(ThemeService);
   private readonly playbackSettings = inject(PlaybackSettingsService);
   private readonly navigationHistory = inject(NavigationHistoryService);
+  private readonly backScroll = inject(BackScrollService);
   private readonly phoneShellMediaQuery = this.createPhoneShellMediaQuery();
   private readonly phoneShellMediaChangeHandler = (event: MediaQueryListEvent) => {
     this.mobileShell.set(event.matches);
@@ -223,8 +274,14 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
   protected readonly mobilePrimaryNavItems = computed(() =>
     this.visibleNavItems(MOBILE_PRIMARY_NAV_ITEMS),
   );
+  protected readonly mobileSecondaryNavGroups = computed(() =>
+    MOBILE_SECONDARY_NAV_GROUPS.map((group) => ({
+      label: group.label,
+      items: this.visibleNavItems(group.items),
+    })).filter((group) => group.items.length > 0),
+  );
   protected readonly mobileSecondaryNavItems = computed(() =>
-    this.visibleNavItems(MOBILE_SECONDARY_NAV_ITEMS),
+    this.mobileSecondaryNavGroups().flatMap((group) => group.items),
   );
   /** Failed requests and downloads, shown as a count on Requests. */
   protected readonly requestsAttention = signal(0);
@@ -261,14 +318,20 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
       message: runtimeState.message,
     };
   });
+  /** More is lit for a page only it leads to: not one a tab already lights (Search for Scenes). */
   protected readonly moreNavActive = computed(() => {
     const currentUrl = this.currentUrl();
+    if (this.mobilePrimaryNavItems().some((item) => this.matchesNavItem(item, currentUrl))) {
+      return false;
+    }
     return this.mobileSecondaryNavItems().some((item) => this.matchesNavItem(item, currentUrl));
   });
 
   ngOnInit(): void {
     // So the back button on More's sections knows where you came from.
     this.navigationHistory.start();
+    // Browser Back returns to where you were on the page, once it has loaded.
+    this.backScroll.start();
     void this.appLock.refresh();
     // The saved theme may have changed on another device.
     void this.themeService.syncFromServer();

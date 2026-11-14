@@ -129,139 +129,69 @@
       </div>
     </section>
 
-    <section
-      class="section controls-shell app-section-panel app-control-shell"
-      aria-label="Performer scene filters"
-    >
-      <div class="scenes-head">
-        <h2>Scenes</h2>
+    <section class="section scenes-section" aria-label="Performer scene filters">
+      <h2>Scenes</h2>
+      <div class="filter-bar" data-testid="performer-filter-bar">
+        <app-filter-chip label="Category" [value]="categoryValue()" testId="performer-category">
+          <ng-template appFilterPanel>
+            <app-filter-options
+              [options]="categoryOptions()"
+              [selected]="tagSelectedIds()"
+              multi
+              searchable
+              [loading]="facetsLoading()"
+              searchLabel="Find a category"
+              emptyText="No categories on their scenes."
+              testId="performer-category-option"
+              (changed)="onCategoriesPicked($event)"
+            />
+          </ng-template>
+        </app-filter-chip>
+        <app-filter-chip label="Studio" [value]="studioValue()" testId="performer-studio">
+          <ng-template appFilterPanel>
+            <app-filter-options
+              [options]="studioFilterOptions()"
+              [selected]="studioSelectedIds()"
+              multi
+              searchable
+              [loading]="facetsLoading()"
+              searchLabel="Find a studio"
+              emptyText="No studios on their scenes."
+              testId="performer-studio-option"
+              (changed)="onStudiosPicked($event)"
+            />
+          </ng-template>
+        </app-filter-chip>
         <button
           type="button"
-          class="filters-toggle"
-          [class.has-filters]="activeFilters() > 0"
-          [attr.aria-expanded]="filtersOpen()"
-          (click)="filtersOpen.set(!filtersOpen())"
+          class="filter-toggle"
+          data-testid="performer-favorite-studios"
+          [attr.aria-pressed]="onlyFavoriteStudios()"
+          (click)="onOnlyFavoriteStudiosChanged(!onlyFavoriteStudios())"
         >
-          <i class="pi pi-sliders-h" aria-hidden="true"></i> Filters
-          @if (activeFilters() > 0) {
-            <span class="filters-count">{{ activeFilters() }}</span>
-          }
+          Favorite studios
         </button>
+        <app-filter-chip label="Sort" [value]="sortValue()" neutral testId="performer-sort">
+          <ng-template appFilterPanel>
+            <app-filter-options
+              [options]="sortOptions"
+              [selected]="sortPicked()"
+              [clearable]="false"
+              (changed)="onSortPicked($event)"
+            />
+          </ng-template>
+        </app-filter-chip>
+        @if (activeFilters() > 0) {
+          <button type="button" class="filter-bar__clear" (click)="clearFilters()">
+            Clear all
+          </button>
+        }
       </div>
       <app-hidden-count
         [count]="hiddenCount()"
         [showing]="showHidden()"
         (toggled)="onShowHiddenChanged($event)"
       />
-      <div class="filter-body" [class.open]="filtersOpen()">
-        <div class="controls-row">
-          <div class="control-field app-control-field">
-            <span id="performer-sort-label" class="app-control-label">Sort</span>
-            <div class="sort-with-direction app-control-inline">
-              <p-select
-                inputId="performer-sort"
-                ariaLabelledBy="performer-sort-label"
-                [ngModel]="sceneSort()"
-                (ngModelChange)="onSceneSortChanged($event)"
-                [options]="sceneSortOptions"
-                optionLabel="label"
-                optionValue="value"
-                [appendTo]="'body'"
-                panelStyleClass="app-overlay-panel"
-              />
-              <button
-                type="button"
-                class="sort-direction-toggle app-sort-direction-toggle"
-                [attr.aria-label]="sceneSortDirectionToggleLabel()"
-                [attr.title]="sceneSortDirectionToggleLabel()"
-                (click)="toggleSceneSortDirection()"
-              >
-                <i [class]="sceneSortDirectionIconClass()" aria-hidden="true"></i>
-              </button>
-            </div>
-          </div>
-
-          <div class="control-field checkbox-field app-control-field">
-            <span id="performer-favorite-studios-label" class="app-control-label"
-              >Favorite studios only</span
-            >
-            <label class="toggle-label">
-              <p-toggleswitch
-                inputId="performer-favorite-studios"
-                ariaLabelledBy="performer-favorite-studios-label"
-                [ngModel]="onlyFavoriteStudios()"
-                (ngModelChange)="onOnlyFavoriteStudiosChanged($event)"
-              />
-              <span>{{ onlyFavoriteStudios() ? 'On' : 'Off' }}</span>
-            </label>
-          </div>
-        </div>
-
-        <div class="filter-grid">
-          <div class="filter-panel">
-            <div class="control-field app-control-field">
-              <span id="performer-studios-label" class="app-control-label">Studios</span>
-              <p-multiselect
-                inputId="performer-studios"
-                ariaLabelledBy="performer-studios-label"
-                [ngModel]="studioSelectedIds()"
-                (ngModelChange)="onStudioSelectionChanged($event)"
-                (onFilter)="onStudioFilterChanged($event.filter)"
-                (onPanelHide)="onStudioFilterPanelHide()"
-                [filter]="true"
-                [filterValue]="studioSearchTerm()"
-                filterPlaceHolder="Search studio networks"
-                [loading]="studioSearchLoading()"
-                [options]="studioSelectOptions()"
-                [group]="true"
-                optionGroupLabel="label"
-                optionGroupChildren="items"
-                optionLabel="label"
-                optionValue="value"
-                display="chip"
-                placeholder="Choose studio networks or child studios"
-                [showToggleAll]="false"
-                [emptyMessage]="studioSelectEmptyMessage()"
-                [emptyFilterMessage]="studioSelectEmptyMessage()"
-                [resetFilterOnHide]="true"
-                [appendTo]="'body'"
-                panelStyleClass="app-overlay-panel"
-                scrollHeight="18rem"
-              />
-            </div>
-          </div>
-
-          <div class="filter-panel">
-            <div class="control-field app-control-field">
-              <span id="performer-tags-label" class="app-control-label">Tags</span>
-              <p-multiselect
-                inputId="performer-tags"
-                ariaLabelledBy="performer-tags-label"
-                [ngModel]="tagSelectedIds()"
-                (ngModelChange)="onTagSelectionChanged($event)"
-                (onFilter)="onTagFilterChanged($event.filter)"
-                (onPanelHide)="onTagFilterPanelHide()"
-                [filter]="true"
-                [filterValue]="tagSearchTerm()"
-                filterPlaceHolder="Search scene tags"
-                [loading]="tagSearchLoading()"
-                [options]="tagSelectOptions()"
-                optionLabel="label"
-                optionValue="value"
-                [showToggleAll]="false"
-                display="chip"
-                [emptyMessage]="tagSelectEmptyMessage()"
-                [emptyFilterMessage]="tagSelectEmptyMessage()"
-                [resetFilterOnHide]="true"
-                [appendTo]="'body'"
-                panelStyleClass="app-overlay-panel"
-                placeholder="Select tags"
-                scrollHeight="16rem"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
     </section>
 
     <app-owned-note [total]="scenes().length" [owned]="ownedCount()" />
