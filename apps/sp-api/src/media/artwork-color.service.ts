@@ -8,6 +8,8 @@ const SAMPLE = 32;
 const MAX_BYTES = 8 * 1024 * 1024;
 const TIMEOUT_MS = 5_000;
 const CACHE_LIMIT = 500;
+/** Far beyond any catalog picture; stops a tiny file that decodes to gigabytes. */
+const MAX_PIXELS = 40_000_000;
 
 /**
  * Accent "Match the artwork" for pictures the browser can't read itself
@@ -78,17 +80,43 @@ export class ArtworkColorService {
     }
     const length = Number(response.headers.get('content-length') ?? 0);
     if (length > MAX_BYTES) {
+      await response.body?.cancel();
       return null;
     }
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (bytes.length > MAX_BYTES) {
+    const bytes = await readCapped(response, MAX_BYTES);
+    if (!bytes) {
       return null;
     }
-    const pixels = await sharp(bytes)
+    const pixels = await sharp(bytes, { limitInputPixels: MAX_PIXELS })
       .resize(SAMPLE, SAMPLE, { fit: 'fill' })
       .removeAlpha()
       .raw()
       .toBuffer();
     return vividColor(pixels, 3);
+  }
+}
+
+/** The body, or null once it passes `max` bytes; stops reading there instead of holding it all. */
+async function readCapped(
+  response: Response,
+  max: number,
+): Promise<Buffer | null> {
+  if (!response.body) {
+    return null;
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      return Buffer.concat(chunks);
+    }
+    total += value.byteLength;
+    if (total > max) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
   }
 }

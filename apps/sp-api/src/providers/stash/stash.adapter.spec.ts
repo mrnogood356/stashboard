@@ -713,6 +713,15 @@ describe('StashAdapter', () => {
       });
     });
 
+    it('goes ahead once Stash’s queue has been stuck too long', async () => {
+      (adapter as unknown as { laneMaxWaitMs: number }).laneMaxWaitMs = 0;
+      queue = [{ id: '9', status: 'READY' }];
+      await expect(
+        adapter.scanLibraryFolders(config, ['/data/stuck']),
+      ).resolves.toBe('51');
+      expect(sent()).toHaveLength(1);
+    });
+
     it('makes one Generate for every scene asked while Stash is busy', async () => {
       queue = [{ id: '9', status: 'READY' }];
       const asks = ['1', '2', '3'].map((id) =>

@@ -51,5 +51,12 @@ function parseLimit(limit: string | undefined): number {
 
 /** Comma-separated catalog tag ids. */
 function parseTags(tags: string | undefined): string[] {
-  return typeof tags === 'string' ? tags.split(',') : [];
+  if (typeof tags !== 'string') {
+    return [];
+  }
+  return tags
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0 && tag.length <= 100)
+    .slice(0, 20);
 }

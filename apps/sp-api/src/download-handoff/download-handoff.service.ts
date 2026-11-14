@@ -1502,19 +1502,35 @@ export class DownloadHandoffService {
     if (stillThere) {
       return null;
     }
-    const [match] = await this.stash
+    const matches = await this.stash
       .findScenesByStashId(catalogSceneId, config)
       .catch(() => []);
-    if (!match) {
+    if (matches.length === 0) {
       return null;
     }
-    const scene = await this.stash
-      .getOrganizerScene(config, match.id)
-      .catch(() => null);
-    this.logger.log(
-      `${file} was moved since it came in; Stash has its scene as ${match.id}.`,
-    );
-    return { sceneId: match.id, path: scene?.files[0]?.path ?? null };
+    // More than one (an older copy beside this download, say): only the one
+    // whose file still has this download's name is it; otherwise look by path.
+    const name = path.basename(file);
+    for (const match of matches) {
+      const scene = await this.stash
+        .getOrganizerScene(config, match.id)
+        .catch(() => null);
+      const own =
+        scene?.files.find(
+          (candidate) => path.basename(candidate.path) === name,
+        ) ?? null;
+      if (matches.length > 1 && !own) {
+        continue;
+      }
+      this.logger.log(
+        `${file} was moved since it came in; Stash has its scene as ${match.id}.`,
+      );
+      return {
+        sceneId: match.id,
+        path: own?.path ?? scene?.files[0]?.path ?? null,
+      };
+    }
+    return null;
   }
 
   private async sceneFor(

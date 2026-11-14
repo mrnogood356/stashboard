@@ -23,6 +23,8 @@ const KIND_NAMES: Record<BackgroundJobKind, string> = {
 
 /** How often to look whether Stash's queue has room again. */
 const LANE_POLL_MS = 10_000;
+/** A queue stuck this long (a job that never starts) doesn't hold Stashboard up for ever. */
+const LANE_MAX_WAIT_MS = 30 * 60_000;
 
 interface BackgroundBatch {
   kind: BackgroundJobKind;
@@ -57,6 +59,7 @@ export abstract class StashJobsApi extends StashGraphqlClient {
   private readonly startedFor = new Map<string, string>();
   /** For tests: how long to wait between looks at Stash's queue. */
   protected lanePollMs = LANE_POLL_MS;
+  protected laneMaxWaitMs = LANE_MAX_WAIT_MS;
   protected laneSleep = (ms: number) =>
     new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -189,14 +192,24 @@ export abstract class StashJobsApi extends StashGraphqlClient {
     this.startedFor.delete(`${config.baseUrl}|${kind}|${item}`);
   }
 
-  /** Waits until no job is waiting its turn in Stash's queue. */
+  /**
+   * Waits until no job is waiting its turn in Stash's queue, or until it has
+   * waited laneMaxWaitMs: a stuck queue gets one job of ours, not none for ever.
+   */
   private async untilStashHasRoom(
     config: StashAdapterBaseConfig,
   ): Promise<void> {
+    const since = Date.now();
     for (;;) {
       const queue = await this.getJobQueue(config).catch(() => null);
       // Can't ask: go ahead rather than wait for ever; Stash queues it.
       if (!queue || !queue.some((job) => job.status === 'READY')) {
+        return;
+      }
+      if (Date.now() - since >= this.laneMaxWaitMs) {
+        this.logger.warn(
+          `Stash's job queue hasn't moved in ${Math.round(this.laneMaxWaitMs / 60_000)} minutes; adding Stashboard's job anyway. Check Stash's Tasks page for a stuck job.`,
+        );
         return;
       }
       await this.laneSleep(this.lanePollMs);

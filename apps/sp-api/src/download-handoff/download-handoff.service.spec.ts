@@ -895,6 +895,38 @@ describe('DownloadHandoffService', () => {
       expect(row()).toMatchObject({ status: 'imported', stashSceneId: '88' });
     });
 
+    it('with an older copy in Stash too, links the scene that has this download’s file', async () => {
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      rows.push(handoff({ id: 'h1' }));
+      await write(video());
+      sabnzbd.history.mockResolvedValue([historyEntry()]);
+      await service.checkOpen();
+
+      const movedTo = path.join(
+        destination,
+        'Studio',
+        'Jane.Doe.Beach.Day.1080p.mkv',
+      );
+      await fs.rm(path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'));
+      stash.findScenesByStashId.mockResolvedValue([{ id: '70' }, { id: '88' }]);
+      stash.getOrganizerScene.mockImplementation(
+        (_config: unknown, id: string) =>
+          Promise.resolve({
+            files: [{ path: id === '70' ? '/library/old-copy.mp4' : movedTo }],
+          }),
+      );
+
+      await service.checkOpen();
+      expect(organizer.linkDownloadedScene).toHaveBeenCalledWith(
+        '88',
+        expect.anything(),
+      );
+      expect(organizer.linkDownloadedScene).not.toHaveBeenCalledWith(
+        '70',
+        expect.anything(),
+      );
+    });
+
     it('does nothing while turned off', async () => {
       settings.enabled = false;
       rows.push(handoff({ id: 'h1' }));
