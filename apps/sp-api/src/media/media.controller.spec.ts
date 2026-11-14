@@ -52,3 +52,22 @@ describe('MediaController', () => {
     expect(plain.headers['Cache-Control']).toBe('private, max-age=86400');
   });
 });
+
+describe('MediaController accent', () => {
+  it('reads one address only, and no list of them', async () => {
+    const artworkColor = { colorOf: jest.fn().mockResolvedValue('#123456') };
+    const controller = new MediaController({} as never, artworkColor as never);
+
+    await expect(
+      controller.getAccent(['https://cdn.stashdb.org/a', 'https://x/b']),
+    ).resolves.toEqual({ color: null });
+    await expect(controller.getAccent(undefined)).resolves.toEqual({
+      color: null,
+    });
+    expect(artworkColor.colorOf).not.toHaveBeenCalled();
+
+    await expect(
+      controller.getAccent('https://cdn.stashdb.org/a'),
+    ).resolves.toEqual({ color: '#123456' });
+  });
+});
