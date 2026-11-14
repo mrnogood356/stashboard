@@ -1,5 +1,6 @@
 import { DOCUMENT } from '@angular/common';
 import { Injectable, inject, isDevMode, signal } from '@angular/core';
+import { AppLockService } from '../app-lock/app-lock.service';
 
 /** How often an open tab looks for a newer Stashboard. */
 const CHECK_EVERY_MS = 30 * 60_000;
@@ -31,6 +32,7 @@ export function mainBundleName(html: string): string | null {
 @Injectable({ providedIn: 'root' })
 export class AppUpdatesService {
   private readonly document = inject(DOCUMENT);
+  private readonly appLock = inject(AppLockService, { optional: true });
 
   readonly offline = signal(false);
   readonly updateReady = signal(false);
@@ -120,7 +122,12 @@ export class AppUpdatesService {
     return view.isSecureContext === false && !safari ? 'insecure' : 'manual';
   }
 
+  /** Through App Lock, so taking the update isn't taken for leaving the app. */
   reload(): void {
+    if (this.appLock) {
+      this.appLock.reload();
+      return;
+    }
     this.document.defaultView?.location.reload();
   }
 

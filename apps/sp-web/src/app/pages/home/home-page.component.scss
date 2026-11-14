@@ -336,6 +336,9 @@ p {
   position: relative;
   scroll-snap-align: start;
   scroll-snap-stop: always;
+  /* Always the full width: with only the shape set, a wide screen hit the
+     height cap and the slide shrank narrower than its rounded frame. */
+  width: 100%;
   aspect-ratio: 3 / 1;
   max-height: min(52vh, 440px);
   min-height: 320px;

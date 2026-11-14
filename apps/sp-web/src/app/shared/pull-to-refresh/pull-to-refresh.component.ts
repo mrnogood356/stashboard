@@ -1,6 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import { Component, NgZone, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { AppLockService } from '../../core/app-lock/app-lock.service';
 
 /** How far to pull before letting go reloads. */
 export const PULL_TO_RELOAD_PX = 80;
@@ -78,6 +79,7 @@ export class PullToRefreshComponent implements OnInit, OnDestroy {
   private readonly document = inject(DOCUMENT);
   private readonly zone = inject(NgZone);
   private readonly router = inject(Router);
+  private readonly appLock = inject(AppLockService, { optional: true });
 
   protected readonly Math = Math;
   protected readonly threshold = PULL_TO_RELOAD_PX;
@@ -167,7 +169,12 @@ export class PullToRefreshComponent implements OnInit, OnDestroy {
     this.reload(view);
   }
 
+  /** Through App Lock, so reloading isn't taken for leaving the app and locking it. */
   protected reload(view: Window): void {
+    if (this.appLock) {
+      this.appLock.reload();
+      return;
+    }
     view.location.reload();
   }
 
