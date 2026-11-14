@@ -164,7 +164,10 @@ describe('OrganizerService', () => {
         update: jest.fn().mockResolvedValue({}),
       },
       sceneIndex: { findMany: jest.fn().mockResolvedValue([]) },
-      sceneStashAlias: { upsert: jest.fn().mockResolvedValue({}) },
+      sceneStashAlias: {
+        upsert: jest.fn().mockResolvedValue({}),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       matchProposal: {
         findMany: jest.fn(() =>
           Promise.resolve(
@@ -253,6 +256,7 @@ describe('OrganizerService', () => {
       requestImmediateRefresh: jest.fn().mockResolvedValue(undefined),
     };
     handoff = {
+      noteNotInStash: jest.fn(),
       send: jest.fn().mockResolvedValue({ sent: [], skipped: {}, failed: [] }),
       isAvailable: jest.fn().mockResolvedValue(true),
       missingInWhisparr: jest.fn().mockResolvedValue([]),
@@ -1009,6 +1013,44 @@ describe('OrganizerService', () => {
       kind: 'whisparr',
     });
     expect(service.status().message).toBe('Sent 1 to Whisparr.');
+  });
+
+  it('sends the file of a scene you said is the same as another, to Whisparr’s entry', async () => {
+    handoff.missingInWhisparr.mockResolvedValue(['sdb-whisparr']);
+    prisma.sceneStashAlias.findMany.mockResolvedValue([
+      { stashId: 'sdb-whisparr', aliasOf: 'sdb-stash' },
+    ]);
+    const inStash = localScene({
+      id: '31',
+      stashIds: [
+        { endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-stash' },
+      ],
+    });
+    stash.findOrganizerScenes.mockImplementation(
+      (
+        _config: unknown,
+        query: { sceneFilter: { stash_id_endpoint: { stash_id: string } } },
+      ) =>
+        Promise.resolve(
+          query.sceneFilter.stash_id_endpoint.stash_id === 'sdb-stash'
+            ? { total: 1, items: [inStash] }
+            : { total: 0, items: [] },
+        ),
+    );
+    handoff.send.mockResolvedValue({ sent: [], skipped: {}, failed: [] });
+
+    service.startSendAll();
+    await waitUntilIdle(service);
+
+    const [, sent] = handoff.send.mock.calls[0] as [
+      unknown,
+      Array<{ id: string; stashIds: unknown[] }>,
+    ];
+    expect(sent).toHaveLength(1);
+    expect(sent[0].id).toBe('31');
+    expect(sent[0].stashIds).toEqual([
+      { endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-whisparr' },
+    ]);
   });
 
   it('leaves scenes the rename can name out of Unmatched, so the two don’t undo each other', async () => {

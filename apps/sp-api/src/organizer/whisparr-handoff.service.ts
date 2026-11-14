@@ -27,6 +27,8 @@ export type HandoffSkip =
 export interface HandoffResult {
   sent: Array<{ sceneId: string; title: string }>;
   skipped: Partial<Record<HandoffSkip, number>>;
+  /** Catalog scenes Whisparr turned out to have a file for already. */
+  alreadyHad?: string[];
   failed: Array<{
     sceneId: string;
     title: string;
@@ -146,6 +148,14 @@ export class WhisparrHandoffService {
     onProgress?: (done: number) => void,
   ): Promise<HandoffResult> {
     const result = await this.sendScenes(config, scenes, settings, onProgress);
+    // Whisparr has them after all: what Stashboard knows about them was out
+    // of date, so they'd keep showing as missing.
+    if (result.alreadyHad?.length) {
+      await this.indexing
+        .requestImmediateRefresh(result.alreadyHad, 'whisparr-has-file')
+        .catch(() => undefined);
+      result.alreadyHad.forEach((stashId) => this.sendProblems.delete(stashId));
+    }
     const now = new Date();
     for (const failed of result.failed) {
       if (failed.stashId) {
@@ -164,6 +174,15 @@ export class WhisparrHandoffService {
       }
     }
     return result;
+  }
+
+  /** Stash has no scene linked to it (nor to one it's the same as). */
+  noteNotInStash(stashId: string): void {
+    this.sendProblems.set(stashId, {
+      reason:
+        'Stash has no scene linked to this StashDB scene, so there’s no file to send. Match its file in Match scenes, or say it’s the same scene as the one Stash has.',
+      at: new Date(),
+    });
   }
 
   /**
@@ -278,6 +297,7 @@ export class WhisparrHandoffService {
         }
         if (movie.hasFile) {
           skip('already-has-file');
+          (result.alreadyHad ??= []).push(stashId);
           continue;
         }
         const whisparrPath = mapPath(
