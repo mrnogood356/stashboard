@@ -98,8 +98,8 @@ interface AcquisitionUrlState {
 
 export const ACQUISITION_SORT_OPTIONS: ReadonlyArray<{ value: AcquisitionSort; label: string }> = [
   { value: 'status', label: 'By status' },
-  { value: 'requested-desc', label: 'Newest requested' },
-  { value: 'requested-asc', label: 'Oldest requested' },
+  { value: 'requested-desc', label: 'Recently added' },
+  { value: 'requested-asc', label: 'Oldest added' },
   { value: 'released-desc', label: 'Newest release' },
   { value: 'released-asc', label: 'Oldest release' },
   { value: 'title', label: 'Title (A–Z)' },

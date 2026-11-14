@@ -1540,7 +1540,7 @@ describe('HomeService', () => {
 
       await expect(service.getRailContent('waiting')).resolves.toEqual({
         items: [],
-        message: 'Unable to load waiting requests right now.',
+        message: "Couldn't load wanted scenes right now.",
       });
     });
 

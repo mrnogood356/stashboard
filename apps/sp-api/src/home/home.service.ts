@@ -245,7 +245,7 @@ const DEFAULT_HOME_RAILS: Array<{
   {
     key: HomeRailKey.STILL_WAITING,
     title: 'Still Waiting',
-    subtitle: "Requested scenes that haven't finished downloading yet.",
+    subtitle: "Wanted scenes that haven't finished downloading yet.",
     enabled: true,
     sortOrder: 3,
     source: HomeRailSource.STASH,
@@ -976,7 +976,7 @@ export class HomeService {
       );
       return {
         items: [],
-        message: 'Unable to load waiting requests right now.',
+        message: "Couldn't load wanted scenes right now.",
       };
     }
   }

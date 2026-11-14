@@ -55,7 +55,7 @@ export const QUICK_PAGES: readonly QuickPage[] = [
     label: 'Wanted',
     url: '/acquisition',
     icon: 'pi-inbox',
-    keywords: 'requests requested whisparr queue',
+    keywords: 'wanted requests requested whisparr queue',
   },
   {
     label: 'You may enjoy',

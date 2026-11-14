@@ -17,11 +17,11 @@ export interface ReadinessPageAlert {
 }
 
 export function setupCompleteSummary(catalogProviderLabel: string): string {
-  return `${catalogProviderLabel}, Stash and Whisparr are set up. Home and Scenes work now; Library, Requests and the status on each scene fill in after the first sync.`;
+  return `${catalogProviderLabel}, Stash and Whisparr are set up. Home and Scenes work now; Library, Wanted and the status on each scene fill in after the first sync.`;
 }
 
 export function initialIndexingGuidance(): string {
-  return 'If Library is empty or Requests looks out of date, open Settings → Indexing and tap Sync now.';
+  return 'If Library is empty or Wanted looks out of date, open Settings → Indexing and tap Sync now.';
 }
 
 export function firstUseEmptyStateCopy(surface: ReadinessSurface): FirstUseEmptyStateCopy {
@@ -47,7 +47,7 @@ export function firstUseEmptyStateCopy(surface: ReadinessSurface): FirstUseEmpty
       return {
         title: 'No requests yet',
         message:
-          'Request a scene from Scenes and it shows up here. Already using Whisparr? Run Sync now in Settings → Indexing.',
+          'Want a scene from Scenes and it shows up here. Already using Whisparr? Run Sync now in Settings → Indexing.',
       };
   }
 }
@@ -187,7 +187,7 @@ function alertForImpacts(
         return setup
           ? alert(
               'Whisparr and Stash need setting up',
-              `Requests go through Whisparr and land in Stash, so both need setting up.`,
+              `Wanted scenes go through Whisparr and land in Stash, so both need setting up.`,
             )
           : alert(
               'Whisparr and Stash aren’t answering',
@@ -199,7 +199,7 @@ function alertForImpacts(
         return setup
           ? alert(
               'Whisparr needs setting up',
-              `Requests go through Whisparr, so nothing moves until it’s set up.`,
+              `Wanted scenes go through Whisparr, so nothing moves until it’s set up.`,
             )
           : alert(
               'Whisparr needs attention',

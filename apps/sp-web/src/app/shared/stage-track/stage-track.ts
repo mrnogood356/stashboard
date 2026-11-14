@@ -57,7 +57,7 @@ export function stagesForStatus(state: SceneStatusState, queueState?: string | n
 export function stageNowText(stages: Stage[]): string {
   const index = stages.findIndex((stage) => stage.state === 'current' || stage.state === 'failed');
   if (index === -1) {
-    return stages.every((stage) => stage.state === 'done') ? 'In library' : 'Not requested';
+    return stages.every((stage) => stage.state === 'done') ? 'In library' : 'Not added';
   }
   const stage = stages[index];
   return `Step ${index + 1} of ${stages.length} · ${stage.label}${stage.state === 'failed' ? ' failed' : ''}`;

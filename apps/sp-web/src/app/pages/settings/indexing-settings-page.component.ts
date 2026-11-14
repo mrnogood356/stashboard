@@ -180,7 +180,7 @@ export class IndexingSettingsPageComponent implements OnInit {
       return {
         label: 'Up to date',
         tone: 'good',
-        description: 'Requests, Library and each scene’s status are current.',
+        description: 'Wanted, Library and each scene’s status are current.',
       };
     }
 

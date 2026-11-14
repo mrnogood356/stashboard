@@ -22,8 +22,8 @@ const REASONS: Record<OwnedCopyReason, string> = {
 })
 export class OwnedCopiesWarningComponent {
   @Input() copies: OwnedCopy[] = [];
-  /** The go-ahead button: "Request anyway" or "Download anyway". */
-  @Input() proceedLabel = 'Request anyway';
+  /** The go-ahead button: "Want anyway" or "Download anyway". */
+  @Input() proceedLabel = 'Want anyway';
   @Output() readonly proceed = new EventEmitter<void>();
   /** A copy was opened; the sheet or dialog around this should close. */
   @Output() readonly opened = new EventEmitter<void>();

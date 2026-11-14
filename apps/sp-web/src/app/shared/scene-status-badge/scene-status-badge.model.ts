@@ -16,7 +16,7 @@ export function sceneStatusBadgeLabel(status: SceneStatusLike): string {
       return 'Failed';
     case 'NOT_REQUESTED':
     default:
-      return 'Not requested';
+      return 'Not added';
   }
 }
 
