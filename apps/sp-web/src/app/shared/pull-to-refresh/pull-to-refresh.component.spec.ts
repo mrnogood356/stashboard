@@ -73,6 +73,23 @@ describe('PullToRefreshComponent', () => {
     vi.useRealTimers();
   });
 
+  it('doesn’t reload when a second finger joins a pull', async () => {
+    await render(true);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+
+    pull(Math.ceil(PULL_TO_RELOAD_PX / 0.55) + 10);
+    const pinch = new Event('touchstart') as TouchEvent;
+    Object.defineProperty(pinch, 'touches', {
+      value: [
+        { clientX: 100, clientY: 300 },
+        { clientX: 200, clientY: 300 },
+      ],
+    });
+    window.dispatchEvent(pinch);
+    window.dispatchEvent(touch('touchend', 0, 0));
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
   it('ignores a sideways swipe, and does nothing in a browser tab', async () => {
     const fixture = await render(true);
     pull(60, 200);

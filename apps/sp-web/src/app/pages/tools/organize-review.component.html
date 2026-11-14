@@ -199,6 +199,14 @@
           <div class="notice error small-notice" role="alert">
             <i class="pi pi-exclamation-circle" aria-hidden="true"></i
             ><span>{{ state.error }}</span>
+            <button
+              type="button"
+              class="link"
+              data-testid="lookup-retry"
+              (click)="list.lookup(scene)"
+            >
+              Try again
+            </button>
           </div>
         } @else if (state.result; as result) {
           @if (result.candidates.length === 0) {

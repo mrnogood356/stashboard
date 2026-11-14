@@ -105,6 +105,32 @@ describe('MergePageComponent', () => {
     expect(boxes.map((box) => box.checked)).toEqual([false, false]);
   });
 
+  it('keeps what you left unticked when you pick another to keep', async () => {
+    const { fixture, root } = await render([
+      {
+        keepId: '2',
+        items: [
+          { ...item('2', 'Jane Doe', 9), match: { reason: 'name', with: 'jane doe', sure: true } },
+          { ...item('1', 'jane doe', 3), match: { reason: 'name', with: 'Jane Doe', sure: true } },
+          {
+            ...item('5', 'JD', 1),
+            aliases: ['Jane-Doe'],
+            match: { reason: 'alias', with: 'Jane Doe', sure: false },
+          },
+        ],
+      },
+    ]);
+    const rows = () => Array.from(root.querySelectorAll('[data-testid="merge-set"] .row'));
+    // The alias is JD's own, though written another way.
+    expect(rows()[2].querySelector('.why')?.textContent?.trim()).toBe('Lists Jane Doe as an alias');
+
+    rows()[1].querySelector<HTMLInputElement>('input[type="radio"]')!.click();
+    fixture.detectChanges();
+    const ticked = (row: Element) =>
+      row.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked ?? null;
+    expect(rows().map(ticked)).toEqual([true, null, false]);
+  });
+
   it('merges a suggested set into the one kept, after a second tap, leaving out unticked ones', async () => {
     const { fixture, root, library } = await render();
     const set = root.querySelector('[data-testid="merge-set"]')!;
