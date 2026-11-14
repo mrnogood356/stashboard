@@ -124,7 +124,21 @@ export class OrganizeListStore implements OnDestroy {
     return this.matches()[id] ?? null;
   }
 
+  /** Each scene's latest lookup: an older, slower answer doesn't overwrite it. */
+  private readonly lookups = new Map<string, number>();
+
+  private nextLookup(id: string): number {
+    const version = (this.lookups.get(id) ?? 0) + 1;
+    this.lookups.set(id, version);
+    return version;
+  }
+
+  private isLatest(id: string, version: number | undefined): boolean {
+    return version !== undefined && this.lookups.get(id) === version;
+  }
+
   lookup(scene: UnmatchedScene, query?: string): void {
+    const version = this.nextLookup(scene.id);
     const current = this.matchState(scene.id);
     this.setMatch(scene.id, {
       loading: true,
@@ -133,12 +147,19 @@ export class OrganizeListStore implements OnDestroy {
       query: query ?? current?.query ?? '',
     });
     this.api.lookup([scene.id], query?.trim() || undefined).subscribe({
-      next: ([result]) => this.setMatch(scene.id, { loading: false, result: result ?? null }),
-      error: (error: { error?: { message?: string } }) =>
-        this.setMatch(scene.id, {
-          loading: false,
-          error: error?.error?.message ?? 'StashDB didn’t answer. Try again.',
-        }),
+      next: ([result]) => {
+        if (this.isLatest(scene.id, version)) {
+          this.setMatch(scene.id, { loading: false, result: result ?? null });
+        }
+      },
+      error: (error: { error?: { message?: string } }) => {
+        if (this.isLatest(scene.id, version)) {
+          this.setMatch(scene.id, {
+            loading: false,
+            error: error?.error?.message ?? 'StashDB didn’t answer. Try again.',
+          });
+        }
+      },
     });
   }
 
@@ -151,11 +172,15 @@ export class OrganizeListStore implements OnDestroy {
       return;
     }
     this.lookingUpPage.set(true);
+    const versions = new Map(ids.map((id) => [id, this.nextLookup(id)]));
     ids.forEach((id) => this.setMatch(id, { loading: true, error: null }));
     this.api.lookup(ids).subscribe({
       next: (results) => {
         this.lookingUpPage.set(false);
         for (const id of ids) {
+          if (!this.isLatest(id, versions.get(id))) {
+            continue;
+          }
           this.setMatch(id, {
             loading: false,
             result: results.find((result) => result.sceneId === id) ?? null,
@@ -164,12 +189,14 @@ export class OrganizeListStore implements OnDestroy {
       },
       error: (error: { error?: { message?: string } }) => {
         this.lookingUpPage.set(false);
-        ids.forEach((id) =>
-          this.setMatch(id, {
-            loading: false,
-            error: error?.error?.message ?? 'StashDB didn’t answer.',
-          }),
-        );
+        ids
+          .filter((id) => this.isLatest(id, versions.get(id)))
+          .forEach((id) =>
+            this.setMatch(id, {
+              loading: false,
+              error: error?.error?.message ?? 'StashDB didn’t answer.',
+            }),
+          );
       },
     });
   }
@@ -186,6 +213,8 @@ export class OrganizeListStore implements OnDestroy {
       next: (result) => {
         // A matched scene can be renamed now, or already was.
         this.files.renameStale = true;
+        // Done: if the scene shows again (All scenes), its choices work again.
+        this.setMatch(scene.id, { applying: null });
         this.scenes.update((scenes) => scenes.filter((entry) => entry.id !== scene.id));
         this.total.update((total) => (total === null ? total : Math.max(0, total - 1)));
         this.notifications.success(

@@ -184,6 +184,7 @@ export class SheetComponent implements OnChanges, OnDestroy {
   }
 
   private keyboardListener: (() => void) | null = null;
+  private dragging = false;
 
   /** Pulled down by its top on a phone: closes past a short way, else springs back. */
   protected startDrag(event: PointerEvent): void {
@@ -199,15 +200,28 @@ export class SheetComponent implements OnChanges, OnDestroy {
     ) {
       return;
     }
+    // One drag at a time, followed by the finger that started it only.
+    if (this.dragging) {
+      return;
+    }
+    this.dragging = true;
+    const pointer = event.pointerId;
     const startY = event.clientY;
     const startTime = event.timeStamp;
     let pulled = 0;
     const move = (next: PointerEvent) => {
+      if (next.pointerId !== pointer) {
+        return;
+      }
       pulled = Math.max(0, next.clientY - startY);
       panel.style.transition = 'none';
       panel.style.transform = `translate(-50%, ${pulled}px)`;
     };
     const end = (last: PointerEvent) => {
+      if (last.pointerId !== pointer) {
+        return;
+      }
+      this.dragging = false;
       view.removeEventListener('pointermove', move);
       view.removeEventListener('pointerup', end);
       view.removeEventListener('pointercancel', end);
@@ -216,7 +230,15 @@ export class SheetComponent implements OnChanges, OnDestroy {
       panel.style.transition = 'transform 0.2s ease';
       panel.style.transform = close ? 'translate(-50%, 100%)' : '';
       if (close) {
-        setTimeout(() => this.requestClose(), 150);
+        setTimeout(() => {
+          // Busy meanwhile (saving, say): it stays, so back into view.
+          if (this.busy) {
+            panel.style.transform = '';
+            setTimeout(() => (panel.style.transition = ''), 200);
+            return;
+          }
+          this.requestClose();
+        }, 150);
       } else {
         setTimeout(() => (panel.style.transition = ''), 200);
       }

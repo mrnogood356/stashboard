@@ -820,6 +820,30 @@ describe('StashAdapter', () => {
       );
     });
 
+    it('doesn’t scan a folder twice when asked again while its scan is being started', async () => {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const base = fetchMock.getMockImplementation()!;
+      fetchMock.mockImplementation(async (url, init) => {
+        if (String(init?.body).includes('metadataScan')) {
+          await gate;
+        }
+        return base(url, init);
+      });
+      const first = adapter.scanLibraryFolders(config, ['/data/a']);
+      await settle();
+      // Asked again while the first scan's start is still on its way.
+      const second = adapter.scanLibraryFolders(config, ['/data/a']);
+      await settle();
+      queue = [{ id: '51', status: 'RUNNING' }];
+      release();
+      await expect(first).resolves.toBe('51');
+      await expect(second).resolves.toBe('51');
+      expect(sent()).toHaveLength(1);
+    });
+
     it('keeps different whole-library tasks apart while they wait', async () => {
       queue = [{ id: '9', status: 'READY' }];
       const scan = adapter.startLibraryTask(config, 'scan');

@@ -118,10 +118,11 @@ export class MergePageComponent implements OnInit {
   }
 
   protected setKeep(set: MergeSet, id: string): void {
-    this.update(set, {
-      keepId: id,
-      merge: new Set(set.items.filter((item) => item.id !== id).map((item) => item.id)),
-    });
+    // What you left unticked stays unticked; the one kept before is ticked in.
+    const merge = new Set(set.merge);
+    merge.add(set.keepId);
+    merge.delete(id);
+    this.update(set, { keepId: id, merge });
   }
 
   protected toggle(set: MergeSet, id: string): void {
@@ -144,9 +145,7 @@ export class MergePageComponent implements OnInit {
       ? `Same StashDB entry as ${match.with}`
       : match.reason === 'name'
         ? 'Same name'
-        : item.aliases.some(
-              (alias) => alias.trim().toLowerCase() === match.with.trim().toLowerCase(),
-            )
+        : item.aliases.some((alias) => nameKey(alias) === nameKey(match.with))
           ? `Lists ${match.with} as an alias`
           : `${match.with} lists this name as an alias`;
   }
@@ -273,4 +272,15 @@ export class MergePageComponent implements OnInit {
       error: () => this.matches.set([]),
     });
   }
+}
+
+/** Names as the server compares them: case, Latin accents, spacing and punctuation aside. */
+function nameKey(name: string): string {
+  return name
+    .normalize('NFKD')
+    .replace(/(\p{Script=Latin})[\u0300-\u036f]+/gu, '$1')
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, '');
 }

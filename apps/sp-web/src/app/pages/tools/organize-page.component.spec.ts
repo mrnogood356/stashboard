@@ -287,6 +287,39 @@ describe('OrganizePageComponent', () => {
     expect(root.textContent).not.toContain('Studio.23.08.14.Title.mp4');
   });
 
+  it('keeps the newest lookup’s answer, and offers to try again when one fails', async () => {
+    const slow = new Subject<unknown>();
+    const lookup = vi
+      .fn()
+      .mockReturnValueOnce(slow)
+      .mockReturnValueOnce(of([{ sceneId: '7', searchedFor: 'Own', candidates: [candidate] }]))
+      .mockReturnValueOnce(throwError(() => ({ error: { message: 'StashDB is down' } })))
+      .mockReturnValue(of([{ sceneId: '7', searchedFor: null, candidates: [candidate] }]));
+    const api = {
+      settings: vi.fn().mockReturnValue(of(settings)),
+      unmatched: vi.fn().mockReturnValue(of({ total: 1, page: 1, hasMore: false, items: [scene] })),
+      lookup,
+    };
+    const { fixture, root } = await render(api);
+    const list = fixture.componentRef.injector.get(OrganizeListStore);
+
+    list.lookup(scene);
+    list.lookup(scene, 'Own');
+    // The first, slower answer arrives last: it doesn't replace the newer one.
+    slow.next([{ sceneId: '7', searchedFor: null, candidates: [] }]);
+    slow.complete();
+    expect(list.matchState('7')?.result?.searchedFor).toBe('Own');
+
+    list.lookup(scene);
+    fixture.detectChanges();
+    const retry = root.querySelector('[data-testid="lookup-retry"]') as HTMLButtonElement;
+    expect(retry).not.toBeNull();
+    retry.click();
+    fixture.detectChanges();
+    expect(lookup).toHaveBeenCalledTimes(4);
+    expect(list.matchState('7')?.error).toBeNull();
+  });
+
   it('picks scenes in the Match list and matches just those', async () => {
     const matchSelected = vi.fn().mockReturnValue(of({ ...idle, running: true, kind: 'match' }));
     const api = {

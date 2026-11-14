@@ -98,10 +98,17 @@ describe('SheetComponent', () => {
   });
 
   describe('on a phone', () => {
-    const pointer = (type: string, clientY: number, target: EventTarget, timeStamp = 0) => {
+    const pointer = (
+      type: string,
+      clientY: number,
+      target: EventTarget,
+      timeStamp = 0,
+      pointerId = 1,
+    ) => {
       const event = new MouseEvent(type, { bubbles: true, clientY });
       Object.defineProperty(event, 'pointerType', { value: 'touch' });
       Object.defineProperty(event, 'timeStamp', { value: timeStamp });
+      Object.defineProperty(event, 'pointerId', { value: pointerId });
       target.dispatchEvent(event);
     };
     let width: number;
@@ -134,6 +141,36 @@ describe('SheetComponent', () => {
       pointer('pointerup', 260, window, 200);
       vi.advanceTimersByTime(300);
       expect(host.closed).toHaveBeenCalledTimes(1);
+    });
+
+    it('follows only the finger that started the pull', async () => {
+      const { host, show } = await render();
+      show();
+      vi.useFakeTimers();
+      pointer('pointerdown', 100, document.querySelector('.sheet-grabber')!, 0, 1);
+      pointer('pointermove', 260, window, 200, 1);
+      // Another finger lifts elsewhere: the pull goes on.
+      pointer('pointerup', 500, window, 210, 2);
+      vi.advanceTimersByTime(300);
+      expect(host.closed).not.toHaveBeenCalled();
+      pointer('pointerup', 260, window, 220, 1);
+      vi.advanceTimersByTime(300);
+      expect(host.closed).toHaveBeenCalledTimes(1);
+    });
+
+    it('comes back into view when it turns busy as it was pulled shut', async () => {
+      const { host, show, fixture } = await render();
+      show();
+      vi.useFakeTimers();
+      const panel = document.querySelector('.sheet') as HTMLElement;
+      pointer('pointerdown', 100, document.querySelector('.sheet-grabber')!, 0);
+      pointer('pointermove', 260, window, 200);
+      pointer('pointerup', 260, window, 200);
+      host.busy.set(true);
+      fixture.detectChanges();
+      vi.advanceTimersByTime(300);
+      expect(host.closed).not.toHaveBeenCalled();
+      expect(panel.style.transform).toBe('');
     });
 
     it('can’t be pulled shut while busy, or from its close button', async () => {

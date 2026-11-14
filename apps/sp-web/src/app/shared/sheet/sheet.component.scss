@@ -73,7 +73,8 @@
 /* A larger screen: in the middle, or along the side for an editor. */
 @media (min-width: 760px) {
   .sheet {
-    top: 50%;
+    /* The middle of what's visible: above a tablet's keyboard while it's up. */
+    top: calc(var(--sheet-room, 100dvh) / 2);
     bottom: auto;
     transform: translate(-50%, -50%);
     border-radius: 22px;
@@ -83,7 +84,7 @@
   .sheet--side {
     top: 0;
     right: 0;
-    bottom: 0;
+    bottom: var(--sheet-keyboard, 0px);
     left: auto;
     width: min(30rem, 100vw);
     height: auto;
