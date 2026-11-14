@@ -44,7 +44,12 @@ export interface MergeCandidates {
   /** Each item says why it's in the set, and with whom. */
   groups: Array<{
     keepId: string;
-    items: Array<MergeCandidate & { match?: { reason: MergeReason; with: string } }>;
+    items: Array<
+      MergeCandidate & {
+        /** sure: tied to the one kept by catalog entry or name, not only an alias. */
+        match?: { reason: MergeReason; with: string; sure?: boolean };
+      }
+    >;
   }>;
   matches: MergeCandidate[];
 }

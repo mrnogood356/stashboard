@@ -494,7 +494,7 @@ describe('OrganizePageComponent', () => {
     fixture.detectChanges();
     expect(api.fixTaken).not.toHaveBeenCalled();
     button(root, 'Tap again to delete this copy').click();
-    expect(api.fixTaken).toHaveBeenCalledWith(['5']);
+    expect(api.fixTaken).toHaveBeenCalledWith(['5'], 'merge');
     expect(api.preview).toHaveBeenCalledTimes(2);
   });
 
@@ -764,6 +764,29 @@ describe('OrganizePageComponent', () => {
       'Goes into its own folder: Summer Afternoon',
       'Adds Studio, WEBDL, 1080p',
     ]);
+    fixture.destroy();
+  });
+
+  it('saves an edited pattern before renaming one file, so it gets the name previewed', async () => {
+    const edited = '{studio}/{title}';
+    const update = vi.fn().mockReturnValue(of({ ...settings, renamePattern: edited }));
+    const rename = vi.fn().mockReturnValue(of({ moved: [{ to: '/data/x.mp4' }], failed: [] }));
+    const api = renameApi({
+      preview: vi.fn((pattern?: string) => of(renamePreview(pattern ?? settings.renamePattern))),
+      update,
+      rename,
+    });
+    const { fixture } = await render(api, 'rename');
+    const files = fixture.componentRef.injector.get(OrganizeFilesStore);
+
+    files.pattern.set(edited);
+    files.loadPreview();
+    expect(files.previewOutdated()).toBe(false);
+    files.renameOne('1');
+
+    expect(update).toHaveBeenCalledWith({ renamePattern: edited });
+    expect(update.mock.invocationCallOrder[0]).toBeLessThan(rename.mock.invocationCallOrder[0]);
+    expect(rename).toHaveBeenCalledWith(['1']);
     fixture.destroy();
   });
 

@@ -407,7 +407,10 @@ export class OrganizerApiService {
   }
 
   /** Scans what Stash doesn't know, or merges and drops the extra copy, for these "taken" files. */
-  fixTaken(sceneIds: string[]): Observable<{
+  fixTaken(
+    sceneIds: string[],
+    fix?: 'scan' | 'merge',
+  ): Observable<{
     scanned: number;
     merged: number;
     skipped: Array<{ sceneId: string; reason: string }>;
@@ -416,7 +419,7 @@ export class OrganizerApiService {
       scanned: number;
       merged: number;
       skipped: Array<{ sceneId: string; reason: string }>;
-    }>('/api/organizer/rename/taken/fix', { sceneIds });
+    }>('/api/organizer/rename/taken/fix', { sceneIds, fix });
   }
 
   preview(pattern?: string): Observable<RenamePreview> {
