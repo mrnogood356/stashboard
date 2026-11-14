@@ -1449,6 +1449,11 @@ export class DownloadHandoffService {
     // One scan for every folder asked meanwhile, started once nothing is
     // waiting in Stash's queue: until then, say Stash is busy.
     const job = await this.stash.requestFolderScan(config, folder);
+    // The scan asked for earlier has run: look once more, and if it isn't
+    // there the caller counts a try (the next ask scans again).
+    if (job === 'scanned') {
+      return this.sceneFor(config, file);
+    }
     if (job === 'waiting') {
       this.logger.debug(`Scan of ${folder} waits its turn in Stash.`);
       throw new StashBusyError(folder);
@@ -1526,7 +1531,9 @@ export class DownloadHandoffService {
       );
       return;
     }
-    await this.stash
+    // Not awaited: Generate waits its turn behind Stash's other jobs, and the
+    // download is done meanwhile.
+    void this.stash
       .startLibraryTask(config, 'generate', [sceneId])
       .then(() =>
         this.logger.debug(`Started generating previews for scene ${sceneId}.`),

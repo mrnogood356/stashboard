@@ -108,14 +108,51 @@ describe('groupMergeCandidates', () => {
       ['4', '5'],
     ]);
     expect(groups[0].items.map((item) => item.match)).toEqual([
-      { reason: 'name', with: 'jane  doe' },
-      { reason: 'name', with: 'Jane Doe' },
-      { reason: 'alias', with: 'Jane Doe' },
+      { reason: 'name', with: 'jane  doe', sure: true },
+      { reason: 'name', with: 'Jane Doe', sure: true },
+      { reason: 'alias', with: 'Jane Doe', sure: false },
     ]);
     expect(groups[1].items[1].match).toEqual({
       reason: 'catalog',
       with: 'Mia',
+      sure: true,
     });
+  });
+
+  it('keeps pairs apart once the entry joining them is split off', () => {
+    const withNote = (
+      id: string,
+      name: string,
+      scenes: number,
+      note: string,
+      aliases: string[] = [],
+    ) => ({ ...person(id, name, scenes, aliases), note });
+    // Two US pairs, joined only through a UK entry with both names as aliases.
+    const groups = groupMergeCandidates([
+      withNote('1', 'Ann Lee', 9, 'US'),
+      withNote('2', 'ann lee', 2, 'US'),
+      withNote('3', 'Bea Cole', 8, 'US'),
+      withNote('4', 'bea cole', 1, 'US'),
+      withNote('5', 'Cara May', 5, 'UK', ['Ann Lee', 'Bea Cole']),
+    ]);
+    expect(ids(groups)).toEqual([
+      ['1', '2'],
+      ['3', '4'],
+    ]);
+  });
+
+  it('marks as unsure what reaches the one kept only through an alias', () => {
+    const groups = groupMergeCandidates([
+      person('1', 'JD', 9, ['Jane Doe']),
+      person('2', 'Jane Doe', 3),
+      person('3', 'jane doe', 2),
+    ]);
+    expect(groups[0].keepId).toBe('1');
+    expect(groups[0].items.map((item) => [item.id, item.match.sure])).toEqual([
+      ['1', true],
+      ['2', false],
+      ['3', false],
+    ]);
   });
 
   it('splits off ones StashDB says are someone else', () => {

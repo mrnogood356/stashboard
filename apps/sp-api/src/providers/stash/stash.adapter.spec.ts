@@ -776,14 +776,36 @@ describe('StashAdapter', () => {
       await expect(adapter.requestFolderScan(config, '/data/a')).resolves.toBe(
         '51',
       );
-      // Finished: the next ask is a new scan.
+      // Finished: said once, so the caller can look for the file; the ask
+      // after that is a new scan.
       queue = [];
+      await expect(adapter.requestFolderScan(config, '/data/a')).resolves.toBe(
+        'scanned',
+      );
       await expect(adapter.requestFolderScan(config, '/data/a')).resolves.toBe(
         'waiting',
       );
       await settle();
       await settle();
       expect(sent()).toHaveLength(2);
+    });
+
+    it('keeps different whole-library tasks apart while they wait', async () => {
+      queue = [{ id: '9', status: 'READY' }];
+      const scan = adapter.startLibraryTask(config, 'scan');
+      const clean = adapter.startLibraryTask(config, 'clean');
+      await settle();
+      queue = [];
+      wake();
+      await settle();
+      await settle();
+      const [scanJob, cleanJob] = await Promise.all([scan, clean]);
+      expect(scanJob).not.toBe(cleanJob);
+      const bodies = fetchMock.mock.calls
+        .map(([, init]) => String(init?.body))
+        .filter((body) => body.includes('mutation'));
+      expect(bodies.some((body) => body.includes('metadataScan'))).toBe(true);
+      expect(bodies.some((body) => body.includes('metadataClean'))).toBe(true);
     });
 
     it('never runs Generate for the whole library when no named scene is real', async () => {

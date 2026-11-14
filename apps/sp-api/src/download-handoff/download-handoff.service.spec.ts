@@ -397,6 +397,22 @@ describe('DownloadHandoffService', () => {
       expect(stash.waitForJob).not.toHaveBeenCalled();
     });
 
+    it('counts a try once its queued scan has run without finding the file', async () => {
+      rows.push(handoff({ id: 'h1' }));
+      await write(video());
+      sabnzbd.history.mockResolvedValue([historyEntry()]);
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      // Waits its turn, then has run: never found.
+      stash.requestFolderScan
+        .mockResolvedValueOnce('waiting')
+        .mockResolvedValueOnce('scanned');
+
+      await service.checkOpen();
+      expect(row()).toMatchObject({ attempts: 0 });
+      await service.checkOpen();
+      expect(row().attempts).toBe(1);
+    });
+
     it('doesn’t wait again for a scan another download in the folder is waiting on', async () => {
       const second = path.join(destination, 'Other.mkv');
       stash.sceneIdsForPaths.mockResolvedValue([]);

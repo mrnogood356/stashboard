@@ -19,6 +19,7 @@ import {
   RenameScenesDto,
   ScrapeSceneDto,
   UpdateOrganizerSettingsDto,
+  FixTakenDto,
 } from './dto/organizer.dto';
 import { OrganizerService } from './organizer.service';
 
@@ -188,8 +189,8 @@ export class OrganizerController {
 
   @Post('rename/taken/fix')
   @HttpCode(200)
-  fixTaken(@Body() body: PickedScenesDto) {
-    return this.organizer.fixTaken(body.sceneIds);
+  fixTaken(@Body() body: FixTakenDto) {
+    return this.organizer.fixTaken(body.sceneIds, body.fix);
   }
 
   @Post('rename/preview')
