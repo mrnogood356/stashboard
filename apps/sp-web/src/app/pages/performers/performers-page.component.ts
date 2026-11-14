@@ -107,6 +107,8 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
   private sentinelIntersecting = false;
   private feedVersion = 0;
   private pendingReload = false;
+  /** The catalog list changed (a new search) while hidden by In my library: load it on the way back. */
+  private catalogStale = false;
   private hasHydratedFromUrl = false;
 
   @ViewChild('loadMoreSentinel')
@@ -217,6 +219,9 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
       }
       if (!on) {
         this.libQuery = null;
+        if (this.catalogStale) {
+          this.resetFeedAndReload();
+        }
       }
     });
   }
@@ -624,6 +629,13 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
     this.loadingMore.set(false);
     this.error.set(null);
     this.loadMoreError.set(null);
+
+    // In my library shows the library list: the hidden catalog one waits.
+    if (this.route.snapshot.queryParamMap.get('lib') === '1') {
+      this.catalogStale = true;
+      return;
+    }
+    this.catalogStale = false;
 
     if (this.inFlight()) {
       this.pendingReload = true;
