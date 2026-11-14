@@ -9,9 +9,8 @@ import { OrganizerSettings } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { canSee } from '../organizer/folder-cleanup.util';
 import { OrganizerService } from '../organizer/organizer.service';
-import { findRoot, RENAME_TOKENS } from '../organizer/rename.util';
+import { findRoot } from '../organizer/rename.util';
 import { mapPath } from '../organizer/whisparr-handoff.service';
-import { hasWhisparrTokens } from '../organizer/whisparr-naming.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CatalogProviderService } from '../providers/catalog/catalog-provider.service';
 import {
@@ -37,7 +36,7 @@ import {
   SetupFixAction,
   SetupFixResult,
 } from './setup-check.types';
-import { trimSeparators, trimTrailingSeparators } from '../path-separators';
+import { trimTrailingSeparators } from '../path-separators';
 
 type CheckBody = Omit<SetupCheck, 'id' | 'title'>;
 
@@ -111,9 +110,7 @@ export class SetupCheckService {
       this.guard('import-mode', 'How Whisparr imports', () =>
         this.checkImportMode(whisparr, settings),
       ),
-      this.guard('naming', 'File names', () =>
-        this.checkNaming(whisparr, settings),
-      ),
+      this.guard('naming', 'File names', () => this.checkNaming(whisparr)),
       this.guard('webhook', 'Whisparr webhook', () =>
         this.checkWebhook(whisparr, origin),
       ),
@@ -578,7 +575,6 @@ export class SetupCheckService {
 
   private async checkNaming(
     whisparr: WhisparrAdapterBaseConfig | null,
-    settings: OrganizerSettings | null,
   ): Promise<CheckBody> {
     if (!whisparr) {
       return NEEDS_WHISPARR;
@@ -600,35 +596,20 @@ export class SetupCheckService {
         fix: { label: 'Turn on renaming', action: 'whisparr-rename' },
       };
     }
-    const pattern = settings?.renamePattern ?? null;
-    if (!pattern) {
+    // Renames follow Whisparr's own naming while it's set up, so the two
+    // can't drift apart; unless that naming can't be used as a pattern.
+    const resolved = await this.organizer.whisparrNaming().catch(() => null);
+    if (resolved && !resolved.pattern) {
       return {
-        status: 'ok',
-        summary: 'Whisparr renames the scenes it imports.',
-      };
-    }
-    const whisparrPattern = [
-      naming.sceneFolderFormat,
-      naming.standardSceneFormat,
-    ]
-      .filter((part): part is string => typeof part === 'string' && !!part)
-      .map((part) => trimSeparators(part.trim()))
-      .join('/');
-    if (
-      pattern === whisparrPattern ||
-      hasWhisparrTokens(pattern, RENAME_TOKENS)
-    ) {
-      return {
-        status: 'ok',
-        summary: 'Whisparr and Stashboard name files the same way.',
+        status: 'warn',
+        summary:
+          'Stashboard can’t follow Whisparr’s naming, so it uses its own.',
+        detail: `${resolved.problem ?? 'Whisparr’s scene format can’t be read.'} In Whisparr: Settings → Media Management → Scene Naming.`,
       };
     }
     return {
-      status: 'warn',
-      summary: 'Stashboard names files differently from Whisparr.',
-      detail: `Whisparr renames scenes with its own format, but Stashboard’s rename pattern is “${pattern}”. Files Stashboard renames won’t look like Whisparr’s, and Whisparr may rename them again.`,
-      fix: { label: 'Use Whisparr’s naming', action: 'use-whisparr-naming' },
-      link: { label: 'Organize', route: '/tools/organize' },
+      status: 'ok',
+      summary: 'Whisparr and Stashboard name files the same way.',
     };
   }
 

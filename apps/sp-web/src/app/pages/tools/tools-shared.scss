@@ -356,7 +356,7 @@ p {
   text-underline-offset: 2px;
 }
 
-:host :is(.running, .review, .block.app-section-panel) {
+:host :is(.running, .block.app-section-panel) {
   --app-section-padding: 1rem;
   --app-section-radius: var(--radius-md);
   --app-section-bg: var(--surface-1);

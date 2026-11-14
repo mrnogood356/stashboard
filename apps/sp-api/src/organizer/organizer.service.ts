@@ -32,7 +32,7 @@ import {
 } from './match-scoring.util';
 import { WhisparrHandoffService } from './whisparr-handoff.service';
 import type { UnmatchedScope, UnmatchedSort } from './dto/organizer.dto';
-import { DEFAULT_RENAME_PATTERN, splitPath } from './rename.util';
+import { splitPath } from './rename.util';
 import {
   CANDIDATE_TTL_MS,
   IDLE_RUN,
@@ -1283,7 +1283,7 @@ export class OrganizerService
     }
     const config = await this.stashConfig();
     const settings = await this.getSettings();
-    const pattern = settings.renamePattern || DEFAULT_RENAME_PATTERN;
+    const { pattern } = await this.renamingPattern(settings);
     const plan = () =>
       this.planAll(
         config,
@@ -1713,7 +1713,7 @@ export class OrganizerService
               ? `Stash links this file to a different ${catalog} scene (${other}). If it’s the same scene, say so and it will count as in your library.`
               : linkedHere
                 ? 'Stash has it linked; the status should catch up within a few minutes.'
-                : `Stash has the file, but it isn’t linked to this ${catalog} scene yet, so it doesn’t count as in your library. Check it in Match & rename.`,
+                : `Stash has the file, but it isn’t linked to this ${catalog} scene yet, so it doesn’t count as in your library. Check it in Match scenes.`,
       });
     }
     if (nudge && lookAgain.length > 0) {

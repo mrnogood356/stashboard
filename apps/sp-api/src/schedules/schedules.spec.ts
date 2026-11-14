@@ -89,7 +89,7 @@ describe('schedules', () => {
     ]);
     on.service.now = () => at(2026, 11, 8, 3, 0);
     await on.service.tick();
-    expect(on.library.startJob).toHaveBeenCalledWith('scan');
+    expect(on.library.startJob).toHaveBeenCalledWith('scan', { now: false });
   });
 
   it('records a failure and carries on', async () => {
@@ -114,6 +114,35 @@ describe('schedules', () => {
         }),
       }),
     );
+  });
+
+  it('doesn’t hold up the schedule while Stash’s job waits its turn', async () => {
+    const { service, upsert, library } = setup([
+      {
+        job: 'stash-scan',
+        enabled: true,
+        hour: 3,
+        minute: 0,
+        days: [],
+        lastRunAt: null,
+        lastStatus: null,
+      },
+    ]);
+    // Stash never has room.
+    library.startJob.mockReturnValue(new Promise(() => undefined));
+    service.now = () => at(2026, 11, 8, 3, 0);
+    await service.tick();
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { job: 'stash-scan' },
+        update: expect.objectContaining({
+          lastStatus: 'Waiting its turn in Stash',
+        }),
+      }),
+    );
+    // The next check isn't blocked by the one still waiting.
+    await service.tick();
+    expect(library.startJob).toHaveBeenCalledTimes(2);
   });
 
   it('saves a schedule, treating every day ticked as every day', async () => {

@@ -1,4 +1,5 @@
-import { Routes } from '@angular/router';
+import { inject } from '@angular/core';
+import { Router, Routes } from '@angular/router';
 import { libraryStudioRedirectGuard } from './core/guards/library-studio-redirect.guard';
 import { libraryPerformerRedirectGuard } from './core/guards/library-performer-redirect.guard';
 import {
@@ -83,7 +84,30 @@ export const routes: Routes = [
           import('./pages/tools/fix-library-page.component').then((m) => m.FixLibraryPageComponent),
       },
       {
+        // Match & rename was one page: its links land on Match scenes or Rename files.
         path: 'tools/organize',
+        pathMatch: 'full',
+        redirectTo: ({ queryParams }) => {
+          const tab = queryParams['tab'];
+          const toMatch = tab === 'review' || tab === 'match' || !!queryParams['q'];
+          return inject(Router).createUrlTree([toMatch ? '/tools/match' : '/tools/rename'], {
+            queryParams: toMatch
+              ? { ...(queryParams['q'] ? { q: queryParams['q'] } : {}) }
+              : tab === 'settings' || tab === 'rename'
+                ? { tab }
+                : {},
+          });
+        },
+      },
+      {
+        path: 'tools/match',
+        data: { tool: 'match' },
+        loadComponent: () =>
+          import('./pages/tools/organize-page.component').then((m) => m.OrganizePageComponent),
+      },
+      {
+        path: 'tools/rename',
+        data: { tool: 'rename' },
         loadComponent: () =>
           import('./pages/tools/organize-page.component').then((m) => m.OrganizePageComponent),
       },

@@ -189,6 +189,15 @@ export interface OrganizerRunDto {
 
 export interface OrganizerSettingsDto {
   renamePattern: string;
+  /**
+   * What renames use: Whisparr's own naming when it's set up and usable,
+   * else renamePattern (problem says why Whisparr's couldn't be used).
+   */
+  naming: {
+    pattern: string;
+    source: 'whisparr' | 'own';
+    problem: string | null;
+  };
   /** Library folder renamed files go to; empty keeps each file in its current one. */
   renameRoot: string;
   /** Stash's library folders, to choose from. */

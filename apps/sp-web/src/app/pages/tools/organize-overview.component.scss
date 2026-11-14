@@ -1,0 +1,362 @@
+/* A tab inside the page: not a page of its own. */
+:host {
+  min-height: 0;
+  background: none;
+}
+
+.center {
+  text-align: center;
+  margin: 0.6rem 0;
+}
+
+.changes {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+
+.change {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem 0.95rem;
+  min-width: 0;
+}
+
+.change + .change {
+  box-shadow: inset 0 1px 0 var(--separator, var(--border-subtle));
+}
+
+.change-title {
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.from,
+.to {
+  /* Keep double spaces visible: they can be the whole difference. */
+  white-space: pre-wrap;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.from {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--text-muted) 50%, transparent);
+}
+
+.to {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+  color: var(--text-primary);
+}
+
+.to i {
+  flex: 0 0 auto;
+  font-size: 0.65rem;
+  color: var(--accent);
+}
+
+.to-folder {
+  color: var(--accent);
+}
+
+.to .added {
+  padding: 0 0.1em;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: inherit;
+}
+
+.why {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.35rem 0 0 1.35rem;
+  padding: 0;
+  list-style: none;
+}
+
+.why li {
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-secondary, var(--text-muted));
+  font-size: 0.72rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.skipped-toggle {
+  display: block;
+  margin: 1rem 0 0.6rem;
+}
+
+.skip-reasons {
+  display: grid;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 16px;
+  background: var(--surface-1);
+  overflow: hidden;
+}
+
+.skip-reasons > li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.7rem;
+  padding: 0.7rem 0.95rem;
+}
+
+.skip-reasons > li + li {
+  box-shadow: inset 0 1px 0 var(--separator, var(--border-subtle));
+}
+
+.skip-reasons > li > strong {
+  grid-row: span 3;
+  min-width: 3ch;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.skip-reasons > li > .btn {
+  grid-column: 2;
+  justify-self: start;
+  margin-top: 0.5rem;
+}
+
+.skip-files-toggle {
+  grid-column: 2;
+  justify-self: start;
+  margin-top: 0.4rem;
+}
+
+.skip-files {
+  grid-column: 2;
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.skip-files li {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.skip-file-title {
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.skip-files .path {
+  overflow-wrap: anywhere;
+}
+
+.skip-files code {
+  font-size: 0.74rem;
+}
+
+.taken-note {
+  line-height: 1.4;
+}
+
+.taken-note[data-fix='none'] {
+  color: var(--text-muted);
+}
+
+.taken-fix {
+  justify-self: start;
+  margin-top: 0.25rem;
+}
+
+.renamed-before {
+  margin-top: 0.4rem;
+}
+
+.skip-reasons > li > small {
+  grid-column: 2;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.path {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.repair-scenes {
+  margin-top: 0.6rem;
+  max-height: 26rem;
+  overflow-y: auto;
+}
+
+.sync .note {
+  margin: 0.5rem 0 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.rename-one {
+  justify-self: start;
+  margin: 0.35rem 0 0 1.35rem;
+  font-size: 0.82rem;
+}
+
+/* ---------- overview ---------- */
+
+.group-label {
+  margin: 1.4rem 0.25rem 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.group-head .link {
+  font-size: 0.85rem;
+}
+
+.todo {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+
+.todo-row {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.8rem 0.95rem;
+}
+
+.todo-row + .todo-row {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.todo-count,
+.todo-icon {
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.todo-icon {
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+}
+
+.todo-count.tone-warn {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning-text, var(--warning));
+}
+
+.todo-count.tone-bad {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger-text, var(--danger));
+}
+
+.todo-count.tone-good {
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+  color: var(--success-text, var(--success));
+}
+
+.todo-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.todo-copy strong {
+  font-weight: 600;
+}
+
+.todo-copy small {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.todo-copy small .link {
+  font-size: inherit;
+}
+
+.todo-row > .btn {
+  white-space: nowrap;
+}
+
+.todo-detail {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.75rem;
+  padding-top: 0.4rem;
+  min-width: 0;
+}
+
+.todo-row.open {
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}
+
+.auto-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.auto-chip {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.auto-chip.on {
+  color: var(--text-secondary);
+}
+
+.auto-chip.on::before {
+  content: '';
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.4rem;
+  border-radius: 50%;
+  background: var(--success);
+  vertical-align: 0.08em;
+}
+
+.auto-note {
+  color: var(--warning-text, var(--warning));
+}

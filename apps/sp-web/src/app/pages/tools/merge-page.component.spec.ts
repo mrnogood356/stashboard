@@ -15,14 +15,14 @@ const item = (id: string, name: string, sceneCount: number): MergeCandidate => (
   deathDate: null,
 });
 
-async function render() {
+async function render(groups?: unknown[]) {
   const library = {
     mergeCandidates: vi.fn((_kind: string, q?: string) =>
       of(
         q
           ? { groups: [], matches: [item('7', 'Jo Smith', 4), item('8', 'Joanna Smith', 1)] }
           : {
-              groups: [
+              groups: groups ?? [
                 {
                   keepId: '2',
                   items: [
@@ -52,6 +52,85 @@ async function render() {
 }
 
 describe('MergePageComponent', () => {
+  it('says why each is suggested, and leaves alias-only ones unticked', async () => {
+    const { root } = await render([
+      {
+        keepId: '2',
+        items: [
+          { ...item('2', 'Jane Doe', 9), match: { reason: 'name', with: 'jane doe' } },
+          { ...item('1', 'jane doe', 3), match: { reason: 'name', with: 'Jane Doe' } },
+          {
+            ...item('5', 'JD', 1),
+            aliases: ['Jane Doe'],
+            match: { reason: 'alias', with: 'Jane Doe' },
+          },
+          { ...item('6', 'Janey', 1), match: { reason: 'catalog', with: 'Jane Doe' } },
+        ],
+      },
+    ]);
+    const rows = Array.from(root.querySelectorAll('[data-testid="merge-set"] .row'));
+    expect(rows.map((row) => row.querySelector('.why')?.textContent?.trim())).toEqual([
+      'Same name',
+      'Same name',
+      'Lists Jane Doe as an alias',
+      'Same StashDB entry as Jane Doe',
+    ]);
+    const ticked = rows
+      .slice(1)
+      .map((row) => row.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked);
+    expect(ticked).toEqual([true, false, true]);
+    expect(root.querySelector('[data-testid="merge-button"]')?.textContent).toContain(
+      'Merge 2 into Jane Doe',
+    );
+  });
+
+  it('leaves unticked what reaches the one kept only through an alias, though it matches another by name', async () => {
+    const { root } = await render([
+      {
+        keepId: '1',
+        items: [
+          {
+            ...item('1', 'JD', 9),
+            aliases: ['Jane Doe'],
+            match: { reason: 'alias', with: 'Jane Doe', sure: true },
+          },
+          { ...item('2', 'Jane Doe', 3), match: { reason: 'name', with: 'jane doe', sure: false } },
+          { ...item('3', 'jane doe', 2), match: { reason: 'name', with: 'Jane Doe', sure: false } },
+        ],
+      },
+    ]);
+    const boxes = Array.from(
+      root.querySelectorAll<HTMLInputElement>('[data-testid="merge-set"] input[type="checkbox"]'),
+    );
+    expect(boxes.map((box) => box.checked)).toEqual([false, false]);
+  });
+
+  it('keeps what you left unticked when you pick another to keep', async () => {
+    const { fixture, root } = await render([
+      {
+        keepId: '2',
+        items: [
+          { ...item('2', 'Jane Doe', 9), match: { reason: 'name', with: 'jane doe', sure: true } },
+          { ...item('1', 'jane doe', 3), match: { reason: 'name', with: 'Jane Doe', sure: true } },
+          {
+            ...item('5', 'JD', 1),
+            aliases: ['Jane-Doe'],
+            match: { reason: 'alias', with: 'Jane Doe', sure: false },
+          },
+        ],
+      },
+    ]);
+    const rows = () => Array.from(root.querySelectorAll('[data-testid="merge-set"] .row'));
+    // The alias is JD's own, though written another way.
+    expect(rows()[2].querySelector('.why')?.textContent?.trim()).toBe('Lists Jane Doe as an alias');
+
+    rows()[1].querySelector<HTMLInputElement>('input[type="radio"]')!.click();
+    fixture.detectChanges();
+    const ticked = (row: Element) =>
+      row.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked ?? null;
+    expect(rows().map(ticked)).toEqual([true, null, false]);
+  });
+
   it('merges a suggested set into the one kept, after a second tap, leaving out unticked ones', async () => {
     const { fixture, root, library } = await render();
     const set = root.querySelector('[data-testid="merge-set"]')!;

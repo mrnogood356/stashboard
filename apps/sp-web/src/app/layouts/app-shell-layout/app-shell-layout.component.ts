@@ -21,6 +21,7 @@ import { WhatsNewComponent } from '../../shared/whats-new/whats-new.component';
 import { NavigationHistoryService } from '../../core/navigation/navigation-history.service';
 import { BackScrollService } from '../../core/navigation/back-scroll.service';
 import { ArtworkAccentService } from '../../core/theme/artwork-accent.service';
+import { PullToRefreshComponent } from '../../shared/pull-to-refresh/pull-to-refresh.component';
 
 interface ShellDegradedState {
   kind: 'setup' | 'runtime';
@@ -182,6 +183,7 @@ const MOBILE_SECONDARY_NAV_GROUPS: readonly ShellNavGroup[] = [
 @Component({
   selector: 'app-shell-layout',
   imports: [
+    PullToRefreshComponent,
     RouterLink,
     RouterOutlet,
     ThemeToggleComponent,

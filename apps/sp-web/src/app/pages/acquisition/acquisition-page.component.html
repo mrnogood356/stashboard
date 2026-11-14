@@ -382,8 +382,36 @@
                         <span class="added-at">{{ added }}</span>
                       }
 
-                      @if (cardMeta(item.releaseDate, item.studio); as meta) {
-                        <p class="card-meta">{{ meta }}</p>
+                      @if (cardMeta(item.releaseDate, null); as date) {
+                        <p class="card-meta">
+                          {{ date }}
+                          @if (item.studio) {
+                            ·
+                            @if (item.studioId) {
+                              <a
+                                class="studio-link"
+                                [routerLink]="['/studio', item.studioId]"
+                                [queryParams]="{ returnTo: currentRouteUrl() }"
+                                >{{ item.studio }}</a
+                              >
+                            } @else {
+                              {{ item.studio }}
+                            }
+                          }
+                        </p>
+                      } @else if (item.studio) {
+                        <p class="card-meta">
+                          @if (item.studioId) {
+                            <a
+                              class="studio-link"
+                              [routerLink]="['/studio', item.studioId]"
+                              [queryParams]="{ returnTo: currentRouteUrl() }"
+                              >{{ item.studio }}</a
+                            >
+                          } @else {
+                            {{ item.studio }}
+                          }
+                        </p>
                       }
                     </div>
 
@@ -445,8 +473,8 @@
                             </button>
                           }
                           @if (waiting.kind === 'not-linked') {
-                            <a class="secondary-action compact" routerLink="/tools/organize"
-                              >Match &amp; rename</a
+                            <a class="secondary-action compact" routerLink="/tools/match"
+                              >Match scenes</a
                             >
                           }
                           @if (waiting.kind === 'not-in-stash') {

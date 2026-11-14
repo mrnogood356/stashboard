@@ -34,7 +34,7 @@ export type TimelineActionKind =
   | 'pick-release'
   /** Search Prowlarr again (Find downloads). */
   | 'find-downloads'
-  /** Match & rename in Library Tools. */
+  /** Match scenes in Library Tools. */
   | 'check-matches'
   /** Have Stash scan (Library Tools → Jobs). */
   | 'scan'

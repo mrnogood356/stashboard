@@ -62,19 +62,23 @@
         }
       </span>
     </a>
-    <a class="tool" routerLink="/tools/organize">
+    <a class="tool" routerLink="/tools/match">
       <i class="pi pi-link" aria-hidden="true"></i>
-      <span class="tool-title">Match &amp; rename</span>
+      <span class="tool-title">Match scenes</span>
       <span class="tool-detail">
         @if (counts(); as counts) {
           {{
             counts.unmatched === 0 ? 'Every scene is matched' : counts.unmatched + ' not matched'
           }}
-          · tidy file names and folders
         } @else {
-          Match unorganized scenes to StashDB and tidy file names
+          Find which StashDB scene each file is
         }
       </span>
+    </a>
+    <a class="tool" routerLink="/tools/rename">
+      <i class="pi pi-folder-open" aria-hidden="true"></i>
+      <span class="tool-title">Rename files</span>
+      <span class="tool-detail">Names and folders for files you added, Whisparr in step</span>
     </a>
     <a class="tool" routerLink="/tools/stats">
       <i class="pi pi-chart-bar" aria-hidden="true"></i>

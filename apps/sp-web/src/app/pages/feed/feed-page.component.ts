@@ -14,6 +14,7 @@ import {
 import { Router, RouterLink } from '@angular/router';
 import { LocalLibraryService, LocalSceneCard } from '../../core/api/local-library.service';
 import { AppLockService } from '../../core/app-lock/app-lock.service';
+import { releaseVideo } from '../../core/playback/release-video.util';
 
 const SOUND_KEY = 'stashboard.feedSound';
 
@@ -79,6 +80,8 @@ export class FeedPageComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.observer?.disconnect();
+    // Leaving the feed stops every clip in it, sound and all.
+    this.trackRef?.nativeElement.querySelectorAll('video').forEach((video) => releaseVideo(video));
   }
 
   protected loadMore(): void {

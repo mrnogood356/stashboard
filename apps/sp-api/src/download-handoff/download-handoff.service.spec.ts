@@ -178,6 +178,7 @@ describe('DownloadHandoffService', () => {
     stash = {
       getLibraryRoots: jest.fn().mockResolvedValue([library]),
       scanLibraryFolders: jest.fn().mockResolvedValue('job-1'),
+      requestFolderScan: jest.fn().mockResolvedValue('job-1'),
       waitForJob: jest.fn().mockResolvedValue('FINISHED'),
       sceneIdsForPaths: jest.fn().mockResolvedValue(['77']),
       startLibraryTask: jest.fn().mockResolvedValue('job-2'),
@@ -373,7 +374,7 @@ describe('DownloadHandoffService', () => {
       await service.checkOpen();
       await service.checkOpen();
 
-      expect(stash.scanLibraryFolders).toHaveBeenCalledTimes(1);
+      expect(stash.requestFolderScan).toHaveBeenCalledTimes(1);
       expect(row()).toMatchObject({ status: 'completed', attempts: 0 });
       expect(row().error).toContain('busy with other jobs');
 
@@ -382,7 +383,34 @@ describe('DownloadHandoffService', () => {
       stash.sceneIdsForPaths.mockResolvedValue(['77']);
       await service.checkOpen();
       expect(row()).toMatchObject({ status: 'imported', error: null });
-      expect(stash.scanLibraryFolders).toHaveBeenCalledTimes(1);
+      expect(stash.requestFolderScan).toHaveBeenCalledTimes(1);
+    });
+
+    it('says Stash is busy while its folder scan waits its turn, without waiting on it', async () => {
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      stash.requestFolderScan.mockResolvedValue('waiting');
+      const config = { baseUrl: 'http://stash', apiKey: 'k' };
+
+      await expect(
+        service.findInStash(config, path.join(destination, 'First.mkv')),
+      ).rejects.toThrow('busy with other jobs');
+      expect(stash.waitForJob).not.toHaveBeenCalled();
+    });
+
+    it('counts a try once its queued scan has run without finding the file', async () => {
+      rows.push(handoff({ id: 'h1' }));
+      await write(video());
+      sabnzbd.history.mockResolvedValue([historyEntry()]);
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      // Waits its turn, then has run: never found.
+      stash.requestFolderScan
+        .mockResolvedValueOnce('waiting')
+        .mockResolvedValueOnce('scanned');
+
+      await service.checkOpen();
+      expect(row()).toMatchObject({ attempts: 0 });
+      await service.checkOpen();
+      expect(row().attempts).toBe(1);
     });
 
     it('doesn’t wait again for a scan another download in the folder is waiting on', async () => {
@@ -424,9 +452,10 @@ describe('DownloadHandoffService', () => {
       await service.checkOpen();
 
       const finalPath = path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv');
-      expect(stash.scanLibraryFolders).toHaveBeenCalledWith(expect.anything(), [
+      expect(stash.requestFolderScan).toHaveBeenCalledWith(
+        expect.anything(),
         destination,
-      ]);
+      );
       expect(stash.sceneIdsForPaths).toHaveBeenCalledWith(expect.anything(), [
         finalPath,
       ]);
@@ -584,7 +613,7 @@ describe('DownloadHandoffService', () => {
       expect(activity.record).toHaveBeenCalledWith(
         expect.objectContaining({ kind: 'download', status: 'failed' }),
       );
-      expect(stash.scanLibraryFolders).not.toHaveBeenCalled();
+      expect(stash.requestFolderScan).not.toHaveBeenCalled();
     });
 
     it('has SABnzbd remove a failed download and its leftover files, and carries on if it can’t', async () => {
