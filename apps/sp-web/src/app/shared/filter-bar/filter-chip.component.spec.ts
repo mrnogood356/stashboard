@@ -54,6 +54,30 @@ describe('FilterChipComponent', () => {
     return { fixture, host: fixture.componentInstance, root, chip };
   }
 
+  it('puts focus back on the chip when a pick inside the list closes it', async () => {
+    const { fixture, root, chip } = await render();
+    chip.click();
+    fixture.detectChanges();
+    const option = root.querySelector('[data-testid="opt-b"]') as HTMLButtonElement;
+    option.focus();
+    option.click();
+    fixture.detectChanges();
+    expect(root.querySelector('.filter-dropdown')).toBeNull();
+    expect(document.activeElement).toBe(chip);
+  });
+
+  it('leaves focus where it went when a click elsewhere closes it', async () => {
+    const { fixture, root, chip } = await render();
+    chip.click();
+    fixture.detectChanges();
+    const elsewhere = root.querySelector('#elsewhere') as HTMLButtonElement;
+    elsewhere.focus();
+    elsewhere.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    fixture.detectChanges();
+    expect(root.querySelector('.filter-dropdown')).toBeNull();
+    expect(document.activeElement).toBe(elsewhere);
+  });
+
   it('opens its choices at once, with counts, and one pick closes it', async () => {
     const { fixture, host, root, chip } = await render();
     expect(root.querySelector('.filter-dropdown')).toBeNull();
