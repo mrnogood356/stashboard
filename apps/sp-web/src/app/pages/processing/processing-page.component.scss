@@ -16,7 +16,7 @@
   gap: 0.45rem;
   height: 2.25rem;
   padding: 0 0.9rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--chip-bg);
   color: var(--text-primary);
   font-size: 0.86rem;
@@ -298,7 +298,7 @@ app-stage-track {
   align-items: center;
   min-height: 1.45rem;
   padding: 0 0.55rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   font-size: 0.72rem;
   font-weight: 700;
   white-space: nowrap;
@@ -355,10 +355,8 @@ app-stage-track {
 .sub {
   margin-top: 0.35rem;
   color: var(--text-muted);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .rows {
@@ -449,10 +447,8 @@ app-stage-track {
 
 .facts dt {
   color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .facts dd {

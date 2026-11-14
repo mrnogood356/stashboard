@@ -107,7 +107,7 @@ describe('LoginPageComponent', () => {
   it('greets with the app name and icon, without developer wording', async () => {
     const { root } = await render();
     expect(root.querySelector('h1')?.textContent).toContain('Stashboard');
-    expect(root.textContent).toContain('Welcome back. Sign in to your library.');
+    expect(root.textContent).toContain('Sign in to your library.');
     expect(root.querySelector('img.brand-icon')?.getAttribute('src')).toBe('/icons/icon-192.png');
     expect(root.textContent).not.toContain('Protected local access');
     expect(root.textContent).not.toContain('protected API routes');

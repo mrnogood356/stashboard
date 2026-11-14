@@ -176,7 +176,7 @@ ol {
   min-height: 2.3rem;
   padding: 0 1rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--chip-bg);
   color: var(--text-primary);
   font: inherit;

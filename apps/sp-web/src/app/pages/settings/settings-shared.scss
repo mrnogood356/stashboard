@@ -14,8 +14,8 @@
 }
 
 h2 {
-  font-size: 1.3rem;
-  font-weight: 750;
+  font-size: 1.2rem;
+  font-weight: 650;
   letter-spacing: -0.01em;
 }
 
@@ -35,7 +35,7 @@ h3 {
 .repair-card,
 .account-card {
   border: 0 !important;
-  border-radius: calc(18px * var(--radius-scale, 1));
+  border-radius: var(--radius-lg);
   background: var(--surface-1) !important;
   box-shadow: none !important;
 }
@@ -182,7 +182,7 @@ textarea:focus-visible {
 /* Buttons: pills in the app's blue. */
 .p-button,
 .button {
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
 }
 
 /* Destructive actions: outlined in red, never a solid full-width bar. */

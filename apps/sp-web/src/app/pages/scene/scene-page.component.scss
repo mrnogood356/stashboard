@@ -2,12 +2,6 @@
   display: block;
   min-height: 100dvh;
   color: var(--text-primary);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--app-bg) 84%, var(--surface-raised)) 0%,
-    color-mix(in srgb, var(--app-bg) 92%, var(--surface-2)) 22%,
-    var(--app-bg) 55%
-  );
   font-family: var(--app-font-family);
 }
 
@@ -24,8 +18,8 @@ p {
 
 /* Section headings match across the detail pages. */
 h2 {
-  font-size: 1.15rem;
-  font-weight: 700;
+  font-size: 1.1rem;
+  font-weight: 600;
 }
 
 .error {
@@ -209,7 +203,7 @@ a.studio-logo-overlay:focus-visible {
 }
 
 .meta-chip {
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--media-detail-chip-border);
   background: var(--media-detail-chip-background);
   color: var(--media-detail-chip-text);
@@ -361,7 +355,7 @@ button {
 }
 
 .content-shell {
-  margin-top: 0.9rem;
+  margin-top: 2rem;
 }
 
 .lifecycle-grid {
@@ -478,18 +472,44 @@ button {
   }
 }
 
-/* ---------- 2026 look: matches the library scene page ---------- */
+/* ---------- Current look: on the page, not in a box (matches the library scene page) ---------- */
 
 .hero-shell {
   min-height: 0;
+  border-radius: 0;
+  overflow: visible;
+  background: none;
+}
+
+.hero-backdrop,
+.hero-shade {
+  display: none;
 }
 
 .hero-layout {
   min-height: 0;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   align-items: center;
-  gap: 1.6rem;
-  padding: 1.6rem;
+  gap: 2rem;
+  padding: 0.25rem 0 0;
+}
+
+.studio-affordance-cluster {
+  top: 0;
+  right: 0;
+}
+
+.poster-card {
+  border: 0;
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+
+.title-row h1 {
+  font-size: clamp(1.6rem, 3.4vw, 2.4rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-shadow: none;
 }
 
 /* Scene pictures are landscape; show them whole instead of a tall crop. */
@@ -523,18 +543,27 @@ button {
 }
 
 .hero-tags .meta-chip {
-  border: 0;
-  padding: 0.28rem 0.7rem;
-  background: rgb(127 127 127 / 18%);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  background: none;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.hero-tags .tag-link:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
 }
 
 :host ::ng-deep .hero-actions .p-button {
-  min-height: 2.75rem;
-  padding: 0 1.1rem;
+  min-height: 2.6rem;
+  padding: 0 1.05rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--chip-bg);
   font-size: 0.9rem;
+  font-weight: 600;
   box-shadow: none;
 }
 
@@ -558,7 +587,7 @@ button {
 }
 
 .performer-image {
-  border-radius: 14px;
+  border-radius: var(--radius-md);
 }
 
 .performer-meta {
@@ -567,7 +596,7 @@ button {
 
 .lifecycle-card {
   border: 0;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
 }
 
 @media (max-width: 880px) {
@@ -577,7 +606,7 @@ button {
 
   .hero-layout {
     grid-template-columns: minmax(0, 1fr);
-    padding: 0.75rem 0.75rem 1.1rem;
+    padding: 0;
     gap: 1rem;
   }
 
@@ -598,8 +627,8 @@ button {
 .studio-name {
   display: inline-block;
   margin-bottom: 0.25rem;
-  color: var(--accent);
-  font-weight: 600;
+  color: var(--text-secondary);
+  font-weight: 500;
   text-decoration: none;
 }
 
@@ -617,7 +646,7 @@ button {
 }
 
 .studio-site:hover {
-  color: var(--accent);
+  color: var(--text-primary);
 }
 
 .studio-name:hover {

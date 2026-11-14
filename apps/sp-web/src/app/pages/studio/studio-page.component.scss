@@ -183,7 +183,7 @@ ul {
 }
 
 .meta-chip {
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid rgb(220 233 246 / 35%);
   background: rgb(10 22 34 / 62%);
   color: var(--text-on-media);
@@ -494,7 +494,7 @@ ul {
   align-items: center;
   gap: 0.4rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   padding: 0.4rem 0.85rem;
   background: var(--chip-bg);
   color: var(--text-primary);
@@ -566,4 +566,44 @@ ul {
 .child-card .child-name,
 .child-card .child-aliases {
   pointer-events: none;
+}
+
+/* ---------- Current look: on the page, not in a box (matches the performer and scene pages) ---------- */
+
+.hero-shell {
+  overflow: visible;
+  border-radius: 0;
+  background: none;
+}
+
+.hero-backdrop,
+.hero-shade {
+  display: none;
+}
+
+/* With no picture behind them, the name and aliases sit on the page itself:
+   the page's text colours, so they read in the light theme too. The chips
+   keep their own dark fill and light text. */
+.hero-info {
+  color: var(--text-primary);
+}
+
+.aliases {
+  color: var(--text-secondary);
+}
+
+.hero-layout {
+  padding: 0.25rem 0 0;
+  gap: 2rem;
+}
+
+.carousel-main {
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 640px) {
+  .hero-layout {
+    padding: 0;
+    gap: 1rem;
+  }
 }

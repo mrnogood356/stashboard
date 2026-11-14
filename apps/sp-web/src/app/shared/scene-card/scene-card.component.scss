@@ -166,24 +166,26 @@ a.media-studio:focus-visible {
 }
 
 :host ::ng-deep .footer-status-badge .badge {
-  padding: 0.12rem 0.5rem;
-  font-size: 0.68rem;
+  padding: 0;
+  font-size: 0.74rem;
   line-height: 1.2;
   box-shadow: none;
 }
 
 .request-cta {
   margin: 0;
-  padding: 0.28rem 0.7rem;
-  border-radius: 999px;
-  border: 0;
-  background: var(--accent-soft, color-mix(in srgb, var(--accent) 14%, transparent));
-  color: var(--accent);
+  padding: 0.22rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
   font: inherit;
-  font-size: 0.74rem;
-  font-weight: 700;
+  font-size: 0.76rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .search-cta {
@@ -197,19 +199,19 @@ a.media-studio:focus-visible {
 }
 
 .request-cta:hover {
-  background: var(--accent);
-  color: var(--accent-contrast, #fff);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
 }
 
 .footer-link,
 .footer-pill {
   margin: 0;
   padding: 0.2rem 0.55rem;
-  border-radius: 999px;
+  border-radius: 6px;
   background: var(--chip-bg);
   color: var(--text-muted);
-  font-size: 0.7rem;
-  font-weight: 600;
+  font-size: 0.72rem;
+  font-weight: 500;
   line-height: 1.2;
   display: inline-flex;
   align-items: center;

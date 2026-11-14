@@ -56,7 +56,7 @@ a {
   height: 2.25rem;
   padding: 0 0.85rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
   color: var(--text-muted);
   font: inherit;
@@ -380,7 +380,7 @@ a {
   align-items: center;
   justify-content: center;
   min-height: 2.3rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   padding: 0.45rem 0.88rem;
   text-decoration: none;
   font-size: 0.86rem;
@@ -510,7 +510,7 @@ a {
 
 .secondary-action {
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--chip-bg);
 }
 
@@ -589,7 +589,7 @@ a {
   height: 2.25rem;
   padding: 0 0.9rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--chip-bg);
   color: var(--text-primary);
   font: inherit;
@@ -705,17 +705,13 @@ a {
   color: var(--text-muted);
 }
 
-/* One look for every action on a card; the scene link is the accent one. */
+/* One quiet look for every action on a card. */
 .card-actions .primary-link,
 .card-actions .secondary-link,
 .card-actions .secondary-action {
-  border: 0;
-  background: var(--chip-bg);
+  border: 1px solid var(--border-subtle);
+  background: transparent;
   color: var(--text-primary);
-}
-
-.card-actions .primary-link {
-  color: var(--accent-text);
 }
 
 @media (max-width: 640px) {
@@ -766,4 +762,153 @@ a {
     --app-section-border: 0;
     --app-section-bg: transparent;
   }
+}
+
+/* ---------- Current look: a plain list on the page, not panels of cards ---------- */
+
+.lifecycle-section {
+  margin-top: 1.5rem;
+  --app-section-radius: 0;
+  --app-section-padding: 0;
+  --app-section-border: 0;
+  --app-section-bg: transparent;
+}
+
+.lifecycle-section[data-tone]:not([data-tone='']) .section-title-row h3::before {
+  content: none;
+}
+
+.section-title-row h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.section-count {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 400;
+}
+
+.acquisition-list {
+  margin-top: 0.5rem;
+  gap: 0;
+}
+
+.acquisition-card,
+.acquisition-card[data-state] {
+  grid-template-columns: minmax(120px, 176px) minmax(0, 1fr);
+  gap: 1rem;
+  padding: 0.9rem 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.acquisition-card + .acquisition-card {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.card-art-link {
+  align-self: start;
+  border-radius: var(--radius-sm);
+}
+
+.card-art {
+  aspect-ratio: 16 / 9;
+  min-height: 0;
+}
+
+.card-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.card-meta {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+.primary-link,
+.secondary-link,
+.secondary-action {
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+
+.primary-link:hover,
+.secondary-link:hover,
+.secondary-action:hover {
+  transform: none;
+  border-color: var(--border-strong);
+}
+
+.primary-link,
+.secondary-link,
+.secondary-action,
+.secondary-action.compact {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+/* Tabs: words with an underline under the current one, counts in plain figures. */
+.lifecycle-tabs {
+  gap: 1.25rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.lifecycle-tab {
+  height: 2.5rem;
+  padding: 0;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font-weight: 500;
+}
+
+.lifecycle-tab.is-active {
+  background: none;
+  border-bottom-color: var(--text-primary);
+  color: var(--text-primary);
+}
+
+.lifecycle-tab-count {
+  min-width: 0;
+  padding: 0;
+  background: none;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .acquisition-card,
+  .acquisition-card[data-state] {
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+    gap: 0.75rem;
+    padding: 0.75rem 0;
+  }
+}
+
+.section-priority {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--danger-text);
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.select-toggle {
+  border-radius: var(--radius-sm);
+}
+
+/* The download's own bar, as wide as the steps above it. */
+.download-progress {
+  max-width: 28rem;
 }

@@ -184,7 +184,7 @@ header p {
 .child-chip {
   border: 1px solid var(--chip-border);
   background: var(--chip-bg);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   padding: 0.14rem 0.5rem;
   font-size: 0.72rem;
   color: var(--chip-text);

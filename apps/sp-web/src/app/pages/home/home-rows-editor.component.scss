@@ -301,7 +301,7 @@
   gap: 0.35rem;
   height: 2rem;
   padding: 0 0.75rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
   color: var(--text-muted);
   font-size: 0.84rem;
@@ -349,7 +349,7 @@
   height: 2.2rem;
   padding: 0 0.9rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--chip-bg);
   color: var(--text-primary);
   font: inherit;

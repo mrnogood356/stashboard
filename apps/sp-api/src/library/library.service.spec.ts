@@ -344,7 +344,7 @@ describe('LibraryService', () => {
     expect(query.strings.join(' ')).toContain(
       `CROSS JOIN LATERAL unnest("tagIds", "tagNames")`,
     );
-    expect(query.values).toEqual(['%tag%', '%tag%']);
+    expect(query.values).toEqual(['%tag%', '%tag%', 200]);
   });
 
   it('returns indexed studio options from the local-library projection', async () => {
@@ -388,10 +388,37 @@ describe('LibraryService', () => {
     );
   });
 
-  it('skips tag and studio search queries when the query is blank', async () => {
-    await expect(service.searchTags('   ')).resolves.toEqual([]);
-    await expect(service.searchStudios('')).resolves.toEqual([]);
+  it('lists the most used tags and studios when nothing is typed', async () => {
+    queryRawMock.mockResolvedValue([
+      { id: 'tag-1', name: 'Outdoor', count: 40 },
+    ]);
 
-    expect(queryRawMock).not.toHaveBeenCalled();
+    await expect(service.searchTags('   ')).resolves.toEqual([
+      { id: 'tag-1', name: 'Outdoor', count: 40 },
+    ]);
+    await service.searchStudios('');
+
+    const [tags, studios] = queryRawMock.mock.calls.map(
+      (call) => call[0] as { strings: string[]; values: unknown[] },
+    );
+    expect(tags.strings.join(' ')).not.toContain('ILIKE');
+    expect(tags.strings.join(' ')).toContain('ORDER BY count DESC');
+    expect(studios.strings.join(' ')).not.toContain('ILIKE');
+    expect(studios.values).toEqual([200]);
+  });
+
+  it("narrows options to one performer's or studio's scenes", async () => {
+    await service.searchTags(undefined, { performerId: 'p1' });
+    await service.searchStudios('arc', { performerId: 'p1' });
+    await service.searchTags(undefined, { studioId: 's1' });
+
+    const [perfTags, perfStudios, studioTags] = queryRawMock.mock.calls.map(
+      (call) => call[0] as { strings: string[]; values: unknown[] },
+    );
+    expect(perfTags.strings.join(' ')).toContain('"performerIds" @> ARRAY[');
+    expect(perfTags.values).toEqual(['p1', 200]);
+    expect(perfStudios.values).toEqual(['%arc%', 'p1', 200]);
+    expect(studioTags.strings.join(' ')).toContain('"studioId" =');
+    expect(studioTags.values).toEqual(['s1', 200]);
   });
 });

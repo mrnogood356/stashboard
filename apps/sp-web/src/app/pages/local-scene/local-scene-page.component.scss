@@ -169,9 +169,7 @@ dd {
   width: fit-content;
   color: var(--media-detail-muted-text);
   font-size: 0.85rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 600;
   text-decoration: none;
 }
 
@@ -453,10 +451,8 @@ h2 {
 }
 
 .file-info dt {
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -533,7 +529,7 @@ h2 {
   height: 2rem;
   padding: 0 0.8rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--chip-bg);
   color: var(--text-primary);
   font: inherit;
@@ -796,4 +792,71 @@ h2 {
   .action {
     transition: none;
   }
+}
+
+/* ---------- Current look: on the page, not in a box (matches the catalog scene page) ---------- */
+
+.hero {
+  overflow: visible;
+  border-radius: 0;
+  background: none;
+}
+
+.hero-backdrop,
+.hero-shade {
+  display: none;
+}
+
+.hero-layout {
+  gap: 2rem;
+  padding: 0.25rem 0 0;
+}
+
+.poster {
+  border: 0;
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+
+h1 {
+  font-size: clamp(1.6rem, 3.4vw, 2.4rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-shadow: none;
+}
+
+@media (max-width: 880px) {
+  .hero-layout {
+    gap: 1rem;
+    padding: 0;
+  }
+}
+
+/* Sections on the page, set apart by space; toggles say "on" without colour. */
+.sections {
+  gap: 2.25rem;
+  margin-top: 2rem;
+}
+
+.panel {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}
+
+h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.toggle-chip {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  font-weight: 500;
+}
+
+.toggle-chip.on {
+  border-color: var(--border-strong);
+  background: var(--chip-bg);
+  color: var(--text-primary);
 }

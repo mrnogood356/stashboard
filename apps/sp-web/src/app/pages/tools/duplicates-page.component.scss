@@ -124,7 +124,7 @@
   gap: 0.35rem;
   min-height: 2rem;
   padding: 0 0.75rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--success) 14%, transparent);
   font-size: 0.8rem;
   font-weight: 700;

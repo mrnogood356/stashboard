@@ -116,7 +116,7 @@ p {
 .proceed {
   min-height: 2.5rem;
   padding: 0 1.1rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--accent);
   background: transparent;
   color: var(--accent-text);

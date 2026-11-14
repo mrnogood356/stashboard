@@ -492,6 +492,26 @@ describe('LocalLibraryService', () => {
     });
   });
 
+  it("narrows a performer's scenes to every picked category and any picked studio", async () => {
+    stash.findLocalScenes.mockResolvedValue({ total: 1, items: [] });
+
+    await service.performerScenes('p1', 1, 'DATE', 0, {
+      tagIds: ['t1', 't2'],
+      studioIds: ['s1'],
+    });
+    await service.studioScenes('s1', 1, 'DATE', 0, { tagIds: ['t1'] });
+
+    expect(stash.findLocalScenes.mock.calls[0][1].sceneFilter).toEqual({
+      performers: { value: ['p1'], modifier: 'INCLUDES_ALL' },
+      tags: { value: ['t1', 't2'], modifier: 'INCLUDES_ALL', depth: 0 },
+      studios: { value: ['s1'], modifier: 'INCLUDES', depth: -1 },
+    });
+    expect(stash.findLocalScenes.mock.calls[1][1].sceneFilter).toEqual({
+      studios: { value: ['s1'], modifier: 'INCLUDES', depth: -1 },
+      tags: { value: ['t1'], modifier: 'INCLUDES_ALL', depth: 0 },
+    });
+  });
+
   it('saves edits and returns the refreshed scene', async () => {
     await expect(service.updateScene('1', { rating100: 60 })).resolves.toEqual({
       id: '1',

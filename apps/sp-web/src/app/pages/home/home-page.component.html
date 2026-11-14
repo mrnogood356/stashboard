@@ -42,8 +42,10 @@
     </nav>
   </header>
 
-  <app-needs-you-card />
-  <app-processing-card />
+  <div class="home-status">
+    <app-needs-you-card />
+    <app-processing-card />
+  </div>
 
   @if (pageAlert(); as alert) {
     <section class="home-alert app-page-alert" data-testid="home-readiness-alert" role="status">
