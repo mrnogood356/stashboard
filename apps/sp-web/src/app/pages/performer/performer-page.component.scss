@@ -221,33 +221,6 @@ main > button {
   padding: 0.16rem 0.52rem;
 }
 
-.metadata-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr));
-  gap: 0.5rem;
-  margin-top: 0.4rem;
-}
-
-.metadata-item {
-  padding: 0.45rem 0.52rem;
-  border-radius: 0;
-  border: 0;
-  background: var(--surface-2);
-  display: grid;
-}
-
-.metadata-item .label {
-  font-size: 0.8rem;
-  color: var(--media-detail-muted-text);
-  font-weight: 700;
-}
-
-.metadata-item .value {
-  font-size: 0.84rem;
-  color: var(--media-detail-text);
-  overflow-wrap: anywhere;
-}
-
 .section {
   margin-top: 0.9rem;
 }
@@ -321,14 +294,6 @@ main > button {
 
 .hero-layout {
   grid-template-columns: minmax(180px, 260px) 1fr;
-}
-
-.metadata-item .label {
-  color: var(--text-muted);
-}
-
-.metadata-item .value {
-  color: var(--text-primary);
 }
 
 /* Scenes: the heading, then the filter bar on its own line. */
@@ -458,4 +423,50 @@ main > button {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1.1rem 0.75rem;
   }
+}
+
+/* The details: About, Look and Body, side by side on a wide screen,
+   one under the other on a phone, on a panel so they read on any picture. */
+.facts-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
+  gap: 0.25rem 2rem;
+  max-width: 46rem;
+  margin-top: 0.9rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-1) 82%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.facts-group h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.facts-group dl {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0 0 0.6rem;
+}
+
+.fact {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  font-size: 0.88rem;
+}
+
+.fact dt {
+  color: var(--text-muted);
+}
+
+.fact dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-weight: 500;
+  overflow-wrap: anywhere;
 }

@@ -117,3 +117,30 @@ export function performerFacts(performer: PerformerDetails): PerformerFact[] {
   }
   return facts;
 }
+
+export interface PerformerFactGroup {
+  title: string;
+  facts: PerformerFact[];
+}
+
+/**
+ * The same details in three short groups (About, Look, Body), with the
+ * measurements as one "32J-27-38". Empty groups are left out.
+ */
+export function performerFactGroups(performer: PerformerDetails): PerformerFactGroup[] {
+  const all = performerFacts(performer);
+  const pick = (...labels: string[]) => all.filter((fact) => labels.includes(fact.label));
+  const bust = all.find((fact) => fact.label === 'Bust')?.value;
+  const waist = all.find((fact) => fact.label === 'Waist')?.value;
+  const hips = all.find((fact) => fact.label === 'Hips')?.value;
+  const measured = [bust, waist, hips];
+  const body: PerformerFact[] = measured.some(Boolean)
+    ? [{ label: 'Measurements', value: measured.map((part) => part ?? '?').join('-') }]
+    : [];
+  body.push(...pick('Breasts'));
+  return [
+    { title: 'About', facts: pick('Gender', 'Born', 'Age', 'Died', 'Country', 'Career') },
+    { title: 'Look', facts: pick('Ethnicity', 'Hair color', 'Eye color', 'Height') },
+    { title: 'Body', facts: body },
+  ].filter((group) => group.facts.length > 0);
+}

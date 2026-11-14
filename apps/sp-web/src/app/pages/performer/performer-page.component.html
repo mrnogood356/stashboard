@@ -115,15 +115,24 @@
             </div>
           }
 
-          @if (metadataRows(performer).length > 0) {
-            <div class="metadata-grid">
-              @for (row of metadataRows(performer); track row.label) {
-                <div class="metadata-item">
-                  <span class="label">{{ row.label }}</span>
-                  <span class="value">{{ row.value }}</span>
-                </div>
-              }
-            </div>
+          @if (factGroups(performer); as groups) {
+            @if (groups.length > 0) {
+              <div class="facts-panel" data-testid="performer-facts">
+                @for (group of groups; track group.title) {
+                  <section class="facts-group" [attr.aria-label]="group.title">
+                    <h3>{{ group.title }}</h3>
+                    <dl>
+                      @for (row of group.facts; track row.label) {
+                        <div class="fact">
+                          <dt>{{ row.label }}</dt>
+                          <dd>{{ row.value }}</dd>
+                        </div>
+                      }
+                    </dl>
+                  </section>
+                }
+              </div>
+            }
           }
         </div>
       </div>
