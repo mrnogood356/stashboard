@@ -1,7 +1,7 @@
 import { LibraryService } from '../../core/api/library.service';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { BehaviorSubject, of, throwError } from 'rxjs';
+import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
 import { DiscoverService } from '../../core/api/discover.service';
 import { PerformerFeedItem } from '../../core/api/discover.types';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
@@ -127,6 +127,28 @@ describe('PerformersPageComponent', () => {
     goTo({ q: 'mia' });
     fixture.detectChanges();
     expect(feed).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds a reload queued behind a slow catalog page until library mode is left', async () => {
+    const slow = new Subject<never>();
+    const feed = vi
+      .fn()
+      .mockReturnValueOnce(slow)
+      .mockReturnValue(feedOf([performer()]));
+    const { fixture, goTo } = await render({ feed });
+    expect(feed).toHaveBeenCalledTimes(1);
+
+    // A new search while the first page is still loading, then In my library.
+    goTo({ q: 'mia' });
+    goTo({ lib: '1', q: 'mia' });
+    fixture.detectChanges();
+    slow.complete();
+    fixture.detectChanges();
+    expect(feed).toHaveBeenCalledTimes(1);
+
+    goTo({ q: 'mia' });
+    fixture.detectChanges();
+    expect(feed).toHaveBeenCalledTimes(2);
   });
 
   it('keeps the people already shown when the next page fails, with Try again', async () => {
