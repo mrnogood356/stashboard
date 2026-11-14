@@ -70,18 +70,30 @@ function toHex(h: number, s: number, l: number): string {
   return `#${f(0)}${f(8)}${f(4)}`;
 }
 
+/** Where catalogs keep their pictures, besides the site itself. */
+const IMAGE_SUBDOMAINS = ['cdn', 'images', 'img', 'media', 'static'];
+
 /**
- * The catalog's own sites only: a picture on stashdb.org or a subdomain of it
- * (cdn.stashdb.org) when StashDB is set up at stashdb.org. Nothing else is
- * fetched, so the endpoint can't be pointed at the LAN or anywhere else.
+ * The address to fetch for a catalog picture, or null when it isn't on the
+ * catalog's own site: stashdb.org, or cdn.stashdb.org and the like, when
+ * StashDB is set up at stashdb.org. The address is rebuilt from the saved
+ * catalog host, so the request can never pick where the server connects.
  */
-export function allowedImageHost(url: URL, catalogHosts: string[]): boolean {
+export function catalogImageUrl(url: URL, catalogHosts: string[]): URL | null {
   if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-    return false;
+    return null;
   }
-  const host = url.hostname.toLowerCase();
-  return catalogHosts.some((allowed) => {
+  const scheme = url.protocol === 'https:' ? 'https:' : 'http:';
+  const host = url.host.toLowerCase();
+  for (const allowed of catalogHosts) {
     const base = allowed.toLowerCase().replace(/^www\./, '');
-    return host === base || host.endsWith(`.${base}`);
-  });
+    const match = [
+      base,
+      ...IMAGE_SUBDOMAINS.map((sub) => `${sub}.${base}`),
+    ].find((candidate) => candidate === host);
+    if (match) {
+      return new URL(`${url.pathname}${url.search}`, `${scheme}//${match}`);
+    }
+  }
+  return null;
 }

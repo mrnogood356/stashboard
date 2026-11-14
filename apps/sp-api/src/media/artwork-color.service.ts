@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { IntegrationType } from '@prisma/client';
 import sharp from 'sharp';
 import { PrismaService } from '../prisma/prisma.service';
-import { allowedImageHost, vividColor } from './artwork-color.util';
+import { catalogImageUrl, vividColor } from './artwork-color.util';
 
 const SAMPLE = 32;
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -34,10 +34,11 @@ export class ArtworkColorService {
     if (this.cache.has(key)) {
       return this.cache.get(key) ?? null;
     }
-    if (!allowedImageHost(url, await this.catalogHosts())) {
+    const target = catalogImageUrl(url, await this.catalogHosts());
+    if (!target) {
       return null;
     }
-    const color = await this.sample(url).catch((error: unknown) => {
+    const color = await this.sample(target).catch((error: unknown) => {
       this.logger.debug(
         `Couldn't read the colour of ${url.host}: ${(error as Error)?.message}`,
       );
@@ -63,7 +64,7 @@ export class ArtworkColorService {
     });
     return rows.flatMap((row) => {
       try {
-        return row.baseUrl ? [new URL(row.baseUrl).hostname] : [];
+        return row.baseUrl ? [new URL(row.baseUrl).host] : [];
       } catch {
         return [];
       }
