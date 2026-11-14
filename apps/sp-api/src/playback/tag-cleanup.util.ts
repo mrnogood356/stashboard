@@ -119,17 +119,25 @@ export function cannotBeOne(
   a: { note: string | null; links: string[] },
   b: { note: string | null; links: string[] },
 ): boolean {
-  const ids = (links: string[]) =>
-    new Map(
-      links.map((link) => {
-        const cut = link.lastIndexOf('|');
-        return [link.slice(0, cut), link.slice(cut + 1)] as const;
-      }),
-    );
+  // Every id on each catalog: one entry can carry two links to the same one.
+  const ids = (links: string[]) => {
+    const byEndpoint = new Map<string, Set<string>>();
+    for (const link of links) {
+      const cut = link.lastIndexOf('|');
+      const endpoint = link.slice(0, cut);
+      const set = byEndpoint.get(endpoint) ?? new Set<string>();
+      set.add(link.slice(cut + 1));
+      byEndpoint.set(endpoint, set);
+    }
+    return byEndpoint;
+  };
   const left = ids(a.links);
-  for (const [endpoint, id] of ids(b.links)) {
+  for (const [endpoint, right] of ids(b.links)) {
     const other = left.get(endpoint);
-    if (other !== undefined && other !== id) {
+    if (
+      other &&
+      (other.size !== right.size || [...right].some((id) => !other.has(id)))
+    ) {
       return true;
     }
   }

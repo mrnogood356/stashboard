@@ -1,4 +1,5 @@
 import {
+  cannotBeOne,
   nameKey,
   groupMergeCandidates,
   groupSimilarTags,
@@ -123,5 +124,24 @@ describe('groupMergeCandidates', () => {
       person('2', 'Lily', 5, [], ['https://stashdb.org/graphql|b']),
     ]);
     expect(groups).toEqual([]);
+  });
+});
+
+describe('cannotBeOne', () => {
+  const E = 'https://stashdb.org/graphql';
+  const item = (links: string[], note: string | null = null) => ({
+    note,
+    links,
+  });
+
+  it('compares every id on a catalog, whatever order the links come in', () => {
+    const two = item([`${E}|aaa`, `${E}|bbb`]);
+    expect(cannotBeOne(two, item([`${E}|bbb`]))).toBe(true);
+    expect(cannotBeOne(item([`${E}|bbb`]), two)).toBe(true);
+    expect(cannotBeOne(two, item([`${E}|bbb`, `${E}|aaa`]))).toBe(false);
+    expect(cannotBeOne(two, item(['https://fansdb.cc/graphql|zzz']))).toBe(
+      false,
+    );
+    expect(cannotBeOne(two, item([]))).toBe(false);
   });
 });

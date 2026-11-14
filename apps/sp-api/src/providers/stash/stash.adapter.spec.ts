@@ -2847,6 +2847,92 @@ describe('StashAdapter', () => {
       expect(sentInput(2)).toEqual({ id: '42', image: 'https://img/l.png' });
     });
 
+    it('won’t reuse a same-named studio linked to another StashDB entry', async () => {
+      const elsewhere = [{ endpoint: studio.endpoint, stash_id: 'other' }];
+      fetchMock.mockResolvedValueOnce(empty()).mockResolvedValueOnce(
+        respond({
+          data: {
+            findStudios: {
+              studios: [{ id: '42', name: 'Mr Anal', stash_ids: elsewhere }],
+            },
+          },
+        }),
+      );
+      await expect(adapter.ensureStudio(config, studio)).rejects.toThrow(
+        'linked to a different entry',
+      );
+
+      // By alias too.
+      fetchMock
+        .mockResolvedValueOnce(empty())
+        .mockResolvedValueOnce(empty())
+        .mockResolvedValueOnce(
+          respond({
+            data: {
+              findStudios: {
+                studios: [{ id: '42', name: 'Mr. Anal', stash_ids: elsewhere }],
+              },
+            },
+          }),
+        );
+      await expect(adapter.ensureStudio(config, studio)).rejects.toThrow(
+        'Mr. Anal is linked to a different entry',
+      );
+
+      // Linked to the same entry, or to another catalog: still the one.
+      fetchMock.mockResolvedValueOnce(empty()).mockResolvedValueOnce(
+        respond({
+          data: {
+            findStudios: {
+              studios: [
+                {
+                  id: '43',
+                  name: 'Mr Anal',
+                  stash_ids: [
+                    { endpoint: 'https://fansdb.cc/graphql', stash_id: 'x' },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+      );
+      await expect(adapter.ensureStudio(config, studio)).resolves.toBe('43');
+    });
+
+    it('picks the same-named performer not linked elsewhere', async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          respond({ data: { findPerformers: { performers: [] } } }),
+        )
+        .mockResolvedValueOnce(
+          respond({
+            data: {
+              findPerformers: {
+                performers: [
+                  {
+                    id: '1',
+                    name: 'Lily',
+                    stash_ids: [{ endpoint: studio.endpoint, stash_id: 'aaa' }],
+                  },
+                  { id: '2', name: 'Lily', stash_ids: [] },
+                ],
+              },
+            },
+          }),
+        );
+      await expect(
+        adapter.ensurePerformer(config, {
+          name: 'Lily',
+          disambiguation: null,
+          gender: null,
+          stashId: 'bbb',
+          endpoint: studio.endpoint,
+          create: false,
+        }),
+      ).resolves.toBe('2');
+    });
+
     it('only links an existing studio when told not to create one', async () => {
       fetchMock
         .mockResolvedValueOnce(empty())

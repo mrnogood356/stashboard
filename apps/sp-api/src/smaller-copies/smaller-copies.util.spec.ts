@@ -237,6 +237,36 @@ describe('smaller copies', () => {
       ).toMatch(/runs 32 min/);
     });
 
+    it('checks the length even when the pictures match', () => {
+      expect(
+        checkNewCopy(old, { ...good, duration: 600 }, 'above-target', rules),
+      ).toMatch(/runs 10 min/);
+    });
+
+    it('keeps both when nothing says it’s the same video', () => {
+      expect(
+        checkNewCopy(
+          { ...old, phash: null, duration: null },
+          good,
+          'above-target',
+          rules,
+        ),
+      ).toMatch(/no fingerprint or length/);
+      // The picture alone is enough when the old length is unknown.
+      expect(
+        checkNewCopy({ ...old, duration: null }, good, 'above-target', rules),
+      ).toBeNull();
+    });
+
+    it('keeps both when a size can’t be read', () => {
+      expect(
+        checkNewCopy(old, { ...good, size: null }, 'above-target', rules),
+      ).toMatch(/new file’s size/);
+      expect(
+        checkNewCopy({ ...old, size: 0 }, good, 'above-target', rules),
+      ).toMatch(/old file’s size/);
+    });
+
     it('checks the real file, not what the release name promised', () => {
       expect(
         checkNewCopy(
