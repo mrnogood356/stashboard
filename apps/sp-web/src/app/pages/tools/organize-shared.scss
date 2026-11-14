@@ -112,6 +112,8 @@
 
 .btn.confirm {
   background: var(--soft-fill);
+  // On the light tint the primary button's white label would fade.
+  color: var(--text-primary);
 }
 
 .relocate code,
