@@ -97,7 +97,7 @@
       }
     </nav>
 
-    @if (handoffs().length > 0) {
+    @if (extraHandoffs().length > 0) {
       <section
         class="lifecycle-section app-section-panel handoff-section"
         data-tone="active"
@@ -107,13 +107,15 @@
           <div class="app-section-head__copy">
             <div class="section-title-row">
               <h3>Downloading now</h3>
-              <span class="section-count">{{ countLabel(handoffs().length, 'download') }}</span>
+              <span class="section-count">{{
+                countLabel(extraHandoffs().length, 'download')
+              }}</span>
             </div>
           </div>
           <a class="secondary-action compact" routerLink="/processing">All downloads</a>
         </div>
         <div class="acquisition-list">
-          @for (handoff of handoffs(); track handoff.id) {
+          @for (handoff of extraHandoffs(); track handoff.id) {
             <article
               class="acquisition-card"
               [attr.data-state]="handoff.stage === 'failed' ? 'FAILED' : 'DOWNLOADING'"
@@ -201,7 +203,7 @@
       </section>
     }
 
-    @if (!hasItems() && handoffs().length === 0) {
+    @if (!hasItems() && extraHandoffs().length === 0) {
       <section
         class="state-shell empty-shell app-state-block"
         data-testid="acquisition-empty-state"

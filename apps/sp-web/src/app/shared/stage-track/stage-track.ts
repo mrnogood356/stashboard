@@ -53,6 +53,28 @@ export function stagesForStatus(state: SceneStatusState, queueState?: string | n
   }
 }
 
+/**
+ * The same four steps for a download Stashboard sent to SABnzbd, so Wanted
+ * and Downloads count the same way. A failure after the file was moved in
+ * stopped at Waiting for Stash; any other at Downloading.
+ */
+export function stagesForHandoff(stage: string, movedIn: boolean): Stage[] {
+  switch (stage) {
+    case 'queued':
+      return buildStages(0);
+    case 'downloading':
+    case 'unpacking':
+      return buildStages(1);
+    case 'moving':
+    case 'linking':
+      return buildStages(2);
+    case 'done':
+      return buildStages(3, { finished: true });
+    default:
+      return buildStages(movedIn ? 2 : 1, { failed: true });
+  }
+}
+
 /** "Step 2 of 4 · Downloading", for where the step names don't fit. */
 export function stageNowText(stages: Stage[]): string {
   const index = stages.findIndex((stage) => stage.state === 'current' || stage.state === 'failed');

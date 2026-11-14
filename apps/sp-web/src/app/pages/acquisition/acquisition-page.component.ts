@@ -12,7 +12,7 @@ import { YouMayEnjoyComponent } from '../../shared/you-may-enjoy/you-may-enjoy.c
 import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
 import {
   Stage,
-  buildStages,
+  stagesForHandoff,
   stagesForStatus,
   timeLeftText,
   percentText,
@@ -156,6 +156,11 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
 
   /** In flight, or failed in the last day; SABnzbd's, so not in Whisparr's list. */
   protected readonly handoffs = signal<ProcessingHandoff[]>([]);
+  /** Downloads whose scene isn't already a card below, so nothing shows twice. */
+  protected readonly extraHandoffs = computed(() => {
+    const shown = new Set(this.items().map((item) => item.id));
+    return this.handoffs().filter((handoff) => !handoff.sceneId || !shown.has(handoff.sceneId));
+  });
   private handoffsRequest: Subscription | null = null;
 
   /** Only All and Downloading show them, and not while searching. */
@@ -209,21 +214,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
 
   /** The same four steps as a request, from where SABnzbd and Stashboard are. */
   protected handoffStages(handoff: ProcessingHandoff): Stage[] {
-    switch (handoff.stage) {
-      case 'queued':
-        return buildStages(0);
-      case 'downloading':
-      case 'unpacking':
-        return buildStages(1);
-      case 'moving':
-      case 'linking':
-        return buildStages(2);
-      case 'done':
-        return buildStages(3, { finished: true });
-      default:
-        // Failed after it was moved in: it stopped at Waiting for Stash.
-        return buildStages(handoff.finalPath ? 2 : 1, { failed: true });
-    }
+    return stagesForHandoff(handoff.stage, !!handoff.finalPath);
   }
 
   protected handoffProgressText(handoff: ProcessingHandoff): string | null {
