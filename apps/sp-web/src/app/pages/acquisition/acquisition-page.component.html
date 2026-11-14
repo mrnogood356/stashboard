@@ -36,15 +36,15 @@
   }
 
   <form
-    class="list-toolbar app-control-shell"
+    class="list-toolbar"
     role="search"
     aria-label="Find tracked scenes"
     (submit)="$event.preventDefault(); submitSearch()"
   >
-    <label class="toolbar-field toolbar-field--search app-control-field">
+    <label class="toolbar-search">
+      <i class="pi pi-search" aria-hidden="true"></i>
       <span class="app-control-label">Search</span>
       <input
-        class="app-control-input"
         type="search"
         inputmode="search"
         name="q"
@@ -58,22 +58,17 @@
     </label>
 
     @if (selectedLifecycle() !== 'AVAILABLE') {
-      <div class="toolbar-field app-control-field">
-        <span id="acquisition-sort-label" class="app-control-label">Sort</span>
-        <p-select
-          inputId="acquisition-sort"
-          ariaLabelledBy="acquisition-sort-label"
-          data-testid="acquisition-sort"
-          [ngModel]="selectedSort()"
-          (ngModelChange)="selectSort($event)"
-          [ngModelOptions]="{ standalone: true }"
-          [options]="sortOptions"
-          optionLabel="label"
-          optionValue="value"
-          [appendTo]="'body'"
-          panelStyleClass="app-overlay-panel"
-        />
-      </div>
+      <app-filter-chip label="Sort" [value]="sortLabel()" neutral testId="acquisition-sort">
+        <ng-template appFilterPanel>
+          <app-filter-options
+            [options]="sortChoices"
+            [selected]="[selectedSort()]"
+            [clearable]="false"
+            testId="acquisition-sort-option"
+            (changed)="selectSort($any($event[0]))"
+          />
+        </ng-template>
+      </app-filter-chip>
     }
   </form>
 

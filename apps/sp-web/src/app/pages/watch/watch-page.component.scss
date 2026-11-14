@@ -587,8 +587,8 @@
   height: 2.4rem;
   padding: 0 1rem;
   border-radius: var(--radius-sm);
-  border: 1px solid rgb(255 255 255 / 30%);
-  background: transparent;
+  border: 1px solid transparent;
+  background: rgb(255 255 255 / 14%);
   color: #fff;
   font: inherit;
   font-weight: 600;
@@ -891,8 +891,8 @@
   gap: 0.4rem;
   width: fit-content;
   padding: 0.35rem 0.4rem 0.35rem 0.75rem;
-  border-radius: 999px;
-  background: rgb(10 132 255 / 25%);
+  border-radius: var(--radius-sm);
+  background: rgb(255 255 255 / 14%);
   color: #fff;
   font-size: 0.9rem;
   font-weight: 600;

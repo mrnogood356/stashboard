@@ -35,6 +35,8 @@ const UNLOCK_TIMEOUT_MS = 15_000;
  */
 @Injectable({ providedIn: 'root' })
 export class AppLockService implements OnDestroy {
+  /** Previews this paused when it covered the screen, to start again after. */
+  private readonly pausedPreviews = new Set<HTMLVideoElement>();
   private readonly http = inject(HttpClient);
 
   readonly status = signal<AppLockStatus | null>(null);
@@ -343,11 +345,36 @@ export class AppLockService implements OnDestroy {
     }
     if (this.shieldWanted()) {
       document.documentElement.classList.add(SHIELD_CLASS);
+      this.pausePreviews();
     }
   }
 
   private lowerShield(): void {
     document.documentElement.classList.remove(SHIELD_CLASS);
+    this.resumePreviews();
+  }
+
+  /**
+   * Muted previews (card clips, the swipe feed) keep painting frames as the
+   * app leaves, which can land in the switcher's picture: stop them while
+   * covered, and start them again after. The main player is left alone.
+   */
+  private pausePreviews(): void {
+    for (const video of Array.from(document.querySelectorAll('video'))) {
+      if (video.muted && !video.paused) {
+        video.pause();
+        this.pausedPreviews.add(video);
+      }
+    }
+  }
+
+  private resumePreviews(): void {
+    for (const video of this.pausedPreviews) {
+      if (video.isConnected && video.paused) {
+        void video.play()?.catch?.(() => undefined);
+      }
+    }
+    this.pausedPreviews.clear();
   }
 
   private isIos(): boolean {

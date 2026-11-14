@@ -122,7 +122,13 @@ export const routes: Routes = [
           import('./pages/tools/merge-page.component').then((m) => m.MergePageComponent),
       },
       {
+        // Its old name; links and bookmarks still land.
         path: 'tools/smaller-copies',
+        redirectTo: 'tools/better-copies',
+        pathMatch: 'full',
+      },
+      {
+        path: 'tools/better-copies',
         loadComponent: () =>
           import('./pages/tools/smaller-copies-page.component').then(
             (m) => m.SmallerCopiesPageComponent,

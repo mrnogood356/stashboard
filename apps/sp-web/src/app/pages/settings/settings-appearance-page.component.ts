@@ -8,6 +8,7 @@ import {
   MODE_OPTIONS,
   RADIUS_OPTIONS,
   sameAppearance,
+  ARTWORK_ACCENT,
 } from '../../core/theme/appearance.types';
 import { contrastRatio, isHexColor } from '../../core/theme/color-contrast';
 import { UI_CONTRAST, accentTokens } from '../../core/theme/theme-tokens';
@@ -58,9 +59,14 @@ export class SettingsAppearancePageComponent implements OnInit, OnDestroy {
   protected readonly dirty = computed(() => !sameAppearance(this.draft(), this.theme.saved()));
   protected readonly activeTheme = this.theme.activeTheme;
 
-  protected readonly accentInUse = computed(
-    () => this.draft().accentColor ?? this.activeTheme().palette.accent,
-  );
+  /** "Match the artwork" picked: the accent follows the poster or photo on screen. */
+  protected readonly artworkAccent = computed(() => this.draft().accentColor === ARTWORK_ACCENT);
+  protected readonly ARTWORK_ACCENT = ARTWORK_ACCENT;
+
+  protected readonly accentInUse = computed(() => {
+    const picked = this.draft().accentColor;
+    return picked && picked !== ARTWORK_ACCENT ? picked : this.activeTheme().palette.accent;
+  });
 
   /** How the accent reads on the current theme's cards, and whether it was nudged. */
   protected readonly accentReport = computed(() => {
@@ -77,7 +83,8 @@ export class SettingsAppearancePageComponent implements OnInit, OnDestroy {
   async ngOnInit(): Promise<void> {
     await this.theme.syncFromServer();
     this.draft.set(this.theme.saved());
-    this.hexInput.set(this.draft().accentColor ?? '');
+    const accent = this.draft().accentColor;
+    this.hexInput.set(accent && accent !== ARTWORK_ACCENT ? accent : '');
     this.cssOpen.set(this.draft().customCss.length > 0);
     this.loading.set(false);
   }
@@ -120,7 +127,7 @@ export class SettingsAppearancePageComponent implements OnInit, OnDestroy {
   }
 
   protected pickAccent(value: string | null): void {
-    this.hexInput.set(value ?? '');
+    this.hexInput.set(value && value !== ARTWORK_ACCENT ? value : '');
     this.update({ accentColor: value ? value.toLowerCase() : null });
   }
 

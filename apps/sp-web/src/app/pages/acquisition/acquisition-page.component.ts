@@ -1,3 +1,11 @@
+import {
+  FilterChipComponent,
+  FilterPanelDirective,
+} from '../../shared/filter-bar/filter-chip.component';
+import {
+  FilterOption,
+  FilterOptionsComponent,
+} from '../../shared/filter-bar/filter-options.component';
 import { PageTabsComponent, REQUESTS_TABS } from '../../shared/page-tabs/page-tabs.component';
 import { failureReason } from './failure-reason';
 import { YouMayEnjoyComponent } from '../../shared/you-may-enjoy/you-may-enjoy.component';
@@ -25,9 +33,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { finalize, Subscription } from 'rxjs';
-import { FormsModule } from '@angular/forms';
 import { Message } from 'primeng/message';
-import { Select } from 'primeng/select';
 import { AcquisitionService } from '../../core/api/acquisition.service';
 import {
   DownloadHandoffApiService,
@@ -110,13 +116,14 @@ interface AcquisitionPageAlert {
 @Component({
   selector: 'app-acquisition-page',
   imports: [
+    FilterChipComponent,
+    FilterPanelDirective,
+    FilterOptionsComponent,
     PageTabsComponent,
     StageTrackComponent,
     SkeletonComponent,
     RouterLink,
-    FormsModule,
     Message,
-    Select,
     SelectionBarComponent,
     SceneTimelineComponent,
     YouMayEnjoyComponent,
@@ -438,7 +445,15 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   protected readonly items = signal<AcquisitionSceneItem[]>([]);
   protected readonly runtimeHealth = this.runtimeHealthService.status;
   protected readonly selectedLifecycle = signal<AcquisitionLifecycleFilter>('ANY');
-  protected readonly sortOptions = [...ACQUISITION_SORT_OPTIONS];
+  protected readonly sortChoices: FilterOption[] = ACQUISITION_SORT_OPTIONS.map((option) => ({
+    id: option.value,
+    label: option.label,
+  }));
+  protected readonly sortLabel = computed(
+    () =>
+      ACQUISITION_SORT_OPTIONS.find((option) => option.value === this.selectedSort())?.label ??
+      'Sort',
+  );
   /** The search the list is showing; `searchDraft` is what is typed so far. */
   protected readonly searchQuery = signal('');
   protected readonly searchDraft = signal('');
@@ -1135,7 +1150,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   }
 
   private readSort(value: string | null): AcquisitionSort {
-    return this.sortOptions.find((option) => option.value === value)?.value ?? 'status';
+    return ACQUISITION_SORT_OPTIONS.find((option) => option.value === value)?.value ?? 'status';
   }
 
   private applyUrlState(state: AcquisitionUrlState): boolean {

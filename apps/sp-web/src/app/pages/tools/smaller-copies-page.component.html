@@ -2,340 +2,498 @@
   <a class="back-link app-back-link app-back-link--media" routerLink="/tools">Library tools</a>
   <header class="page-head-compact">
     <div class="page-head-compact__title">
-      <h1>Smaller copies</h1>
+      <h1>Better copies</h1>
       <p>
-        Looks for a smaller copy of big files, a few scenes an hour, and swaps it in once it’s
-        downloaded.
+        Swaps files that are too big, or too low quality, for a better copy of the same scene, a few
+        scenes an hour.
       </p>
     </div>
   </header>
 
   @if (data(); as info) {
-    <section class="panel status-panel" data-testid="smaller-status">
-      @if (info.blocked) {
-        <p class="state off">
-          <i class="pi pi-pause-circle" aria-hidden="true"></i> {{ info.blocked }}
-        </p>
-      } @else {
-        <p class="state on">
-          <i class="pi pi-check-circle" aria-hidden="true"></i>
-          Running: {{ info.candidates }} scene{{ info.candidates === 1 ? '' : 's' }} fit the rules,
-          {{ info.due }} to look at.
-        </p>
-      }
-      @if (savedText(info.saved); as saved) {
-        <p class="saved" data-testid="smaller-saved">
-          <i class="pi pi-database" aria-hidden="true"></i> {{ saved }}
-        </p>
-      }
-      <p class="muted small">
-        Up to {{ info.settings.scenesPerHour }} search{{
-          info.settings.scenesPerHour === 1 ? '' : 'es'
-        }}
-        an hour.
-        @if (info.lastSearchAt) {
-          Last: {{ when(info.lastSearchAt) }}.
+    <div class="app-tabs" role="tablist" aria-label="Better copies">
+      <button
+        type="button"
+        role="tab"
+        [class.active]="tab() === 'overview'"
+        [attr.aria-selected]="tab() === 'overview'"
+        data-testid="better-tab-overview"
+        (click)="tab.set('overview')"
+      >
+        Overview
+      </button>
+      <button
+        type="button"
+        role="tab"
+        [class.active]="tab() === 'matches'"
+        [attr.aria-selected]="tab() === 'matches'"
+        data-testid="better-tab-matches"
+        (click)="tab.set('matches')"
+      >
+        Matches
+        @if (matches().length > 0) {
+          <span class="count">{{ matches().length }}</span>
         }
-      </p>
-      <div class="status-actions">
-        <button
-          type="button"
-          class="btn small"
-          [disabled]="!!info.blocked || searching()"
-          (click)="searchNow()"
-        >
-          {{ searching() ? 'Searching…' : 'Search one now' }}
-        </button>
-      </div>
-    </section>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        [class.active]="tab() === 'rules'"
+        [attr.aria-selected]="tab() === 'rules'"
+        data-testid="better-tab-rules"
+        (click)="tab.set('rules')"
+      >
+        Rules
+      </button>
+    </div>
 
-    @if (form; as f) {
-      <form class="rules" (ngSubmit)="save()">
-        <section class="panel group">
+    @switch (tab()) {
+      @case ('overview') {
+        <section class="panel status-panel" data-testid="smaller-status">
           <div class="switch-row">
             <span>
-              <strong>Smaller copies</strong>
+              <strong>Better copies</strong>
               <small>Off until you turn it on. Needs Prowlarr and Finished downloads.</small>
             </span>
             <input
               type="checkbox"
               class="app-switch"
               role="switch"
-              name="enabled"
-              aria-label="Smaller copies"
-              [(ngModel)]="f.enabled"
+              aria-label="Better copies"
+              data-testid="better-enabled"
+              [checked]="info.settings.enabled"
+              [disabled]="saving()"
+              (change)="toggleEnabled($any($event.target).checked)"
             />
           </div>
-        </section>
-
-        <section class="panel group">
-          <h2>Which files</h2>
-          <label class="field">
-            <span class="field-label">Aim for</span>
-            <select class="text-input" name="target" [(ngModel)]="f.target">
-              <option value="2160p">2160p (4K)</option>
-              <option value="1080p">1080p</option>
-              <option value="720p">720p</option>
-            </select>
-          </label>
-          <div class="switch-row">
-            <span>
-              <strong>Replace copies above it</strong>
-              <small>A 4K file is replaced with a {{ f.target }} one.</small>
-            </span>
-            <input
-              type="checkbox"
-              class="app-switch"
-              role="switch"
-              name="replaceHigher"
-              aria-label="Replace copies above it"
-              [(ngModel)]="f.replaceHigher"
-            />
-          </div>
-          <div class="switch-row">
-            <span>
-              <strong>Upgrade copies below it</strong>
-              <small
-                >A 480p or 720p file is replaced with a {{ f.target }} one, even if bigger.</small
-              >
-            </span>
-            <input
-              type="checkbox"
-              class="app-switch"
-              role="switch"
-              name="upgradeLower"
-              aria-label="Upgrade copies below it"
-              [(ngModel)]="f.upgradeLower"
-            />
-          </div>
-          <div class="pair">
-            <label class="field">
-              <span class="field-label">At {{ f.target }}, replace files over (GB)</span>
-              <input
-                class="text-input"
-                type="number"
-                min="0"
-                step="0.5"
-                name="maxFileSizeGb"
-                placeholder="Never"
-                [(ngModel)]="f.maxFileSizeGb"
-              />
-            </label>
-            <label class="field">
-              <span class="field-label">Leave files under (GB)</span>
-              <input
-                class="text-input"
-                type="number"
-                min="0"
-                step="0.5"
-                name="minFileSizeGb"
-                placeholder="Any size"
-                [(ngModel)]="f.minFileSizeGb"
-              />
-            </label>
-          </div>
-        </section>
-
-        <section class="panel group">
-          <h2>What counts as a better copy</h2>
-          <label class="field">
-            <span class="field-label">Codec</span>
-            <select class="text-input" name="codec" [(ngModel)]="f.codec">
-              <option value="any">Any</option>
-              <option value="prefer-efficient">Prefer HEVC or AV1</option>
-              <option value="efficient-only">Only HEVC or AV1</option>
-            </select>
-          </label>
-          <div class="pair">
-            <label class="field">
-              <span class="field-label">Must save at least (%)</span>
-              <input
-                class="text-input"
-                type="number"
-                min="0"
-                max="90"
-                step="5"
-                name="minSavingsPercent"
-                [(ngModel)]="f.minSavingsPercent"
-              />
-            </label>
-            <label class="field">
-              <span class="field-label">New copy no bigger than (GB)</span>
-              <input
-                class="text-input"
-                type="number"
-                min="0"
-                step="0.5"
-                name="maxNewSizeGb"
-                placeholder="No limit"
-                [(ngModel)]="f.maxNewSizeGb"
-              />
-            </label>
-          </div>
-          <div class="pair">
-            <label class="field">
-              <span class="field-label">Of those that fit, pick</span>
-              <select class="text-input" name="prefer" [(ngModel)]="f.prefer">
-                <option value="largest">The biggest (best picture)</option>
-                <option value="smallest">The smallest</option>
-              </select>
-            </label>
-            <label class="field">
-              <span class="field-label">Release name must match</span>
-              <select class="text-input" name="matchStrength" [(ngModel)]="f.matchStrength">
-                <option value="strong">Strongly (safest)</option>
-                <option value="partial">Strongly or partly</option>
-              </select>
-            </label>
-          </div>
-          <p class="muted small">
-            Only usenet releases are grabbed, so Finished downloads can bring them in and swap the
-            file.
-          </p>
-        </section>
-
-        <section class="panel group">
-          <h2>Studios</h2>
-          <label class="field">
-            <span class="field-label">Look at</span>
-            <select class="text-input" name="studioMode" [(ngModel)]="f.studioMode">
-              <option value="all">Every studio</option>
-              <option value="only">Only these studios</option>
-              <option value="skip">Every studio but these</option>
-            </select>
-          </label>
-          @if (f.studioMode !== 'all') {
-            <label class="field">
-              <span class="field-label">Studios, one per line</span>
-              <textarea
-                class="text-input area"
-                name="studios"
-                rows="4"
-                [(ngModel)]="studios"
-              ></textarea>
-            </label>
-          }
-        </section>
-
-        <section class="panel group">
-          <h2>Grabbing and replacing</h2>
-          <div class="switch-row">
-            <span>
-              <strong>Grab matches by itself</strong>
-              <small>Off: matches wait below for you to grab.</small>
-            </span>
-            <input
-              type="checkbox"
-              class="app-switch"
-              role="switch"
-              name="autoGrab"
-              aria-label="Grab matches by itself"
-              [(ngModel)]="f.autoGrab"
-            />
-          </div>
-          <label class="field">
-            <span class="field-label">Once the new copy is in Stash</span>
-            <select class="text-input" name="oldCopy" [(ngModel)]="f.oldCopy">
-              <option value="delete">Delete the old file</option>
-              <option value="keep">Keep both files on the scene</option>
-            </select>
-            <span class="muted small"
-              >The new scene is merged into the old one, so plays, tags and markers stay. If the new
-              file’s length is far off, both are kept for you to check.</span
-            >
-          </label>
-          <label class="field">
-            <span class="field-label">Searches an hour</span>
-            <input
-              class="text-input"
-              type="number"
-              min="1"
-              max="60"
-              name="scenesPerHour"
-              [(ngModel)]="f.scenesPerHour"
-            />
-            <span class="muted small"
-              >One scene per search. Keep it low so indexers aren’t hammered.</span
-            >
-          </label>
-          <div class="pair">
-            <label class="field">
-              <span class="field-label">Only from</span>
-              <select class="text-input" name="activeFromHour" [(ngModel)]="f.activeFromHour">
-                <option [ngValue]="null">Any time</option>
-                @for (hour of hours; track hour) {
-                  <option [ngValue]="hour">{{ hourLabel(hour) }}</option>
-                }
-              </select>
-            </label>
-            <label class="field">
-              <span class="field-label">Until</span>
-              <select class="text-input" name="activeToHour" [(ngModel)]="f.activeToHour">
-                <option [ngValue]="null">Any time</option>
-                @for (hour of hours; track hour) {
-                  <option [ngValue]="hour">{{ hourLabel(hour) }}</option>
-                }
-              </select>
-            </label>
-          </div>
-        </section>
-
-        <div class="save-row">
-          <button type="submit" class="btn primary" [disabled]="saving()">
-            {{ saving() ? 'Saving…' : 'Save' }}
-          </button>
-        </div>
-      </form>
-    }
-
-    <h2 class="recent-title">Recent</h2>
-    @if (info.recent.length === 0) {
-      <p class="muted">Nothing looked for yet.</p>
-    } @else {
-      <ul class="recent">
-        @for (row of info.recent; track row.stashSceneId) {
-          <li class="panel attempt" [attr.data-testid]="'attempt-' + row.stashSceneId">
-            <div class="attempt-head">
-              <a class="attempt-title" [routerLink]="['/library/scene', row.stashSceneId]">{{
-                row.title
-              }}</a>
-              <span class="badge" [attr.data-outcome]="row.outcome">{{
-                outcomeLabel(row.outcome)
-              }}</span>
-            </div>
-            @if (row.releaseTitle) {
-              <p class="release">{{ row.releaseTitle }}</p>
-            }
-            @if (row.detail) {
-              <p class="muted small">{{ row.detail }}</p>
-            }
-            <p class="muted small">
-              {{ when(row.searchedAt) }}
-              @if (row.oldSize) {
-                · {{ gb(row.oldSize) }}
-                @if (row.newSize) {
-                  → {{ gb(row.newSize) }}
-                }
-              }
+          @if (info.blocked) {
+            <p class="state off">
+              <i class="pi pi-pause-circle" aria-hidden="true"></i> {{ info.blocked }}
             </p>
-            @if (row.canGrab) {
-              <button
-                type="button"
-                class="btn small primary"
-                [disabled]="isGrabbing(row.stashSceneId)"
-                (click)="grab(row.stashSceneId)"
-              >
-                {{ isGrabbing(row.stashSceneId) ? 'Grabbing…' : 'Grab' }}
+          } @else {
+            <p class="state on">
+              <i class="pi pi-check-circle" aria-hidden="true"></i>
+              Running: {{ info.candidates }} scene{{ info.candidates === 1 ? '' : 's' }} fit the
+              rules, {{ info.due }} to look at.
+            </p>
+          }
+          @if (savedText(info.saved); as saved) {
+            <p class="saved" data-testid="smaller-saved">
+              <i class="pi pi-database" aria-hidden="true"></i> {{ saved }}
+            </p>
+          }
+          <p class="muted small">
+            Up to {{ info.settings.scenesPerHour }} search{{
+              info.settings.scenesPerHour === 1 ? '' : 'es'
+            }}
+            an hour.
+            @if (info.lastSearchAt) {
+              Last: {{ when(info.lastSearchAt) }}.
+            }
+            @if (matches().length > 0) {
+              <button type="button" class="link-button" (click)="tab.set('matches')">
+                {{ matches().length }} waiting for you
               </button>
             }
-          </li>
+          </p>
+          <div class="status-actions">
+            <button
+              type="button"
+              class="btn small"
+              data-testid="better-search-now"
+              [disabled]="!!info.blocked || searching()"
+              (click)="searchNow()"
+            >
+              {{ searching() ? 'Searching…' : 'Search one now' }}
+            </button>
+          </div>
+        </section>
+
+        <h2 class="recent-title">Recent</h2>
+        @if (activity().length === 0) {
+          <p class="muted">Nothing looked for yet.</p>
+        } @else {
+          <ul class="recent">
+            @for (row of activity(); track row.stashSceneId) {
+              <li class="panel attempt" [attr.data-testid]="'attempt-' + row.stashSceneId">
+                <div class="attempt-head">
+                  <a class="attempt-title" [routerLink]="['/library/scene', row.stashSceneId]">{{
+                    row.title
+                  }}</a>
+                  <span class="badge" [attr.data-outcome]="row.outcome">{{
+                    outcomeLabel(row.outcome)
+                  }}</span>
+                </div>
+                @if (row.releaseTitle) {
+                  <p class="release">{{ row.releaseTitle }}</p>
+                }
+                @if (row.detail) {
+                  <p class="muted small">{{ row.detail }}</p>
+                }
+                <p class="muted small">
+                  {{ when(row.searchedAt) }}
+                  @if (row.oldSize) {
+                    · {{ gb(row.oldSize) }}
+                    @if (row.newSize) {
+                      → {{ gb(row.newSize) }}
+                    }
+                  }
+                </p>
+                @if (row.canGrab) {
+                  <button
+                    type="button"
+                    class="btn small primary"
+                    [disabled]="isGrabbing(row.stashSceneId)"
+                    (click)="grab(row.stashSceneId)"
+                  >
+                    {{ isGrabbing(row.stashSceneId) ? 'Grabbing…' : 'Grab' }}
+                  </button>
+                }
+              </li>
+            }
+          </ul>
         }
-      </ul>
+      }
+
+      @case ('matches') {
+        @if (matches().length === 0) {
+          <p class="muted empty-matches">
+            Nothing waiting. With “Grab matches by itself” off (in Rules), every match found waits
+            here for you to look at and grab.
+          </p>
+        } @else {
+          <ul class="recent">
+            @for (row of matches(); track row.stashSceneId) {
+              <li class="panel attempt" [attr.data-testid]="'attempt-' + row.stashSceneId">
+                <div class="attempt-head">
+                  <a class="attempt-title" [routerLink]="['/library/scene', row.stashSceneId]">{{
+                    row.title
+                  }}</a>
+                  <span class="badge" [attr.data-outcome]="row.outcome">{{
+                    outcomeLabel(row.outcome)
+                  }}</span>
+                </div>
+                @if (row.releaseTitle) {
+                  <p class="release">{{ row.releaseTitle }}</p>
+                }
+                @if (row.detail) {
+                  <p class="muted small">{{ row.detail }}</p>
+                }
+                <p class="muted small">
+                  {{ when(row.searchedAt) }}
+                  @if (row.oldSize) {
+                    · {{ gb(row.oldSize) }}
+                    @if (row.newSize) {
+                      → {{ gb(row.newSize) }}
+                    }
+                  }
+                </p>
+                @if (row.canGrab) {
+                  <button
+                    type="button"
+                    class="btn small primary"
+                    [disabled]="isGrabbing(row.stashSceneId)"
+                    (click)="grab(row.stashSceneId)"
+                  >
+                    {{ isGrabbing(row.stashSceneId) ? 'Grabbing…' : 'Grab' }}
+                  </button>
+                }
+              </li>
+            }
+          </ul>
+        }
+      }
+
+      @case ('rules') {
+        @if (form; as f) {
+          <form class="rules" (ngSubmit)="save()">
+            <section class="presets" aria-label="What to look for">
+              @for (choice of presets; track choice.id) {
+                <button
+                  type="button"
+                  class="preset"
+                  [class.active]="preset() === choice.id"
+                  [attr.aria-pressed]="preset() === choice.id"
+                  [attr.data-testid]="'preset-' + choice.id"
+                  (click)="pickPreset(choice.id)"
+                >
+                  <strong>{{ choice.label }}</strong>
+                  <span>{{ choice.detail }}</span>
+                </button>
+              }
+            </section>
+            @if (preset() === null) {
+              <p class="muted small">Fine-tuned: these rules aren’t one of the presets any more.</p>
+            }
+
+            <section class="panel group">
+              <label class="field">
+                <span class="field-label">Aim for</span>
+                <select class="text-input" name="target" [(ngModel)]="f.target">
+                  <option value="2160p">2160p (4K)</option>
+                  <option value="1080p">1080p</option>
+                  <option value="720p">720p</option>
+                </select>
+              </label>
+            </section>
+
+            <details class="fine-tune">
+              <summary>Fine-tune</summary>
+
+              <section class="panel group">
+                <h2>Which files</h2>
+                <div class="switch-row">
+                  <span>
+                    <strong>Replace copies above it</strong>
+                    <small>A 4K file is replaced with a {{ f.target }} one.</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    class="app-switch"
+                    role="switch"
+                    name="replaceHigher"
+                    aria-label="Replace copies above it"
+                    [(ngModel)]="f.replaceHigher"
+                    (ngModelChange)="rulesChanged()"
+                  />
+                </div>
+                <div class="switch-row">
+                  <span>
+                    <strong>Upgrade copies below it</strong>
+                    <small
+                      >A 480p or 720p file is replaced with a {{ f.target }} one, even if
+                      bigger.</small
+                    >
+                  </span>
+                  <input
+                    type="checkbox"
+                    class="app-switch"
+                    role="switch"
+                    name="upgradeLower"
+                    aria-label="Upgrade copies below it"
+                    [(ngModel)]="f.upgradeLower"
+                    (ngModelChange)="rulesChanged()"
+                  />
+                </div>
+                <div class="pair">
+                  <label class="field">
+                    <span class="field-label"
+                      >At {{ f.target }}, replace files over (GB an hour)</span
+                    >
+                    <input
+                      class="text-input"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      name="maxGbPerHour"
+                      placeholder="Never"
+                      [(ngModel)]="f.maxGbPerHour"
+                      (ngModelChange)="rulesChanged()"
+                    />
+                  </label>
+                  <label class="field">
+                    <span class="field-label">Leave files under (GB an hour)</span>
+                    <input
+                      class="text-input"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      name="minGbPerHour"
+                      placeholder="Any"
+                      [(ngModel)]="f.minGbPerHour"
+                      (ngModelChange)="rulesChanged()"
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section class="panel group">
+                <h2>What counts as a better copy</h2>
+                <label class="field">
+                  <span class="field-label">Codec</span>
+                  <select
+                    class="text-input"
+                    name="codec"
+                    [(ngModel)]="f.codec"
+                    (ngModelChange)="rulesChanged()"
+                  >
+                    <option value="any">Any</option>
+                    <option value="prefer-efficient">Prefer HEVC or AV1</option>
+                    <option value="efficient-only">Only HEVC or AV1</option>
+                  </select>
+                </label>
+                <div class="pair">
+                  <label class="field">
+                    <span class="field-label">Must save at least (%)</span>
+                    <input
+                      class="text-input"
+                      type="number"
+                      min="0"
+                      max="90"
+                      step="5"
+                      name="minSavingsPercent"
+                      [(ngModel)]="f.minSavingsPercent"
+                      (ngModelChange)="rulesChanged()"
+                    />
+                  </label>
+                  <label class="field">
+                    <span class="field-label">Of those that fit, pick</span>
+                    <select
+                      class="text-input"
+                      name="prefer"
+                      [(ngModel)]="f.prefer"
+                      (ngModelChange)="rulesChanged()"
+                    >
+                      <option value="largest">The biggest (best picture)</option>
+                      <option value="smallest">The smallest</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="pair">
+                  <label class="field">
+                    <span class="field-label">New copy at least (GB an hour)</span>
+                    <input
+                      class="text-input"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      name="minNewGbPerHour"
+                      placeholder="Any"
+                      [(ngModel)]="f.minNewGbPerHour"
+                      (ngModelChange)="rulesChanged()"
+                    />
+                    <span class="muted small"
+                      >Lighter than this is usually a squeezed re-encode.</span
+                    >
+                  </label>
+                  <label class="field">
+                    <span class="field-label">New copy at most (GB an hour)</span>
+                    <input
+                      class="text-input"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      name="maxNewGbPerHour"
+                      placeholder="No limit"
+                      [(ngModel)]="f.maxNewGbPerHour"
+                    />
+                  </label>
+                </div>
+                <label class="field">
+                  <span class="field-label">Release name must match</span>
+                  <select class="text-input" name="matchStrength" [(ngModel)]="f.matchStrength">
+                    <option value="strong">Strongly (safest)</option>
+                    <option value="partial">Strongly or partly</option>
+                  </select>
+                </label>
+                <p class="muted small">
+                  Only usenet releases are grabbed, so Finished downloads can bring them in and swap
+                  the file.
+                </p>
+              </section>
+
+              <section class="panel group">
+                <h2>Studios</h2>
+                <label class="field">
+                  <span class="field-label">Look at</span>
+                  <select class="text-input" name="studioMode" [(ngModel)]="f.studioMode">
+                    <option value="all">Every studio</option>
+                    <option value="only">Only these studios</option>
+                    <option value="skip">Every studio but these</option>
+                  </select>
+                </label>
+                @if (f.studioMode !== 'all') {
+                  <label class="field">
+                    <span class="field-label">Studios, one per line</span>
+                    <textarea
+                      class="text-input area"
+                      name="studios"
+                      rows="4"
+                      [(ngModel)]="studios"
+                    ></textarea>
+                  </label>
+                }
+              </section>
+
+              <section class="panel group">
+                <h2>Grabbing and replacing</h2>
+                <div class="switch-row">
+                  <span>
+                    <strong>Grab matches by itself</strong>
+                    <small>Off: matches wait below for you to grab.</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    class="app-switch"
+                    role="switch"
+                    name="autoGrab"
+                    aria-label="Grab matches by itself"
+                    [(ngModel)]="f.autoGrab"
+                  />
+                </div>
+                <label class="field">
+                  <span class="field-label">Once the new copy is in Stash</span>
+                  <select class="text-input" name="oldCopy" [(ngModel)]="f.oldCopy">
+                    <option value="keep">Keep both files on the scene</option>
+                    <option value="delete">Delete the old file</option>
+                  </select>
+                  <span class="muted small"
+                    >The new file joins the old scene, so plays, tags and markers stay. Before
+                    anything is deleted it’s checked: the same video by its picture fingerprint, at
+                    the resolution its name promised, really smaller (or really better). If not,
+                    both are kept.</span
+                  >
+                </label>
+                <label class="field">
+                  <span class="field-label">Searches an hour</span>
+                  <input
+                    class="text-input"
+                    type="number"
+                    min="1"
+                    max="60"
+                    name="scenesPerHour"
+                    [(ngModel)]="f.scenesPerHour"
+                  />
+                  <span class="muted small"
+                    >One scene per search. Keep it low so indexers aren’t hammered.</span
+                  >
+                </label>
+                <div class="pair">
+                  <label class="field">
+                    <span class="field-label">Only from</span>
+                    <select class="text-input" name="activeFromHour" [(ngModel)]="f.activeFromHour">
+                      <option [ngValue]="null">Any time</option>
+                      @for (hour of hours; track hour) {
+                        <option [ngValue]="hour">{{ hourLabel(hour) }}</option>
+                      }
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span class="field-label">Until</span>
+                    <select class="text-input" name="activeToHour" [(ngModel)]="f.activeToHour">
+                      <option [ngValue]="null">Any time</option>
+                      @for (hour of hours; track hour) {
+                        <option [ngValue]="hour">{{ hourLabel(hour) }}</option>
+                      }
+                    </select>
+                  </label>
+                </div>
+              </section>
+            </details>
+
+            <div class="save-row">
+              <button type="submit" class="btn primary" [disabled]="saving()">
+                {{ saving() ? 'Saving…' : 'Save' }}
+              </button>
+            </div>
+          </form>
+        }
+      }
     }
   } @else if (error()) {
     <div class="notice error" role="alert">
       <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
-      <span>Couldn’t read Smaller copies right now.</span>
+      <span>Couldn’t read Better copies right now.</span>
     </div>
   } @else {
     <p class="muted loading" role="status">

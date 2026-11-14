@@ -708,12 +708,15 @@ model SmallerCopySettings {
   replaceHigher     Boolean  @default(true)
   /// Replace copies below the target with one at it.
   upgradeLower      Boolean  @default(false)
-  /// At the target already but bigger than this: replace too. Null: never.
-  maxFileSizeGb     Float?
-  /// Leave files smaller than this alone. Null: any size.
-  minFileSizeGb     Float?
-  /// The new copy must be at most this size. Null: any size.
-  maxNewSizeGb      Float?
+  /// Sizes are GB per hour of video, so a rule means the same at any length.
+  /// At the target already but heavier than this: replace too. Null: never.
+  maxGbPerHour      Float?
+  /// Leave files lighter than this alone. Null: any.
+  minGbPerHour      Float?
+  /// The new copy must be at most this heavy. Null: any.
+  maxNewGbPerHour   Float?
+  /// The new copy must be at least this heavy: lighter is too squeezed. Null: any.
+  minNewGbPerHour   Float?
   /// The new copy must save at least this much of the old size (not for upgrades).
   minSavingsPercent Int      @default(10)
   /// any | prefer-efficient (HEVC or AV1 first) | efficient-only
@@ -726,9 +729,9 @@ model SmallerCopySettings {
   studioMode        String   @default("all")
   studioNames       String[] @default([])
   /// Grab a match by itself, or list it for you to grab.
-  autoGrab          Boolean  @default(true)
+  autoGrab          Boolean  @default(false)
   /// delete | keep: the old file once the new one is in Stash.
-  oldCopy           String   @default("delete")
+  oldCopy           String   @default("keep")
   /// At most this many scenes searched for an hour, spread evenly.
   scenesPerHour     Int      @default(10)
   /// Search only between these hours (server time); both null: any time.

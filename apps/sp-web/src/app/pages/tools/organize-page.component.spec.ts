@@ -324,6 +324,23 @@ describe('OrganizePageComponent', () => {
     expect((fixture.componentInstance as unknown as { total(): number }).total()).toBe(12);
   });
 
+  it('opens the scene list already searched when Fix my library links here', async () => {
+    const api = {
+      settings: vi.fn().mockReturnValue(of(settings)),
+      unmatched: vi.fn().mockReturnValue(of({ total: 0, page: 1, hasMore: false, items: [] })),
+    };
+    const { root } = await render(api, 'review&q=Summer%20scene');
+
+    expect(api.unmatched).toHaveBeenCalledWith(1, {
+      q: 'Summer scene',
+      sort: 'added-desc',
+      scope: 'unmatched',
+    });
+    expect((root.querySelector('input[type="search"]') as HTMLInputElement).value).toBe(
+      'Summer scene',
+    );
+  });
+
   it('shows the Whisparr folder mapping read-only and links to Settings to change it', async () => {
     const api = {
       settings: vi.fn().mockReturnValue(

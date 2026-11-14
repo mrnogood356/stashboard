@@ -28,10 +28,18 @@ export const IDLE_OPTIONS = [
   { value: 30, label: 'After 30 minutes' },
 ];
 
-/** Two Escs or three taps must land within this long. */
+/** Two Escs must land within this long. */
 const GESTURE_WINDOW_MS = 600;
+/** Each of the three taps within this long of the one before. */
+const TAP_GAP_MS = 500;
 /** Taps further apart than this are separate taps, not one gesture. */
-const TAP_SLOP_PX = 60;
+const TAP_SLOP_PX = 80;
+/**
+ * The tap that hides is followed by its own click, which lands on the cover
+ * it just raised: ignore taps on the cover for this long, or it hides and
+ * comes straight back.
+ */
+const REVEAL_GUARD_MS = 500;
 const IDLE_CHECK_MS = 15_000;
 
 /**
@@ -52,6 +60,7 @@ export class QuickHideService implements OnDestroy {
   private blurredBefore = false;
   private lastActivity = Date.now();
   private escAt = 0;
+  private hiddenAt = 0;
   private taps: Array<{ at: number; x: number; y: number }> = [];
   /** Takes the listeners and the idle timer away again. */
   private readonly stopListening = new AbortController();
@@ -110,6 +119,7 @@ export class QuickHideService implements OnDestroy {
     for (const media of Array.from(this.document.querySelectorAll('video, audio'))) {
       (media as HTMLMediaElement).pause?.();
     }
+    this.hiddenAt = Date.now();
     this.hidden.set(true);
   }
 
@@ -118,6 +128,9 @@ export class QuickHideService implements OnDestroy {
    * were clear, still blurred if they were blurred already.
    */
   reveal(): void {
+    if (Date.now() - this.hiddenAt < REVEAL_GUARD_MS) {
+      return;
+    }
     this.hidden.set(false);
     if (!this.blurredBefore) {
       this.obscuration.setMode('clear');
@@ -164,11 +177,11 @@ export class QuickHideService implements OnDestroy {
       return;
     }
     const now = Date.now();
-    const first = this.taps[0];
+    const last = this.taps.at(-1);
     if (
-      first &&
-      (now - first.at > GESTURE_WINDOW_MS ||
-        Math.hypot(event.clientX - first.x, event.clientY - first.y) > TAP_SLOP_PX)
+      last &&
+      (now - last.at > TAP_GAP_MS ||
+        Math.hypot(event.clientX - last.x, event.clientY - last.y) > TAP_SLOP_PX)
     ) {
       this.taps = [];
     }

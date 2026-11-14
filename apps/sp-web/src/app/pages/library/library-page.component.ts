@@ -1,3 +1,4 @@
+import { ImageObscurationToggleComponent } from '../../shared/image-obscuration-toggle/image-obscuration-toggle.component';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import {
   FilterChipComponent,
@@ -85,6 +86,7 @@ interface LibraryPageAlert {
 @Component({
   selector: 'app-library-page',
   imports: [
+    ImageObscurationToggleComponent,
     SkeletonComponent,
     RouterLink,
     FormsModule,

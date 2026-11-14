@@ -7,9 +7,6 @@ import {
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { NgModel } from '@angular/forms';
-import { By } from '@angular/platform-browser';
-import { Select } from 'primeng/select';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { SceneTimeline, TimelineApiService } from '../../core/api/timeline.service';
@@ -1000,12 +997,17 @@ describe('AcquisitionPageComponent', () => {
 
   it('sorts by date as one list instead of grouping by stage', async () => {
     const { fixture, router, acquisitionService } = await renderPage();
-    // The themed PrimeNG dropdown (a native <select> popup ignores the theme).
-    const sort = fixture.debugElement.query(By.css('[data-testid="acquisition-sort"]'));
-    expect(sort.componentInstance).toBeInstanceOf(Select);
+    // The filter bar's Sort, as on every other list (never a native <select>).
     expect(fixture.nativeElement.querySelector('select')).toBeNull();
-
-    sort.injector.get(NgModel).viewToModelUpdate('requested-desc');
+    (
+      fixture.nativeElement.querySelector('[data-testid="acquisition-sort"]') as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    (
+      fixture.nativeElement.querySelector(
+        '[data-testid="acquisition-sort-option-requested-desc"]',
+      ) as HTMLButtonElement
+    ).click();
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -1037,8 +1039,8 @@ describe('AcquisitionPageComponent', () => {
       sort: 'released-asc',
     });
     await fixture.whenStable();
-    const sort = fixture.debugElement.query(By.css('[data-testid="acquisition-sort"]'));
-    expect(sort.injector.get(NgModel).value).toBe('released-asc');
-    expect(sort.nativeElement.textContent).toContain('Oldest release');
+    fixture.detectChanges();
+    const sort = fixture.nativeElement.querySelector('[data-testid="acquisition-sort"]');
+    expect(sort?.textContent).toContain('Oldest release');
   });
 });

@@ -162,15 +162,12 @@
         <button
           type="button"
           class="btn small"
-          [class.danger]="confirming() === set.key"
           data-testid="merge-button"
           [disabled]="set.merge.size === 0 || merging() === set.key"
           (click)="run(set)"
         >
           @if (merging() === set.key) {
             Merging…
-          } @else if (confirming() === set.key) {
-            Tap again to merge {{ set.merge.size }} into {{ keptName(set) }}
           } @else if (set.items.length < 2) {
             Pick another to merge
           } @else {
@@ -180,4 +177,59 @@
       </div>
     </div>
   </ng-template>
+
+  <app-sheet
+    [open]="!!confirming()"
+    [title]="'Merge into ' + (confirming() ? keptName(confirming()!) : '') + '?'"
+    [busy]="!!merging()"
+    testId="merge-sheet"
+    (closed)="cancelMerge()"
+  >
+    @if (confirming(); as set) {
+      <p>
+        {{ movingScenes(set) }} {{ movingScenes(set) === 1 ? 'scene moves' : 'scenes move' }} onto
+        <strong>{{ keptName(set) }}</strong
+        >, along with galleries and images{{
+          kind() === 'studios' ? ', groups and sub-studios' : ''
+        }}. Their names become aliases.
+      </p>
+      <p class="muted">These are deleted in Stash:</p>
+      <ul class="going" data-testid="merge-going">
+        @for (item of goingOf(set); track item.id) {
+          <li>
+            {{ item.name }}
+            @if (item.note) {
+              <span class="muted">({{ item.note }})</span>
+            }
+            <span class="muted"
+              >· {{ item.sceneCount }} {{ item.sceneCount === 1 ? 'scene' : 'scenes' }}</span
+            >
+          </li>
+        }
+      </ul>
+      <p class="notice error warn-undo">
+        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+        <span>A merge can’t be undone, here or in Stash.</span>
+      </p>
+      <div class="sheet-actions">
+        <button
+          type="button"
+          class="btn danger wide"
+          data-testid="confirm-merge"
+          [disabled]="!!merging()"
+          (click)="confirmMerge()"
+        >
+          {{ merging() ? 'Merging…' : 'Merge ' + set.merge.size + ' into ' + keptName(set) }}
+        </button>
+        <button
+          type="button"
+          class="btn wide ghost"
+          [disabled]="!!merging()"
+          (click)="cancelMerge()"
+        >
+          Cancel
+        </button>
+      </div>
+    }
+  </app-sheet>
 </main>

@@ -385,3 +385,9 @@ p {
 .css-card[open] > summary h3::after {
   content: ' ⌄';
 }
+
+/* Match the artwork: a little colour wheel, as it changes with what's on screen. */
+.swatch.artwork {
+  background: conic-gradient(#ff375f, #ff9f0a, #30d158, #40c8e0, #5e5ce6, #bf5af2, #ff375f);
+  color: #fff;
+}

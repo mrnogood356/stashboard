@@ -1,3 +1,4 @@
+import { ImageObscurationToggleComponent } from '../../shared/image-obscuration-toggle/image-obscuration-toggle.component';
 import { Observable } from 'rxjs';
 import { GlassArtService } from '../../core/theme/glass-art.service';
 import {
@@ -136,6 +137,7 @@ type RailFavoritesOption = SceneFavoritesFilter | 'NONE';
 @Component({
   selector: 'app-home-page',
   imports: [
+    ImageObscurationToggleComponent,
     RouterLink,
     FormsModule,
     MultiSelect,

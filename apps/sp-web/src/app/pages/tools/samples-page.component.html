@@ -102,36 +102,60 @@
     }
   </div>
 
-  @if (pending(); as scenes) {
-    <div class="sheet-backdrop" (click)="cancelDelete()" aria-hidden="true"></div>
-    <section class="sheet" role="dialog" aria-modal="true" aria-label="Remove samples">
-      @if (scenes.length === 1) {
-        <h2>Remove this sample?</h2>
-        <p class="muted">
-          {{ scenes[0].file?.basename ?? scenes[0].title }} · {{ size(scenes[0].file?.size) }}
+  <app-sheet
+    [open]="!!pending()"
+    [title]="
+      (pending()?.length ?? 0) === 1
+        ? 'Remove this sample?'
+        : 'Remove all ' + pending()?.length + ' samples?'
+    "
+    [busy]="deleting()"
+    testId="remove-sheet"
+    (closed)="cancelDelete()"
+  >
+    @if (pending(); as scenes) {
+      <div class="confirm">
+        @if (scenes.length === 1) {
+          <p class="muted">
+            {{ scenes[0].file?.basename ?? scenes[0].title }} · {{ size(scenes[0].file?.size) }}
+          </p>
+        } @else {
+          <p class="muted">{{ size(totalSize()) }} in all.</p>
+        }
+        <p class="muted small undo-note">
+          Deleting from disk can’t be undone. Removing from Stash only leaves the
+          {{ scenes.length === 1 ? 'file' : 'files' }}, and the next scan adds
+          {{ scenes.length === 1 ? 'it' : 'them' }} back.
         </p>
-      } @else {
-        <h2>Remove all {{ scenes.length }} samples?</h2>
-        <p class="muted">{{ size(totalSize()) }} in all.</p>
-      }
-      @if (deleting() && scenes.length > 1) {
-        <p class="muted" role="status">Removed {{ progress() }} of {{ scenes.length }}…</p>
-      }
-      <button
-        type="button"
-        class="btn danger wide"
-        [disabled]="deleting()"
-        (click)="confirmDelete(true)"
-      >
-        <i class="pi pi-trash" aria-hidden="true"></i> Delete the
-        {{ scenes.length === 1 ? 'file' : 'files' }} from disk
-      </button>
-      <button type="button" class="btn wide" [disabled]="deleting()" (click)="confirmDelete(false)">
-        Remove from Stash only (keep the {{ scenes.length === 1 ? 'file' : 'files' }})
-      </button>
-      <button type="button" class="btn wide ghost" [disabled]="deleting()" (click)="cancelDelete()">
-        Cancel
-      </button>
-    </section>
-  }
+        @if (deleting() && scenes.length > 1) {
+          <p class="muted" role="status">Removed {{ progress() }} of {{ scenes.length }}…</p>
+        }
+        <button
+          type="button"
+          class="btn danger wide"
+          [disabled]="deleting()"
+          (click)="confirmDelete(true)"
+        >
+          <i class="pi pi-trash" aria-hidden="true"></i> Delete the
+          {{ scenes.length === 1 ? 'file' : 'files' }} from disk
+        </button>
+        <button
+          type="button"
+          class="btn wide"
+          [disabled]="deleting()"
+          (click)="confirmDelete(false)"
+        >
+          Remove from Stash only (keep the {{ scenes.length === 1 ? 'file' : 'files' }})
+        </button>
+        <button
+          type="button"
+          class="btn wide ghost"
+          [disabled]="deleting()"
+          (click)="cancelDelete()"
+        >
+          Cancel
+        </button>
+      </div>
+    }
+  </app-sheet>
 </main>

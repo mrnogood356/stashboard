@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppearanceSettings, DEFAULT_APPEARANCE } from '../../core/theme/appearance.types';
 import { ThemeService } from '../../core/theme/theme.service';
-import { darkThemeOrDefault, lightThemeOrDefault } from '../../core/theme/themes';
+import { ALL_THEMES, darkThemeOrDefault, lightThemeOrDefault } from '../../core/theme/themes';
 import { SettingsAppearancePageComponent } from './settings-appearance-page.component';
 
 describe('SettingsAppearancePageComponent', () => {
@@ -61,7 +61,7 @@ describe('SettingsAppearancePageComponent', () => {
     const { theme, el } = await render({ darkTheme: 'nord' });
     expect(theme.syncFromServer).toHaveBeenCalled();
     const cards = el.querySelectorAll('.theme-card');
-    expect(cards.length).toBe(19);
+    expect(cards.length).toBe(ALL_THEMES.length);
     expect(el.querySelector('[data-testid="theme-nord"]')?.getAttribute('aria-pressed')).toBe(
       'true',
     );
@@ -130,6 +130,22 @@ describe('SettingsAppearancePageComponent', () => {
 
     (el.querySelector('[data-testid="accent-default"]') as HTMLButtonElement).click();
     expect(theme.preview).toHaveBeenLastCalledWith(expect.objectContaining({ accentColor: null }));
+  });
+
+  it('offers an accent that matches the artwork on screen', async () => {
+    const { fixture, theme, el } = await render();
+    (el.querySelector('[data-testid="accent-artwork"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(theme.preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({ accentColor: 'artwork' }),
+    );
+    expect(el.querySelector('[data-testid="accent-artwork"]')?.getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    expect(el.querySelector('[data-testid="accent-artwork-note"]')?.textContent).toContain(
+      'poster or photo',
+    );
+    expect((el.querySelector('[data-testid="accent-hex"]') as HTMLInputElement).value).toBe('');
   });
 
   it('caps custom CSS at the limit', async () => {

@@ -131,36 +131,15 @@
   color: var(--success-text);
 }
 
-.sheet-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  background: rgb(0 0 0 / 45%);
-}
-
-.sheet {
-  position: fixed;
-  left: 50%;
-  bottom: calc(1rem + env(safe-area-inset-bottom));
-  z-index: 61;
+.confirm {
   display: grid;
   gap: 0.55rem;
-  width: min(26rem, calc(100% - 1.5rem));
-  padding: 1.2rem;
-  border-radius: 22px;
-  background: var(--surface-1);
-  box-shadow: 0 24px 60px rgb(0 0 0 / 45%);
-  transform: translateX(-50%);
-}
 
-.sheet h2 {
-  font-size: 1.15rem;
-}
-
-.sheet p {
-  margin-bottom: 0.4rem;
-  font-size: 0.86rem;
-  overflow-wrap: anywhere;
+  p {
+    margin: 0;
+    font-size: 0.86rem;
+    overflow-wrap: anywhere;
+  }
 }
 
 .btn.wide {

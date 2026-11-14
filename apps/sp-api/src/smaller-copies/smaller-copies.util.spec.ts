@@ -7,6 +7,8 @@ import {
   releaseIsEfficient,
   releaseResolution,
   type CandidateRelease,
+  checkNewCopy,
+  phashDistance,
 } from './smaller-copies.util';
 
 const GB = 1024 ** 3;
@@ -49,11 +51,13 @@ describe('smaller copies', () => {
       width: 3840,
       height: 2160,
       size: 10 * GB,
+      duration: 3600,
       studioName: 'Vixen',
     };
     expect(needsReplacing(uhd, rules)).toBe('above-target');
     expect(needsReplacing(uhd, { ...rules, replaceHigher: false })).toBeNull();
-    expect(needsReplacing(uhd, { ...rules, minFileSizeGb: 12 })).toBeNull();
+    // 10 GB over an hour is lighter than 12 GB an hour: left alone.
+    expect(needsReplacing(uhd, { ...rules, minGbPerHour: 12 })).toBeNull();
     expect(
       needsReplacing(uhd, {
         ...rules,
@@ -80,11 +84,19 @@ describe('smaller copies', () => {
     expect(needsReplacing(hd720, { ...rules, upgradeLower: true })).toBe(
       'below-target',
     );
-    const big1080 = { width: 1920, height: 1080, size: 6 * GB };
+    // 6 GB over half an hour is 12 GB an hour: heavy, while the same file
+    // over two hours (3 GB an hour) is fine.
+    const big1080 = { width: 1920, height: 1080, size: 6 * GB, duration: 1800 };
     expect(needsReplacing(big1080, rules)).toBeNull();
-    expect(needsReplacing(big1080, { ...rules, maxFileSizeGb: 4 })).toBe(
+    expect(needsReplacing(big1080, { ...rules, maxGbPerHour: 8 })).toBe(
       'too-big',
     );
+    expect(
+      needsReplacing(
+        { ...big1080, duration: 7200 },
+        { ...rules, maxGbPerHour: 8 },
+      ),
+    ).toBeNull();
   });
 
   it('grabs a usenet match at the target that saves enough and fits the cap, biggest first', () => {
@@ -96,14 +108,24 @@ describe('smaller copies', () => {
       release('E.1080p', 3.5 * GB, { protocol: 'torrent' }),
       release('F.1080p', 9.5 * GB),
     ];
-    const file = { size: 10 * GB };
+    const file = { size: 10 * GB, duration: 3600 };
     expect(pickRelease(releases, file, 'above-target', rules)?.title).toBe(
       'B.1080p',
     );
     expect(
-      pickRelease(releases, file, 'above-target', { ...rules, maxNewSizeGb: 3 })
-        ?.title,
+      pickRelease(releases, file, 'above-target', {
+        ...rules,
+        maxNewGbPerHour: 3,
+      })?.title,
     ).toBe('C.1080p');
+    // A floor: nothing under 3 GB an hour, too squeezed to swap in.
+    expect(
+      pickRelease(releases, file, 'above-target', {
+        ...rules,
+        prefer: 'smallest',
+        minNewGbPerHour: 3,
+      })?.title,
+    ).toBe('B.1080p');
     expect(
       pickRelease(releases, file, 'above-target', {
         ...rules,
@@ -168,5 +190,120 @@ describe('smaller copies', () => {
     expect(inActiveHours(7, 1, 6)).toBe(false);
     expect(inActiveHours(23, 22, 6)).toBe(true);
     expect(inActiveHours(12, 22, 6)).toBe(false);
+  });
+
+  describe('checkNewCopy: the downloaded file, before anything is deleted', () => {
+    const old = {
+      size: 10 * GB,
+      duration: 1800,
+      width: 3840,
+      height: 2160,
+      phash: 'f0f0f0f0f0f0f0f0',
+    };
+    const good = {
+      size: 3 * GB,
+      duration: 1801,
+      width: 1920,
+      height: 1080,
+      phash: 'f0f0f0f0f0f0f0f1',
+    };
+
+    it('passes the same video at the target, smaller by enough', () => {
+      expect(checkNewCopy(old, good, 'above-target', rules)).toBeNull();
+    });
+
+    it('keeps both when the picture fingerprint says it’s another video', () => {
+      expect(
+        checkNewCopy(
+          old,
+          { ...good, phash: '0f0f0f0f0f0f0f0f' },
+          'above-target',
+          rules,
+        ),
+      ).toMatch(/different video/);
+    });
+
+    it('falls back to a tight length check without fingerprints', () => {
+      const noPrints = { ...good, phash: null };
+      expect(checkNewCopy(old, noPrints, 'above-target', rules)).toBeNull();
+      // 2 minutes off a 30-minute scene: more than 3%.
+      expect(
+        checkNewCopy(
+          old,
+          { ...noPrints, duration: 1920 },
+          'above-target',
+          rules,
+        ),
+      ).toMatch(/runs 32 min/);
+    });
+
+    it('checks the length even when the pictures match', () => {
+      expect(
+        checkNewCopy(old, { ...good, duration: 600 }, 'above-target', rules),
+      ).toMatch(/runs 10 min/);
+    });
+
+    it('keeps both when nothing says it’s the same video', () => {
+      expect(
+        checkNewCopy(
+          { ...old, phash: null, duration: null },
+          good,
+          'above-target',
+          rules,
+        ),
+      ).toMatch(/no fingerprint or length/);
+      // The picture alone is enough when the old length is unknown.
+      expect(
+        checkNewCopy({ ...old, duration: null }, good, 'above-target', rules),
+      ).toBeNull();
+    });
+
+    it('keeps both when a size can’t be read', () => {
+      expect(
+        checkNewCopy(old, { ...good, size: null }, 'above-target', rules),
+      ).toMatch(/new file’s size/);
+      expect(
+        checkNewCopy({ ...old, size: 0 }, good, 'above-target', rules),
+      ).toMatch(/old file’s size/);
+    });
+
+    it('checks the real file, not what the release name promised', () => {
+      expect(
+        checkNewCopy(
+          old,
+          { ...good, width: 1280, height: 720 },
+          'above-target',
+          rules,
+        ),
+      ).toMatch(/720p, not the 1080p/);
+      expect(
+        checkNewCopy(old, { ...good, size: 9.5 * GB }, 'above-target', rules),
+      ).toMatch(/saves less than 10%/);
+      expect(
+        checkNewCopy(old, good, 'above-target', {
+          ...rules,
+          minNewGbPerHour: 8,
+        }),
+      ).toMatch(/under the 8 GB floor/);
+    });
+
+    it('takes an upgrade only when it really is higher', () => {
+      const low = { ...old, width: 1280, height: 720, size: GB };
+      expect(checkNewCopy(low, good, 'below-target', rules)).toBeNull();
+      expect(
+        checkNewCopy(
+          low,
+          { ...good, width: 1280, height: 720 },
+          'below-target',
+          rules,
+        ),
+      ).toMatch(/no better than the old 720p/);
+    });
+
+    it('measures fingerprints bit by bit', () => {
+      expect(phashDistance('ff', 'fe')).toBe(1);
+      expect(phashDistance('ff', null)).toBeNull();
+      expect(phashDistance('zz', 'ff')).toBeNull();
+    });
   });
 });

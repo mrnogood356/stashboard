@@ -10,6 +10,7 @@ import {
   type MergeKind,
 } from '../../core/api/local-library.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
+import { SheetComponent } from '../../shared/sheet/sheet.component';
 
 interface MergeSet {
   key: string;
@@ -27,7 +28,7 @@ const MANUAL = 'by-hand';
  */
 @Component({
   selector: 'app-merge-page',
-  imports: [FormsModule, RouterLink, NgTemplateOutlet],
+  imports: [FormsModule, RouterLink, NgTemplateOutlet, SheetComponent],
   templateUrl: './merge-page.component.html',
   styleUrls: ['./tools-shared.scss', './merge-page.component.scss'],
 })
@@ -41,7 +42,8 @@ export class MergePageComponent implements OnInit {
   protected readonly matches = signal<MergeCandidate[]>([]);
   protected readonly loading = signal(true);
   protected readonly error = signal(false);
-  protected readonly confirming = signal<string | null>(null);
+  /** The set waiting on the confirmation sheet. */
+  protected readonly confirming = signal<MergeSet | null>(null);
   protected readonly merging = signal<string | null>(null);
   protected query = '';
   private readonly typed = new Subject<void>();
@@ -131,21 +133,41 @@ export class MergePageComponent implements OnInit {
     return set.items.find((item) => item.id === set.keepId)?.name ?? '';
   }
 
-  /** Two taps: the first asks, the second merges. */
+  /** Opens the sheet that spells out what the merge does. */
   protected run(set: MergeSet): void {
     if (set.merge.size === 0 || this.merging()) {
       return;
     }
-    if (this.confirming() !== set.key) {
-      this.confirming.set(set.key);
+    this.confirming.set(set);
+  }
+
+  protected cancelMerge(): void {
+    if (!this.merging()) {
+      this.confirming.set(null);
+    }
+  }
+
+  /** The ones that go, for the sheet. */
+  protected goingOf(set: MergeSet): MergeCandidate[] {
+    return set.items.filter((item) => set.merge.has(item.id));
+  }
+
+  /** Scenes that move onto the kept one. */
+  protected movingScenes(set: MergeSet): number {
+    return this.goingOf(set).reduce((sum, item) => sum + item.sceneCount, 0);
+  }
+
+  protected confirmMerge(): void {
+    const set = this.confirming();
+    if (!set || this.merging()) {
       return;
     }
-    this.confirming.set(null);
     this.merging.set(set.key);
     const kind = this.kind();
     this.library.merge(kind, set.keepId, [...set.merge]).subscribe({
       next: () => {
         this.merging.set(null);
+        this.confirming.set(null);
         this.notifications.success(
           'Merged',
           `${set.merge.size} ${this.noun(set.merge.size)} merged into ${this.keptName(set)}.`,
@@ -157,6 +179,7 @@ export class MergePageComponent implements OnInit {
       },
       error: (error: { error?: { message?: string } }) => {
         this.merging.set(null);
+        this.confirming.set(null);
         this.notifications.error(
           "Couldn't merge them",
           error.error?.message ?? 'Check that Stash is running, then look again.',

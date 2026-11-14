@@ -121,13 +121,15 @@ describe('LocalLibraryService', () => {
       name: string,
       sceneCount: number,
       aliases: string[] = [],
+      extra: { note?: string; links?: string[] } = {},
     ) => ({
       id,
       name,
       aliases,
       sceneCount,
-      note: null,
+      note: extra.note ?? null,
       deathDate: null,
+      links: extra.links ?? [],
     });
     stash.listForMerge.mockResolvedValue([
       person('1', 'Jane Doe', 3),
@@ -161,6 +163,34 @@ describe('LocalLibraryService', () => {
       '1',
       '5',
     ]);
+
+    // Same name, but StashDB says two people, or Stash tells them apart.
+    stash.listForMerge.mockResolvedValue([
+      person('1', 'Lily', 9, [], {
+        links: ['https://stashdb.org/graphql|aaa'],
+      }),
+      person('2', 'Lily', 5, [], {
+        links: ['https://stashdb.org/graphql|bbb'],
+      }),
+      person('3', 'Lily', 2),
+      person('4', 'Mia', 4, [], { note: 'UK' }),
+      person('5', 'Mia', 3, [], { note: 'US' }),
+    ]);
+    const apart = await service.mergeCandidates('performer');
+    expect(
+      apart.groups.map((group) => group.items.map((item) => item.id)),
+    ).toEqual([['1', '3']]);
+    await expect(service.merge('performer', '1', ['2'])).rejects.toThrow(
+      'different catalog entry',
+    );
+    await expect(service.merge('performer', '4', ['5'])).rejects.toThrow(
+      'isn’t the same',
+    );
+    // Two sources at odds with each other, though each fits an unlinked keeper.
+    await expect(service.merge('performer', '3', ['1', '2'])).rejects.toThrow(
+      'different catalog entry',
+    );
+    expect(stash.mergePerformers).toHaveBeenCalledTimes(1);
     expect(stash.mergeStudios).not.toHaveBeenCalled();
   });
 
@@ -574,10 +604,12 @@ describe('LocalLibraryService', () => {
     });
     stash.findSampleScenes.mockResolvedValue([
       scene('1', '/data/Studio.Title.1080p/sample.mkv', 30),
-      scene('2', '/data/Studio.Title.1080p/Samples/clip.mp4', 900),
+      scene('2', '/data/Studio.Title.1080p/Samples/clip.mp4', 300),
       scene('3', '/data/Examples/trailer.mp4', 45),
       // Stash matched "sample" inside a word; not a sample.
       scene('4', '/data/Resampled Studio/scene.mp4', 1800),
+      // A real 30-minute scene that lives in a folder called Samples.
+      scene('5', '/data/Samples/Studio - Real Scene.mp4', 1800),
     ]);
 
     const found = await service.samples(1);

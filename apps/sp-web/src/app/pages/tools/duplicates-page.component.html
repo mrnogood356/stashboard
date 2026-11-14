@@ -48,7 +48,12 @@
       <p class="muted summary">
         {{ groups().length }} {{ groups().length === 1 ? 'set' : 'sets' }} of copies
       </p>
-      @if (extraCount() > 1) {
+      @if (extraCount() > 1 && accuracy() !== 'exact') {
+        <p class="muted small" data-testid="check-each-set">
+          Looser matches can pair different scenes, so remove copies set by set here.
+        </p>
+      }
+      @if (extraCount() > 1 && accuracy() === 'exact') {
         <button
           type="button"
           class="btn small danger"
@@ -159,68 +164,89 @@
     </p>
   }
 
-  @if (pending(); as scenes) {
-    <div class="sheet-backdrop" (click)="cancelDelete()" aria-hidden="true"></div>
-    <section
-      class="sheet"
-      role="dialog"
-      aria-modal="true"
-      [attr.aria-label]="scenes.length === 1 ? 'Remove this copy' : 'Remove these copies'"
-    >
-      @if (scenes.length === 1) {
-        <h2>Remove this copy?</h2>
-        <p class="muted">
-          {{ scenes[0].file?.basename ?? scenes[0].title }} · {{ resolution(scenes[0]) }} ·
-          {{ size(scenes[0].file?.size) }}
-        </p>
-      } @else {
-        <h2>Remove {{ scenes.length }} copies?</h2>
-        <p class="muted">{{ size(pendingBytes()) }} in all. The best copy of each video is kept.</p>
-      }
-      @if (multiFile(scenes).length > 0) {
-        <p class="notice multi-file" data-testid="multi-file-note">
-          <i class="pi pi-info-circle" aria-hidden="true"></i>
+  <app-sheet
+    [open]="!!pending()"
+    [title]="
+      (pending()?.length ?? 0) === 1
+        ? 'Remove this copy?'
+        : 'Remove ' + pending()?.length + ' copies?'
+    "
+    [busy]="deleting()"
+    testId="remove-sheet"
+    (closed)="cancelDelete()"
+  >
+    @if (pending(); as scenes) {
+      <div class="confirm">
+        @if (scenes.length === 1) {
+          <p class="muted">
+            {{ scenes[0].file?.basename ?? scenes[0].title }} · {{ resolution(scenes[0]) }} ·
+            {{ size(scenes[0].file?.size) }}
+          </p>
+        } @else {
+          <p class="muted">
+            {{ size(pendingBytes()) }} in all. The best copy of each video is kept.
+          </p>
+        }
+        @if (multiFile(scenes).length > 0) {
+          <p class="notice multi-file" data-testid="multi-file-note">
+            <i class="pi pi-info-circle" aria-hidden="true"></i>
+            <span>
+              @if (multiFile(scenes).length === scenes.length) {
+                {{ scenes.length === 1 ? 'This scene has' : 'These scenes have' }} more than one
+                file. Deleting from disk would delete all of them, so only removing from Stash is
+                offered.
+              } @else {
+                {{ multiFile(scenes).length }} of these scenes have more than one file; deleting
+                from disk leaves those in place.
+              }
+            </span>
+          </p>
+        }
+        <label class="carry">
+          <input type="checkbox" name="carryOver" [(ngModel)]="carryOver" [disabled]="deleting()" />
           <span>
-            @if (multiFile(scenes).length === scenes.length) {
-              {{ scenes.length === 1 ? 'This scene has' : 'These scenes have' }} more than one file.
-              Deleting from disk would delete all of them, so only removing from Stash is offered.
-            } @else {
-              {{ multiFile(scenes).length }} of these scenes have more than one file; deleting from
-              disk leaves those in place.
-            }
+            Bring its plays, O history, tags, performers and rating over to the copy kept first
+            <small class="muted">Chapters too, when both run the same length.</small>
           </span>
+        </label>
+        <p class="muted small undo-note">
+          Deleting from disk can’t be undone. Removing from Stash only leaves the file, and the next
+          scan adds it back.
         </p>
-      }
-      <label class="carry">
-        <input type="checkbox" name="carryOver" [(ngModel)]="carryOver" [disabled]="deleting()" />
-        <span>
-          Bring its plays, O history, tags, performers and rating over to the copy kept first
-          <small class="muted">Chapters too, when both run the same length.</small>
-        </span>
-      </label>
-      @if (progress(); as step) {
-        <p class="muted" role="status">Removing {{ step.done + 1 }} of {{ step.total }}…</p>
-      }
-      <button
-        type="button"
-        class="btn danger wide"
-        data-testid="confirm-delete-files"
-        [disabled]="deleting() || multiFile(scenes).length === scenes.length"
-        (click)="confirmDelete(true)"
-      >
-        <i class="pi pi-trash" aria-hidden="true"></i>
-        {{ scenes.length === 1 ? 'Delete the file from disk' : 'Delete the files from disk' }}
-      </button>
-      <button type="button" class="btn wide" [disabled]="deleting()" (click)="confirmDelete(false)">
-        {{
-          scenes.length === 1
-            ? 'Remove from Stash only (keep the file)'
-            : 'Remove from Stash only (keep the files)'
-        }}
-      </button>
-      <button type="button" class="btn wide ghost" [disabled]="deleting()" (click)="cancelDelete()">
-        Cancel
-      </button>
-    </section>
-  }
+        @if (progress(); as step) {
+          <p class="muted" role="status">Removing {{ step.done + 1 }} of {{ step.total }}…</p>
+        }
+        <button
+          type="button"
+          class="btn danger wide"
+          data-testid="confirm-delete-files"
+          [disabled]="deleting() || multiFile(scenes).length === scenes.length"
+          (click)="confirmDelete(true)"
+        >
+          <i class="pi pi-trash" aria-hidden="true"></i>
+          {{ scenes.length === 1 ? 'Delete the file from disk' : 'Delete the files from disk' }}
+        </button>
+        <button
+          type="button"
+          class="btn wide"
+          [disabled]="deleting()"
+          (click)="confirmDelete(false)"
+        >
+          {{
+            scenes.length === 1
+              ? 'Remove from Stash only (keep the file)'
+              : 'Remove from Stash only (keep the files)'
+          }}
+        </button>
+        <button
+          type="button"
+          class="btn wide ghost"
+          [disabled]="deleting()"
+          (click)="cancelDelete()"
+        >
+          Cancel
+        </button>
+      </div>
+    }
+  </app-sheet>
 </main>

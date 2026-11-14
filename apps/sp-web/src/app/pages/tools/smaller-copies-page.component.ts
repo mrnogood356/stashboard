@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import {
@@ -18,12 +18,77 @@ const OUTCOMES: Record<string, string> = {
   'kept-both': 'Kept both',
 };
 
+export type BetterCopiesTab = 'overview' | 'matches' | 'rules';
+export type BetterCopiesPreset = 'save-space' | 'better-quality' | 'both';
+
+type PresetRules = Pick<
+  SmallerCopySettings,
+  | 'replaceHigher'
+  | 'upgradeLower'
+  | 'maxGbPerHour'
+  | 'minSavingsPercent'
+  | 'minNewGbPerHour'
+  | 'codec'
+  | 'prefer'
+>;
+
 /**
- * Library tools → Smaller copies: rules for which files to replace and with
- * what, how fast to search, and what's been found.
+ * What each preset means. "Heavy" at 1080p is over about 6 GB an hour; a new
+ * copy under 1.5 GB an hour is usually a starved re-encode.
+ */
+export const PRESETS: Record<
+  BetterCopiesPreset,
+  { label: string; detail: string; rules: PresetRules }
+> = {
+  'save-space': {
+    label: 'Save space',
+    detail: 'Swap 4K and heavy files for a lighter copy that looks the same.',
+    rules: {
+      replaceHigher: true,
+      upgradeLower: false,
+      maxGbPerHour: 6,
+      minSavingsPercent: 25,
+      minNewGbPerHour: 1.5,
+      codec: 'prefer-efficient',
+      prefer: 'largest',
+    },
+  },
+  'better-quality': {
+    label: 'Better quality',
+    detail: 'Swap low-resolution files for one at your resolution, even if bigger.',
+    rules: {
+      replaceHigher: false,
+      upgradeLower: true,
+      maxGbPerHour: null,
+      minSavingsPercent: 0,
+      minNewGbPerHour: 2,
+      codec: 'any',
+      prefer: 'largest',
+    },
+  },
+  both: {
+    label: 'Both',
+    detail: 'Lighter copies of heavy files, and better ones of low-resolution files.',
+    rules: {
+      replaceHigher: true,
+      upgradeLower: true,
+      maxGbPerHour: 6,
+      minSavingsPercent: 25,
+      minNewGbPerHour: 1.5,
+      codec: 'prefer-efficient',
+      prefer: 'largest',
+    },
+  },
+};
+
+/**
+ * Library tools → Better copies: finds a better copy of a scene (smaller, or
+ * higher quality, as the rules say), grabs it, and swaps it in once Stash
+ * has it and it checks out. Overview of what it's doing, the matches waiting
+ * for you, and the rules, as three tabs.
  */
 @Component({
-  selector: 'app-smaller-copies-page',
+  selector: 'app-better-copies-page',
   imports: [FormsModule, RouterLink],
   templateUrl: './smaller-copies-page.component.html',
   styleUrls: ['./tools-shared.scss', './smaller-copies-page.component.scss'],
@@ -42,12 +107,55 @@ export class SmallerCopiesPageComponent implements OnInit {
   protected form: SmallerCopySettings | null = null;
   protected studios = '';
   protected readonly hours = Array.from({ length: 24 }, (_, hour) => hour);
+  protected readonly tab = signal<BetterCopiesTab>('overview');
+  protected readonly presets = Object.entries(PRESETS).map(([id, preset]) => ({
+    id: id as BetterCopiesPreset,
+    ...preset,
+  }));
+  /** The preset the rules match now; null when fine-tuned past them. */
+  protected readonly preset = signal<BetterCopiesPreset | null>(null);
+  /** Matches waiting for you to grab. */
+  protected readonly matches = computed(() =>
+    (this.data()?.recent ?? []).filter((row) => row.canGrab),
+  );
+  /** Everything else it did lately. */
+  protected readonly activity = computed(() =>
+    (this.data()?.recent ?? []).filter((row) => !row.canGrab),
+  );
 
   ngOnInit(): void {
     this.api.status().subscribe({
       next: (data) => this.show(data),
       error: () => this.error.set(true),
     });
+  }
+
+  protected pickPreset(id: BetterCopiesPreset): void {
+    if (!this.form) {
+      return;
+    }
+    this.form = { ...this.form, ...PRESETS[id].rules };
+    this.preset.set(id);
+  }
+
+  /** After a rule is changed by hand: which preset it still matches, if any. */
+  protected rulesChanged(): void {
+    this.preset.set(this.form ? presetOf(this.form) : null);
+  }
+
+  /** The on/off switch saves at once; the rest waits for Save. */
+  protected toggleEnabled(enabled: boolean): void {
+    const data = this.data();
+    if (!data) {
+      return;
+    }
+    if (this.form) {
+      this.form = { ...this.form, enabled };
+    }
+    this.persist(
+      { ...data.settings, enabled },
+      enabled ? 'Better copies is on.' : 'Better copies is off.',
+    );
   }
 
   protected hourLabel(hour: number): string {
@@ -101,12 +209,16 @@ export class SmallerCopiesPageComponent implements OnInit {
         .map((name) => name.trim())
         .filter(Boolean),
     };
+    this.persist(settings, 'Better copies uses the new rules.');
+  }
+
+  private persist(settings: SmallerCopySettings, done: string): void {
     this.saving.set(true);
     this.api.save(settings).subscribe({
       next: (data) => {
         this.saving.set(false);
         this.show(data);
-        this.notifications.success('Saved', data.blocked ?? 'Smaller copies uses the new rules.');
+        this.notifications.success('Saved', data.blocked ?? done);
       },
       error: () => {
         this.saving.set(false);
@@ -164,5 +276,19 @@ export class SmallerCopiesPageComponent implements OnInit {
     this.data.set(data);
     this.form = { ...data.settings };
     this.studios = data.settings.studioNames.join('\n');
+    this.preset.set(presetOf(data.settings));
   }
+}
+
+/** The preset these rules are, or null when they've been fine-tuned past all of them. */
+export function presetOf(settings: SmallerCopySettings): BetterCopiesPreset | null {
+  for (const [id, preset] of Object.entries(PRESETS)) {
+    const same = (Object.keys(preset.rules) as Array<keyof PresetRules>).every(
+      (key) => settings[key] === preset.rules[key],
+    );
+    if (same) {
+      return id as BetterCopiesPreset;
+    }
+  }
+  return null;
 }

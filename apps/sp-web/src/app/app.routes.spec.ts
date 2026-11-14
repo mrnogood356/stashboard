@@ -41,6 +41,7 @@ describe('app routes', () => {
       'tools/broken',
       'tools/merge',
       'tools/smaller-copies',
+      'tools/better-copies',
       'tools/schedules',
       'tools/duplicates',
       'search',

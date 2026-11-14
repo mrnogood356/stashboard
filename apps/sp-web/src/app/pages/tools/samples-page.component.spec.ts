@@ -59,8 +59,8 @@ describe('SamplesPageComponent', () => {
 
     (root.querySelector('[data-testid="remove-all"]') as HTMLButtonElement).click();
     fixture.detectChanges();
-    expect(root.textContent).toContain('Remove all 2 samples?');
-    (root.querySelector('.sheet .btn.danger') as HTMLButtonElement).click();
+    expect(document.body.textContent).toContain('Remove all 2 samples?');
+    (document.querySelector('.sheet .btn.danger') as HTMLButtonElement).click();
     await fixture.whenStable();
     fixture.detectChanges();
 

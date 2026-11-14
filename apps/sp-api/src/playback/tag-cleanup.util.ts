@@ -109,3 +109,68 @@ export function nameKey(name: string): string {
     .replace(/&/g, 'and')
     .replace(/[^\p{L}\p{N}\p{M}]+/gu, '');
 }
+
+/**
+ * Two performers or studios that can't be one: linked to different entries
+ * on the same catalog (StashDB says they're two), or told apart in Stash
+ * (different disambiguations, or for studios different parents).
+ */
+export function cannotBeOne(
+  a: { note: string | null; links: string[] },
+  b: { note: string | null; links: string[] },
+): boolean {
+  // Every id on each catalog: one entry can carry two links to the same one.
+  const ids = (links: string[]) => {
+    const byEndpoint = new Map<string, Set<string>>();
+    for (const link of links) {
+      const cut = link.lastIndexOf('|');
+      const endpoint = link.slice(0, cut);
+      const set = byEndpoint.get(endpoint) ?? new Set<string>();
+      set.add(link.slice(cut + 1));
+      byEndpoint.set(endpoint, set);
+    }
+    return byEndpoint;
+  };
+  const left = ids(a.links);
+  for (const [endpoint, right] of ids(b.links)) {
+    const other = left.get(endpoint);
+    if (
+      other &&
+      (other.size !== right.size || [...right].some((id) => !other.has(id)))
+    ) {
+      return true;
+    }
+  }
+  const noteA = nameKey(a.note ?? '');
+  const noteB = nameKey(b.note ?? '');
+  return !!noteA && !!noteB && noteA !== noteB;
+}
+
+/**
+ * A group of same-named entries, split so nothing in a set can't be one with
+ * the rest: most scenes first, each joining the first set it fits. Only sets
+ * of two or more are left, with the one with the most scenes to keep.
+ */
+export function splitUnmergeable<
+  T extends {
+    id: string;
+    sceneCount: number;
+    note: string | null;
+    links: string[];
+  },
+>(items: T[]): Array<{ keepId: string; items: T[] }> {
+  const sets: T[][] = [];
+  for (const item of [...items].sort((a, b) => b.sceneCount - a.sceneCount)) {
+    const home = sets.find((set) =>
+      set.every((other) => !cannotBeOne(item, other)),
+    );
+    if (home) {
+      home.push(item);
+    } else {
+      sets.push([item]);
+    }
+  }
+  return sets
+    .filter((set) => set.length > 1)
+    .map((set) => ({ keepId: set[0].id, items: set }));
+}

@@ -55,6 +55,7 @@ describe('QuickHideService', () => {
     expect(pause).toHaveBeenCalled();
     expect(obscured()).toBe(true);
 
+    vi.advanceTimersByTime(600);
     service.reveal();
     expect(service.hidden()).toBe(false);
     // Back as it was: pictures were clear before hiding.
@@ -65,6 +66,7 @@ describe('QuickHideService', () => {
     const { service, obscured } = start();
     TestBed.inject(ImageObscurationService).setMode('obscured');
     service.hide();
+    vi.advanceTimersByTime(600);
     service.reveal();
     expect(obscured()).toBe(true);
   });
@@ -98,6 +100,31 @@ describe('QuickHideService', () => {
     tap();
     tap();
     expect(service.hidden()).toBe(true);
+  });
+
+  it('counts taps at a natural pace, each within half a second of the last', () => {
+    const { service } = start();
+    tap();
+    vi.advanceTimersByTime(400);
+    tap();
+    vi.advanceTimersByTime(400);
+    tap();
+    expect(service.hidden()).toBe(true);
+  });
+
+  it('stays hidden when the hiding tap’s own click lands on the cover', () => {
+    const { service } = start();
+    tap();
+    tap();
+    tap();
+    // The third tap's click arrives a moment later, on the cover.
+    vi.advanceTimersByTime(100);
+    service.reveal();
+    expect(service.hidden()).toBe(true);
+
+    vi.advanceTimersByTime(600);
+    service.reveal();
+    expect(service.hidden()).toBe(false);
   });
 
   it('does nothing with the gesture off', () => {

@@ -1,3 +1,14 @@
+import {
+  FilterChipComponent,
+  FilterPanelDirective,
+} from '../../shared/filter-bar/filter-chip.component';
+import { FilterOptionsComponent } from '../../shared/filter-bar/filter-options.component';
+import {
+  SortChoice,
+  sortChoiceId,
+  sortChoiceLabel,
+  sortChoiceOptions,
+} from '../../shared/filter-bar/filter-values';
 import { PageTabsComponent, BROWSE_TABS } from '../../shared/page-tabs/page-tabs.component';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import {
@@ -7,16 +18,14 @@ import {
   OnDestroy,
   OnInit,
   ViewChild,
+  computed,
   inject,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { Subject, Subscription, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
+import { Subscription, finalize } from 'rxjs';
 import { ButtonDirective } from 'primeng/button';
-import { InputText } from 'primeng/inputtext';
 import { Message } from 'primeng/message';
-import { Select } from 'primeng/select';
 import { DiscoverService } from '../../core/api/discover.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { SortDirection, StudioFeedItem, StudioFeedSort } from '../../core/api/discover.types';
@@ -30,40 +39,26 @@ import { CatalogProviderSwitchComponent } from '../../shared/catalog-provider-sw
     SkeletonComponent,
     CatalogProviderSwitchComponent,
     RouterLink,
-    FormsModule,
-    InputText,
     Message,
-    Select,
     ButtonDirective,
+    FilterChipComponent,
+    FilterPanelDirective,
+    FilterOptionsComponent,
   ],
   templateUrl: './studios-page.component.html',
   styleUrl: './studios-page.component.scss',
 })
 export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly pageTabs = BROWSE_TABS;
-  /** On phones the filter panel starts collapsed so results show first. */
-  protected readonly filtersOpen = signal(false);
 
   private static readonly PAGE_SIZE = 24;
-  private static readonly NAME_FILTER_DEBOUNCE_MS = 300;
   private static readonly DEFAULT_SORT: StudioFeedSort = 'NAME';
   private static readonly DEFAULT_DIRECTION: SortDirection = 'ASC';
-
-  protected static readonly SORT_OPTIONS: Array<{
-    value: StudioFeedSort;
-    label: string;
-  }> = [
-    { value: 'NAME', label: 'Name' },
-    { value: 'CREATED_AT', label: 'Date added' },
-    { value: 'UPDATED_AT', label: 'Date updated' },
-  ];
 
   private readonly discoverService = inject(DiscoverService);
   private readonly notifications = inject(AppNotificationsService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  private readonly nameFilterTerms = new Subject<string>();
-  private nameFilterSubscription: Subscription | null = null;
   private queryParamSubscription: Subscription | null = null;
   private observer: IntersectionObserver | null = null;
   private sentinelElement: HTMLDivElement | null = null;
@@ -106,10 +101,42 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
   );
   protected readonly favoritesOnly = signal(false);
   protected readonly favoriteInFlightById = signal<Record<string, boolean>>({});
-  protected readonly sortOptions = StudiosPageComponent.SORT_OPTIONS;
+  /** Sort and direction as one plain choice, for the filter bar. */
+  private static readonly SORT_CHOICES: SortChoice<StudioFeedSort>[] = [
+    { label: 'Name A–Z', sort: 'NAME', direction: 'ASC' },
+    { label: 'Name Z–A', sort: 'NAME', direction: 'DESC' },
+    { label: 'Recently added', sort: 'CREATED_AT', direction: 'DESC' },
+    { label: 'Recently updated', sort: 'UPDATED_AT', direction: 'DESC' },
+  ];
+  protected readonly sortChoices = sortChoiceOptions(StudiosPageComponent.SORT_CHOICES);
+  protected readonly sortValue = computed(() =>
+    sortChoiceLabel(
+      StudiosPageComponent.SORT_CHOICES,
+      this.selectedSort(),
+      this.selectedDirection(),
+    ),
+  );
+  protected readonly sortPicked = computed(() => [
+    sortChoiceId(this.selectedSort(), this.selectedDirection()),
+  ]);
+
+  protected onSortPicked(ids: string[]): void {
+    const choice = StudiosPageComponent.SORT_CHOICES.find(
+      (option) => sortChoiceId(option.sort, option.direction) === ids[0],
+    );
+    if (
+      !choice ||
+      (choice.sort === this.selectedSort() && choice.direction === this.selectedDirection())
+    ) {
+      return;
+    }
+    this.selectedSort.set(choice.sort);
+    this.selectedDirection.set(choice.direction);
+    this.syncUrlWithCurrentFilters(false);
+    this.resetFeedAndReload();
+  }
 
   ngOnInit(): void {
-    this.setupNameFilterDebounce();
     this.setupUrlStateSync();
   }
 
@@ -122,7 +149,6 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
       this.observer.unobserve(this.sentinelElement);
     }
     this.observer?.disconnect();
-    this.nameFilterSubscription?.unsubscribe();
     this.queryParamSubscription?.unsubscribe();
   }
 
@@ -146,54 +172,6 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.loadMoreError.set(null);
     this.loadNextPage();
-  }
-
-  protected onNameFilterChanged(nextValue: string): void {
-    this.nameFilter.set(nextValue);
-    this.syncUrlWithCurrentFilters(true);
-    this.nameFilterTerms.next(nextValue);
-  }
-
-  protected onSortChanged(nextValue: string): void {
-    if (nextValue === 'NAME' || nextValue === 'CREATED_AT' || nextValue === 'UPDATED_AT') {
-      if (this.selectedSort() === nextValue) {
-        return;
-      }
-
-      this.selectedSort.set(nextValue);
-      this.syncUrlWithCurrentFilters(false);
-      this.resetFeedAndReload();
-    }
-  }
-
-  protected onDirectionChanged(nextValue: string): void {
-    if (nextValue !== 'ASC' && nextValue !== 'DESC') {
-      return;
-    }
-
-    if (this.selectedDirection() === nextValue) {
-      return;
-    }
-
-    this.selectedDirection.set(nextValue);
-    this.syncUrlWithCurrentFilters(false);
-    this.resetFeedAndReload();
-  }
-
-  protected toggleSortDirection(): void {
-    this.onDirectionChanged(this.selectedDirection() === 'ASC' ? 'DESC' : 'ASC');
-  }
-
-  protected sortDirectionIconClass(): string {
-    return this.selectedDirection() === 'ASC'
-      ? 'pi pi-sort-amount-up-alt'
-      : 'pi pi-sort-amount-down-alt';
-  }
-
-  protected sortDirectionToggleLabel(): string {
-    return this.selectedDirection() === 'ASC'
-      ? 'Sort direction: ascending. Toggle to descending.'
-      : 'Sort direction: descending. Toggle to ascending.';
   }
 
   protected onFavoritesOnlyChanged(nextValue: boolean): void {
@@ -472,14 +450,6 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.loadNextPage();
-  }
-
-  private setupNameFilterDebounce(): void {
-    this.nameFilterSubscription = this.nameFilterTerms
-      .pipe(debounceTime(StudiosPageComponent.NAME_FILTER_DEBOUNCE_MS), distinctUntilChanged())
-      .subscribe(() => {
-        this.resetFeedAndReload();
-      });
   }
 
   private setupIntersectionObserver(): void {

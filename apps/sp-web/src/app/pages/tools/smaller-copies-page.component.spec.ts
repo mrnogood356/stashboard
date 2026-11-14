@@ -12,9 +12,10 @@ const DATA: SmallerCopies = {
     target: '1080p',
     replaceHigher: true,
     upgradeLower: false,
-    maxFileSizeGb: null,
-    minFileSizeGb: null,
-    maxNewSizeGb: null,
+    maxGbPerHour: null,
+    minGbPerHour: null,
+    maxNewGbPerHour: null,
+    minNewGbPerHour: null,
     minSavingsPercent: 10,
     codec: 'any',
     prefer: 'largest',
@@ -78,22 +79,63 @@ async function render(data: SmallerCopies = DATA) {
   fixture.detectChanges();
   await fixture.whenStable();
   fixture.detectChanges();
-  return { fixture, root: fixture.nativeElement as HTMLElement, api, notifications };
+  const root = fixture.nativeElement as HTMLElement;
+  const openTab = (id: 'overview' | 'matches' | 'rules') => {
+    (root.querySelector(`[data-testid="better-tab-${id}"]`) as HTMLButtonElement).click();
+    fixture.detectChanges();
+  };
+  return { fixture, root, api, notifications, openTab };
 }
 
 describe('SmallerCopiesPageComponent', () => {
-  it('shows how many scenes fit the rules, and a match waiting with a Grab button', async () => {
-    const { root, api } = await render();
-    expect(root.querySelector('[data-testid="smaller-status"]')!.textContent).toContain(
-      '12 scenes fit the rules, 9 to look at',
-    );
+  it('shows how many scenes fit the rules, and a match waiting under Matches with a Grab button', async () => {
+    const { root, api, openTab } = await render();
+    const status = root.querySelector('[data-testid="smaller-status"]')!;
+    expect(status.textContent).toContain('12 scenes fit the rules, 9 to look at');
+    expect(status.textContent).toContain('1 waiting for you');
+    // The overview lists what it did; the match waits on its own tab.
+    expect(root.querySelector('[data-testid="attempt-2"]')).toBeNull();
+    expect(root.querySelector('[data-testid="better-tab-matches"]')!.textContent).toContain('1');
+    openTab('matches');
     const found = root.querySelector('[data-testid="attempt-2"]')!;
     expect(found.textContent).toContain('Match waiting');
     expect(found.textContent).toContain('8.0 GB');
     expect(found.textContent).toContain('2.0 GB');
     (found.querySelector('button') as HTMLButtonElement).click();
     expect(api.grab).toHaveBeenCalledWith('2');
+    openTab('overview');
+    expect(root.querySelector('[data-testid="attempt-3"]')!.textContent).toContain('Nothing yet');
     expect(root.querySelector('[data-testid="attempt-3"] button')).toBeNull();
+  });
+
+  it('turns on and off from the overview straight away', async () => {
+    const { root, api } = await render();
+    const toggle = root.querySelector('[data-testid="better-enabled"]') as HTMLInputElement;
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change'));
+    expect(api.save).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
+  });
+
+  it('offers presets, and says when the rules are fine-tuned past them', async () => {
+    const { fixture, root, api, openTab } = await render();
+    openTab('rules');
+    // These rules are none of the presets.
+    expect(root.textContent).toContain('Fine-tuned');
+    (root.querySelector('[data-testid="preset-save-space"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(
+      root.querySelector('[data-testid="preset-save-space"]')!.getAttribute('aria-pressed'),
+    ).toBe('true');
+    (root.querySelector('button[type="submit"]') as HTMLButtonElement).click();
+    expect(api.save).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        replaceHigher: true,
+        upgradeLower: false,
+        maxGbPerHour: 6,
+        minNewGbPerHour: 1.5,
+        minSavingsPercent: 25,
+      }),
+    );
   });
 
   it('shows the space given back once something was replaced', async () => {
@@ -108,7 +150,10 @@ describe('SmallerCopiesPageComponent', () => {
   });
 
   it('saves every rule, with the studios one per line', async () => {
-    const { fixture, root, api } = await render();
+    const { fixture, root, api, openTab } = await render();
+    openTab('rules');
+    await fixture.whenStable();
+    fixture.detectChanges();
     const textarea = root.querySelector('textarea') as HTMLTextAreaElement;
     textarea.value = 'Jane Studio\nOther Studio\n\n';
     textarea.dispatchEvent(new Event('input'));
@@ -124,7 +169,9 @@ describe('SmallerCopiesPageComponent', () => {
     const { root } = await render({ ...DATA, blocked: 'Off.' });
     const status = root.querySelector('[data-testid="smaller-status"]')!;
     expect(status.textContent).toContain('Off.');
-    expect((status.querySelector('button') as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (status.querySelector('[data-testid="better-search-now"]') as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 
   it('keeps each Grab off until its own answer, so nothing is sent twice', async () => {
@@ -132,7 +179,8 @@ describe('SmallerCopiesPageComponent', () => {
       ...DATA,
       recent: [DATA.recent[0], { ...DATA.recent[0], stashSceneId: '5', title: 'Other' }],
     };
-    const { fixture, root, api } = await render(two);
+    const { fixture, root, api, openTab } = await render(two);
+    openTab('matches');
     const pending = new Subject<SmallerCopies>();
     api.grab.mockReturnValueOnce(pending).mockReturnValueOnce(new Subject<SmallerCopies>());
     const buttonFor = (id: string) =>
