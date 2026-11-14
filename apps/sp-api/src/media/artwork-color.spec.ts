@@ -17,6 +17,10 @@ describe('artwork colour', () => {
     expect(at('https://evil.cdn.stashdb.org/a')).toBeNull();
     expect(at('https://user:pw@stashdb.org.evil.com/a')).toBeNull();
     expect(at('http://192.168.1.10/a')).toBeNull();
+    // A path that looks like another host stays a path on the catalog's.
+    expect(at('https://stashdb.org//evil.com/x')).toBe(
+      'https://stashdb.org//evil.com/x',
+    );
     expect(at('file:///etc/passwd')).toBeNull();
     // A self-hosted catalog on its own port.
     expect(
