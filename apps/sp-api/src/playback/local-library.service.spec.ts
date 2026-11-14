@@ -186,6 +186,11 @@ describe('LocalLibraryService', () => {
     await expect(service.merge('performer', '4', ['5'])).rejects.toThrow(
       'isn’t the same',
     );
+    // Two sources at odds with each other, though each fits an unlinked keeper.
+    await expect(service.merge('performer', '3', ['1', '2'])).rejects.toThrow(
+      'different catalog entry',
+    );
+    expect(stash.mergePerformers).toHaveBeenCalledTimes(1);
     expect(stash.mergeStudios).not.toHaveBeenCalled();
   });
 

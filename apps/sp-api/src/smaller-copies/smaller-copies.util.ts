@@ -316,7 +316,7 @@ export function reasonFor(
 /**
  * The downloaded file, checked against the one it would replace before
  * anything is deleted: the same video (Stash's picture fingerprints, or
- * failing those a length within 3%), at the resolution its name promised,
+ * and a length within 3%; either one when only one can be read), at the resolution its name promised,
  * really smaller by the saving asked for (or really higher for an upgrade),
  * and within the rules' weight per hour. Null when it passes; otherwise why
  * not, in a sentence, and both files are kept.
@@ -330,16 +330,22 @@ export function checkNewCopy(
   if (!next.duration || next.duration <= 0) {
     return 'The new file reads as 0 seconds long.';
   }
+  if (!next.size || next.size <= 0) {
+    return 'Stash couldn’t read the new file’s size.';
+  }
   const distance = phashDistance(old.phash, next.phash);
-  if (distance !== null) {
-    if (distance > SAME_VIDEO_PHASH_DISTANCE) {
-      return 'The new file’s picture doesn’t match the old one’s, so it may be a different video.';
-    }
-  } else if (old.duration && old.duration > 0) {
+  if (distance !== null && distance > SAME_VIDEO_PHASH_DISTANCE) {
+    return 'The new file’s picture doesn’t match the old one’s, so it may be a different video.';
+  }
+  // A matching picture is still checked for length: a cut-down copy of the
+  // same video looks the same.
+  if (old.duration && old.duration > 0) {
     const gap = Math.abs(next.duration - old.duration);
     if (gap > Math.max(20, old.duration * 0.03)) {
       return `The new file runs ${minutes(next.duration)} and the old one ${minutes(old.duration)}.`;
     }
+  } else if (distance === null) {
+    return 'The old file has no fingerprint or length to compare the new one with.';
   }
   const before = fileResolution(old.width, old.height);
   const after = fileResolution(next.width, next.height);
@@ -354,11 +360,10 @@ export function checkNewCopy(
     if (after !== rules.target) {
       return `The new file is ${after}, not the ${rules.target} its name said.`;
     }
-    if (
-      old.size &&
-      next.size &&
-      next.size > old.size * (1 - rules.minSavingsPercent / 100)
-    ) {
+    if (!old.size || old.size <= 0) {
+      return 'Stash couldn’t read the old file’s size to compare.';
+    }
+    if (next.size > old.size * (1 - rules.minSavingsPercent / 100)) {
       return `The new file saves less than ${rules.minSavingsPercent}% of the old one’s size.`;
     }
   }
