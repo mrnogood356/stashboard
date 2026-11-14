@@ -1,3 +1,4 @@
+import { HasUnsavedChanges } from '../../core/navigation/unsaved-changes.guard';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import {
   AppearanceSettings,
@@ -34,7 +35,7 @@ type Message = { kind: 'ok' | 'error'; text: string };
   templateUrl: './settings-appearance-page.component.html',
   styleUrls: ['./settings-appearance-page.component.scss', './settings-shared.scss'],
 })
-export class SettingsAppearancePageComponent implements OnInit, OnDestroy {
+export class SettingsAppearancePageComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   protected readonly theme = inject(ThemeService);
 
   protected readonly lightThemes = LIGHT_THEMES;
@@ -57,6 +58,10 @@ export class SettingsAppearancePageComponent implements OnInit, OnDestroy {
   protected readonly hexInput = signal('');
 
   protected readonly dirty = computed(() => !sameAppearance(this.draft(), this.theme.saved()));
+
+  hasUnsavedChanges(): boolean {
+    return this.dirty();
+  }
   protected readonly activeTheme = this.theme.activeTheme;
 
   /** "Match the artwork" picked: the accent follows the poster or photo on screen. */

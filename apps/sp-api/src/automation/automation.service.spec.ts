@@ -107,7 +107,7 @@ describe('AutomationService', () => {
   });
 
   it('scans, identifies and generates previews for the new scenes, then refreshes Stashboard', async () => {
-    await service.run('detected', ['stashdb-1']);
+    await service.run('manual', ['stashdb-1']);
 
     expect(
       stash.startLibraryTask.mock.calls.map((call) => [call[1], call[2]]),
@@ -141,7 +141,7 @@ describe('AutomationService', () => {
       deleteScene,
     });
 
-    await service.run('detected');
+    await service.run('manual');
 
     expect(deleteScene).toHaveBeenCalledTimes(1);
     expect(deleteScene).toHaveBeenCalledWith(expect.anything(), '41', true);
@@ -423,25 +423,61 @@ describe('AutomationService', () => {
       expect((await hidden.getSettingsDto()).foldersVisible).toBeNull();
     });
 
-    it('scans everything when a folder is outside Stash’s library or unknown', async () => {
+    it('never scans the whole library on its own, even for a folder outside it or unknown', async () => {
       jest.useFakeTimers();
       const outside = withOrganizer(['/data/other']);
       outside.onWebhook('Download', '/mnt/media/scenes/Studio/Scene A');
       jest.useRealTimers();
       await outside.run('webhook');
-      expect(stash.startLibraryTask).toHaveBeenCalledWith(
+      expect(stash.startLibraryTask).not.toHaveBeenCalledWith(
         expect.anything(),
         'scan',
       );
+      expect(
+        (stash as unknown as { scanLibraryFolders: jest.Mock })
+          .scanLibraryFolders,
+      ).not.toHaveBeenCalled();
 
-      stash.startLibraryTask.mockClear();
       jest.useFakeTimers();
       const unknown = withOrganizer(['/data/scenes']);
       unknown.onWebhook('Download', '/mnt/media/scenes/Studio/Scene A');
       unknown.onWebhook('Download', null);
       jest.useRealTimers();
       await unknown.run('webhook');
-      expect(stash.startLibraryTask).toHaveBeenCalledWith(
+      expect(stash.startLibraryTask).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'scan',
+      );
+      expect(
+        (stash as unknown as { scanLibraryFolders: jest.Mock })
+          .scanLibraryFolders,
+      ).toHaveBeenCalledWith(expect.anything(), [
+        '/data/scenes/Studio/Scene A',
+      ]);
+    });
+
+    it('scans just the folders of scenes Stash hasn’t picked up, found through Whisparr', async () => {
+      const scoped = withOrganizer(['/data/scenes']);
+      Object.assign(
+        (scoped as unknown as { organizer: Record<string, unknown> }).organizer,
+        {
+          whisparrFilesFor: jest
+            .fn()
+            .mockResolvedValue(['/data/scenes/Studio/Scene B/b.mp4']),
+          checkWaitingScenes: jest.fn().mockResolvedValue({ left: [] }),
+        },
+      );
+      prisma.sceneIndex.findMany.mockResolvedValue([{ stashId: 'b' }]);
+
+      await scoped.checkForWaitingScenes();
+
+      expect(
+        (stash as unknown as { scanLibraryFolders: jest.Mock })
+          .scanLibraryFolders,
+      ).toHaveBeenCalledWith(expect.anything(), [
+        '/data/scenes/Studio/Scene B',
+      ]);
+      expect(stash.startLibraryTask).not.toHaveBeenCalledWith(
         expect.anything(),
         'scan',
       );

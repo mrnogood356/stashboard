@@ -1,3 +1,7 @@
+import { SmallerCopySettingsDto } from '../smaller-copies/smaller-copies.controller';
+import { SmallerCopiesService } from '../smaller-copies/smaller-copies.service';
+import { SchedulesBackupDto } from '../schedules/schedules.controller';
+import { SchedulesService } from '../schedules/schedules.service';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { IntegrationStatus, IntegrationType } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
@@ -110,6 +114,8 @@ export class BackupService {
     playback: PlaybackSettingsService,
     logs: LogsService,
     follows: FollowsService,
+    smallerCopies: SmallerCopiesService,
+    schedules: SchedulesService,
   ) {
     this.sections = [
       defineSection({
@@ -234,6 +240,46 @@ export class BackupService {
         fields: ['level', 'fileEnabled'],
         read: async () => ({ ...(await logs.settings()) }),
         write: (values) => logs.updateSettings(values),
+      }),
+      defineSection({
+        id: 'betterCopies',
+        label: 'Better copies',
+        dto: SmallerCopySettingsDto,
+        fields: [
+          'enabled',
+          'target',
+          'replaceHigher',
+          'upgradeLower',
+          'maxGbPerHour',
+          'minGbPerHour',
+          'maxNewGbPerHour',
+          'minNewGbPerHour',
+          'minSavingsPercent',
+          'codec',
+          'prefer',
+          'matchStrength',
+          'studioMode',
+          'studioNames',
+          'autoGrab',
+          'oldCopy',
+          'scenesPerHour',
+          'activeFromHour',
+          'activeToHour',
+        ],
+        read: async () => {
+          const { targetResolution, ...saved } =
+            await smallerCopies.getSettings();
+          return { ...saved, target: targetResolution };
+        },
+        write: (values) => smallerCopies.saveSettings(values),
+      }),
+      defineSection({
+        id: 'schedules',
+        label: 'Schedules',
+        dto: SchedulesBackupDto,
+        fields: ['schedules'],
+        read: async () => ({ ...(await schedules.exportForBackup()) }),
+        write: (values) => schedules.restoreFromBackup(values),
       }),
       defineSection({
         id: 'follows',

@@ -25,6 +25,11 @@ const KIND_NAMES: Record<BackgroundJobKind, string> = {
 const LANE_POLL_MS = 10_000;
 /** A queue stuck this long (a job that never starts) doesn't hold Stashboard up for ever. */
 const LANE_MAX_WAIT_MS = 30 * 60_000;
+/**
+ * A batch waits this long for others of its kind before it goes: one import
+ * asks for the new scene's Generate and, a moment later, the replaced one's.
+ */
+const LANE_GATHER_MS = 2_000;
 
 interface BackgroundBatch {
   kind: BackgroundJobKind;
@@ -55,11 +60,32 @@ export abstract class StashJobsApi extends StashGraphqlClient {
     string,
     { items: Set<string>; promise: Promise<string | null> }
   >();
+  /** Jobs Stashboard started, by Stash and id, so the jobs page can say whose is whose. */
+  private readonly ourJobs = new Set<string>();
+
+  protected noteOurJob(
+    config: StashAdapterBaseConfig,
+    job: string | null,
+  ): void {
+    if (!job) {
+      return;
+    }
+    this.ourJobs.add(`${config.baseUrl}|${job}`);
+    while (this.ourJobs.size > MAX_REMEMBERED_JOBS * 10) {
+      const oldest = this.ourJobs.values().next().value;
+      if (oldest === undefined) {
+        break;
+      }
+      this.ourJobs.delete(oldest);
+    }
+  }
+
   /** Item → the job that took it, for asks that check back later. */
   private readonly startedFor = new Map<string, string>();
   /** For tests: how long to wait between looks at Stash's queue. */
   protected lanePollMs = LANE_POLL_MS;
   protected laneMaxWaitMs = LANE_MAX_WAIT_MS;
+  protected laneGatherMs = LANE_GATHER_MS;
   protected laneSleep = (ms: number) =>
     new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -135,6 +161,12 @@ export abstract class StashJobsApi extends StashGraphqlClient {
     batch.promise = previous
       .catch(() => undefined)
       .then(async () => {
+        if (this.laneGatherMs > 0) {
+          await new Promise<void>((resolve) => {
+            const timer = setTimeout(resolve, this.laneGatherMs);
+            timer.unref?.();
+          });
+        }
         await this.untilStashHasRoom(config);
         // From here on, new asks start a batch of their own; ones for the
         // same items wait for this job's id.
@@ -149,6 +181,7 @@ export abstract class StashJobsApi extends StashGraphqlClient {
         this.logger.log(
           `Started Stash's ${KIND_NAMES[kind]} for ${batch.items.size} ${kind.endsWith('scan') ? 'folder(s)' : kind === 'task' ? 'library task' : 'scene(s)'}${job ? ` (job ${job})` : ''}.`,
         );
+        this.noteOurJob(config, job);
         if (job) {
           for (const item of batch.items) {
             this.startedFor.set(`${batchKey}|${item}`, job);
@@ -247,7 +280,10 @@ export abstract class StashJobsApi extends StashGraphqlClient {
         }
       }
     }
-    const started = start();
+    const started = start().then((job) => {
+      this.noteOurJob(config, job);
+      return job;
+    });
     this.queuedJobs.delete(fullKey);
     this.queuedJobs.set(fullKey, started);
     started.catch(() => {
@@ -311,6 +347,7 @@ export abstract class StashJobsApi extends StashGraphqlClient {
             : [],
           addTime: this.normalizeOptionalString(job.addTime),
           startTime: this.normalizeOptionalString(job.startTime),
+          byStashboard: this.ourJobs.has(`${config.baseUrl}|${id}`),
         },
       ];
     });

@@ -30,6 +30,8 @@ describe('StashAdapter', () => {
     adapter = new StashAdapter(
       runtimeHealthService as unknown as RuntimeHealthService,
     );
+    // No gathering pause in tests, except the one that's about it.
+    (adapter as unknown as { laneGatherMs: number }).laneGatherMs = 0;
     // An older Stash by default; the tests for 0.32 say so.
     jest.spyOn(adapter, 'supportsProductionDate').mockResolvedValue(false);
   });
@@ -711,6 +713,32 @@ describe('StashAdapter', () => {
       expect(sent()[0].variables.input).toEqual({
         paths: ['/data/a', '/data/b'],
       });
+    });
+
+    it('gathers asks that come a moment apart into one job', async () => {
+      (adapter as unknown as { laneGatherMs: number }).laneGatherMs = 30;
+      const first = adapter.startLibraryTask(config, 'generate', ['7791']);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const second = adapter.startLibraryTask(config, 'generate', ['3828']);
+      await expect(first).resolves.toBe('51');
+      await expect(second).resolves.toBe('51');
+      expect(sent()).toHaveLength(1);
+      expect(sent()[0].variables.input).toEqual(
+        expect.objectContaining({ sceneIDs: ['7791', '3828'] }),
+      );
+    });
+
+    it('marks the jobs in Stash’s queue that Stashboard started', async () => {
+      await adapter.scanLibraryFolders(config, ['/data/mine']);
+      queue = [
+        { id: '51', status: 'RUNNING' },
+        { id: '9', status: 'READY' },
+      ];
+      const jobs = await adapter.getJobQueue(config);
+      expect(jobs.map((job) => [job.id, job.byStashboard])).toEqual([
+        ['51', true],
+        ['9', false],
+      ]);
     });
 
     it('goes ahead once Stash’s queue has been stuck too long', async () => {

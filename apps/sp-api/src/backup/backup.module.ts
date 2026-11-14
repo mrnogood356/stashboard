@@ -1,3 +1,5 @@
+import { DownloadsModule } from '../downloads/downloads.module';
+import { SchedulesModule } from '../schedules/schedules.module';
 import { Module } from '@nestjs/common';
 import { AppearanceModule } from '../appearance/appearance.module';
 import { AutomationModule } from '../automation/automation.module';
@@ -18,6 +20,7 @@ import { BackupService } from './backup.service';
     AppearanceModule,
     AutomationModule,
     DownloadHandoffModule,
+    DownloadsModule,
     FollowsModule,
     HiddenContentModule,
     IntegrationsModule,
@@ -25,6 +28,7 @@ import { BackupService } from './backup.service';
     NotificationsModule,
     OrganizerModule,
     PlaybackModule,
+    SchedulesModule,
   ],
   controllers: [BackupController],
   providers: [BackupService],

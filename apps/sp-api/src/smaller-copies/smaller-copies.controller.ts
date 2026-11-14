@@ -158,7 +158,7 @@ export class SmallerCopiesController {
   @Post('next')
   @HttpCode(200)
   async next(): Promise<SmallerCopiesDto> {
-    await this.smaller.tick(true);
-    return this.smaller.status();
+    const notice = await this.smaller.tick(true);
+    return { ...(await this.smaller.status()), notice };
   }
 }

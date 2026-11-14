@@ -59,14 +59,14 @@ const DATA: SmallerCopies = {
   ],
 };
 
-async function render(data: SmallerCopies = DATA) {
+async function render(data: SmallerCopies = DATA, searched: SmallerCopies = data) {
   const api = {
     status: vi.fn(() => of(data)),
     save: vi.fn(() => of(data)),
-    searchNow: vi.fn(() => of(data)),
+    searchNow: vi.fn(() => of(searched)),
     grab: vi.fn(() => of(data)),
   };
-  const notifications = { success: vi.fn(), error: vi.fn() };
+  const notifications = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
   await TestBed.configureTestingModule({
     imports: [SmallerCopiesPageComponent],
     providers: [
@@ -88,6 +88,20 @@ async function render(data: SmallerCopies = DATA) {
 }
 
 describe('SmallerCopiesPageComponent', () => {
+  it('says why Search now found nothing to search, instead of doing nothing', async () => {
+    const { root, fixture, notifications } = await render(DATA, {
+      ...DATA,
+      notice:
+        '2 replacements are still on their way in; it searches again once they’re in your library.',
+    });
+    (root.querySelector('[data-testid="better-search-now"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(notifications.info).toHaveBeenCalledWith(
+      'Nothing searched',
+      expect.stringContaining('2 replacements are still on their way in'),
+    );
+  });
+
   it('shows how many scenes fit the rules, and a match waiting under Matches with a Grab button', async () => {
     const { root, api, openTab } = await render();
     const status = root.querySelector('[data-testid="smaller-status"]')!;

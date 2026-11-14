@@ -58,6 +58,8 @@
   aspect-ratio: var(--scene-card-aspect, 16 / 9);
   border-radius: var(--scene-card-media-radius);
   overflow: hidden;
+  /* Keeps the rounded clip while the card lifts on hover. */
+  isolation: isolate;
   background: var(--surface-2);
   box-shadow: var(--scene-card-media-shadow);
   transition:
@@ -383,6 +385,11 @@ img.thumbnail.is-failed {
   height: 100%;
   object-fit: cover;
   pointer-events: none;
+  /* A touch larger than the card: Stash's preview clips often carry a line of
+     garbage along an edge, and this keeps it (and any hairline gap) out of sight. */
+  transform: scale(1.03);
+  /* Safari can draw a playing video square past its box's rounded corners. */
+  border-radius: inherit;
   /* Hidden until frames play, so a slow or missing clip never covers the picture. */
   opacity: 0;
   transition: opacity 0.25s ease;
@@ -390,6 +397,11 @@ img.thumbnail.is-failed {
 
 .preview-video.is-playing {
   opacity: 1;
+}
+
+/* Once the clip plays, the cover picture underneath can't peek out at its edges. */
+.media:has(.preview-video.is-playing) img.thumbnail {
+  visibility: hidden;
 }
 
 .media.is-previewing:has(.preview-video.is-playing) .play-button {

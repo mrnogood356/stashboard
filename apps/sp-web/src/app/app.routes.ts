@@ -12,6 +12,7 @@ import {
   requireSetupCompleteGuard,
   setupOnlyWhenIncompleteGuard,
 } from './core/guards/setup-route.guard';
+import { unsavedChangesGuard } from './core/navigation/unsaved-changes.guard';
 import { AppShellLayoutComponent } from './layouts/app-shell-layout/app-shell-layout.component';
 import { UnreachablePageComponent } from './features/unreachable/unreachable-page.component';
 
@@ -58,6 +59,14 @@ export const routes: Routes = [
     component: AppShellLayoutComponent,
     canActivate: [requireAuthenticatedGuard, requireSetupCompleteGuard],
     children: [
+      // Pull to refresh passes through here to rebuild the page in place.
+      {
+        path: 'refreshing',
+        loadComponent: () =>
+          import('./shared/pull-to-refresh/refreshing-page.component').then(
+            (m) => m.RefreshingPageComponent,
+          ),
+      },
       {
         path: 'home',
         loadComponent: () =>
@@ -322,6 +331,7 @@ export const routes: Routes = [
           },
           {
             path: 'notifications',
+            canDeactivate: [unsavedChangesGuard],
             loadComponent: () =>
               import('./pages/settings/settings-notifications-page.component').then(
                 (m) => m.SettingsNotificationsPageComponent,
@@ -336,6 +346,7 @@ export const routes: Routes = [
           },
           {
             path: 'hidden',
+            canDeactivate: [unsavedChangesGuard],
             loadComponent: () =>
               import('./pages/settings/settings-hidden-page.component').then(
                 (m) => m.SettingsHiddenPageComponent,
@@ -350,6 +361,7 @@ export const routes: Routes = [
           },
           {
             path: 'appearance',
+            canDeactivate: [unsavedChangesGuard],
             loadComponent: () =>
               import('./pages/settings/settings-appearance-page.component').then(
                 (m) => m.SettingsAppearancePageComponent,

@@ -57,6 +57,8 @@ export interface SmallerCopiesDto {
   settings: SmallerCopySettingsInput;
   /** Why nothing is searched for right now; null when it's running. */
   blocked: string | null;
+  /** After Search now: why nothing was searched, if nothing was. */
+  notice?: string | null;
   /** Scenes the rules say to look for, and how many of them are due. */
   candidates: number;
   due: number;
@@ -256,15 +258,25 @@ export class SmallerCopiesService {
 
   /** Once a minute; searches only when the hourly limit and the hours allow it. */
   @Interval(60_000)
-  async tick(force = false): Promise<void> {
+  /**
+   * Looks for the next scene due. Returns why nothing was searched (for Search
+   * now to say so), or null when a search ran. `force` is a tap on Search
+   * now: it skips the hourly spacing, active hours and a busy Stash queue
+   * (searching only asks Prowlarr), but not the cap on replacements on the way.
+   */
+  async tick(force = false): Promise<string | null> {
     if (this.running) {
-      return;
+      return 'Already searching; give it a moment.';
     }
     this.running = true;
     try {
       const settings = await this.getSettings();
-      if (!settings.enabled || (await this.blockedBy(settings))) {
-        return;
+      if (!settings.enabled) {
+        return 'Better copies is switched off.';
+      }
+      const blocked = await this.blockedBy(settings);
+      if (blocked) {
+        return blocked;
       }
       if (
         !force &&
@@ -274,7 +286,7 @@ export class SmallerCopiesService {
           settings.activeToHour,
         )
       ) {
-        return;
+        return 'Outside the hours it runs in.';
       }
       const spacing = HOUR / Math.max(1, settings.scenesPerHour);
       if (
@@ -282,40 +294,42 @@ export class SmallerCopiesService {
         this.lastSearchAt &&
         this.now() - this.lastSearchAt < spacing
       ) {
-        return;
+        return 'Waiting for the next search slot.';
       }
       // Never more work for Stash while it's behind: its queue first.
-      if (await this.waitingOnStash()) {
-        return;
+      const waiting = await this.waitingOnStash(force);
+      if (waiting) {
+        return waiting;
       }
       const due = await this.dueOf(await this.candidates(settings));
+      if (due.length === 0) {
+        return 'Nothing is due a search right now.';
+      }
       // Scenes with no catalog link cost no search: noted, and the next one tried.
       for (const candidate of due.slice(0, 50)) {
         if (await this.tryOne(candidate, settings)) {
           this.lastSearchAt = this.now();
-          break;
+          return null;
         }
       }
+      return 'None of the next scenes is linked to the catalog, so none could be searched.';
     } catch (error) {
       this.logger.warn(`Smaller copies check failed: ${messageOf(error)}`);
+      return `The search failed: ${messageOf(error)}`;
     } finally {
       this.running = false;
     }
   }
 
   /**
-   * Stash is behind (a job waits its turn in its queue), or replacements are
-   * still being brought in: each one means a scan, a Generate and an
-   * Identify, so no new search until they've gone through.
+   * Why to hold off: replacements still being brought in (each means a scan,
+   * a Generate and an Identify), or, unless you asked, a job waiting its turn
+   * in Stash's queue. Null when it's fine to search.
    */
-  private async waitingOnStash(): Promise<boolean> {
+  private async waitingOnStash(force: boolean): Promise<string | null> {
     const config = await this.handoff.stashConfig();
     if (!config || !this.stash) {
-      return true;
-    }
-    const queue = await this.stash.getJobQueue(config).catch(() => null);
-    if (!queue || queue.some((job) => job.status === 'READY')) {
-      return true;
+      return 'Stash isn’t set up.';
     }
     const onTheWay = await this.prisma.downloadHandoff
       .count({
@@ -325,7 +339,17 @@ export class SmallerCopiesService {
         },
       })
       .catch(() => MAX_ON_THE_WAY);
-    return onTheWay >= MAX_ON_THE_WAY;
+    if (onTheWay >= MAX_ON_THE_WAY) {
+      return `${onTheWay} replacements are still on their way in; it searches again once they’re in your library.`;
+    }
+    if (force) {
+      return null;
+    }
+    const queue = await this.stash.getJobQueue(config).catch(() => null);
+    if (!queue || queue.some((job) => job.status === 'READY')) {
+      return 'Stash has jobs waiting in its queue.';
+    }
+    return null;
   }
 
   /** Searches for one scene; false when it couldn't be searched at all (no catalog link). */

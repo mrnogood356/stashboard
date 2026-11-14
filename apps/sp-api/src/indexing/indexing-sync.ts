@@ -19,8 +19,8 @@ import {
 } from './indexing.model';
 import { IndexingCore } from './indexing-core';
 
-/** Scenes whose checked-at times move on per query. */
-const CONFIRMED_CHUNK = 1000;
+/** Scenes marked as checked per statement, well under Postgres's parameter limit. */
+const UNCHANGED_TOUCH_CHUNK = 5000;
 
 /**
  * The sync jobs themselves: Whisparr's movies and queue, Stash availability,
@@ -238,17 +238,6 @@ export abstract class IndexingSync extends IndexingCore {
     const snapshotMovieIds = new Set<number>();
     const patches: SceneIndexPatch[] = [];
 
-    for (const movie of movies) {
-      snapshotMovieIds.add(movie.movieId);
-      patches.push({
-        stashId: movie.stashId,
-        whisparrMovieId: movie.movieId,
-        whisparrHasFile: movie.hasFile,
-        whisparrLastSyncedAt: now,
-        lastSyncedAt: now,
-      });
-    }
-
     // Find rows linked to a Whisparr movie that is no longer in Whisparr. Filtering
     // in memory avoids sending the whole Whisparr library as one huge NOT IN list,
     // which can exceed Postgres's parameter limit on large libraries.
@@ -261,8 +250,44 @@ export abstract class IndexingSync extends IndexingCore {
       select: {
         stashId: true,
         whisparrMovieId: true,
+        whisparrHasFile: true,
       },
     });
+    const linkedByStashId = new Map(
+      linkedRows.map((row) => [row.stashId, row]),
+    );
+
+    // Only scenes whose Whisparr link or file changed are rewritten; the rest
+    // just note they were checked, in a few statements, not 2,000 writes.
+    const unchanged: string[] = [];
+    for (const movie of movies) {
+      snapshotMovieIds.add(movie.movieId);
+      const known = linkedByStashId.get(movie.stashId);
+      if (
+        known &&
+        known.whisparrMovieId === movie.movieId &&
+        known.whisparrHasFile === movie.hasFile
+      ) {
+        unchanged.push(movie.stashId);
+        continue;
+      }
+      patches.push({
+        stashId: movie.stashId,
+        whisparrMovieId: movie.movieId,
+        whisparrHasFile: movie.hasFile,
+        whisparrLastSyncedAt: now,
+        lastSyncedAt: now,
+      });
+    }
+    for (let i = 0; i < unchanged.length; i += UNCHANGED_TOUCH_CHUNK) {
+      await this.prisma.sceneIndex.updateMany({
+        where: {
+          stashId: { in: unchanged.slice(i, i + UNCHANGED_TOUCH_CHUNK) },
+        },
+        data: { whisparrLastSyncedAt: now, lastSyncedAt: now },
+      });
+    }
+
     const staleRows = linkedRows.filter(
       (row) =>
         row.whisparrMovieId === null ||
@@ -1033,9 +1058,11 @@ export abstract class IndexingSync extends IndexingCore {
     }
 
     await this.applySceneIndexPatches(patches);
-    for (let i = 0; i < confirmed.length; i += CONFIRMED_CHUNK) {
+    for (let i = 0; i < confirmed.length; i += UNCHANGED_TOUCH_CHUNK) {
       await this.prisma.sceneIndex.updateMany({
-        where: { stashId: { in: confirmed.slice(i, i + CONFIRMED_CHUNK) } },
+        where: {
+          stashId: { in: confirmed.slice(i, i + UNCHANGED_TOUCH_CHUNK) },
+        },
         data: { lastSyncedAt: syncedAt, stashLastSyncedAt: syncedAt },
       });
     }

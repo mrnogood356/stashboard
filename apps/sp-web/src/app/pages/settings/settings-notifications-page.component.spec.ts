@@ -42,6 +42,26 @@ describe('SettingsNotificationsPageComponent', () => {
     ).toContain('ntfy.sh');
   });
 
+  it('knows when there are edits not saved yet, until they are saved', async () => {
+    const saveSettings = vi.fn().mockReturnValue(of({ ...saved, notifyDownloading: true }));
+    const fixture = await render({ getSettings: vi.fn().mockReturnValue(of(saved)), saveSettings });
+    const page = fixture.componentInstance;
+    expect(page.hasUnsavedChanges()).toBe(false);
+
+    const input = fixture.nativeElement.querySelector('input[name="url"]') as HTMLInputElement;
+    input.value = 'https://ntfy.sh/other';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(page.hasUnsavedChanges()).toBe(true);
+
+    const saveButton = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+    ).find((button) => button.textContent?.trim() === 'Save')!;
+    saveButton.click();
+    fixture.detectChanges();
+    expect(page.hasUnsavedChanges()).toBe(false);
+  });
+
   it('sends a test with the current form and shows server errors', async () => {
     const sendTest = vi.fn().mockReturnValue(
       throwError(

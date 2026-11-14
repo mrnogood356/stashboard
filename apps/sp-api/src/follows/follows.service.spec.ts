@@ -48,6 +48,7 @@ function fakePrisma() {
     (b.releaseDate ?? '').localeCompare(a.releaseDate ?? '') ||
     b.foundAt.getTime() - a.foundAt.getTime();
 
+  const owned = new Set<string>();
   const prisma = {
     follow: {
       count: jest.fn(() => Promise.resolve(follows.length)),
@@ -215,8 +216,16 @@ function fakePrisma() {
         );
       }),
     },
+    // Scenes Stash already has.
+    sceneIndex: {
+      findUnique: jest.fn(({ where }: { where: { stashId: string } }) =>
+        Promise.resolve(
+          owned.has(where.stashId) ? { stashAvailable: true } : null,
+        ),
+      ),
+    },
   };
-  return { prisma, follows, scenes };
+  return { prisma, follows, scenes, owned };
 }
 
 /** Waits until no check is running or waiting to run. */
@@ -241,7 +250,7 @@ function feedScene(id: string, releaseDate: string, state = 'NOT_REQUESTED') {
 }
 
 function setup() {
-  const { prisma, follows, scenes } = fakePrisma();
+  const { prisma, follows, scenes, owned } = fakePrisma();
   const catalog = {
     isBrowseOnlyRequest: jest.fn().mockResolvedValue(false),
     getInstanceCatalogProviderType: jest.fn().mockResolvedValue('STASHDB'),
@@ -328,6 +337,7 @@ function setup() {
     notifications,
     hiddenRules,
     prisma,
+    owned,
   };
 }
 
@@ -426,6 +436,30 @@ describe('FollowsService', () => {
       scenes.filter((row) => row.sceneId === 'new-1').map((row) => row.state),
     ).toEqual(['REQUESTED', 'REQUESTED']);
     expect((await service.releases('review')).items).toEqual([]);
+  });
+
+  it('doesn’t add a scene you already have, nor announce it', async () => {
+    const { service, follows, requests, scenes, owned } = setup();
+    owned.add('new-1');
+    await service.follow({
+      kind: 'STUDIO',
+      entityId: 's1',
+      name: 'Studio',
+      autoRequest: true,
+    });
+    for (const follow of follows) {
+      follow.since = '2026-11-01';
+    }
+    const summary = await service.checkAll();
+
+    expect(
+      requests.submitSceneRequest.mock.calls.map((call) => call[0]),
+    ).toEqual(['new-2']);
+    expect(summary.requested).toBe(1);
+    expect(scenes.find((row) => row.sceneId === 'new-1')).toMatchObject({
+      state: 'DISMISSED',
+      detail: 'Already in your library',
+    });
   });
 
   it('keeps a failed automatic request for review, with why', async () => {

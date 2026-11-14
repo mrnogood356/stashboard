@@ -95,6 +95,37 @@ export class SchedulesService {
     };
   }
 
+  /** Every job's times, saved or default, for Settings → Backup. */
+  async exportForBackup(): Promise<{
+    schedules: Array<ScheduleTime & { job: ScheduledJob }>;
+  }> {
+    const rows = new Map(
+      (await this.prisma.jobSchedule.findMany()).map((row) => [row.job, row]),
+    );
+    return {
+      schedules: SCHEDULED_JOBS.map((job) => {
+        const row = rows.get(job);
+        const time = row
+          ? {
+              enabled: row.enabled,
+              hour: row.hour,
+              minute: row.minute,
+              days: row.days,
+            }
+          : JOB_INFO[job].defaults;
+        return { job, ...time, days: [...time.days] };
+      }),
+    };
+  }
+
+  async restoreFromBackup(input: {
+    schedules: Array<ScheduleTime & { job: string }>;
+  }): Promise<void> {
+    for (const { job, ...time } of input.schedules) {
+      await this.update(job, time);
+    }
+  }
+
   async update(job: string, input: ScheduleTime): Promise<SchedulesDto> {
     if (!(SCHEDULED_JOBS as readonly string[]).includes(job)) {
       throw new BadRequestException('There’s no such job.');

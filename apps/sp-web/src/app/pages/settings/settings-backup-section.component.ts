@@ -6,6 +6,7 @@ import {
   RestoreResult,
   summarizeBackup,
 } from '../../core/api/backup.service';
+import { AppLockService } from '../../core/app-lock/app-lock.service';
 
 const STATUS_ICON: Record<RestoreResult['status'], string> = {
   restored: 'pi pi-check-circle',
@@ -25,6 +26,7 @@ const STATUS_ICON: Record<RestoreResult['status'], string> = {
 })
 export class SettingsBackupSectionComponent {
   private readonly api = inject(BackupApiService);
+  private readonly appLock = inject(AppLockService);
 
   protected readonly includeSecrets = signal(true);
   protected readonly downloading = signal(false);
@@ -107,8 +109,9 @@ export class SettingsBackupSectionComponent {
     this.reset();
   }
 
+  /** Through App Lock, so the reload after a restore doesn't lock the app. */
   protected reload(): void {
-    location.reload();
+    this.appLock.reload();
   }
 
   protected statusIcon(status: RestoreResult['status']): string {

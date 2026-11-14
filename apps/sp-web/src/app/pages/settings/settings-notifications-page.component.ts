@@ -1,3 +1,4 @@
+import { HasUnsavedChanges } from '../../core/navigation/unsaved-changes.guard';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -39,7 +40,7 @@ const CHANNEL_HELP: Record<
   templateUrl: './settings-notifications-page.component.html',
   styleUrls: ['./settings-notifications-page.component.scss', './settings-shared.scss'],
 })
-export class SettingsNotificationsPageComponent implements OnInit {
+export class SettingsNotificationsPageComponent implements OnInit, HasUnsavedChanges {
   private readonly notificationsService = inject(NotificationsService);
 
   protected readonly channels = Object.entries(CHANNEL_HELP).map(([value, info]) => ({
@@ -62,10 +63,18 @@ export class SettingsNotificationsPageComponent implements OnInit {
     notifyFollowed: true,
   });
 
+  /** What's saved, to tell edits apart. */
+  private savedSnapshot: string | null = null;
+
+  hasUnsavedChanges(): boolean {
+    return this.savedSnapshot !== null && JSON.stringify(this.form()) !== this.savedSnapshot;
+  }
+
   ngOnInit(): void {
     this.notificationsService.getSettings().subscribe({
       next: (settings) => {
         this.form.set(settings);
+        this.savedSnapshot = JSON.stringify(settings);
         this.loading.set(false);
       },
       error: () => {
@@ -106,6 +115,7 @@ export class SettingsNotificationsPageComponent implements OnInit {
     this.notificationsService.saveSettings(this.form()).subscribe({
       next: (settings) => {
         this.form.set(settings);
+        this.savedSnapshot = JSON.stringify(settings);
         this.saving.set(false);
         this.status.set({ kind: 'ok', text: 'Saved.' });
       },

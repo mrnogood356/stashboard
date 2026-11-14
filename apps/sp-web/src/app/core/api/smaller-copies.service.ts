@@ -48,6 +48,8 @@ export interface SmallerCopyAttempt {
 export interface SmallerCopies {
   settings: SmallerCopySettings;
   blocked: string | null;
+  /** After Search now: why nothing was searched, if nothing was. */
+  notice?: string | null;
   candidates: number;
   due: number;
   lastSearchAt: string | null;

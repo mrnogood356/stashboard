@@ -75,6 +75,8 @@ h2 {
 }
 
 .carousel-main {
+  position: relative;
+  touch-action: pan-y;
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 0;
@@ -87,6 +89,65 @@ h2 {
   aspect-ratio: 3 / 4;
   object-fit: cover;
   display: block;
+}
+
+/* Flip through a performer's other photos on the main one. */
+.photo-step {
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 45%);
+  color: #fff;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  position: absolute;
+  top: 50%;
+  width: 2.25rem;
+  height: 2.25rem;
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.photo-step.prev {
+  left: 0.5rem;
+}
+
+.photo-step.next {
+  right: 0.5rem;
+}
+
+.carousel-main:hover .photo-step,
+.photo-step:focus-visible {
+  opacity: 1;
+}
+
+/* No hover on a touch screen: the arrows stay, and a swipe works too. */
+@media (hover: none) {
+  .photo-step {
+    opacity: 1;
+  }
+}
+
+.photo-bar {
+  position: absolute;
+  bottom: 0.5rem;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.65rem;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 45%);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 .carousel-placeholder {
@@ -112,28 +173,6 @@ main > button {
   font: inherit;
   font-size: 0.85rem;
   font-weight: 600;
-}
-
-.carousel-thumbs {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
-  gap: 0.35rem;
-}
-
-.thumb {
-  border: 0;
-  border-radius: 8px;
-  overflow: hidden;
-  padding: 0;
-  background: var(--media-detail-subtle-surface-background);
-  cursor: pointer;
-}
-
-.thumb img {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  display: block;
 }
 
 .hero-info {

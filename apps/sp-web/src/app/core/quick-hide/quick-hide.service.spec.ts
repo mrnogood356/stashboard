@@ -3,14 +3,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImageObscurationService } from '../preferences/image-obscuration.service';
 import { QUICK_HIDE_KEY, QuickHideService } from './quick-hide.service';
 
-function tap(x = 100, y = 100): void {
-  const event = new Event('pointerdown') as PointerEvent;
+function pointer(type: string, x: number, y: number): void {
+  const event = new Event(type) as PointerEvent;
   Object.defineProperties(event, {
     pointerType: { value: 'touch' },
+    pointerId: { value: 1 },
     clientX: { value: x },
     clientY: { value: y },
   });
   window.dispatchEvent(event);
+}
+
+/** A finger down and straight up again. */
+function tap(x = 100, y = 100): void {
+  pointer('pointerdown', x, y);
+  pointer('pointerup', x, y);
+}
+
+/** A finger down, dragged, and up: a scroll or flick. */
+function flick(x = 100, y = 100): void {
+  pointer('pointerdown', x, y);
+  pointer('pointerup', x, y - 60);
 }
 
 function esc(): void {
@@ -102,6 +115,25 @@ describe('QuickHideService', () => {
     expect(service.hidden()).toBe(true);
   });
 
+  it('never hides on quick flicks while scrolling', () => {
+    const { service } = start();
+    flick();
+    flick();
+    flick();
+    flick();
+    expect(service.hidden()).toBe(false);
+  });
+
+  it('doesn’t count a press held down as a tap', () => {
+    const { service } = start();
+    tap();
+    tap();
+    pointer('pointerdown', 100, 100);
+    vi.advanceTimersByTime(450);
+    pointer('pointerup', 100, 100);
+    expect(service.hidden()).toBe(false);
+  });
+
   it('counts taps at a natural pace, each within half a second of the last', () => {
     const { service } = start();
     tap();
@@ -147,6 +179,19 @@ describe('QuickHideService', () => {
     expect(obscured()).toBe(false);
     service.checkIdle(Date.now() + 5 * 60_000);
     expect(obscured()).toBe(true);
+  });
+
+  it('doesn’t blur for being idle while a video plays', () => {
+    const { service, obscured } = start({ idleMinutes: 5 });
+    const video = document.createElement('video');
+    Object.defineProperty(video, 'paused', { value: false });
+    document.body.appendChild(video);
+    try {
+      service.checkIdle(Date.now() + 10 * 60_000);
+      expect(obscured()).toBe(false);
+    } finally {
+      video.remove();
+    }
   });
 
   it('remembers its settings on this device', () => {
