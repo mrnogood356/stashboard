@@ -270,6 +270,33 @@ describe('NotificationsService', () => {
     ).rejects.toThrow('the server replied 404');
   });
 
+  it('tries once more when told to slow down, after the wait asked for', async () => {
+    const waits: number[] = [];
+    (
+      service as unknown as { retryWait: (ms: number) => Promise<void> }
+    ).retryWait = (ms) => {
+      waits.push(ms);
+      return Promise.resolve();
+    };
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        headers: new Headers({ 'retry-after': '3' }),
+      })
+      .mockResolvedValueOnce({ ok: true, status: 204 });
+    await service.sendTest({
+      enabled: true,
+      channel: 'DISCORD',
+      url: 'https://discord.com/api/webhooks/1/abc',
+      notifyDownloading: false,
+      notifyAvailable: true,
+      notifyFailed: true,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(waits).toEqual([3000]);
+  });
+
   describe('followed releases', () => {
     const scenes = [
       { title: 'One', followName: 'Kaitlyn', requested: true },

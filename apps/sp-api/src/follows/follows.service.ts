@@ -773,11 +773,33 @@ export class FollowsService {
       return { state: outcome.state };
     }
 
+    // Already in Stash (under this id or one you said is the same scene):
+    // sending it to Whisparr would only download it again.
+    if (requestsOnItsOwn && (await this.alreadyInLibrary(scene.id))) {
+      await this.prisma.followedScene.create({
+        data: {
+          ...base,
+          state: FollowedSceneState.DISMISSED,
+          detail: 'Already in your library',
+        },
+      });
+      return null;
+    }
     const outcome = requestsOnItsOwn
       ? await this.requestScene(current, scene, getDefaults)
       : { state: FollowedSceneState.NEW, detail: null };
     await this.prisma.followedScene.create({ data: { ...base, ...outcome } });
     return { state: outcome.state };
+  }
+
+  private async alreadyInLibrary(sceneId: string): Promise<boolean> {
+    const row = await this.prisma.sceneIndex
+      .findUnique({
+        where: { stashId: sceneId },
+        select: { stashAvailable: true },
+      })
+      .catch(() => null);
+    return row?.stashAvailable === true;
   }
 
   /** Sends a found scene to Whisparr, saying why when it couldn't. */
