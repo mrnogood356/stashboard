@@ -99,7 +99,15 @@ async function render(api: Record<string, unknown>, tab?: string, tool?: 'match'
       provideRouter([]),
       {
         provide: OrganizerApiService,
-        useValue: { proposals: vi.fn().mockReturnValue(of([])), ...api },
+        useValue: {
+          proposals: vi.fn().mockReturnValue(of([])),
+          // Rename's To do count loads on open; tests that don't look at it
+          // still get an empty answer rather than a missing method.
+          preview: vi
+            .fn()
+            .mockReturnValue(of({ pattern: '', scanned: 0, counts: {}, changes: [], skipped: [] })),
+          ...api,
+        },
       },
       { provide: AppNotificationsService, useValue: notifications },
       {
