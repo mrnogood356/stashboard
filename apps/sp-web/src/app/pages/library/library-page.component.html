@@ -66,7 +66,12 @@
     </label>
 
     <div class="filter-bar" data-testid="library-filter-bar">
-      <app-filter-chip label="Category" [value]="categoryValue()" testId="library-category">
+      <app-filter-chip
+        label="Category"
+        [value]="categoryValue()"
+        testId="library-category"
+        (opened)="onTagFilterChanged('')"
+      >
         <ng-template appFilterPanel>
           <app-filter-options
             [options]="categoryChoices()"
@@ -95,7 +100,12 @@
           Has them all
         </button>
       }
-      <app-filter-chip label="Studio" [value]="studioValue()" testId="library-studio">
+      <app-filter-chip
+        label="Studio"
+        [value]="studioValue()"
+        testId="library-studio"
+        (opened)="onStudioFilterChanged('')"
+      >
         <ng-template appFilterPanel>
           <app-filter-options
             [options]="studioChoices()"

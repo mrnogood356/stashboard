@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { Suggestion, SuggestionsApiService } from '../../core/api/suggestions.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { YouMayEnjoyComponent } from './you-may-enjoy.component';
@@ -156,6 +156,36 @@ describe('YouMayEnjoyComponent', () => {
     expect(JSON.parse(localStorage.getItem('stashboard.enjoy.tags') ?? '[]')).toEqual([
       { id: 't1', name: 'Outdoor' },
     ]);
+  });
+
+  it('drops a late answer for categories no longer picked', async () => {
+    const forT1 = new Subject<{ items: Suggestion[]; message: null }>();
+    const forT2 = new Subject<{ items: Suggestion[]; message: null }>();
+    const list = vi.fn((_limit: number, tags: string[]) =>
+      tags[0] === 't1'
+        ? forT1
+        : tags[0] === 't2'
+          ? forT2
+          : of({ items: [suggestion('start', 'x')], message: null }),
+    );
+    const fixture = await render({ list } as never, true);
+    const state = TestBed.inject(YouMayEnjoyState);
+    const pick = (
+      fixture.componentInstance as unknown as { onTagsPicked(ids: string[]): void }
+    ).onTagsPicked.bind(fixture.componentInstance);
+
+    state.setTags([{ id: 't1', name: 'Outdoor' }]);
+    pick(['t1']);
+    state.setTags([{ id: 't2', name: 'POV' }]);
+    pick(['t2']);
+    // POV answers first, then Outdoor's answer arrives late.
+    forT2.next({ items: [suggestion('pov', 'x')], message: null });
+    forT1.next({ items: [suggestion('outdoor', 'x')], message: null });
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Scene pov');
+    expect(text).not.toContain('Scene outdoor');
   });
 
   it('back from a scene: the same picks, without asking again', async () => {

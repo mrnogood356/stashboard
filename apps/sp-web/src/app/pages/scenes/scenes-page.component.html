@@ -48,7 +48,12 @@
   }
 
   <div class="filter-bar scenes-filter-bar" data-testid="scenes-filter-bar">
-    <app-filter-chip label="Category" [value]="categoryValue()" testId="scenes-category">
+    <app-filter-chip
+      label="Category"
+      [value]="categoryValue()"
+      testId="scenes-category"
+      (opened)="onTagFilterChanged('')"
+    >
       <ng-template appFilterPanel>
         <app-filter-options
           [options]="categoryChoices()"
@@ -77,7 +82,12 @@
         Has them all
       </button>
     }
-    <app-filter-chip label="Studio" [value]="studioValue()" testId="scenes-studio">
+    <app-filter-chip
+      label="Studio"
+      [value]="studioValue()"
+      testId="scenes-studio"
+      (opened)="onStudioFilterChanged('')"
+    >
       <ng-template appFilterPanel>
         <app-filter-options
           [options]="studioChoices()"
