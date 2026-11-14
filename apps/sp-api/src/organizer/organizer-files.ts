@@ -385,13 +385,22 @@ export abstract class OrganizerFiles extends OrganizerCore {
     endpoint: string,
     stashIds: string[],
   ): Promise<Map<string, StashOrganizerScene>> {
-    const sameAs = new Map(
-      (
-        await this.prisma.sceneStashAlias
-          .findMany({ where: { stashId: { in: stashIds } } })
-          .catch(() => [] as Array<{ stashId: string; aliasOf: string }>)
-      ).map((row) => [row.stashId, row.aliasOf]),
-    );
+    // "Same scene" works both ways: Whisparr may have either id of the pair.
+    const pairs = await this.prisma.sceneStashAlias
+      .findMany({
+        where: {
+          OR: [{ stashId: { in: stashIds } }, { aliasOf: { in: stashIds } }],
+        },
+      })
+      .catch(() => [] as Array<{ stashId: string; aliasOf: string }>);
+    const othersOf = (stashId: string) =>
+      pairs.flatMap((row) =>
+        row.stashId === stashId
+          ? [row.aliasOf]
+          : row.aliasOf === stashId
+            ? [row.stashId]
+            : [],
+      );
     const findLinked = (stashId: string) =>
       this.stash
         .findOrganizerScenes(config, {
@@ -408,24 +417,39 @@ export abstract class OrganizerFiles extends OrganizerCore {
         .then((found) => found.items[0] ?? null)
         .catch(() => null);
     const found = new Map<string, StashOrganizerScene>();
-    for (const stashId of stashIds) {
+    const lookUp = async (stashId: string) => {
       const direct = await findLinked(stashId);
       if (direct) {
         found.set(stashId, direct);
-        continue;
+        return;
       }
-      const other = sameAs.get(stashId);
-      const viaOther = other ? await findLinked(other) : null;
-      if (viaOther) {
-        found.set(stashId, {
-          ...viaOther,
-          stashIds: [
-            ...viaOther.stashIds.filter((entry) => entry.endpoint !== endpoint),
-            { endpoint, stashId },
-          ],
-        });
+      for (const other of othersOf(stashId)) {
+        const viaOther = await findLinked(other);
+        if (viaOther) {
+          found.set(stashId, {
+            ...viaOther,
+            stashIds: [
+              ...viaOther.stashIds.filter(
+                (entry) => entry.endpoint !== endpoint,
+              ),
+              { endpoint, stashId },
+            ],
+          });
+          return;
+        }
       }
-    }
+    };
+    // A few at a time: quick reads, without a long line of one-by-one asks.
+    let next = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(4, stashIds.length) }, async () => {
+        while (next < stashIds.length) {
+          const stashId = stashIds[next];
+          next += 1;
+          await lookUp(stashId);
+        }
+      }),
+    );
     return found;
   }
 
