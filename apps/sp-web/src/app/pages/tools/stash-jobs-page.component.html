@@ -25,7 +25,12 @@
       @for (job of jobs(); track job.id) {
         <li class="job">
           <div class="job-head">
-            <p class="job-title">{{ job.description }}</p>
+            <p class="job-title">
+              {{ job.description }}
+              <span class="job-source" [class.ours]="job.byStashboard">{{
+                job.byStashboard ? 'Stashboard' : 'Not Stashboard'
+              }}</span>
+            </p>
             <span class="job-status" [class.running]="job.status === 'RUNNING'">{{
               statusLabel(job)
             }}</span>

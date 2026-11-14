@@ -728,6 +728,19 @@ describe('StashAdapter', () => {
       );
     });
 
+    it('marks the jobs in Stash’s queue that Stashboard started', async () => {
+      await adapter.scanLibraryFolders(config, ['/data/mine']);
+      queue = [
+        { id: '51', status: 'RUNNING' },
+        { id: '9', status: 'READY' },
+      ];
+      const jobs = await adapter.getJobQueue(config);
+      expect(jobs.map((job) => [job.id, job.byStashboard])).toEqual([
+        ['51', true],
+        ['9', false],
+      ]);
+    });
+
     it('goes ahead once Stash’s queue has been stuck too long', async () => {
       (adapter as unknown as { laneMaxWaitMs: number }).laneMaxWaitMs = 0;
       queue = [{ id: '9', status: 'READY' }];

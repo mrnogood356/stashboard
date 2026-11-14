@@ -60,6 +60,26 @@ export abstract class StashJobsApi extends StashGraphqlClient {
     string,
     { items: Set<string>; promise: Promise<string | null> }
   >();
+  /** Jobs Stashboard started, by Stash and id, so the jobs page can say whose is whose. */
+  private readonly ourJobs = new Set<string>();
+
+  protected noteOurJob(
+    config: StashAdapterBaseConfig,
+    job: string | null,
+  ): void {
+    if (!job) {
+      return;
+    }
+    this.ourJobs.add(`${config.baseUrl}|${job}`);
+    while (this.ourJobs.size > MAX_REMEMBERED_JOBS * 10) {
+      const oldest = this.ourJobs.values().next().value;
+      if (oldest === undefined) {
+        break;
+      }
+      this.ourJobs.delete(oldest);
+    }
+  }
+
   /** Item → the job that took it, for asks that check back later. */
   private readonly startedFor = new Map<string, string>();
   /** For tests: how long to wait between looks at Stash's queue. */
@@ -158,6 +178,7 @@ export abstract class StashJobsApi extends StashGraphqlClient {
         this.logger.log(
           `Started Stash's ${KIND_NAMES[kind]} for ${batch.items.size} ${kind.endsWith('scan') ? 'folder(s)' : kind === 'task' ? 'library task' : 'scene(s)'}${job ? ` (job ${job})` : ''}.`,
         );
+        this.noteOurJob(config, job);
         if (job) {
           for (const item of batch.items) {
             this.startedFor.set(`${batchKey}|${item}`, job);
@@ -256,7 +277,10 @@ export abstract class StashJobsApi extends StashGraphqlClient {
         }
       }
     }
-    const started = start();
+    const started = start().then((job) => {
+      this.noteOurJob(config, job);
+      return job;
+    });
     this.queuedJobs.delete(fullKey);
     this.queuedJobs.set(fullKey, started);
     started.catch(() => {
@@ -320,6 +344,7 @@ export abstract class StashJobsApi extends StashGraphqlClient {
             : [],
           addTime: this.normalizeOptionalString(job.addTime),
           startTime: this.normalizeOptionalString(job.startTime),
+          byStashboard: this.ourJobs.has(`${config.baseUrl}|${id}`),
         },
       ];
     });

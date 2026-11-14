@@ -54,6 +54,24 @@ describe('StashJobsPageComponent', () => {
     fixture.destroy();
   });
 
+  it('says which jobs Stashboard started and which came from elsewhere', () => {
+    const library = {
+      jobs: vi
+        .fn()
+        .mockReturnValue(
+          of([{ ...job('100', 'RUNNING'), byStashboard: true }, job('101', 'READY')]),
+        ),
+      startJob: vi.fn(),
+      stopJob: vi.fn(),
+    };
+    const { fixture, root } = render(library);
+
+    const [ours, other] = Array.from(root.querySelectorAll('.job-source'));
+    expect(ours.textContent?.trim()).toBe('Stashboard');
+    expect(other.textContent?.trim()).toBe('Not Stashboard');
+    fixture.destroy();
+  });
+
   it('shows each job state and only offers Stop for running or waiting jobs', () => {
     const library = {
       jobs: vi

@@ -250,3 +250,20 @@ main > .app-back-link {
 .task i {
   background: none;
 }
+
+/* Who started it: a stuck job from a plugin or another app isn't Stashboard's. */
+.job-source {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--soft-fill);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.job-source.ours {
+  color: var(--text-primary);
+}

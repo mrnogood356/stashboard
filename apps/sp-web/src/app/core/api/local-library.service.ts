@@ -168,6 +168,8 @@ export interface StashJob {
   subTasks: string[];
   addTime: string | null;
   startTime: string | null;
+  /** Started by Stashboard; otherwise by Stash, a plugin or another app. */
+  byStashboard?: boolean;
 }
 
 export interface SampleScene extends DuplicateScene {
