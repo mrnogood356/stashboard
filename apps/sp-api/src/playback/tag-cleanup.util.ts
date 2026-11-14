@@ -178,6 +178,17 @@ export function splitUnmergeable<
 /** Why two performers or studios are suggested as one, strongest first. */
 export type MergeReason = 'catalog' | 'name' | 'alias';
 
+/**
+ * How an entry is tied into its group: its best match there, and whether it
+ * reaches the one kept through the same catalog entry or the same name
+ * (sure) rather than only through an alias.
+ */
+export interface MergeMatch {
+  reason: MergeReason;
+  with: string;
+  sure: boolean;
+}
+
 interface MergeItem {
   id: string;
   name: string;
@@ -211,7 +222,7 @@ export function groupMergeCandidates<T extends MergeItem>(
   items: T[],
 ): Array<{
   keepId: string;
-  items: Array<T & { match: { reason: MergeReason; with: string } }>;
+  items: Array<T & { match: MergeMatch }>;
 }> {
   const byId = new Map(items.map((item) => [item.id, item]));
   const edges = new Map<
@@ -263,9 +274,68 @@ export function groupMergeCandidates<T extends MergeItem>(
   const seen = new Set<string>();
   const result: Array<{
     keepId: string;
-    items: Array<T & { match: { reason: MergeReason; with: string } }>;
+    items: Array<T & { match: MergeMatch }>;
   }> = [];
   const rank: Record<MergeReason, number> = { catalog: 0, name: 1, alias: 2 };
+  /** Connected pieces of these entries, by their matches among themselves; most scenes first. */
+  const connected = (entries: T[]): T[][] => {
+    const inSet = new Set(entries.map((entry) => entry.id));
+    const placed = new Set<string>();
+    const pieces: T[][] = [];
+    for (const start of entries) {
+      if (placed.has(start.id)) {
+        continue;
+      }
+      const piece: T[] = [];
+      const queue = [start.id];
+      placed.add(start.id);
+      while (queue.length > 0) {
+        const id = queue.shift()!;
+        piece.push(byId.get(id)!);
+        for (const { other } of edges.get(id) ?? []) {
+          if (inSet.has(other) && !placed.has(other)) {
+            placed.add(other);
+            queue.push(other);
+          }
+        }
+      }
+      pieces.push(piece.sort((a, b) => b.sceneCount - a.sceneCount));
+    }
+    return pieces;
+  };
+  /** A piece with each entry's best match, and which reach the kept one surely. */
+  const annotate = (piece: T[]) => {
+    if (piece.length < 2) {
+      return null;
+    }
+    const inSet = new Set(piece.map((entry) => entry.id));
+    const keepId = piece[0].id;
+    const sure = new Set([keepId]);
+    const queue = [keepId];
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      for (const { other, reason } of edges.get(id) ?? []) {
+        if (reason !== 'alias' && inSet.has(other) && !sure.has(other)) {
+          sure.add(other);
+          queue.push(other);
+        }
+      }
+    }
+    const items = piece.map((entry) => {
+      const best = (edges.get(entry.id) ?? [])
+        .filter((edge) => inSet.has(edge.other))
+        .sort((a, b) => rank[a.reason] - rank[b.reason])[0];
+      return {
+        ...entry,
+        match: {
+          reason: best.reason,
+          with: byId.get(best.other)!.name,
+          sure: sure.has(entry.id),
+        },
+      };
+    });
+    return { keepId, items };
+  };
   for (const item of items) {
     if (seen.has(item.id) || !edges.has(item.id)) {
       continue;
@@ -284,30 +354,13 @@ export function groupMergeCandidates<T extends MergeItem>(
       }
     }
     for (const set of splitUnmergeable(component)) {
-      const inSet = new Set(set.items.map((entry) => entry.id));
-      const withMatch = set.items
-        .map((entry) => {
-          const best = (edges.get(entry.id) ?? [])
-            .filter((edge) => inSet.has(edge.other))
-            .sort((a, b) => rank[a.reason] - rank[b.reason])[0];
-          return best
-            ? {
-                ...entry,
-                match: {
-                  reason: best.reason,
-                  with: byId.get(best.other)!.name,
-                },
-              }
-            : null;
-        })
-        .filter(
-          (
-            entry,
-          ): entry is T & { match: { reason: MergeReason; with: string } } =>
-            entry !== null,
-        );
-      if (withMatch.length > 1) {
-        result.push({ keepId: withMatch[0].id, items: withMatch });
+      // Taking out entries that can't be one can leave pieces no longer
+      // joined to each other: each is a group of its own.
+      for (const piece of connected(set.items)) {
+        const group = annotate(piece);
+        if (group) {
+          result.push(group);
+        }
       }
     }
   }

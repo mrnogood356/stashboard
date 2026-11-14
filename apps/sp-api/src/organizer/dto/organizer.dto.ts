@@ -178,6 +178,13 @@ export class PickedScenesDto {
   sceneIds!: string[];
 }
 
+/** Taken files to fix, with the fix the preview showed and was agreed to. */
+export class FixTakenDto extends PickedScenesDto {
+  @IsOptional()
+  @IsIn(['scan', 'merge'])
+  fix?: 'scan' | 'merge';
+}
+
 /** Every unmatched scene, or just the picked ones. */
 export class MoveUnmatchedDto {
   @IsOptional()

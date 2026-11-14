@@ -1601,7 +1601,13 @@ describe('OrganizerService', () => {
       return Promise.resolve();
     });
 
-    const result = await service.fixTaken(['7']);
+    // Agreed to a scan, but Stash has the other file now: nothing merged.
+    const changed = await service.fixTaken(['7'], 'scan');
+    expect(stash.mergeScenes).not.toHaveBeenCalled();
+    expect(stash.removeExtraFile).not.toHaveBeenCalled();
+    expect(changed.skipped[0].reason).toMatch(/changed since the preview/);
+
+    const result = await service.fixTaken(['7'], 'merge');
 
     expect(stash.mergeScenes).toHaveBeenCalledWith(
       expect.anything(),

@@ -1,4 +1,4 @@
-import type { MergeReason } from './tag-cleanup.util';
+import type { MergeMatch } from './tag-cleanup.util';
 import type {
   StashBackgroundProblemKind,
   StashProblemKind,
@@ -50,9 +50,7 @@ export interface MergeCandidatesDto {
   /** Entered more than once; keepId is the one with the most scenes. */
   groups: Array<{
     keepId: string;
-    items: Array<
-      StashMergeCandidate & { match: { reason: MergeReason; with: string } }
-    >;
+    items: Array<StashMergeCandidate & { match: MergeMatch }>;
   }>;
   /** Names matching the search. */
   matches: StashMergeCandidate[];

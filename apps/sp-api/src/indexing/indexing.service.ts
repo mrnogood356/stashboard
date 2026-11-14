@@ -36,6 +36,8 @@ const EVENT_SYNC_REASONS = new Set([
 ]);
 /** At most one of those every this long; the rest wait for a follow-up. */
 const LIBRARY_SYNC_GAP_MS = 20_000;
+/** How often a held-back library sync tries before the full sync covers it. */
+const FOLLOW_UP_SYNC_TRIES = 5;
 
 @Injectable()
 export class IndexingService extends IndexingSync {
@@ -209,17 +211,7 @@ export class IndexingService extends IndexingSync {
     // than reading the whole library from Stash for each.
     const since = Date.now() - this.lastLibrarySyncAt;
     if (EVENT_SYNC_REASONS.has(reason) && since < LIBRARY_SYNC_GAP_MS) {
-      if (!this.followUpLibrarySync) {
-        this.followUpLibrarySync = setTimeout(() => {
-          this.followUpLibrarySync = null;
-          void this.syncLibraryProjection(reason).catch((error: unknown) =>
-            this.logger.warn(
-              `Library sync failed: ${error instanceof Error ? error.message : String(error)}`,
-            ),
-          );
-        }, LIBRARY_SYNC_GAP_MS - since);
-        this.followUpLibrarySync.unref?.();
-      }
+      this.scheduleFollowUpSync(reason, LIBRARY_SYNC_GAP_MS - since, 1);
       return null;
     }
     this.lastLibrarySyncAt = Date.now();
@@ -236,6 +228,37 @@ export class IndexingService extends IndexingSync {
       },
       async () => this.performLibraryProjectionSync(reason),
     );
+  }
+
+  /**
+   * The sync that covers asks held back meanwhile. It stays owed until one
+   * runs: blocked by a sync still going, or failed, it tries again shortly.
+   */
+  private scheduleFollowUpSync(
+    reason: string,
+    delayMs: number,
+    attempt: number,
+  ): void {
+    if (this.followUpLibrarySync) {
+      return;
+    }
+    this.followUpLibrarySync = setTimeout(() => {
+      this.followUpLibrarySync = null;
+      void this.syncLibraryProjection(reason)
+        .then((result) => result !== null || !!this.followUpLibrarySync)
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `Library sync failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return false;
+        })
+        .then((done) => {
+          if (!done && attempt < FOLLOW_UP_SYNC_TRIES) {
+            this.scheduleFollowUpSync(reason, LIBRARY_SYNC_GAP_MS, attempt + 1);
+          }
+        });
+    }, delayMs);
+    this.followUpLibrarySync.unref?.();
   }
 
   /**

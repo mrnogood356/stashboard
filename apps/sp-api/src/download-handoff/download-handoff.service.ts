@@ -1587,7 +1587,9 @@ export class DownloadHandoffService {
       );
       return;
     }
-    await this.stash
+    // Not awaited: Generate waits its turn behind Stash's other jobs, and the
+    // download is done meanwhile.
+    void this.stash
       .startLibraryTask(config, 'generate', [sceneId])
       .then(() =>
         this.logger.debug(`Started generating previews for scene ${sceneId}.`),

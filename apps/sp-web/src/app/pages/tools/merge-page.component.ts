@@ -13,7 +13,9 @@ import {
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { SheetComponent } from '../../shared/sheet/sheet.component';
 
-type SetItem = MergeCandidate & { match?: { reason: MergeReason; with: string } };
+type SetItem = MergeCandidate & {
+  match?: { reason: MergeReason; with: string; sure?: boolean };
+};
 
 interface MergeSet {
   key: string;
@@ -233,10 +235,15 @@ export class MergePageComponent implements OnInit {
             key: group.items.map((item) => item.id).join(','),
             items: group.items,
             keepId: group.keepId,
-            // Only an alias in common: ticked by you, not for you.
+            // Tied to the one kept only through an alias: ticked by you, not
+            // for you, even when it matches another entry by name.
             merge: new Set(
               group.items
-                .filter((item) => item.id !== group.keepId && item.match?.reason !== 'alias')
+                .filter(
+                  (item) =>
+                    item.id !== group.keepId &&
+                    (item.match?.sure ?? item.match?.reason !== 'alias'),
+                )
                 .map((item) => item.id),
             ),
           })),
