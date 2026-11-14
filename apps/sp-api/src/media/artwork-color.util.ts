@@ -92,7 +92,9 @@ export function catalogImageUrl(url: URL, catalogHosts: string[]): URL | null {
       ...IMAGE_SUBDOMAINS.map((sub) => `${sub}.${base}`),
     ].find((candidate) => candidate === host);
     if (match) {
-      return new URL(`${url.pathname}${url.search}`, `${scheme}//${match}`);
+      // Joined after the host, never resolved against it: a path such as
+      // //evil.com/x would otherwise replace the host.
+      return new URL(`${scheme}//${match}${url.pathname}${url.search}`);
     }
   }
   return null;
