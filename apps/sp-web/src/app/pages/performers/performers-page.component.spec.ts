@@ -109,6 +109,33 @@ describe('PerformersPageComponent', () => {
     ).toBe('true');
   });
 
+  it('keeps the people already shown when the next page fails, with Try again', async () => {
+    const page = (n: number, id: string) =>
+      of({
+        total: 2,
+        page: n,
+        perPage: 1,
+        hasMore: n === 1,
+        items: [{ id, name: `Person ${id}`, count: 3, imageUrl: `/img/${id}` }],
+      });
+    const listPerformers = vi
+      .fn()
+      .mockReturnValueOnce(page(1, '1'))
+      .mockReturnValueOnce(throwError(() => new Error('down')))
+      .mockReturnValueOnce(page(2, '2'));
+    const { root, fixture } = await render({ query: { lib: '1' }, library: listPerformers });
+
+    (root.querySelector('.show-more-library') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const grid = () => root.querySelector('[data-testid="library-performers"]')?.textContent ?? '';
+    expect(grid()).toContain('Person 1');
+    (root.querySelector('[data-testid="library-performers-retry"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(listPerformers).toHaveBeenLastCalledWith('', 2);
+    expect(grid()).toContain('Person 1');
+    expect(grid()).toContain('Person 2');
+  });
+
   it('sorts and filters from the filter bar, like Scenes', async () => {
     const { fixture, root, discover } = await render();
     const open = (id: string) => {

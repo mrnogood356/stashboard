@@ -1867,6 +1867,13 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
     display: none;
   }
 
+  /* The status-bar strip on a phone: solid, like the bars. */
+  :root[data-material='glass'] body::after {
+    background-color: var(--surface-1);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
   :root[data-material='glass']
     :is(
       .sidebar,

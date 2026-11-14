@@ -95,7 +95,7 @@ export class LibraryService {
       CROSS JOIN LATERAL unnest("tagIds", "tagNames") AS tag(tag_id, tag_name)
       WHERE tag.tag_id IS NOT NULL ${nameFilter} ${this.scopeFilter(scope)}
       GROUP BY tag.tag_id
-      ORDER BY count DESC, name ASC
+      ORDER BY count DESC, name ASC, id ASC
       LIMIT ${OPTION_LIMIT}
     `);
   }
