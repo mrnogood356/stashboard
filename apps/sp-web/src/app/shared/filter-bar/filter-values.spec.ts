@@ -20,7 +20,8 @@ describe('filter values', () => {
       'TITLE:ASC',
     ]);
     expect(sortChoiceLabel(choices, 'DATE', 'ASC')).toBe('Oldest first');
-    expect(sortChoiceLabel(choices, 'TITLE', 'DESC')).toBe('Title');
+    // Not the A-to-Z label for a Z-to-A list: an unlisted order reads as just Sort.
+    expect(sortChoiceLabel(choices, 'TITLE', 'DESC')).toBe('Sort');
     expect(sortChoiceLabel(choices, 'OTHER', 'DESC')).toBe('Sort');
   });
 

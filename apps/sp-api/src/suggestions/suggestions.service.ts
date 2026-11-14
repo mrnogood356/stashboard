@@ -157,6 +157,8 @@ export class SuggestionsService {
       })
       .slice(0, limit);
     for (const item of items) {
+      // Shown again: to the newest end, so trimming drops the oldest instead.
+      this.recentlyShown.delete(item.id);
       this.recentlyShown.add(item.id);
     }
     if (this.recentlyShown.size > RECENT_LIMIT) {
