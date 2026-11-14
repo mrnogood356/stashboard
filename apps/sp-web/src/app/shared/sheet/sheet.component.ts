@@ -79,7 +79,11 @@ let nextSheetId = 0;
               <i class="pi pi-times" aria-hidden="true"></i>
             </button>
           </header>
-          <div class="sheet-body" [class.sheet-body--own-scroll]="scroll === 'own'">
+          <div
+            class="sheet-body"
+            data-scroll-region
+            [class.sheet-body--own-scroll]="scroll === 'own'"
+          >
             <ng-content />
           </div>
           <ng-content select="[sheetFooter]" />

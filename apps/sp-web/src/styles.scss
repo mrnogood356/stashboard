@@ -1905,13 +1905,13 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
   }
 }
 
-/* A sheet or menu is open: the page behind it doesn't scroll, on an iPhone
-   too (pinned where it was; core/navigation/page-scroll-lock.ts). */
+/* A sheet or menu is open: the page behind it doesn't scroll. An iPhone
+   ignores overflow here, so swipes outside the sheet are also held
+   (core/navigation/page-scroll-lock.ts). The page itself never moves. */
+html.app-sheet-open,
 body.app-sheet-open {
-  position: fixed;
-  right: 0;
-  left: 0;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 /*
