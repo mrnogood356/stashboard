@@ -1,4 +1,9 @@
-import { nameKey, groupSimilarTags, tagKey } from './tag-cleanup.util';
+import {
+  cannotBeOne,
+  nameKey,
+  groupSimilarTags,
+  tagKey,
+} from './tag-cleanup.util';
 
 const tag = (
   id: string,
@@ -53,5 +58,24 @@ describe('nameKey', () => {
     expect(nameKey('й')).not.toBe(nameKey('и'));
     expect(nameKey('Ёлка')).not.toBe(nameKey('Елка'));
     expect(nameKey('Zoë')).toBe(nameKey('Zoe'));
+  });
+});
+
+describe('cannotBeOne', () => {
+  const E = 'https://stashdb.org/graphql';
+  const item = (links: string[], note: string | null = null) => ({
+    note,
+    links,
+  });
+
+  it('compares every id on a catalog, whatever order the links come in', () => {
+    const two = item([`${E}|aaa`, `${E}|bbb`]);
+    expect(cannotBeOne(two, item([`${E}|bbb`]))).toBe(true);
+    expect(cannotBeOne(item([`${E}|bbb`]), two)).toBe(true);
+    expect(cannotBeOne(two, item([`${E}|bbb`, `${E}|aaa`]))).toBe(false);
+    expect(cannotBeOne(two, item(['https://fansdb.cc/graphql|zzz']))).toBe(
+      false,
+    );
+    expect(cannotBeOne(two, item([]))).toBe(false);
   });
 });

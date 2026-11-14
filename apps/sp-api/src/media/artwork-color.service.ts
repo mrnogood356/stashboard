@@ -80,8 +80,8 @@ export class ArtworkColorService {
     if (length > MAX_BYTES) {
       return null;
     }
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (bytes.length > MAX_BYTES) {
+    const bytes = await readCapped(response, MAX_BYTES);
+    if (!bytes) {
       return null;
     }
     const pixels = await sharp(bytes)
@@ -91,4 +91,33 @@ export class ArtworkColorService {
       .toBuffer();
     return vividColor(pixels, 3);
   }
+}
+
+/**
+ * The body, read a chunk at a time and dropped once past the limit: a host
+ * that sends no length can't make us hold more than the limit.
+ */
+async function readCapped(
+  response: Response,
+  limit: number,
+): Promise<Buffer | null> {
+  if (!response.body) {
+    return null;
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks, total);
 }
