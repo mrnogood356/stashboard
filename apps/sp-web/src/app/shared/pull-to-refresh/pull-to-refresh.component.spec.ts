@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PULL_TO_RELOAD_PX, PullToRefreshComponent } from './pull-to-refresh.component';
 
@@ -36,11 +36,11 @@ describe('PullToRefreshComponent', () => {
     window.dispatchEvent(touch('touchmove', 100 + sideways, 100 + distance));
   };
 
-  it('shows the arrow as you pull from the top, and reloads past the mark', async () => {
+  it('shows the arrow as you pull from the top, and refreshes past the mark', async () => {
     const fixture = await render(true);
     const reload = vi
-      .spyOn(fixture.componentInstance as unknown as { reload: () => void }, 'reload')
-      .mockImplementation(() => undefined);
+      .spyOn(fixture.componentInstance as unknown as { refresh: () => Promise<void> }, 'refresh')
+      .mockResolvedValue(undefined);
 
     pull(40);
     fixture.detectChanges();
@@ -51,6 +51,26 @@ describe('PullToRefreshComponent', () => {
     pull(Math.ceil(PULL_TO_RELOAD_PX / 0.55) + 10);
     window.dispatchEvent(touch('touchend', 0, 0));
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('rebuilds the page in place, without reloading the app, then the marker goes', async () => {
+    vi.useFakeTimers();
+    const fixture = await render(true);
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    vi.spyOn(router, 'url', 'get').mockReturnValue('/scenes?sort=new');
+
+    pull(Math.ceil(PULL_TO_RELOAD_PX / 0.55) + 10);
+    window.dispatchEvent(touch('touchend', 0, 0));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(navigate.mock.calls.map((call) => call[0])).toEqual(['/refreshing', '/scenes?sort=new']);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.pull.reloading')).not.toBeNull();
+
+    await vi.advanceTimersByTimeAsync(1000);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.pull')).toBeNull();
+    vi.useRealTimers();
   });
 
   it('ignores a sideways swipe, and does nothing in a browser tab', async () => {

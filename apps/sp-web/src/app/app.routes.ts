@@ -59,6 +59,14 @@ export const routes: Routes = [
     component: AppShellLayoutComponent,
     canActivate: [requireAuthenticatedGuard, requireSetupCompleteGuard],
     children: [
+      // Pull to refresh passes through here to rebuild the page in place.
+      {
+        path: 'refreshing',
+        loadComponent: () =>
+          import('./shared/pull-to-refresh/refreshing-page.component').then(
+            (m) => m.RefreshingPageComponent,
+          ),
+      },
       {
         path: 'home',
         loadComponent: () =>
