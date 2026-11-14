@@ -433,7 +433,10 @@ describe('AutomationService', () => {
         expect.anything(),
         'scan',
       );
-      expect(stash.scanLibraryFolders).not.toHaveBeenCalled();
+      expect(
+        (stash as unknown as { scanLibraryFolders: jest.Mock })
+          .scanLibraryFolders,
+      ).not.toHaveBeenCalled();
 
       jest.useFakeTimers();
       const unknown = withOrganizer(['/data/scenes']);
@@ -445,7 +448,10 @@ describe('AutomationService', () => {
         expect.anything(),
         'scan',
       );
-      expect(stash.scanLibraryFolders).toHaveBeenCalledWith(expect.anything(), [
+      expect(
+        (stash as unknown as { scanLibraryFolders: jest.Mock })
+          .scanLibraryFolders,
+      ).toHaveBeenCalledWith(expect.anything(), [
         '/data/scenes/Studio/Scene A',
       ]);
     });
@@ -465,7 +471,10 @@ describe('AutomationService', () => {
 
       await scoped.checkForWaitingScenes();
 
-      expect(stash.scanLibraryFolders).toHaveBeenCalledWith(expect.anything(), [
+      expect(
+        (stash as unknown as { scanLibraryFolders: jest.Mock })
+          .scanLibraryFolders,
+      ).toHaveBeenCalledWith(expect.anything(), [
         '/data/scenes/Studio/Scene B',
       ]);
       expect(stash.startLibraryTask).not.toHaveBeenCalledWith(
