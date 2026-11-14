@@ -13,7 +13,12 @@
         <p class="muted">Scenes you don’t have yet, picked from what you watch most.</p>
       </div>
       <div class="enjoy-actions">
-        <app-filter-chip label="Category" [value]="tagValue()" testId="enjoy-category">
+        <app-filter-chip
+          label="Category"
+          [value]="tagValue()"
+          testId="enjoy-category"
+          (opened)="onTagSearch('')"
+        >
           <ng-template appFilterPanel>
             <app-filter-options
               [options]="tagChoices()"
@@ -56,7 +61,12 @@
         }
       </p>
       <div class="enjoy-actions">
-        <app-filter-chip label="Category" [value]="tagValue()" testId="enjoy-category">
+        <app-filter-chip
+          label="Category"
+          [value]="tagValue()"
+          testId="enjoy-category"
+          (opened)="onTagSearch('')"
+        >
           <ng-template appFilterPanel>
             <app-filter-options
               [options]="tagChoices()"

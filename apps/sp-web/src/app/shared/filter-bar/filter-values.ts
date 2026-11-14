@@ -26,15 +26,16 @@ export function sortChoiceOptions<S extends string>(choices: SortChoice<S>[]): F
   }));
 }
 
-/** The chip's text for the current sort; a sort that isn't listed reads by its name. */
+/** The chip's text for the current sort; an order that isn't listed reads as just "Sort". */
 export function sortChoiceLabel<S extends string>(
   choices: SortChoice<S>[],
   sort: string,
   direction: string,
 ): string {
+  // Only a label for this exact order: "Title A to Z" for a Z-to-A list would
+  // say the opposite of what's shown.
   return (
     choices.find((choice) => choice.sort === sort && choice.direction === direction)?.label ??
-    choices.find((choice) => choice.sort === sort)?.label ??
     'Sort'
   );
 }
