@@ -682,12 +682,16 @@ export class LocalLibraryService {
         `One of those ${kind}s is gone from Stash. Look again.`,
       );
     }
-    const apart = sources
-      .map((id) => all.get(id)!)
-      .filter((item) => cannotBeOne(keep, item));
+    // Every pair, not just each against the one kept: two sources linked to
+    // different entries both fit a keeper with no links.
+    const picked = [keep, ...sources.map((id) => all.get(id)!)];
+    const apart = picked.filter(
+      (item, i) =>
+        i > 0 && picked.some((other, j) => j !== i && cannotBeOne(other, item)),
+    );
     if (apart.length > 0) {
       throw new BadRequestException(
-        `${apart.map((item) => item.name).join(', ')} ${apart.length === 1 ? 'is' : 'are'} linked to a different catalog entry, or told apart in Stash, so ${apart.length === 1 ? 'isn’t' : 'aren’t'} the same as ${keep.name}.`,
+        `${apart.map((item) => item.name).join(', ')} ${apart.length === 1 ? 'is' : 'are'} linked to a different catalog entry, or told apart in Stash, so ${apart.length === 1 ? 'isn’t' : 'aren’t'} the same as the others picked.`,
       );
     }
     if (kind === 'performer') {

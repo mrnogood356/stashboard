@@ -114,7 +114,7 @@ async function readCapped(
     }
     total += value.byteLength;
     if (total > max) {
-      await reader.cancel();
+      await reader.cancel().catch(() => undefined);
       return null;
     }
     chunks.push(value);

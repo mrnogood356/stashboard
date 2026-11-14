@@ -76,6 +76,20 @@ describe('artwork colour', () => {
         service.colorOf('http://10.0.0.5/secret.png'),
       ).resolves.toBeNull();
       expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // No length sent, and more than the limit: dropped while reading.
+      let pulled = 0;
+      const endless = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          pulled += 1;
+          controller.enqueue(new Uint8Array(1024 * 1024));
+        },
+      });
+      fetchMock.mockResolvedValueOnce(new Response(endless, { status: 200 }));
+      await expect(
+        service.colorOf('https://cdn.stashdb.org/images/huge.jpg'),
+      ).resolves.toBeNull();
+      expect(pulled).toBeLessThan(20);
     } finally {
       global.fetch = realFetch;
     }

@@ -274,19 +274,26 @@ export abstract class StashOrganizerApi extends StashChecksApi {
       create?: boolean;
     },
   ): Promise<string | null> {
+    const link = { endpoint: studio.endpoint, stashId: studio.stashId };
     const found =
       (await this.findEntityByStashId(
         config,
         'studio',
         studio.endpoint,
         studio.stashId,
-      )) ?? (await this.findEntityByName(config, 'studio', studio.name));
+      )) ??
+      (await this.findEntityByName(config, 'studio', studio.name, null, link));
     if (found) {
       await this.fillMissingImage(config, 'studio', found, studio.imageUrl);
       return found;
     }
     // StashDB's "Mr Anal" may be the local "Mr. Anal", with this as an alias.
-    const aliased = await this.findEntityByAlias(config, 'studio', studio.name);
+    const aliased = await this.findEntityByAlias(
+      config,
+      'studio',
+      studio.name,
+      link,
+    );
     if (aliased) {
       await this.fillMissingImage(config, 'studio', aliased, studio.imageUrl);
       return aliased;
@@ -320,7 +327,7 @@ export abstract class StashOrganizerApi extends StashChecksApi {
       // Stash names the studio that has it as an alias; use that one.
       const owner = this.aliasOwner(error);
       const existing = owner
-        ? await this.findEntityByName(config, 'studio', owner)
+        ? await this.findEntityByName(config, 'studio', owner, null, link)
         : null;
       if (existing) {
         return existing;
@@ -362,6 +369,7 @@ export abstract class StashOrganizerApi extends StashChecksApi {
         'performer',
         performer.name,
         performer.disambiguation,
+        { endpoint: performer.endpoint, stashId: performer.stashId },
       ));
     if (found) {
       await this.fillMissingImage(
@@ -594,23 +602,37 @@ export abstract class StashOrganizerApi extends StashChecksApi {
     config: StashAdapterBaseConfig,
     kind: 'studio' | 'tag',
     name: string,
+    link?: CatalogLink,
   ): Promise<string | null> {
     const [plural, list, filterType] =
       kind === 'studio'
         ? ['Studios', 'studios', 'StudioFilterType']
         : ['Tags', 'tags', 'TagFilterType'];
+    const extra = link ? ' name stash_ids { endpoint stash_id }' : '';
     const payload = (await this.executeQuery(
       config,
-      `query ByAlias($filter: ${filterType}) { find${plural}(${kind}_filter: $filter, filter: { per_page: 1 }) { ${list} { id } } }`,
+      `query ByAlias($filter: ${filterType}) { find${plural}(${kind}_filter: $filter, filter: { per_page: 1 }) { ${list} { id${extra} } } }`,
       { filter: { aliases: { value: name, modifier: 'EQUALS' } } },
     ).catch(() => null)) as unknown as {
       data?: Record<
         string,
-        Record<string, Array<{ id?: unknown }>> | undefined
+        Record<string, Array<Record<string, unknown>>> | undefined
       >;
     } | null;
-    return this.normalizeOptionalString(
-      payload?.data?.[`find${plural}`]?.[list]?.[0]?.id,
+    const row = payload?.data?.[`find${plural}`]?.[list]?.[0];
+    if (row && link && linkedElsewhere(row, link)) {
+      throw this.linkedElsewhereError(
+        kind,
+        this.normalizeOptionalString(row.name) ?? name,
+      );
+    }
+    return this.normalizeOptionalString(row?.id);
+  }
+
+  /** Stash has one by this name, but it's a different entry on that catalog. */
+  protected linkedElsewhereError(kind: string, name: string): Error {
+    return new BadGatewayException(
+      `Stash's ${kind} ${name} is linked to a different entry on that catalog, so it wasn't used. Merge or relink it in Stash, then match again.`,
     );
   }
 
@@ -625,6 +647,7 @@ export abstract class StashOrganizerApi extends StashChecksApi {
     kind: 'studio' | 'performer' | 'tag',
     name: string,
     disambiguation?: string | null,
+    link?: CatalogLink,
   ): Promise<string | null> {
     const plural =
       kind === 'studio'
@@ -644,7 +667,9 @@ export abstract class StashOrganizerApi extends StashChecksApi {
         : kind === 'performer'
           ? 'PerformerFilterType'
           : 'TagFilterType';
-    const extra = kind === 'performer' ? ' disambiguation' : '';
+    const extra =
+      (kind === 'performer' ? ' disambiguation' : '') +
+      (link && kind !== 'tag' ? ' stash_ids { endpoint stash_id }' : '');
     const payload = (await this.executeQuery(
       config,
       `query ByName($filter: ${filterType}) { find${plural}(${kind}_filter: $filter, filter: { per_page: 10 }) { ${list} { id name${extra} } } }`,
@@ -656,21 +681,27 @@ export abstract class StashOrganizerApi extends StashChecksApi {
       >;
     };
     const rows = payload.data?.[`find${plural}`]?.[list] ?? [];
-    const exact = rows.filter(
+    let exact = rows.filter(
       (row) =>
         (this.normalizeOptionalString(row.name) ?? '').toLowerCase() ===
         name.toLowerCase(),
     );
     if (kind === 'performer' && disambiguation) {
-      const same = exact.find(
+      exact = exact.filter(
         (row) =>
           (
             this.normalizeOptionalString(row.disambiguation) ?? ''
           ).toLowerCase() === disambiguation.toLowerCase(),
       );
-      return this.normalizeOptionalString(same?.id);
     }
-    return this.normalizeOptionalString(exact[0]?.id);
+    // One linked to a different entry on the same catalog is someone else.
+    const usable = link
+      ? exact.filter((row) => !linkedElsewhere(row, link))
+      : exact;
+    if (usable.length === 0 && exact.length > 0) {
+      throw this.linkedElsewhereError(kind, name);
+    }
+    return this.normalizeOptionalString(usable[0]?.id);
   }
 
   protected toOrganizerScene(value: unknown): StashOrganizerScene | null {
@@ -775,4 +806,26 @@ export abstract class StashOrganizerApi extends StashChecksApi {
   }
 
   // ---------- tag cleanup ----------
+}
+
+/** A StashDB (or other catalog) entry: where it lives and its id there. */
+interface CatalogLink {
+  endpoint: string;
+  stashId: string;
+}
+
+/** True when the row already has another id on the link's catalog. */
+function linkedElsewhere(
+  row: Record<string, unknown>,
+  link: CatalogLink,
+): boolean {
+  const ids = Array.isArray(row.stash_ids) ? row.stash_ids : [];
+  return ids.some((entry: unknown) => {
+    const value = entry as { endpoint?: unknown; stash_id?: unknown } | null;
+    return (
+      value?.endpoint === link.endpoint &&
+      typeof value.stash_id === 'string' &&
+      value.stash_id !== link.stashId
+    );
+  });
 }
