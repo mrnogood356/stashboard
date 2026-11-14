@@ -1,3 +1,5 @@
+import { SmallerCopiesService } from '../smaller-copies/smaller-copies.service';
+import { SchedulesService } from '../schedules/schedules.service';
 import { BadRequestException } from '@nestjs/common';
 import { IntegrationStatus } from '@prisma/client';
 import type { AppearanceService } from '../appearance/appearance.service';
@@ -166,6 +168,43 @@ function setup() {
     }),
     restoreFromBackup: jest.fn(),
   };
+  const smallerCopies = {
+    getSettings: jest.fn().mockResolvedValue({
+      key: 'GLOBAL',
+      enabled: true,
+      targetResolution: '1080p',
+      replaceHigher: true,
+      upgradeLower: false,
+      maxGbPerHour: 6,
+      minGbPerHour: null,
+      maxNewGbPerHour: 3,
+      minNewGbPerHour: 1,
+      minSavingsPercent: 10,
+      codec: 'any',
+      prefer: 'largest',
+      matchStrength: 'strong',
+      studioMode: 'all',
+      studioNames: [],
+      autoGrab: false,
+      oldCopy: 'keep',
+      scenesPerHour: 10,
+      activeFromHour: null,
+      activeToHour: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      replacedCount: 4,
+      savedBytes: 1e9,
+    }),
+    saveSettings: jest.fn(),
+  };
+  const schedules = {
+    exportForBackup: jest.fn().mockResolvedValue({
+      schedules: [
+        { job: 'stash-scan', enabled: true, hour: 4, minute: 15, days: [1, 3] },
+      ],
+    }),
+    restoreFromBackup: jest.fn(),
+  };
 
   const service = new BackupService(
     prisma as unknown as PrismaService,
@@ -179,10 +218,14 @@ function setup() {
     playback as unknown as PlaybackSettingsService,
     logs as unknown as LogsService,
     follows as unknown as FollowsService,
+    smallerCopies as unknown as SmallerCopiesService,
+    schedules as unknown as SchedulesService,
   );
   return {
     service,
     follows,
+    smallerCopies,
+    schedules,
     prisma,
     integrations,
     notifications,
@@ -236,6 +279,20 @@ describe('BackupService', () => {
     expect(file.settings.follows).toEqual({
       follows: [expect.objectContaining({ entityId: 'p1', autoRequest: true })],
     });
+    // Better copies' rules, not its running totals.
+    expect(file.settings.betterCopies).toEqual(
+      expect.objectContaining({
+        target: '1080p',
+        maxGbPerHour: 6,
+        oldCopy: 'keep',
+      }),
+    );
+    expect(file.settings.betterCopies).not.toHaveProperty('savedBytes');
+    expect(file.settings.schedules).toEqual({
+      schedules: [
+        { job: 'stash-scan', enabled: true, hour: 4, minute: 15, days: [1, 3] },
+      ],
+    });
   });
 
   it('leaves keys, tokens and webhook links out when asked', async () => {
@@ -259,8 +316,15 @@ describe('BackupService', () => {
   });
 
   it('restores a file it exported: integrations tested first, then each page', async () => {
-    const { service, integrations, notifications, appearance, prisma } =
-      setup();
+    const {
+      service,
+      integrations,
+      notifications,
+      appearance,
+      prisma,
+      smallerCopies,
+      schedules,
+    } = setup();
     const file = await service.export(true);
 
     const { results } = await service.restore(file);
@@ -286,6 +350,14 @@ describe('BackupService', () => {
     expect(prisma.libraryAutomationSettings.update).toHaveBeenCalledWith({
       where: { key: 'GLOBAL' },
       data: { webhookToken: TOKEN },
+    });
+    expect(smallerCopies.saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ target: '1080p', maxNewGbPerHour: 3 }),
+    );
+    expect(schedules.restoreFromBackup).toHaveBeenCalledWith({
+      schedules: [
+        expect.objectContaining({ job: 'stash-scan', hour: 4, days: [1, 3] }),
+      ],
     });
     expect(results.every((result) => result.status === 'restored')).toBe(true);
   });

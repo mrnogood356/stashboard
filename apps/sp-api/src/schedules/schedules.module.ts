@@ -9,5 +9,6 @@ import { SchedulesService } from './schedules.service';
   imports: [FollowsModule, OrganizerModule, PlaybackModule],
   controllers: [SchedulesController],
   providers: [SchedulesService],
+  exports: [SchedulesService],
 })
 export class SchedulesModule {}

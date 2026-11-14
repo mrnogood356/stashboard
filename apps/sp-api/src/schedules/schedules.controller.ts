@@ -4,10 +4,13 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   Max,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { SCHEDULED_JOBS, type ScheduledJob } from './schedules.util';
 import { SchedulesService, type SchedulesDto } from './schedules.service';
 
 export class UpdateScheduleDto {
@@ -32,6 +35,20 @@ export class UpdateScheduleDto {
   @Min(0, { each: true })
   @Max(6, { each: true })
   days!: number[];
+}
+
+/** One job's times, as Settings → Backup keeps them. */
+export class ScheduleBackupItemDto extends UpdateScheduleDto {
+  @IsIn(SCHEDULED_JOBS)
+  job!: ScheduledJob;
+}
+
+export class SchedulesBackupDto {
+  @IsArray()
+  @ArrayMaxSize(SCHEDULED_JOBS.length)
+  @ValidateNested({ each: true })
+  @Type(() => ScheduleBackupItemDto)
+  schedules!: ScheduleBackupItemDto[];
 }
 
 /** Library tools → Schedules. */

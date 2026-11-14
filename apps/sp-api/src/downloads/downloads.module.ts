@@ -19,5 +19,6 @@ import { SmallerCopiesService } from '../smaller-copies/smaller-copies.service';
   ],
   controllers: [DownloadsController, SmallerCopiesController],
   providers: [DownloadsService, SmallerCopiesService],
+  exports: [SmallerCopiesService],
 })
 export class DownloadsModule {}
