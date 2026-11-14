@@ -46,6 +46,7 @@ export class OrganizeStore implements OnDestroy {
   readonly saving = signal<string | null>(null);
 
   private poll: Subscription | null = null;
+  private destroyed = false;
 
   /** Match scenes or Rename files. */
   readonly tool = signal<OrganizeTool>('rename');
@@ -341,6 +342,10 @@ export class OrganizeStore implements OnDestroy {
   }
 
   startPolling(): void {
+    // An answer that lands after the page closed starts nothing.
+    if (this.destroyed) {
+      return;
+    }
     this.poll?.unsubscribe();
     this.poll = interval(2000)
       // A failed check (a blip, a restart) is skipped, not the end of polling.
@@ -397,6 +402,7 @@ export class OrganizeStore implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.poll?.unsubscribe();
   }
 }

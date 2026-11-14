@@ -44,13 +44,19 @@
               <i class="pi pi-play" aria-hidden="true"></i>
             </button>
             <div class="copy">
-              <a class="title" [routerLink]="['/library/scene', item.id]">{{ item.title }}</a>
+              <a
+                class="title"
+                [routerLink]="['/library/scene', item.id]"
+                [queryParams]="{ returnTo: '/watch-later' }"
+                >{{ item.title }}</a
+              >
               <p class="meta">
                 @if (item.studio) {
                   @if (item.studioId) {
                     <a
                       class="studio-link"
                       [routerLink]="['/library/studio', item.studioId, 'all']"
+                      [queryParams]="{ returnTo: '/watch-later' }"
                       >{{ item.studio }}</a
                     >
                   } @else {

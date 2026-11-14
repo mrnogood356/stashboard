@@ -109,6 +109,9 @@ export class PullToRefreshComponent implements OnInit, OnDestroy {
   }
 
   private onStart(event: TouchEvent, view: Window): void {
+    if (this.reloading()) {
+      return;
+    }
     const touch = event.touches[0];
     const path = this.router.url.split('?')[0];
     if (
@@ -116,13 +119,30 @@ export class PullToRefreshComponent implements OnInit, OnDestroy {
       !touch ||
       view.scrollY > 0 ||
       this.document.body.classList.contains('app-sheet-open') ||
-      OWN_GESTURES.some((page) => path.startsWith(page)) ||
-      this.reloading()
+      // The page itself or anything under it: /watch, not /watch-later.
+      OWN_GESTURES.some((page) => path === page || path.startsWith(`${page}/`)) ||
+      this.insideScrolled(event.target, view)
     ) {
-      this.start = null;
+      // A second finger, say: whatever was pulled so far doesn't count.
+      this.reset();
       return;
     }
     this.start = { x: touch.clientX, y: touch.clientY };
+  }
+
+  /** Started in a list scrolled down inside the page: a drag there scrolls it back up. */
+  private insideScrolled(target: EventTarget | null, view: Window): boolean {
+    let node = target instanceof Element ? target : null;
+    while (node && node !== this.document.body) {
+      if (node.scrollTop > 0) {
+        const overflow = view.getComputedStyle(node).overflowY;
+        if (overflow === 'auto' || overflow === 'scroll') {
+          return true;
+        }
+      }
+      node = node.parentElement;
+    }
+    return false;
   }
 
   private onMove(event: TouchEvent): void {
@@ -147,7 +167,8 @@ export class PullToRefreshComponent implements OnInit, OnDestroy {
   }
 
   private onEnd(view: Window): void {
-    const ready = this.pulled() >= this.threshold;
+    // Only a pull that's still going reloads.
+    const ready = this.start !== null && this.pulled() >= this.threshold;
     this.start = null;
     if (!ready) {
       this.reset();
