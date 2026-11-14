@@ -1,9 +1,6 @@
 <main class="app-page-shell app-page-shell--wide processing">
-  <app-section-back />
+  <app-page-tabs title="Queue" [tabs]="pageTabs" />
   <header class="page-head-compact">
-    <div class="page-head-compact__title">
-      <h1>Downloads</h1>
-    </div>
     <div class="head-actions">
       @if (hasHistory()) {
         <button
@@ -328,7 +325,7 @@
           <div class="head-actions">
             <button
               type="button"
-              class="btn small primary"
+              class="btn small"
               data-testid="check-now"
               [disabled]="checking() || w.checking"
               (click)="checkNow()"

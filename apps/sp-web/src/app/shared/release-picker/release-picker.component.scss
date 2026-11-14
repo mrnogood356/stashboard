@@ -16,37 +16,6 @@ p {
   padding: 0 1rem 0.6rem;
 }
 
-.segmented {
-  display: flex;
-  gap: 0.2rem;
-  padding: 0.2rem;
-  border-radius: 10px;
-  background: var(--chip-bg);
-  max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.segmented button {
-  flex: 0 0 auto;
-  height: 1.9rem;
-  padding: 0 0.75rem;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-muted);
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.segmented button.active {
-  background: var(--surface-raised, var(--surface-2));
-  color: var(--text-primary);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 15%);
-}
-
 .link {
   border: 0;
   background: none;
@@ -340,7 +309,7 @@ div.release {
   padding: 0 1rem;
   border: 0;
   border-radius: var(--radius-sm);
-  background: var(--chip-bg);
+  background: var(--soft-fill);
   color: var(--text-primary);
   font: inherit;
   font-size: 0.9rem;

@@ -44,14 +44,6 @@ const HOME_NAV_ITEM: ShellNavItem = {
   exact: true,
 };
 
-const SCENES_NAV_ITEM: ShellNavItem = {
-  label: 'Scenes',
-  route: '/scenes',
-  icon: 'pi pi-video',
-  exact: false,
-  activePrefixes: ['/scenes', '/scene/'],
-};
-
 const CALENDAR_NAV_ITEM: ShellNavItem = {
   label: 'Calendar',
   route: '/calendar',
@@ -59,18 +51,22 @@ const CALENDAR_NAV_ITEM: ShellNavItem = {
   exact: true,
 };
 
+/** Queue: what you asked for (Requests) and what's on its way (Downloads), as two tabs. */
 const ACQUISITION_NAV_ITEM: ShellNavItem = {
-  label: 'Requests',
+  label: 'Queue',
   route: '/acquisition',
   icon: 'pi pi-inbox',
-  exact: true,
+  exact: false,
+  activePrefixes: ['/acquisition', '/processing'],
 };
 
-const PROCESSING_NAV_ITEM: ShellNavItem = {
-  label: 'Downloads',
-  route: '/processing',
-  icon: 'pi pi-sync',
-  exact: true,
+/** Browse: Scenes, People and Studios as tabs of one page. */
+const BROWSE_NAV_ITEM: ShellNavItem = {
+  label: 'Browse',
+  route: '/scenes',
+  icon: 'pi pi-compass',
+  exact: false,
+  activePrefixes: ['/scenes', '/scene/', '/performers', '/performer/', '/studios', '/studio/'],
 };
 
 const LIBRARY_NAV_ITEM: ShellNavItem = {
@@ -79,22 +75,6 @@ const LIBRARY_NAV_ITEM: ShellNavItem = {
   icon: 'pi pi-folder-open',
   exact: false,
   activePrefixes: ['/library'],
-};
-
-const PERFORMERS_NAV_ITEM: ShellNavItem = {
-  label: 'Performers',
-  route: '/performers',
-  icon: 'pi pi-users',
-  exact: false,
-  activePrefixes: ['/performers', '/performer/'],
-};
-
-const STUDIOS_NAV_ITEM: ShellNavItem = {
-  label: 'Studios',
-  route: '/studios',
-  icon: 'pi pi-building',
-  exact: false,
-  activePrefixes: ['/studios', '/studio/'],
 };
 
 const FOLLOWING_NAV_ITEM: ShellNavItem = {
@@ -155,24 +135,10 @@ const CHAPTERS_NAV_ITEM: ShellNavItem = {
   exact: true,
 };
 
-/**
- * The phone's Search tab: search, and the browsing it leads to (Scenes,
- * Performers, Studios…), so it stays lit while you browse from it.
- */
-const MOBILE_SEARCH_NAV_ITEM: ShellNavItem = {
-  ...SEARCH_NAV_ITEM,
-  exact: false,
-  activePrefixes: [
-    '/search',
-    '/scenes',
-    '/scene/',
-    '/performers',
-    '/performer/',
-    '/studios',
-    '/studio/',
-    '/calendar',
-    '/following',
-  ],
+/** The phone's Browse tab: also lit for Search, Calendar and Following, which it leads to. */
+const MOBILE_BROWSE_NAV_ITEM: ShellNavItem = {
+  ...BROWSE_NAV_ITEM,
+  activePrefixes: [...(BROWSE_NAV_ITEM.activePrefixes ?? []), '/search', '/calendar', '/following'],
 };
 
 interface ShellNavGroup {
@@ -185,45 +151,30 @@ const DESKTOP_NAV_GROUPS: readonly ShellNavGroup[] = [
   { label: null, items: [HOME_NAV_ITEM, SEARCH_NAV_ITEM] },
   {
     label: 'Browse',
-    items: [
-      SCENES_NAV_ITEM,
-      CALENDAR_NAV_ITEM,
-      PERFORMERS_NAV_ITEM,
-      STUDIOS_NAV_ITEM,
-      FOLLOWING_NAV_ITEM,
-    ],
+    items: [BROWSE_NAV_ITEM, CALENDAR_NAV_ITEM, FOLLOWING_NAV_ITEM],
   },
   { label: 'Your library', items: [LIBRARY_NAV_ITEM, FEED_NAV_ITEM, TOOLS_NAV_ITEM] },
-  { label: 'Requests & downloads', items: [ACQUISITION_NAV_ITEM, PROCESSING_NAV_ITEM] },
+  { label: null, items: [ACQUISITION_NAV_ITEM] },
   { label: null, items: [SETTINGS_NAV_ITEM] },
 ];
 
-// Search is one tap from anywhere and leads to everything to browse;
-// Requests is checked often, so it gets a tab too.
+// Browse holds search and everything to look through; Library and
+// Queue (Requests and Downloads) are checked often, so they get tabs too.
 const MOBILE_PRIMARY_NAV_ITEMS: readonly ShellNavItem[] = [
   HOME_NAV_ITEM,
-  MOBILE_SEARCH_NAV_ITEM,
-  ACQUISITION_NAV_ITEM,
+  MOBILE_BROWSE_NAV_ITEM,
   LIBRARY_NAV_ITEM,
+  ACQUISITION_NAV_ITEM,
 ];
 
 /** More, on a phone: the rest, in a few short groups. */
 const MOBILE_SECONDARY_NAV_GROUPS: readonly ShellNavGroup[] = [
-  {
-    label: 'Browse',
-    items: [
-      SCENES_NAV_ITEM,
-      PERFORMERS_NAV_ITEM,
-      STUDIOS_NAV_ITEM,
-      FOLLOWING_NAV_ITEM,
-      CALENDAR_NAV_ITEM,
-    ],
-  },
+  { label: 'Browse', items: [FOLLOWING_NAV_ITEM, CALENDAR_NAV_ITEM, SEARCH_NAV_ITEM] },
   {
     label: 'Watching',
     items: [WATCH_LATER_NAV_ITEM, HISTORY_NAV_ITEM, CHAPTERS_NAV_ITEM, FEED_NAV_ITEM],
   },
-  { label: 'Your library', items: [PROCESSING_NAV_ITEM, TOOLS_NAV_ITEM] },
+  { label: 'Your library', items: [TOOLS_NAV_ITEM] },
   { label: null, items: [SETTINGS_NAV_ITEM] },
 ];
 

@@ -1,3 +1,4 @@
+import { PageTabsComponent, BROWSE_TABS } from '../../shared/page-tabs/page-tabs.component';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import {
   AfterViewInit,
@@ -21,12 +22,11 @@ import { AppNotificationsService } from '../../core/notifications/app-notificati
 import { SortDirection, StudioFeedItem, StudioFeedSort } from '../../core/api/discover.types';
 
 import { CatalogProviderSwitchComponent } from '../../shared/catalog-provider-switch/catalog-provider-switch.component';
-import { SectionBackComponent } from '../../shared/section-back/section-back.component';
 
 @Component({
   selector: 'app-studios-page',
   imports: [
-    SectionBackComponent,
+    PageTabsComponent,
     SkeletonComponent,
     CatalogProviderSwitchComponent,
     RouterLink,
@@ -40,6 +40,7 @@ import { SectionBackComponent } from '../../shared/section-back/section-back.com
   styleUrl: './studios-page.component.scss',
 })
 export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
+  protected readonly pageTabs = BROWSE_TABS;
   /** On phones the filter panel starts collapsed so results show first. */
   protected readonly filtersOpen = signal(false);
 

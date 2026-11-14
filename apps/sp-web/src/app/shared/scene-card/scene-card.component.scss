@@ -177,7 +177,8 @@ a.media-studio:focus-visible {
   padding: 0.22rem 0.6rem;
   border-radius: 6px;
   border: 1px solid var(--border-subtle);
-  background: transparent;
+  border-color: transparent;
+  background: var(--soft-fill);
   color: var(--text-secondary);
   font: inherit;
   font-size: 0.76rem;
@@ -199,8 +200,9 @@ a.media-studio:focus-visible {
 }
 
 .request-cta:hover {
-  border-color: var(--border-strong);
+  border-color: transparent;
   color: var(--text-primary);
+  background: var(--soft-fill-hover);
 }
 
 .footer-link,

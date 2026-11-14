@@ -125,3 +125,40 @@
 .more {
   justify-self: start;
 }
+
+/* ---------- A soft card whose whole top row opens it, like the other sections ---------- */
+
+.studio-performers {
+  --app-section-padding: 0;
+  --app-section-radius: var(--radius-md);
+  --app-section-bg: var(--surface-1);
+  --app-section-border: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.toggle {
+  display: flex;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 0;
+  font-size: 1rem;
+}
+
+.toggle:hover {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+.toggle .pi {
+  margin-left: auto;
+}
+
+.toggle:focus-visible {
+  outline-offset: -2px;
+}
+
+.body {
+  padding: 0 1rem 1rem;
+}

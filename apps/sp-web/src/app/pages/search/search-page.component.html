@@ -25,31 +25,10 @@
   </header>
 
   @if (!searched()) {
-    <section class="block" aria-labelledby="search-browse-title">
-      <h2 id="search-browse-title">Browse</h2>
-      <div class="shortcuts" data-testid="search-browse">
-        <a class="shortcut" routerLink="/scenes">
-          <i class="pi pi-video" aria-hidden="true"></i>
-          <span>All scenes</span>
-        </a>
-        <a class="shortcut" routerLink="/performers">
-          <i class="pi pi-users" aria-hidden="true"></i>
-          <span>Performers</span>
-        </a>
-        <a class="shortcut" routerLink="/studios">
-          <i class="pi pi-building" aria-hidden="true"></i>
-          <span>Studios</span>
-        </a>
-        <a class="shortcut" routerLink="/following">
-          <i class="pi pi-bell" aria-hidden="true"></i>
-          <span>Following</span>
-        </a>
-        <a class="shortcut" routerLink="/calendar">
-          <i class="pi pi-calendar" aria-hidden="true"></i>
-          <span>Calendar</span>
-        </a>
-      </div>
-    </section>
+    <p class="search-hint" data-testid="search-hint">
+      Finds scenes, performers and studios in your library and on the catalog at once. To look
+      through one list, use Browse.
+    </p>
 
     @if (recent().length > 0) {
       <section class="block">
@@ -77,30 +56,6 @@
         </ul>
       </section>
     }
-
-    <section class="block">
-      <h2>Your library</h2>
-      <div class="shortcuts">
-        @if (feedOn()) {
-          <a class="shortcut" routerLink="/feed">
-            <i class="pi pi-mobile" aria-hidden="true"></i>
-            <span>Swipe feed</span>
-          </a>
-        }
-        <a class="shortcut" routerLink="/tools/fix">
-          <i class="pi pi-check-square" aria-hidden="true"></i>
-          <span>Fix my library</span>
-        </a>
-        <a class="shortcut" routerLink="/tools/duplicates">
-          <i class="pi pi-clone" aria-hidden="true"></i>
-          <span>Duplicates</span>
-        </a>
-        <a class="shortcut" routerLink="/tools/jobs">
-          <i class="pi pi-cog" aria-hidden="true"></i>
-          <span>Stash jobs</span>
-        </a>
-      </div>
-    </section>
   } @else {
     @if (searching()) {
       <p class="status" role="status">

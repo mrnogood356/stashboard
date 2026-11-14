@@ -56,8 +56,9 @@
   min-height: 2.25rem;
   padding: 0 0.85rem;
   border: 1px solid var(--border-subtle);
+  border-color: transparent;
   border-radius: var(--radius-sm);
-  background: transparent;
+  background: var(--soft-fill);
   color: var(--text-primary);
   font: inherit;
   font-size: 0.88rem;

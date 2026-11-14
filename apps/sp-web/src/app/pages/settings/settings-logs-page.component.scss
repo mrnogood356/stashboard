@@ -104,9 +104,12 @@ p {
   margin: 0;
   padding: 0;
   list-style: none;
-  border-radius: 18px;
+  border-radius: var(--radius-md);
   background: var(--surface-1);
   overflow: hidden;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  border: 0;
 }
 
 .entry + .entry,
@@ -125,6 +128,7 @@ p {
   font: inherit;
   text-align: left;
   cursor: pointer;
+  padding-inline: 1rem;
 }
 
 .entry-main:focus-visible {
@@ -265,9 +269,10 @@ p {
   align-items: center;
   min-height: 2.25rem;
   padding: 0 0.9rem;
-  border: 0;
+  border: 1px solid var(--border-subtle);
+  border-color: transparent;
   border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  background: var(--soft-fill);
   color: var(--text-primary);
   font: inherit;
   font-size: 0.88rem;
@@ -284,11 +289,13 @@ p {
 .pill.live.on {
   background: var(--accent);
   color: #fff;
+  border-color: var(--border-subtle);
 }
 
 .pill.danger {
   background: color-mix(in srgb, var(--danger) 14%, var(--surface-2));
   color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
 }
 
 .older {
@@ -324,4 +331,30 @@ p {
 
 .status.error {
   color: var(--danger);
+}
+
+.card.settings-card {
+  padding: 1rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  box-shadow: none;
+}
+
+.pill {
+  background: var(--soft-fill);
+}
+
+.pill.live.on {
+  border-color: transparent;
+  background: var(--soft-fill-on);
+  color: var(--text-primary);
+}
+
+.pill.live.on .pi {
+  color: var(--success, #22c55e);
+}
+
+.pill.danger {
+  background: transparent;
 }

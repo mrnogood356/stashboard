@@ -33,10 +33,10 @@
 }
 
 .block {
-  --app-section-radius: 18px;
-  --app-section-padding: 0.95rem;
-  --app-section-border: 1px solid color-mix(in srgb, var(--border-strong) 52%, transparent);
-  --app-section-bg: color-mix(in srgb, var(--surface-elevated) 92%, var(--surface-1));
+  --app-section-radius: var(--radius-md);
+  --app-section-padding: 1rem;
+  --app-section-border: 0;
+  --app-section-bg: var(--surface-1);
   margin-bottom: 1rem;
 }
 

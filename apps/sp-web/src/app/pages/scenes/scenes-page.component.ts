@@ -1,3 +1,4 @@
+import { PageTabsComponent, BROWSE_TABS } from '../../shared/page-tabs/page-tabs.component';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import {
   FilterChipComponent,
@@ -96,6 +97,7 @@ import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.com
 @Component({
   selector: 'app-scenes-page',
   imports: [
+    PageTabsComponent,
     SkeletonComponent,
     CatalogProviderSwitchComponent,
     HiddenCountComponent,
@@ -114,6 +116,7 @@ import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.com
   styleUrl: './scenes-page.component.scss',
 })
 export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
+  protected readonly pageTabs = BROWSE_TABS;
   private static readonly PAGE_SIZE = 24;
   private static readonly SEARCH_DEBOUNCE_MS = 250;
   private static readonly EXCLUDE_DEBOUNCE_MS = 500;

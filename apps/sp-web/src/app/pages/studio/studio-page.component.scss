@@ -14,10 +14,10 @@ ul {
 
 .hero-shell {
   position: relative;
-  border-radius: 24px;
+  border-radius: 0;
   border: 0;
-  overflow: hidden;
-  background: var(--surface-2);
+  overflow: visible;
+  background: none;
 }
 
 .hero-backdrop {
@@ -43,8 +43,9 @@ ul {
   z-index: 1;
   display: grid;
   grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);
-  gap: 1rem;
-  padding: 1rem;
+  gap: 2rem;
+  padding: 1.6rem;
+  align-items: start;
 }
 
 .media-column {
@@ -54,10 +55,9 @@ ul {
 }
 
 .carousel-main {
-  border-radius: 11px;
   overflow: hidden;
   border: 0;
-  border-radius: 18px;
+  border-radius: var(--radius-md);
   background: rgb(255 255 255 / 92%);
   aspect-ratio: 16 / 10;
 }
@@ -65,8 +65,10 @@ ul {
 .carousel-main img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
+  padding: 1rem;
+  box-sizing: border-box;
 }
 
 .carousel-placeholder {
@@ -76,7 +78,7 @@ ul {
   place-items: center;
   font-size: 1.8rem;
   font-weight: 700;
-  color: var(--text-on-media);
+  color: var(--text-muted);
 }
 
 .carousel-controls {
@@ -233,8 +235,8 @@ ul {
 }
 
 .section h2 {
-  font-size: 1.15rem;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .hierarchy-card {
@@ -430,24 +432,6 @@ ul {
   }
 }
 
-/* ---------- 2026 look ---------- */
-
-.hero-layout {
-  padding: 1.6rem;
-  gap: 1.6rem;
-  align-items: start;
-}
-
-.carousel-main img {
-  object-fit: contain;
-  padding: 1rem;
-  box-sizing: border-box;
-}
-
-.carousel-placeholder {
-  color: var(--text-muted);
-}
-
 .carousel-main:has(.carousel-placeholder) {
   background: var(--surface-2);
 }
@@ -456,6 +440,7 @@ ul {
   .hero-layout {
     grid-template-columns: minmax(0, 1fr);
     padding: 1rem;
+    gap: 1rem;
   }
 
   /* A logo, not a screen-wide box, centred like the performer pages on a
@@ -534,14 +519,6 @@ ul {
   pointer-events: none;
 }
 
-/* ---------- Current look: on the page, not in a box (matches the performer and scene pages) ---------- */
-
-.hero-shell {
-  overflow: visible;
-  border-radius: 0;
-  background: none;
-}
-
 .hero-backdrop,
 .hero-shade {
   display: none;
@@ -560,16 +537,34 @@ ul {
 
 .hero-layout {
   padding: 0.25rem 0 0;
-  gap: 2rem;
-}
-
-.carousel-main {
-  border-radius: var(--radius-md);
 }
 
 @media (max-width: 640px) {
   .hero-layout {
     padding: 0;
-    gap: 1rem;
   }
+}
+
+/* Scene grid: the same room between cards as Scenes and Library. */
+.grid {
+  gap: 1.5rem 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+}
+
+@media (max-width: 560px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.1rem 0.75rem;
+  }
+}
+
+.section.app-section-panel {
+  --app-section-padding: 1rem;
+  --app-section-radius: var(--radius-md);
+  --app-section-bg: var(--surface-1);
+  --app-section-border: 0;
+}
+
+.content-shell.app-section-stack {
+  gap: 0.75rem;
 }

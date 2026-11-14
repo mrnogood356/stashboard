@@ -14,9 +14,9 @@
   gap: 0.5rem;
   min-height: 2.5rem;
   padding: 0 0.85rem;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: transparent;
+  background: var(--soft-fill);
   color: var(--text-primary);
   font: inherit;
   font-size: 0.95rem;
@@ -26,7 +26,8 @@
 }
 
 .evidence-toggle:hover {
-  border-color: var(--border-strong);
+  border-color: transparent;
+  background: var(--soft-fill-hover);
 }
 
 .evidence-toggle:focus-visible {

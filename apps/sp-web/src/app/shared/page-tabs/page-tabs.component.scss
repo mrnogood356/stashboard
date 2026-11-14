@@ -1,0 +1,125 @@
+:host {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.page-tabs-head {
+  display: grid;
+  gap: 0.75rem;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.6rem, 4vw, 2rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+/* Searches the tab you're on as you type. */
+.page-tabs-search {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 36rem;
+  min-height: 2.6rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  text-decoration: none;
+}
+
+.page-tabs-search:hover {
+  border-color: var(--border-strong);
+}
+
+.page-tabs {
+  display: flex;
+  gap: 1.4rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-subtle);
+  scrollbar-width: none;
+}
+
+.page-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.page-tab {
+  flex: none;
+  padding: 0.55rem 0 0.6rem;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.page-tab:hover {
+  color: var(--text-primary);
+}
+
+.page-tab.is-active {
+  border-bottom-color: var(--text-primary);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.page-tab:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.page-tabs-search input {
+  flex: 1;
+  min-width: 0;
+  height: 2.5rem;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  outline: none;
+}
+
+.page-tabs-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.page-tabs-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.page-tabs-search:focus-within {
+  border-color: var(--border-strong);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.page-tabs-clear {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.page-tabs-clear:hover {
+  color: var(--text-primary);
+}
+
+/* Soft, like the cards and filters: a quiet fill, no outline. */
+.page-tabs-search {
+  border-color: transparent;
+  background: var(--surface-1);
+}
+
+.page-tabs-search:hover {
+  border-color: transparent;
+}

@@ -79,3 +79,16 @@
   min-height: 0;
   height: 100%;
 }
+
+/* ---------- Soft, like the cards: a quiet fill instead of an outline ---------- */
+
+.filter-chip {
+  border-color: transparent;
+  background: var(--surface-1);
+}
+
+.filter-chip:not(.is-set):hover,
+.filter-chip.is-open:not(.is-set) {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--text-primary) 10%, var(--surface-1));
+}

@@ -15,16 +15,12 @@ p {
   margin-bottom: 0.9rem;
 }
 
-/* ---------- hero ----------
-   Laid out as on the catalog performer page: the picture beside the name,
-   over the same backdrop and shade, so both kinds of page look alike. */
-
 .hero {
   position: relative;
   min-width: 0;
-  overflow: hidden;
-  border-radius: 24px;
-  background: var(--media-detail-hero-background);
+  overflow: visible;
+  border-radius: 0;
+  background: none;
   isolation: isolate;
 }
 
@@ -56,19 +52,19 @@ p {
   align-items: start;
   gap: 1.6rem;
   padding: 1.6rem;
-  color: var(--media-detail-text);
+  color: var(--text-primary);
 }
 
 .avatar {
   position: relative;
   width: 100%;
   aspect-ratio: 3 / 4;
-  border-radius: 18px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   display: grid;
   place-items: center;
   background: var(--media-detail-placeholder-background, var(--surface-2));
-  box-shadow: var(--media-detail-card-shadow);
+  box-shadow: none;
 }
 
 .avatar img {
@@ -113,7 +109,7 @@ p {
 .metadata-item {
   display: grid;
   padding: 0.45rem 0.52rem;
-  border-radius: 12px;
+  border-radius: 0;
   background: var(--surface-2);
   text-align: left;
 }
@@ -190,6 +186,7 @@ h1 {
     transform 0.1s ease,
     background-color 0.15s ease,
     color 0.15s ease;
+  background: var(--soft-fill);
 }
 
 .action:active {
@@ -207,13 +204,15 @@ h1 {
 }
 
 .action.secondary {
-  background: var(--chip-bg);
+  background: var(--soft-fill);
   color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-color: transparent;
 }
 
 .action.favorite.on {
   background: color-mix(in srgb, #ff375f 16%, transparent);
-  color: #ff375f;
+  color: var(--text-primary);
 }
 
 .action:focus-visible,
@@ -222,15 +221,13 @@ h1 {
   outline-offset: 2px;
 }
 
-/* ---------- about, sub-studios ---------- */
-
 .about {
   display: grid;
   gap: 0.4rem;
   margin-top: 1rem;
-  padding: 1rem 1.2rem;
-  border-radius: 18px;
-  background: var(--surface-1);
+  padding: 0;
+  border-radius: 0;
+  background: none;
   color: var(--text-muted);
   line-height: 1.6;
   white-space: pre-line;
@@ -263,8 +260,6 @@ h1 {
   font-weight: 600;
   text-decoration: none;
 }
-
-/* ---------- scenes ---------- */
 
 .toolbar {
   display: grid;
@@ -384,9 +379,9 @@ h1 {
     width: 100%;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.15rem 1rem;
-    padding: 0.7rem 0.85rem;
-    border-radius: 14px;
-    background: var(--surface-2);
+    padding: 0;
+    border-radius: 0;
+    background: none;
   }
 
   .metadata-item {
@@ -424,14 +419,6 @@ a.action {
   text-decoration: none;
 }
 
-/* ---------- Current look: on the page, facts as a plain list (matches the catalog pages) ---------- */
-
-.hero {
-  overflow: visible;
-  border-radius: 0;
-  background: none;
-}
-
 .hero-backdrop,
 .hero-shade {
   display: none;
@@ -440,12 +427,6 @@ a.action {
 .hero-inner {
   padding: 0.25rem 0 0;
   gap: 2rem;
-  color: var(--text-primary);
-}
-
-.avatar {
-  border-radius: var(--radius-md);
-  box-shadow: none;
 }
 
 .metadata-grid {
@@ -456,7 +437,6 @@ a.action {
 .metadata-item {
   gap: 0.1rem;
   padding: 0;
-  border-radius: 0;
   background: none;
 }
 
@@ -477,22 +457,13 @@ a.action {
 
 /* A phone: the details as label-and-value lines on the page, not in a box. */
 @media (max-width: 640px) {
-  .metadata-grid {
-    padding: 0;
-    border-radius: 0;
-    background: none;
-  }
-
   .metadata-item {
     gap: 0.4rem;
   }
 }
 
-/* ---------- Current look: one filled button, the rest outlined; text on the page ---------- */
-
 .action.secondary {
-  border: 1px solid var(--border-subtle);
-  background: transparent;
+  background: var(--soft-fill);
 }
 
 .action.secondary:hover:not(:disabled) {
@@ -501,17 +472,10 @@ a.action {
 
 /* A favorite is a filled heart, not a tinted pill. */
 .action.favorite.on {
-  border-color: var(--border-subtle);
-  background: transparent;
-  color: var(--text-primary);
+  border-color: transparent;
+  background: var(--soft-fill-on);
 }
 
 .action.favorite.on i {
   color: #ff375f;
-}
-
-.about {
-  padding: 0;
-  border-radius: 0;
-  background: none;
 }

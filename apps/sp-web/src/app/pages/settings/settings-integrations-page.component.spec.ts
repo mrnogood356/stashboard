@@ -336,11 +336,11 @@ describe('SettingsIntegrationsPageComponent', () => {
     expect(textContent(overview(fixture))).toContain('Needs attention: Whisparr needs repair.');
 
     const whisparrChecklist = checklistItemByTitle(fixture, 'Whisparr');
-    expect(textContent(whisparrChecklist)).toContain('Test Failed');
+    expect(textContent(whisparrChecklist)).toContain('Test failed');
     expect(textContent(whisparrChecklist)).toContain('Whisparr needs repair.');
 
     const panel = panelByTitle(fixture, 'Whisparr');
-    expect(textContent(panel)).toContain('Test Failed');
+    expect(textContent(panel)).toContain('Test failed');
     expect(textContent(panel)).toContain(
       'Repair Whisparr connection details if needed, then Save & Test again to restore readiness.',
     );
@@ -404,7 +404,7 @@ describe('SettingsIntegrationsPageComponent', () => {
     expect(textContent(overview(fixture))).toContain('FansDB chosen');
 
     const panel = panelByTitle(fixture, 'FansDB');
-    expect(textContent(panel)).toContain('Test Failed');
+    expect(textContent(panel)).toContain('Test failed');
     expect(textContent(panel)).toContain(
       "FansDB remains this instance's catalog provider even while unhealthy. Repair it here and Save & Test again. Reset catalog setup only if you need to switch providers.",
     );
@@ -443,7 +443,7 @@ describe('SettingsIntegrationsPageComponent', () => {
     expect(component.serviceTabs()).toEqual(['STASH', 'WHISPARR', 'PROWLARR', 'SABNZBD']);
     expect(component.configuredCatalogProviderLabel()).toBeNull();
     expect(textContent(overview(fixture))).toContain('No catalog provider is locked');
-    expect(textContent(checklistItemByTitle(fixture, 'Catalog provider'))).toContain('Not Saved');
+    expect(textContent(checklistItemByTitle(fixture, 'Catalog provider'))).toContain('Not saved');
   });
 
   it('uses Save & Test as the primary repair action in Settings', async () => {

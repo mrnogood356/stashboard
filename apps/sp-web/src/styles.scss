@@ -1,6 +1,11 @@
 @import 'primeicons/primeicons.css';
 
 :root {
+  /* Secondary buttons, chips and filters: a soft tint of the text colour,
+     so they show on the page and on a card alike. */
+  --soft-fill: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  --soft-fill-hover: color-mix(in srgb, var(--text-primary) 14%, transparent);
+  --soft-fill-on: color-mix(in srgb, var(--text-primary) 18%, transparent);
   --app-font-family:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
@@ -387,6 +392,12 @@
   --p-form-field-color: var(--text-primary);
   --p-overlay-modal-background: var(--surface-dialog-scrim);
   --p-mask-background: var(--surface-dialog-scrim);
+  color-scheme: light;
+  --app-control-height: 2.6rem;
+  --app-control-radius: var(--radius-sm);
+  --app-control-border: var(--border-subtle);
+  --app-control-bg: var(--surface-2);
+  --app-control-text: var(--text-primary);
 }
 
 :root[data-theme='dark'] {
@@ -570,6 +581,7 @@
   --p-form-field-color: var(--text-primary);
   --p-overlay-modal-background: var(--surface-dialog-scrim);
   --p-mask-background: var(--surface-dialog-scrim);
+  color-scheme: dark;
 }
 
 /* Settings → Appearance: corner radius, density and text size (theme-dom.ts sets these). */
@@ -601,6 +613,8 @@
 
 html {
   font-size: var(--root-font-size);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 html,
@@ -628,19 +642,6 @@ h3 {
 
 * {
   scrollbar-color: var(--scrollbar-thumb) transparent;
-}
-
-/*
- * Native form controls follow the theme. The colour scheme is also set inline
- * on <html> by theme-boot.js / theme-dom.ts; these rules cover the moment
- * before that runs and any control a page leaves unstyled.
- */
-:root {
-  color-scheme: light;
-}
-
-:root[data-theme='dark'] {
-  color-scheme: dark;
 }
 
 select,
@@ -866,19 +867,6 @@ select:disabled {
   font-size: 0.84rem;
   font-weight: 500;
   color: var(--app-chip-text, var(--chip-text));
-}
-
-/*
- * Control tokens live on :root so an .app-control-input (or a bare <select>)
- * outside an .app-control-shell still gets a themed background and border
- * instead of an invalid var() that falls back to transparent.
- */
-:root {
-  --app-control-height: 2.6rem;
-  --app-control-radius: var(--radius-sm);
-  --app-control-border: var(--border-subtle);
-  --app-control-bg: var(--surface-2);
-  --app-control-text: var(--text-primary);
 }
 
 .app-control-shell {
@@ -1185,6 +1173,11 @@ select:disabled {
   margin-bottom: 0.9rem;
 }
 
+/* Under a page's tabs (Browse, Requests) the title is above: buttons sit right. */
+app-page-tabs + .page-head-compact {
+  justify-content: flex-end;
+}
+
 .page-head-compact__title {
   display: flex;
   flex: 1 1 14rem;
@@ -1229,7 +1222,7 @@ select:disabled {
   padding: 0 0.9rem;
   border-radius: var(--radius-sm);
   border: 0;
-  background: var(--chip-bg);
+  background: var(--soft-fill);
   color: var(--text-primary);
   font: inherit;
   font-size: 0.86rem;
@@ -1493,8 +1486,6 @@ input[type='checkbox'].app-switch:focus-visible {
   background: var(--switch-knob);
 }
 
-/* ---------- Shared page primitives (layout consistency pass) ---------- */
-
 /* PrimeNG's select label sets its own font size; keep it in step with text inputs. */
 .app-control-shell :is(.p-select-label, .p-multiselect-label) {
   font-size: inherit;
@@ -1560,6 +1551,16 @@ input[type='checkbox'].app-switch:focus-visible {
   border-color: var(--accent-hover);
   background: var(--accent-hover);
 }
+.app-btn:not(.app-btn--primary) {
+  border-color: transparent;
+  background: var(--soft-fill);
+  color: var(--text-primary);
+}
+
+.app-btn:not(.app-btn--primary):not(:disabled):hover {
+  border-color: transparent;
+  background: var(--soft-fill-hover);
+}
 
 @media (prefers-reduced-motion: reduce) {
   .app-btn {
@@ -1588,15 +1589,6 @@ input[type='checkbox'].app-switch:focus-visible {
 
 :root[data-density='compact'] .app-section-stack {
   gap: 0.6rem;
-}
-
-/*
- * Phone layout guards. Nothing may make a page wider than the screen: on an
- * iPhone that lets the whole view be dragged sideways or zoomed out.
- */
-html {
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
 }
 
 body {
@@ -1664,12 +1656,6 @@ body {
 // Settings panels only: scene cards and request rows also use .card, and
 // they stay solid (a blur behind every card in a grid is heavy on phones).
 $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-page, app-settings-hidden-page, app-settings-logs-page, app-settings-notifications-page, app-settings-playback-page, app-settings-privacy-page, app-indexing-settings-page) .card';
-
-/* ---------- Glass style (Settings → Appearance → Style) ----------
- * Frosted, see-through bars and panels over a soft backdrop that picks up
- * the accent (and, with Adaptive glass, the open page's artwork).
- * Scene cards and lists stay solid: easier to read and lighter on phones.
- */
 :root[data-material='glass'] {
   --glass-fill: color-mix(in srgb, var(--surface-1) 58%, transparent);
   --glass-fill-strong: color-mix(in srgb, var(--surface-1) 76%, transparent);
@@ -1774,10 +1760,8 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
     .p-popover,
     .p-toast-message,
     .quick-search-panel,
-    .content .app-section-panel:not(.section-shell),
     #{$glass-settings-cards},
     .content .actions-bar,
-    .content .hero-shell,
     .content .processing-card
   ) {
   background-color: var(--glass-fill);
@@ -1839,16 +1823,55 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
 }
 
 :root[data-material='glass'] .mobile-bottom-nav {
-  /* Labels sit over moving content here, so it frosts more than the panels. */
-  background-color: color-mix(in srgb, var(--surface-1) 84%, transparent);
+  /* Frosted like the desktop sidebar: what scrolls under it shows through,
+     blurred, with a little more fill so the labels stay readable. */
+  background-color: color-mix(in srgb, var(--surface-1) 62%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  backdrop-filter: blur(30px) saturate(180%);
   border-top-color: var(--glass-edge-soft);
   box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+
+/* Sheets on a phone (filters, Follow, More) and the filter dropdowns on a
+   desktop: the same frosted glass as the bars, a denser fill for reading. */
+:root[data-material='glass'] :is(.sheet-portal .sheet, .filter-dropdown) {
+  border-color: var(--glass-edge-soft);
+  background-color: var(--glass-fill-strong);
+  background-image: var(--glass-shine);
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    var(--glass-shadow);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+/* The phone's status bar area in the home-screen app: frosted, so pages
+   scroll under it like they do under the tab bar. */
+@media (max-width: 759px) {
+  :root[data-material='glass'] body::after {
+    content: '';
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 1000;
+    height: env(safe-area-inset-top);
+    pointer-events: none;
+    background-color: color-mix(in srgb, var(--surface-1) 62%, transparent);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    backdrop-filter: blur(30px) saturate(180%);
+  }
 }
 
 /* Reduce Transparency (iOS and macOS accessibility): solid panels instead. */
 @media (prefers-reduced-transparency: reduce) {
   :root[data-material='glass'] .glass-art {
     display: none;
+  }
+
+  /* The status-bar strip on a phone: solid, like the bars. */
+  :root[data-material='glass'] body::after {
+    background-color: var(--surface-1);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
   :root[data-material='glass']
@@ -1864,11 +1887,11 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
       .p-autocomplete-overlay,
       .p-toast-message,
       .quick-search-panel,
-      .content .app-section-panel:not(.section-shell),
       #{$glass-settings-cards},
       .content .actions-bar,
-      .content .hero-shell,
-      .content .processing-card
+      .content .processing-card,
+      .sheet-portal .sheet,
+      .filter-dropdown
     ) {
     background-color: var(--surface-1);
     background-image: none;
@@ -1962,11 +1985,10 @@ body.app-sheet-open {
 }
 
 /*
- * Tabs, wherever a page has them (role="tablist"): words in a row with a
- * line under the current one, as on Requests. Stronger than a page's own
- * .segmented rules, which drew pills in a grey box (:not(#_) outweighs them).
+ * Tabs (.app-tabs, role="tablist"): words in a row with a line under the
+ * current one. One look on every page that has them.
  */
-body .segmented[role='tablist']:not(#_) {
+.app-tabs {
   display: flex;
   gap: 1.25rem;
   width: auto;
@@ -1980,11 +2002,11 @@ body .segmented[role='tablist']:not(#_) {
   scrollbar-width: none;
 }
 
-body .segmented[role='tablist']:not(#_)::-webkit-scrollbar {
+.app-tabs::-webkit-scrollbar {
   display: none;
 }
 
-body .segmented[role='tablist']:not(#_) > button {
+.app-tabs > button {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -2009,11 +2031,11 @@ body .segmented[role='tablist']:not(#_) > button {
   cursor: pointer;
 }
 
-body .segmented[role='tablist']:not(#_) > button:hover {
+.app-tabs > button:hover {
   color: var(--text-primary);
 }
 
-body .segmented[role='tablist']:not(#_) > button:is(.active, [aria-selected='true']) {
+.app-tabs > button:is(.active, [aria-selected='true']) {
   border-bottom-color: var(--text-primary);
   background: none;
   box-shadow: none;
@@ -2021,7 +2043,7 @@ body .segmented[role='tablist']:not(#_) > button:is(.active, [aria-selected='tru
 }
 
 /* A count in a tab is a plain figure, not a badge. */
-body .segmented[role='tablist']:not(#_) > button :is(.count-badge, .tab-count, .count) {
+.app-tabs > button :is(.count-badge, .tab-count, .count) {
   min-width: 0;
   padding: 0;
   border-radius: 0;
@@ -2030,4 +2052,15 @@ body .segmented[role='tablist']:not(#_) > button :is(.count-badge, .tab-count, .
   font-size: 0.85rem;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+}
+
+/* Soft, like the filter chips and cards: a quiet fill, no outline. */
+.filter-toggle {
+  border-color: transparent;
+  background: var(--surface-1);
+}
+
+.filter-toggle:not([aria-pressed='true']):hover {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--text-primary) 10%, var(--surface-1));
 }

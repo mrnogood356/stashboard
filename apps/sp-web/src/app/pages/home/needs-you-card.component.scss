@@ -30,17 +30,18 @@
   gap: 0.45rem;
   min-height: 2.25rem;
   padding: 0 0.8rem;
-  border: 1px solid var(--border-subtle);
+  border: 0;
   border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
   color: var(--text-primary);
   font-size: 0.88rem;
   text-decoration: none;
   white-space: nowrap;
-  transition: border-color 0.12s ease;
+  transition: background-color 0.12s ease;
 }
 
 .needs-you-row:hover {
-  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--text-primary) 14%, transparent);
 }
 
 .needs-you-row:focus-visible {

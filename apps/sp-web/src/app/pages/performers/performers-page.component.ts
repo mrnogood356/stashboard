@@ -1,23 +1,39 @@
+import { PageTabsComponent, BROWSE_TABS } from '../../shared/page-tabs/page-tabs.component';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import {
   AfterViewInit,
   Component,
+  DestroyRef,
   ElementRef,
   OnDestroy,
   OnInit,
   ViewChild,
+  computed,
   inject,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import {
+  FilterChipComponent,
+  FilterPanelDirective,
+} from '../../shared/filter-bar/filter-chip.component';
+import {
+  FilterOption,
+  FilterOptionsComponent,
+} from '../../shared/filter-bar/filter-options.component';
+import {
+  SortChoice,
+  sortChoiceId,
+  sortChoiceLabel,
+  sortChoiceOptions,
+} from '../../shared/filter-bar/filter-values';
 import { RouterLink } from '@angular/router';
-import { Subject, Subscription, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
+import { Subscription, finalize } from 'rxjs';
 import { ButtonDirective } from 'primeng/button';
-import { InputText } from 'primeng/inputtext';
 import { Message } from 'primeng/message';
-import { Select } from 'primeng/select';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DiscoverService } from '../../core/api/discover.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { LibraryPerformer, LibraryService } from '../../core/api/library.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import {
   PerformerFeedItem,
@@ -29,47 +45,30 @@ import {
 type GenderOption = PerformerGender | 'NONE';
 
 import { CatalogProviderSwitchComponent } from '../../shared/catalog-provider-switch/catalog-provider-switch.component';
-import { SectionBackComponent } from '../../shared/section-back/section-back.component';
 
 @Component({
   selector: 'app-performers-page',
   imports: [
-    SectionBackComponent,
+    PageTabsComponent,
     SkeletonComponent,
     CatalogProviderSwitchComponent,
     RouterLink,
-    FormsModule,
-    InputText,
     Message,
-    Select,
     ButtonDirective,
+    FilterChipComponent,
+    FilterPanelDirective,
+    FilterOptionsComponent,
   ],
   templateUrl: './performers-page.component.html',
   styleUrl: './performers-page.component.scss',
 })
 export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy {
-  /** On phones the filter panel starts collapsed so results show first. */
-  protected readonly filtersOpen = signal(false);
+  protected readonly pageTabs = BROWSE_TABS;
 
   private static readonly PAGE_SIZE = 24;
-  private static readonly NAME_FILTER_DEBOUNCE_MS = 300;
   private static readonly DEFAULT_SORT: PerformerSort = 'NAME';
   private static readonly DEFAULT_DIRECTION: SortDirection = 'ASC';
   private static readonly DEFAULT_GENDER: GenderOption = 'NONE';
-
-  protected static readonly SORT_OPTIONS: Array<{
-    value: PerformerSort;
-    label: string;
-  }> = [
-    { value: 'NAME', label: 'Name' },
-    { value: 'BIRTHDATE', label: 'Birthdate' },
-    { value: 'SCENE_COUNT', label: 'Scene Count' },
-    { value: 'CAREER_START_YEAR', label: 'Career Start Year' },
-    { value: 'DEBUT', label: 'Debut' },
-    { value: 'LAST_SCENE', label: 'Last Scene' },
-    { value: 'CREATED_AT', label: 'Date added' },
-    { value: 'UPDATED_AT', label: 'Date updated' },
-  ];
 
   protected static readonly GENDER_OPTIONS: Array<{
     value: GenderOption;
@@ -78,9 +77,9 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
     { value: 'NONE', label: 'Any Gender' },
     { value: 'FEMALE', label: 'Female' },
     { value: 'MALE', label: 'Male' },
-    { value: 'NON_BINARY', label: 'Non-Binary' },
-    { value: 'TRANSGENDER_FEMALE', label: 'Transgender Female' },
-    { value: 'TRANSGENDER_MALE', label: 'Transgender Male' },
+    { value: 'NON_BINARY', label: 'Non-binary' },
+    { value: 'TRANSGENDER_FEMALE', label: 'Trans woman' },
+    { value: 'TRANSGENDER_MALE', label: 'Trans man' },
     { value: 'INTERSEX', label: 'Intersex' },
     { value: 'UNKNOWN', label: 'Unknown' },
   ];
@@ -89,14 +88,27 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
   private readonly notifications = inject(AppNotificationsService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  private readonly nameFilterTerms = new Subject<string>();
-  private nameFilterSubscription: Subscription | null = null;
+  private readonly libraryApi = inject(LibraryService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  /** "In my library" ("lib=1" in the URL): only people in your own scenes. */
+  protected readonly inLibrary = signal(false);
+  protected readonly libItems = signal<LibraryPerformer[]>([]);
+  protected readonly libTotal = signal(0);
+  protected readonly libHasMore = signal(false);
+  protected readonly libLoading = signal(false);
+  protected readonly libFailed = signal(false);
+  private libPage = 1;
+  protected libQuery: string | null = null;
+  private libRequest: Subscription | null = null;
   private queryParamSubscription: Subscription | null = null;
   private observer: IntersectionObserver | null = null;
   private sentinelElement: HTMLDivElement | null = null;
   private sentinelIntersecting = false;
   private feedVersion = 0;
   private pendingReload = false;
+  /** The catalog list changed (a new search) while hidden by In my library: load it on the way back. */
+  private catalogStale = false;
   private hasHydratedFromUrl = false;
 
   @ViewChild('loadMoreSentinel')
@@ -134,12 +146,123 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
   );
   protected readonly favoritesOnly = signal(false);
   protected readonly favoriteInFlightById = signal<Record<string, boolean>>({});
-  protected readonly sortOptions = PerformersPageComponent.SORT_OPTIONS;
-  protected readonly genderOptions = PerformersPageComponent.GENDER_OPTIONS;
+  /** Sort and direction as one plain choice, for the filter bar. */
+  private static readonly SORT_CHOICES: SortChoice<PerformerSort>[] = [
+    { label: 'Name A–Z', sort: 'NAME', direction: 'ASC' },
+    { label: 'Name Z–A', sort: 'NAME', direction: 'DESC' },
+    { label: 'Most scenes', sort: 'SCENE_COUNT', direction: 'DESC' },
+    { label: 'Latest scene', sort: 'LAST_SCENE', direction: 'DESC' },
+    { label: 'Newest debut', sort: 'DEBUT', direction: 'DESC' },
+    { label: 'Started most recently', sort: 'CAREER_START_YEAR', direction: 'DESC' },
+    { label: 'Youngest', sort: 'BIRTHDATE', direction: 'DESC' },
+    { label: 'Oldest', sort: 'BIRTHDATE', direction: 'ASC' },
+    { label: 'Recently added', sort: 'CREATED_AT', direction: 'DESC' },
+    { label: 'Recently updated', sort: 'UPDATED_AT', direction: 'DESC' },
+  ];
+  protected readonly sortChoices = sortChoiceOptions(PerformersPageComponent.SORT_CHOICES);
+  protected readonly sortValue = computed(() =>
+    sortChoiceLabel(
+      PerformersPageComponent.SORT_CHOICES,
+      this.selectedSort(),
+      this.selectedDirection(),
+    ),
+  );
+  protected readonly sortPicked = computed(() => [
+    sortChoiceId(this.selectedSort(), this.selectedDirection()),
+  ]);
+  protected readonly genderChoices: FilterOption[] = PerformersPageComponent.GENDER_OPTIONS.filter(
+    (option) => option.value !== 'NONE',
+  ).map((option) => ({ id: option.value, label: option.label }));
+  protected readonly genderPicked = computed(() =>
+    this.selectedGender() === 'NONE' ? [] : [this.selectedGender()],
+  );
+  protected readonly genderValue = computed(
+    () =>
+      PerformersPageComponent.GENDER_OPTIONS.find(
+        (option) => option.value === this.selectedGender() && option.value !== 'NONE',
+      )?.label ?? null,
+  );
+
+  protected onGenderPicked(ids: string[]): void {
+    this.onGenderChanged(ids[0] ?? 'NONE');
+  }
+
+  protected onSortPicked(ids: string[]): void {
+    const choice = PerformersPageComponent.SORT_CHOICES.find(
+      (option) => sortChoiceId(option.sort, option.direction) === ids[0],
+    );
+    if (
+      !choice ||
+      (choice.sort === this.selectedSort() && choice.direction === this.selectedDirection())
+    ) {
+      return;
+    }
+    this.selectedSort.set(choice.sort);
+    this.selectedDirection.set(choice.direction);
+    this.syncUrlWithCurrentFilters(false);
+    this.resetFeedAndReload();
+  }
 
   ngOnInit(): void {
-    this.setupNameFilterDebounce();
     this.setupUrlStateSync();
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const on = params.get('lib') === '1';
+      const query = (params.get('q') ?? '').trim();
+      this.inLibrary.set(on);
+      if (on) {
+        // The catalog list is hidden: its sentinel no longer asks for pages.
+        this.sentinelIntersecting = false;
+      }
+      if (on && query !== this.libQuery) {
+        this.libQuery = query;
+        this.loadLibrary(true);
+      }
+      if (!on) {
+        this.libQuery = null;
+        if (this.catalogStale) {
+          this.resetFeedAndReload();
+        }
+      }
+    });
+  }
+
+  protected toggleInLibrary(): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { lib: this.inLibrary() ? null : '1' },
+      queryParamsHandling: 'merge',
+    });
+  }
+
+  protected showMoreLibrary(): void {
+    this.loadLibrary(false);
+  }
+
+  /** After a failed page: the first page again, or the one that failed. */
+  protected retryLibrary(): void {
+    this.loadLibrary(this.libItems().length === 0);
+  }
+
+  private loadLibrary(reset: boolean): void {
+    if (reset) {
+      this.libPage = 1;
+      this.libItems.set([]);
+    }
+    this.libRequest?.unsubscribe();
+    this.libLoading.set(true);
+    this.libFailed.set(false);
+    this.libRequest = this.libraryApi
+      .listPerformers(this.libQuery ?? '', this.libPage)
+      .pipe(finalize(() => this.libLoading.set(false)))
+      .subscribe({
+        next: (result) => {
+          this.libItems.update((items) => (reset ? result.items : [...items, ...result.items]));
+          this.libTotal.set(result.total);
+          this.libHasMore.set(result.hasMore);
+          this.libPage = result.page + 1;
+        },
+        error: () => this.libFailed.set(true),
+      });
   }
 
   ngAfterViewInit(): void {
@@ -151,7 +274,6 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
       this.observer.unobserve(this.sentinelElement);
     }
     this.observer?.disconnect();
-    this.nameFilterSubscription?.unsubscribe();
     this.queryParamSubscription?.unsubscribe();
   }
 
@@ -177,12 +299,6 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
     this.loadNextPage();
   }
 
-  protected onNameFilterChanged(nextValue: string): void {
-    this.nameFilter.set(nextValue);
-    this.syncUrlWithCurrentFilters(true);
-    this.nameFilterTerms.next(nextValue);
-  }
-
   protected onGenderChanged(nextValue: string): void {
     if (
       nextValue === 'NONE' ||
@@ -202,57 +318,6 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
       this.syncUrlWithCurrentFilters(false);
       this.resetFeedAndReload();
     }
-  }
-
-  protected onSortChanged(nextValue: string): void {
-    if (
-      nextValue === 'NAME' ||
-      nextValue === 'BIRTHDATE' ||
-      nextValue === 'SCENE_COUNT' ||
-      nextValue === 'CAREER_START_YEAR' ||
-      nextValue === 'DEBUT' ||
-      nextValue === 'LAST_SCENE' ||
-      nextValue === 'CREATED_AT' ||
-      nextValue === 'UPDATED_AT'
-    ) {
-      if (this.selectedSort() === nextValue) {
-        return;
-      }
-
-      this.selectedSort.set(nextValue);
-      this.syncUrlWithCurrentFilters(false);
-      this.resetFeedAndReload();
-    }
-  }
-
-  protected onDirectionChanged(nextValue: string): void {
-    if (nextValue !== 'ASC' && nextValue !== 'DESC') {
-      return;
-    }
-
-    if (this.selectedDirection() === nextValue) {
-      return;
-    }
-
-    this.selectedDirection.set(nextValue);
-    this.syncUrlWithCurrentFilters(false);
-    this.resetFeedAndReload();
-  }
-
-  protected toggleSortDirection(): void {
-    this.onDirectionChanged(this.selectedDirection() === 'ASC' ? 'DESC' : 'ASC');
-  }
-
-  protected sortDirectionIconClass(): string {
-    return this.selectedDirection() === 'ASC'
-      ? 'pi pi-sort-amount-up-alt'
-      : 'pi pi-sort-amount-down-alt';
-  }
-
-  protected sortDirectionToggleLabel(): string {
-    return this.selectedDirection() === 'ASC'
-      ? 'Sort direction: ascending. Toggle to descending.'
-      : 'Sort direction: descending. Toggle to ascending.';
   }
 
   protected onFavoritesOnlyChanged(nextValue: boolean): void {
@@ -372,7 +437,12 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
           if (requestVersion !== this.feedVersion) {
             if (this.pendingReload) {
               this.pendingReload = false;
-              this.loadNextPage();
+              // Gone to In my library meanwhile: the catalog reloads on the way back.
+              if (this.route.snapshot.queryParamMap.get('lib') === '1') {
+                this.catalogStale = true;
+              } else {
+                this.loadNextPage();
+              }
             }
             return;
           }
@@ -383,7 +453,7 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
             this.loadingMore.set(false);
           }
 
-          if (this.sentinelIntersecting && this.hasMore()) {
+          if (this.sentinelIntersecting && this.hasMore() && !this.inLibrary()) {
             this.loadNextPage();
           }
         }),
@@ -565,20 +635,19 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
     this.error.set(null);
     this.loadMoreError.set(null);
 
+    // In my library shows the library list: the hidden catalog one waits.
+    if (this.route.snapshot.queryParamMap.get('lib') === '1') {
+      this.catalogStale = true;
+      return;
+    }
+    this.catalogStale = false;
+
     if (this.inFlight()) {
       this.pendingReload = true;
       return;
     }
 
     this.loadNextPage();
-  }
-
-  private setupNameFilterDebounce(): void {
-    this.nameFilterSubscription = this.nameFilterTerms
-      .pipe(debounceTime(PerformersPageComponent.NAME_FILTER_DEBOUNCE_MS), distinctUntilChanged())
-      .subscribe(() => {
-        this.resetFeedAndReload();
-      });
   }
 
   private setupIntersectionObserver(): void {
@@ -595,7 +664,7 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
             return;
           }
 
-          if (this.inFlight() || !this.hasMore()) {
+          if (this.inFlight() || !this.hasMore() || this.inLibrary()) {
             return;
           }
 

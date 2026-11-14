@@ -109,6 +109,11 @@ describe('FilterChipComponent', () => {
     expect(host.changed).toHaveBeenLastCalledWith(['a', 'c']);
     expect(root.querySelector('.filter-dropdown')).not.toBeNull();
     expect(root.querySelector('[data-testid="opt-a"]')?.getAttribute('aria-selected')).toBe('true');
+    // A checkbox on every row: ticked for a and c, empty for the rest.
+    const boxes = [...root.querySelectorAll('.filter-option__box')];
+    expect(boxes.length).toBe(root.querySelectorAll('.filter-option').length);
+    expect(boxes.filter((box) => box.classList.contains('is-on'))).toHaveLength(2);
+    expect(root.querySelector('.filter-option__tick')).toBeNull();
 
     const search = root.querySelector('.filter-search input') as HTMLInputElement;
     search.value = 'po';

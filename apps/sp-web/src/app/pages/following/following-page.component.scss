@@ -93,7 +93,11 @@
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.5rem;
+  gap: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface-1);
 }
 
 /* One row per follow, like a settings row: tap it for its options. */
@@ -106,7 +110,7 @@
   padding: 0.7rem 0.85rem;
   border: 1px solid transparent;
   border-radius: 14px;
-  background: var(--surface-1);
+  background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
@@ -115,11 +119,13 @@
 
 .follow-row:hover {
   border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
 }
 
 .follow-row:focus-visible {
   outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  /* Inside the row: the list clips anything outside it. */
+  outline-offset: -2px;
 }
 
 .avatar {
@@ -205,13 +211,12 @@
   padding: 0;
   border: 0;
   background: none;
-  color: var(--accent-text, var(--accent));
+  color: var(--text-primary);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+  text-decoration: underline;
 }
-
-/* ---------- Current look: quiet links, a plain list, as on the rest of the app ---------- */
 
 .pass {
   color: var(--text-muted);
@@ -222,28 +227,16 @@
   text-decoration: underline;
 }
 
-.retry {
-  color: var(--text-primary);
-  text-decoration: underline;
-}
-
-.follow-list {
-  gap: 0;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
 .follow-row {
   border: 0;
   border-radius: 0;
-  background: transparent;
 }
 
 .follow-list > li + li .follow-row {
   border-top: 1px solid var(--border-subtle);
 }
 
-.follow-row:hover {
-  background: var(--surface-1);
+/* Soft group: the list sits on its own surface, rows divided inside. */
+.follow-list {
+  border: 0;
 }

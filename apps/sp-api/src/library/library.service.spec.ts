@@ -347,6 +347,37 @@ describe('LibraryService', () => {
     expect(query.values).toEqual(['%tag%', '%tag%', 200]);
   });
 
+  it('lists everyone in your own scenes, most scenes first, a page at a time', async () => {
+    queryRawMock
+      .mockResolvedValueOnce([{ id: '7', name: 'Alex Rivers', count: 12 }])
+      .mockResolvedValueOnce([{ total: 30 }]);
+
+    const result = await service.listPerformers('alex', 1, 24);
+
+    expect(result).toEqual({
+      total: 30,
+      page: 1,
+      perPage: 24,
+      hasMore: true,
+      items: [
+        {
+          id: '7',
+          name: 'Alex Rivers',
+          count: 12,
+          imageUrl: '/api/media/stash/performers/7/image?w=480',
+        },
+      ],
+    });
+    const [list] = queryRawMock.mock.calls.map(
+      (call) => call[0] as { strings: string[]; values: unknown[] },
+    );
+    expect(list.strings.join(' ')).toContain(
+      'unnest(s."performerIds", s."performerNames")',
+    );
+    expect(list.strings.join(' ')).toContain('ORDER BY count DESC');
+    expect(list.values).toEqual(['%alex%', 24, 0]);
+  });
+
   it('returns indexed studio options from the local-library projection', async () => {
     queryRawMock.mockResolvedValue([{ id: 'studio-1', name: 'Archive' }]);
 

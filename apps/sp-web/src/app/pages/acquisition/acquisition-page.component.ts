@@ -1,3 +1,4 @@
+import { PageTabsComponent, REQUESTS_TABS } from '../../shared/page-tabs/page-tabs.component';
 import { failureReason } from './failure-reason';
 import { YouMayEnjoyComponent } from '../../shared/you-may-enjoy/you-may-enjoy.component';
 import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
@@ -6,6 +7,7 @@ import {
   buildStages,
   stagesForStatus,
   timeLeftText,
+  percentText,
 } from '../../shared/stage-track/stage-track';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
@@ -108,6 +110,7 @@ interface AcquisitionPageAlert {
 @Component({
   selector: 'app-acquisition-page',
   imports: [
+    PageTabsComponent,
     StageTrackComponent,
     SkeletonComponent,
     RouterLink,
@@ -122,6 +125,7 @@ interface AcquisitionPageAlert {
   styleUrl: './acquisition-page.component.scss',
 })
 export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestroy {
+  protected readonly pageTabs = REQUESTS_TABS;
   private static readonly PAGE_SIZE = 24;
   private static readonly EMPTY_COUNTS: AcquisitionCountsByLifecycle = {
     REQUESTED: 0,
@@ -1233,9 +1237,4 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       this.observer.observe(this.sentinelElement);
     }
   }
-}
-
-/** Whole percent, or one decimal under 10%, so floats like 0.39999999999999997 read cleanly. */
-function percentText(progress: number): string {
-  return progress < 10 ? String(Math.round(progress * 10) / 10) : String(Math.round(progress));
 }

@@ -39,7 +39,7 @@
   padding: 0 0.8rem;
   border: 0;
   border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  background: var(--soft-fill);
   color: var(--text-primary);
   font: inherit;
   font-size: 0.84rem;
@@ -203,14 +203,16 @@
 /* The same look as a filter bar's one-tap filters. */
 .chip {
   border: 1px solid var(--border-subtle);
-  background: transparent;
+  border-color: transparent;
+  background: var(--soft-fill);
   color: var(--text-secondary);
   font-weight: 500;
 }
 
 .chip:hover {
-  border-color: var(--border-strong);
+  border-color: transparent;
   color: var(--text-primary);
+  background: var(--soft-fill-hover);
 }
 
 .chip.active {

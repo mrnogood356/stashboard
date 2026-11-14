@@ -4,7 +4,7 @@ import { Stage, stagesForStatus } from '../../shared/stage-track/stage-track';
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Location } from '@angular/common';
-import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Params, Router, RouterLink, convertToParamMap } from '@angular/router';
 import { NavigationHistoryService } from '../../core/navigation/navigation-history.service';
 import { Subscription, combineLatest, finalize } from 'rxjs';
 import { ButtonDirective } from 'primeng/button';
@@ -561,6 +561,9 @@ export class ScenePageComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: (scene) => {
+          if (this.openLibraryCopy(scene)) {
+            return;
+          }
           this.scene.set(scene);
           this.selectedStashCopyUrl.set(scene.stash?.copies[0]?.viewUrl ?? null);
           this.requestContext.set({
@@ -577,6 +580,27 @@ export class ScenePageComponent implements OnInit, OnDestroy {
 
   private normalizeDescription(description: string): string {
     return description.replaceAll(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * One page per scene: one you have (a single copy in Stash) opens as your
+   * library's scene, with Play, the file and your tags, unless this page was
+   * asked for by name (?view=catalog, from that page's Catalog page link).
+   * With several copies this page stays, to pick between them.
+   */
+  private openLibraryCopy(scene: SceneDetails): boolean {
+    const query = this.route.snapshot.queryParamMap ?? convertToParamMap({});
+    const copies = scene.stash?.exists ? scene.stash.copies : [];
+    if (query.get('view') === 'catalog' || copies.length !== 1 || scene.stash?.hasMultipleCopies) {
+      return false;
+    }
+    // The Back this page would have offered goes with it to the library copy.
+    const returnTo = query.get('returnTo') ?? this.cameFrom();
+    void this.router.navigate(['/library/scene', copies[0].id], {
+      replaceUrl: true,
+      queryParams: returnTo ? { returnTo } : {},
+    });
+    return true;
   }
 
   /**

@@ -244,20 +244,18 @@ describe('AppShellLayoutComponent', () => {
     expect(navLabels).toEqual([
       'Home',
       `Search${searchHint?.textContent?.trim() ?? ''}`,
-      'Scenes',
+      'Browse',
       'Calendar',
-      'Performers',
-      'Studios',
       'Following',
       'Library',
       'Swipe feed',
       'Tools',
-      'Requests',
-      'Downloads',
+      'Queue',
       'Settings',
     ]);
+    // Browse opens on Scenes; People and Studios are its other tabs.
     expect(
-      navLinks.find((link) => link.textContent?.includes('Scenes'))?.getAttribute('href'),
+      navLinks.find((link) => link.textContent?.includes('Browse'))?.getAttribute('href'),
     ).toContain('/scenes');
     expect(fixture.nativeElement.querySelector('[data-testid="degraded-banner"]')).toBeNull();
     expect(
@@ -301,7 +299,7 @@ describe('AppShellLayoutComponent', () => {
 
     expect(desktopSidebar).toBeNull();
     expect(bottomNav).toBeTruthy();
-    expect(bottomNavItems).toEqual(['Home', 'Search', 'Requests', 'Library', 'More']);
+    expect(bottomNavItems).toEqual(['Home', 'Browse', 'Library', 'Queue', 'More']);
 
     moreTrigger?.click();
     fixture.detectChanges();
@@ -313,12 +311,13 @@ describe('AppShellLayoutComponent', () => {
     ) as HTMLElement | null;
 
     expect(moreSheet).toBeTruthy();
-    expect(moreSheet?.textContent).toContain('Scenes');
     expect(moreSheet?.textContent).toContain('Watch later');
-    expect(moreSheet?.textContent).toContain('Downloads');
-    expect(moreSheet?.textContent).toContain('Performers');
     expect(moreSheet?.textContent).toContain('Following');
-    expect(moreSheet?.textContent).toContain('Studios');
+    expect(moreSheet?.textContent).toContain('Calendar');
+    expect(moreSheet?.textContent).toContain('Search');
+    // Folded into tabs: Downloads under Requests, Performers and Studios under Browse.
+    expect(moreSheet?.textContent).not.toContain('Downloads');
+    expect(moreSheet?.textContent).not.toContain('Performers');
     expect(moreSheet?.textContent).toContain('Settings');
     expect(moreSheet?.textContent).toContain('Log out');
   });

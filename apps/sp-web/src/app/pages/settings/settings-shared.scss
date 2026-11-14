@@ -85,7 +85,7 @@ h3 {
   color: var(--text-muted);
 }
 
-/* Status pills: neutral chip with a coloured dot. */
+/* Status: a coloured dot and plain words, no chip behind them. */
 .status-pill,
 .progress-pill,
 .state-badge,
@@ -94,13 +94,13 @@ h3 {
   align-items: center;
   gap: 0.4rem;
   min-height: 1.75rem;
-  padding: 0.2rem 0.65rem;
+  padding: 0 !important;
   border: 0 !important;
-  border-radius: 999px;
-  background: var(--chip-bg) !important;
-  color: var(--text-primary) !important;
-  font-size: 0.8rem;
-  font-weight: 650;
+  border-radius: 0;
+  background: transparent !important;
+  color: var(--text-muted) !important;
+  font-size: 0.82rem;
+  font-weight: 500;
   white-space: nowrap;
 }
 

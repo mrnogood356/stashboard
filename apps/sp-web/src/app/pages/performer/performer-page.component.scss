@@ -33,12 +33,12 @@ h2 {
 
 .hero-shell {
   position: relative;
-  border-radius: 24px;
-  overflow: hidden;
-  min-height: 560px;
+  border-radius: 0;
+  overflow: visible;
+  min-height: 0;
   border: 0;
   box-shadow: none;
-  background: var(--media-detail-hero-background);
+  background: none;
 }
 
 .hero-backdrop {
@@ -59,12 +59,13 @@ h2 {
 .hero-layout {
   position: relative;
   z-index: 1;
-  min-height: 560px;
-  padding: 1.4rem 1.1rem 1.1rem;
+  min-height: 0;
+  padding: 1.6rem;
   display: grid;
   grid-template-columns: minmax(230px, 360px) 1fr;
-  gap: 1rem;
+  gap: 1.6rem;
   color: var(--media-detail-text);
+  align-items: start;
 }
 
 .media-column {
@@ -74,9 +75,9 @@ h2 {
 }
 
 .carousel-main {
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   overflow: hidden;
-  border: 1px solid var(--media-detail-card-border);
+  border: 0;
   box-shadow: var(--media-detail-card-shadow);
   background: var(--media-detail-card-background);
 }
@@ -102,12 +103,15 @@ h2 {
 .load-more-error button,
 main > button {
   width: fit-content;
-  padding: 0.42rem 0.72rem;
-  border-radius: 10px;
-  border: 1px solid var(--border-subtle);
-  background: var(--button-bg);
-  color: var(--button-text);
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--radius-sm);
+  border: 0;
+  background: var(--chip-bg);
+  color: var(--text-primary);
   cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .carousel-thumbs {
@@ -149,15 +153,17 @@ main > button {
 .title-row h1 {
   min-width: 0;
   overflow-wrap: anywhere;
-  font-size: clamp(1.7rem, 5.3vw, 3rem);
+  font-size: clamp(1.6rem, 3.4vw, 2.4rem);
   line-height: 1.05;
   text-wrap: balance;
-  text-shadow: var(--media-detail-title-shadow);
+  text-shadow: none;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .favorite-indicator {
   padding: 0.1rem 0.28rem;
-  border: 1px solid var(--media-detail-subtle-action-border);
+  border: 0;
   border-radius: 999px;
   background: var(--media-detail-subtle-action-background);
   color: var(--media-detail-action-text);
@@ -219,13 +225,14 @@ main > button {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr));
   gap: 0.5rem;
+  margin-top: 0.4rem;
 }
 
 .metadata-item {
   padding: 0.45rem 0.52rem;
-  border-radius: 8px;
+  border-radius: 0;
   border: 0;
-  background: var(--media-detail-subtle-surface-background);
+  background: var(--surface-2);
   display: grid;
 }
 
@@ -238,6 +245,7 @@ main > button {
 .metadata-item .value {
   font-size: 0.84rem;
   color: var(--media-detail-text);
+  overflow-wrap: anywhere;
 }
 
 .section {
@@ -279,7 +287,7 @@ main > button {
 .grid {
   margin-top: 0.9rem;
   display: grid;
-  gap: 0.72rem;
+  gap: 1.5rem 1rem;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 }
 
@@ -311,41 +319,8 @@ main > button {
   }
 }
 
-/* ---------- 2026 look ---------- */
-
-.hero-shell {
-  min-height: 0;
-}
-
 .hero-layout {
-  min-height: 0;
-  padding: 1.6rem;
   grid-template-columns: minmax(180px, 260px) 1fr;
-  align-items: start;
-  gap: 1.6rem;
-}
-
-.carousel-main {
-  border: 0;
-  border-radius: 18px;
-}
-
-.load-more-error button,
-main > button {
-  border: 0;
-  border-radius: var(--radius-sm);
-  padding: 0.45rem 0.9rem;
-  background: var(--chip-bg);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.metadata-item {
-  border-radius: 12px;
-  /* Solid so items read evenly over the hero image and gradient. */
-  background: var(--surface-2);
 }
 
 .metadata-item .label {
@@ -354,7 +329,6 @@ main > button {
 
 .metadata-item .value {
   color: var(--text-primary);
-  overflow-wrap: anywhere;
 }
 
 /* Scenes: the heading, then the filter bar on its own line. */
@@ -393,9 +367,9 @@ main > button {
   .metadata-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.15rem 1rem;
-    padding: 0.7rem 0.85rem;
-    border-radius: 14px;
-    background: var(--surface-2);
+    padding: 0;
+    border-radius: 0;
+    background: none;
   }
 
   .metadata-item {
@@ -433,14 +407,6 @@ main > button {
   font-weight: 600;
 }
 
-/* ---------- Current look: on the page, facts as a plain list (matches the scene pages) ---------- */
-
-.hero-shell {
-  overflow: visible;
-  border-radius: 0;
-  background: none;
-}
-
 .hero-backdrop,
 .hero-shade {
   display: none;
@@ -451,31 +417,14 @@ main > button {
   gap: 2rem;
 }
 
-.carousel-main {
-  border-radius: var(--radius-md);
-}
-
-.title-row h1 {
-  font-size: clamp(1.6rem, 3.4vw, 2.4rem);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  text-shadow: none;
-}
-
-.favorite-indicator {
-  border: 0;
-}
-
 .metadata-grid {
   grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
   gap: 0.9rem 1.5rem;
-  margin-top: 0.4rem;
 }
 
 .metadata-item {
   gap: 0.1rem;
   padding: 0;
-  border-radius: 0;
   background: none;
 }
 
@@ -494,13 +443,19 @@ main > button {
     gap: 1rem;
   }
 
-  .metadata-grid {
-    padding: 0;
-    border-radius: 0;
-    background: none;
-  }
-
   .metadata-item {
     gap: 0.4rem;
+  }
+}
+
+/* Scene grid: the same room between cards as Scenes and Library. */
+.grid {
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+}
+
+@media (max-width: 560px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.1rem 0.75rem;
   }
 }
