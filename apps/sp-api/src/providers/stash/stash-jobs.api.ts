@@ -25,6 +25,11 @@ const KIND_NAMES: Record<BackgroundJobKind, string> = {
 const LANE_POLL_MS = 10_000;
 /** A queue stuck this long (a job that never starts) doesn't hold Stashboard up for ever. */
 const LANE_MAX_WAIT_MS = 30 * 60_000;
+/**
+ * A batch waits this long for others of its kind before it goes: one import
+ * asks for the new scene's Generate and, a moment later, the replaced one's.
+ */
+const LANE_GATHER_MS = 2_000;
 
 interface BackgroundBatch {
   kind: BackgroundJobKind;
@@ -60,6 +65,7 @@ export abstract class StashJobsApi extends StashGraphqlClient {
   /** For tests: how long to wait between looks at Stash's queue. */
   protected lanePollMs = LANE_POLL_MS;
   protected laneMaxWaitMs = LANE_MAX_WAIT_MS;
+  protected laneGatherMs = LANE_GATHER_MS;
   protected laneSleep = (ms: number) =>
     new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -132,6 +138,12 @@ export abstract class StashJobsApi extends StashGraphqlClient {
     batch.promise = previous
       .catch(() => undefined)
       .then(async () => {
+        if (this.laneGatherMs > 0) {
+          await new Promise<void>((resolve) => {
+            const timer = setTimeout(resolve, this.laneGatherMs);
+            timer.unref?.();
+          });
+        }
         await this.untilStashHasRoom(config);
         // From here on, new asks start a batch of their own; ones for the
         // same items wait for this job's id.
