@@ -124,7 +124,8 @@
 
 .follow-row:focus-visible {
   outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  /* Inside the row: the list clips anything outside it. */
+  outline-offset: -2px;
 }
 
 .avatar {

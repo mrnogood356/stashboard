@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink, RouterLinkActive } from '@angular/router';
-import { Subject, debounceTime, distinctUntilChanged, map } from 'rxjs';
+import { Subject, map, of, switchMap, timer } from 'rxjs';
 
 export interface PageTab {
   label: string;
@@ -59,7 +59,7 @@ export const REQUESTS_TABS: readonly PageTab[] = [
             (keydown.enter)="onType($any($event.target).value, true)"
             data-testid="page-tabs-search-input"
           />
-          @if (query()) {
+          @if (draft()) {
             <button
               type="button"
               class="page-tabs-clear"
@@ -76,7 +76,7 @@ export const REQUESTS_TABS: readonly PageTab[] = [
           <a
             class="page-tab"
             [routerLink]="tab.route"
-            [queryParams]="query() ? { q: query() } : {}"
+            [queryParams]="draft() ? { q: draft() } : {}"
             routerLinkActive="is-active"
             [routerLinkActiveOptions]="{
               paths: 'exact',
@@ -99,7 +99,8 @@ export class PageTabsComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly typed = new Subject<string>();
+  /** What's typed, and whether to search now (Enter, Clear) or once typing pauses. */
+  private readonly typed = new Subject<{ value: string; now: boolean }>();
 
   @Input({ required: true }) title = '';
   @Input({ required: true }) tabs: readonly PageTab[] = [];
@@ -113,28 +114,35 @@ export class PageTabsComponent implements OnInit {
   @Input() searchHint = 'this list';
 
   protected readonly query = signal('');
+  /**
+   * The words in the box right now, before the pause that searches: the tab
+   * links carry these, so switching tabs mid-typing keeps them.
+   */
+  protected readonly draft = signal('');
 
   ngOnInit(): void {
-    this.route.queryParamMap
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((params) => this.query.set(params.get('q') ?? ''));
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      this.query.set(params.get('q') ?? '');
+      this.draft.set(params.get('q') ?? '');
+    });
+    // Each new input replaces whatever was waiting: a Clear or Enter can't be
+    // undone by typing from just before it, and the same words can be
+    // searched again after a Clear (apply skips what the address has already).
     this.typed
       .pipe(
-        map((value) => value.trim()),
-        debounceTime(350),
-        distinctUntilChanged(),
+        switchMap(({ value, now }) => (now ? of(value) : timer(350).pipe(map(() => value)))),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((value) => this.apply(value));
   }
 
   protected onType(value: string, now = false): void {
+    const words = value.trim();
+    this.draft.set(words);
     if (now) {
-      this.query.set(value.trim());
-      this.apply(value.trim());
-      return;
+      this.query.set(words);
     }
-    this.typed.next(value);
+    this.typed.next({ value: words, now });
   }
 
   private apply(value: string): void {
