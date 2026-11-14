@@ -30,6 +30,8 @@ describe('app routes', () => {
     const paths = appShellChildren.map((route) => route.path);
 
     expect(paths).toEqual([
+      // Pull to refresh passes through it to rebuild a page in place.
+      'refreshing',
       'home',
       'scene/:stashId',
       'tools',
