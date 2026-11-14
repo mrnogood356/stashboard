@@ -66,8 +66,16 @@
   </div>
 
   @if (inLibrary()) {
-    @if (libFailed()) {
-      <p class="state">Couldn’t load the people in your library. Try again in a moment.</p>
+    @if (libFailed() && libItems().length === 0) {
+      <p class="state">Couldn’t load the people in your library.</p>
+      <button
+        type="button"
+        class="app-btn retry-library"
+        data-testid="library-performers-retry"
+        (click)="retryLibrary()"
+      >
+        Try again
+      </button>
     } @else if (!libLoading() && libItems().length === 0) {
       <p class="state">
         @if (libQuery) {
@@ -98,7 +106,17 @@
           </article>
         }
       </section>
-      @if (libHasMore()) {
+      @if (libFailed()) {
+        <p class="state">Couldn’t load more.</p>
+        <button
+          type="button"
+          class="app-btn show-more-library"
+          data-testid="library-performers-retry"
+          (click)="retryLibrary()"
+        >
+          Try again
+        </button>
+      } @else if (libHasMore()) {
         <button
           type="button"
           class="app-btn show-more-library"

@@ -594,7 +594,8 @@ export class ScenePageComponent implements OnInit, OnDestroy {
     if (query.get('view') === 'catalog' || copies.length !== 1 || scene.stash?.hasMultipleCopies) {
       return false;
     }
-    const returnTo = query.get('returnTo');
+    // The Back this page would have offered goes with it to the library copy.
+    const returnTo = query.get('returnTo') ?? this.cameFrom();
     void this.router.navigate(['/library/scene', copies[0].id], {
       replaceUrl: true,
       queryParams: returnTo ? { returnTo } : {},
