@@ -67,19 +67,22 @@ describe('PerformersPageComponent', () => {
         options.favorite ?? vi.fn().mockReturnValue(of({ alreadyFavorited: false })),
     };
     const notifications = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
+    const route = {
+      queryParamMap: new BehaviorSubject(convertToParamMap(options.query ?? {})),
+      snapshot: { queryParamMap: convertToParamMap(options.query ?? {}) },
+    };
+    /** The address changes to these query parameters. */
+    const goTo = (query: Record<string, string>) => {
+      route.snapshot.queryParamMap = convertToParamMap(query);
+      route.queryParamMap.next(convertToParamMap(query));
+    };
     await TestBed.configureTestingModule({
       imports: [PerformersPageComponent],
       providers: [
         provideRouter([]),
         { provide: DiscoverService, useValue: discover },
         { provide: LibraryService, useValue: library },
-        {
-          provide: ActivatedRoute,
-          useValue: {
-            queryParamMap: new BehaviorSubject(convertToParamMap(options.query ?? {})),
-            snapshot: { queryParamMap: convertToParamMap(options.query ?? {}) },
-          },
-        },
+        { provide: ActivatedRoute, useValue: route },
         { provide: AppNotificationsService, useValue: notifications },
       ],
     }).compileComponents();
@@ -94,6 +97,7 @@ describe('PerformersPageComponent', () => {
       discover,
       notifications,
       library,
+      goTo,
     };
   }
 
@@ -107,6 +111,22 @@ describe('PerformersPageComponent', () => {
     expect(
       root.querySelector('[data-testid="performers-in-library"]')?.getAttribute('aria-pressed'),
     ).toBe('true');
+  });
+
+  it('leaves the hidden catalog list alone in library mode, and loads it on the way back', async () => {
+    const feed = vi.fn().mockReturnValue(feedOf([performer()]));
+    const { fixture, goTo } = await render({ query: { lib: '1', q: 'lena' }, feed });
+    expect(feed).not.toHaveBeenCalled();
+
+    // A new search while the library list is shown.
+    goTo({ lib: '1', q: 'mia' });
+    fixture.detectChanges();
+    expect(feed).not.toHaveBeenCalled();
+
+    // Back to the catalog: it loads once, with the current search.
+    goTo({ q: 'mia' });
+    fixture.detectChanges();
+    expect(feed).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the people already shown when the next page fails, with Try again', async () => {
