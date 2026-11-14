@@ -125,6 +125,14 @@ export abstract class StashJobsApi extends StashGraphqlClient {
         await this.untilStashHasRoom(config);
         // From here on, new asks start a batch of their own.
         this.batches.delete(batchKey);
+        // A batch ahead of this one may have taken all of it meanwhile (asked
+        // again while that one was being started): that job does it.
+        const covering = await this.activeJobFor(config, group, [
+          ...batch.items,
+        ]);
+        if (covering) {
+          return covering;
+        }
         const job = await start([...batch.items]);
         this.logger.log(
           `Started Stash's ${KIND_NAMES[kind]} for ${batch.items.size} ${kind.endsWith('scan') ? 'folder(s)' : kind === 'task' ? 'library task' : 'scene(s)'}${job ? ` (job ${job})` : ''}.`,

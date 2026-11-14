@@ -597,7 +597,16 @@ export class SetupCheckService {
       };
     }
     // Renames follow Whisparr's own naming while it's set up, so the two
-    // can't drift apart.
+    // can't drift apart; unless that naming can't be used as a pattern.
+    const resolved = await this.organizer.whisparrNaming().catch(() => null);
+    if (resolved && !resolved.pattern) {
+      return {
+        status: 'warn',
+        summary:
+          'Stashboard can’t follow Whisparr’s naming, so it uses its own.',
+        detail: `${resolved.problem ?? 'Whisparr’s scene format can’t be read.'} In Whisparr: Settings → Media Management → Scene Naming.`,
+      };
+    }
     return {
       status: 'ok',
       summary: 'Whisparr and Stashboard name files the same way.',

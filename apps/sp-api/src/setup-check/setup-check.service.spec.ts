@@ -334,6 +334,18 @@ describe('SetupCheckService', () => {
     expect(byId(checks, 'naming')).toMatchObject({ status: 'ok' });
   });
 
+  it('warns when Whisparr renames but its naming can’t be followed', async () => {
+    organizer.whisparrNaming.mockResolvedValue({
+      folderFormat: null,
+      fileFormat: null,
+      pattern: null,
+      problem: 'Whisparr has no Standard Scene Format set.',
+    });
+    const { checks } = await service.run();
+    expect(byId(checks, 'naming')).toMatchObject({ status: 'warn' });
+    expect(byId(checks, 'naming').detail).toContain('no Standard Scene Format');
+  });
+
   it('offers to add the webhook when Whisparr has none, and adds it', async () => {
     whisparr.listNotifications.mockResolvedValue([]);
     const { checks } = await service.run(ORIGIN);

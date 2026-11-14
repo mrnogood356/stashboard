@@ -1238,12 +1238,13 @@ export abstract class OrganizerFiles extends OrganizerCore {
     }
     if (folders.length > 0) {
       // Waits its turn behind Stash's other jobs; no need to hold the answer.
+      // Marked as asked only once Stash took it: a failed ask can be retried.
       void this.stash
         .scanPaths(config, folders)
+        .then(() => this.markRescanned(folders))
         .catch((error: unknown) =>
           this.logger.warn(`Couldn't ask Stash to rescan: ${messageOf(error)}`),
         );
-      this.markRescanned(folders);
     }
     const merged = lines.merged.length;
     const scanned = lines.scanned.length;

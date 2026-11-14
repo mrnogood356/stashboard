@@ -249,8 +249,14 @@ export function groupMergeCandidates<T extends MergeItem>(
   };
   const byLink = index((item) => item.links);
   const byName = index((item) => [nameKey(item.name)]);
+  // Every pair, not just each with the first: if the first is split off as
+  // someone else, the rest still match each other.
   for (const ids of byLink.values()) {
-    ids.slice(1).forEach((id) => link(ids[0], id, 'catalog'));
+    for (let i = 0; i < ids.length; i += 1) {
+      for (let j = i + 1; j < ids.length; j += 1) {
+        link(ids[i], ids[j], 'catalog');
+      }
+    }
   }
   for (const ids of byName.values()) {
     for (let i = 0; i < ids.length; i += 1) {

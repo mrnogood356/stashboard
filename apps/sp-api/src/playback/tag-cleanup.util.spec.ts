@@ -141,6 +141,16 @@ describe('groupMergeCandidates', () => {
     ]);
   });
 
+  it('keeps two on one catalog entry together when a third on it is split off', () => {
+    const E = 'https://stashdb.org/graphql';
+    const groups = groupMergeCandidates([
+      person('1', 'Ann', 9, [], [`${E}|x`, `${E}|y`]),
+      person('2', 'Bea', 3, [], [`${E}|x`]),
+      person('3', 'Cara', 2, [], [`${E}|x`]),
+    ]);
+    expect(ids(groups)).toEqual([['2', '3']]);
+  });
+
   it('marks as unsure what reaches the one kept only through an alias', () => {
     const groups = groupMergeCandidates([
       person('1', 'JD', 9, ['Jane Doe']),
