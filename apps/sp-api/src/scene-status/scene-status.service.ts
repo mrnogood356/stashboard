@@ -204,7 +204,7 @@ export class SceneStatusService {
     try {
       [stashConfig, provider] = await Promise.all([
         this.readStashConfig(),
-        this.getActiveCatalogProviderKey(),
+        this.catalogProviderService.readInstanceCatalogProviderKey(),
       ]);
     } catch (error) {
       // Couldn't read the settings: that says nothing about the library.
@@ -219,11 +219,22 @@ export class SceneStatusService {
       return false;
     }
     try {
-      return await this.lookupStashAvailability(
+      // Stash may have it under a scene you said is the same one.
+      const pairs = await this.prisma.sceneStashAlias.findMany({
+        where: { OR: [{ stashId: normalized }, { aliasOf: normalized }] },
+      });
+      const ids = [
         normalized,
-        stashConfig,
-        provider,
-      );
+        ...pairs.map((pair) =>
+          pair.stashId === normalized ? pair.aliasOf : pair.stashId,
+        ),
+      ];
+      for (const id of new Set(ids)) {
+        if (await this.lookupStashAvailability(id, stashConfig, provider)) {
+          return true;
+        }
+      }
+      return false;
     } catch (error) {
       this.logger.debug(
         `stashHasScene couldn't ask Stash about stashId=${normalized}. error=${this.safeJson(

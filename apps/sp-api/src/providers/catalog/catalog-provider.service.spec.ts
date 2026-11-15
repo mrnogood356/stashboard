@@ -91,6 +91,35 @@ describe('CatalogProviderService', () => {
     });
   });
 
+  it('reads the main catalog’s key, throwing only when the settings can’t be read', async () => {
+    const stashdb = {
+      type: IntegrationType.STASHDB,
+      enabled: true,
+      status: IntegrationStatus.CONFIGURED,
+      baseUrl: 'http://stashdb.local/graphql',
+      config: buildCatalogProviderSelectionConfig(),
+      apiKey: 'stashdb-key',
+      lastHealthyAt: new Date('2026-04-01T00:00:00.000Z'),
+    };
+    integrationsService.findAll = jest.fn().mockResolvedValue([stashdb]);
+    integrationsService.findOne = jest.fn().mockResolvedValue(stashdb);
+    await expect(service.readInstanceCatalogProviderKey()).resolves.toBe(
+      'STASHDB',
+    );
+
+    integrationsService.findOne = jest
+      .fn()
+      .mockRejectedValue(new NotFoundException('gone'));
+    await expect(service.readInstanceCatalogProviderKey()).resolves.toBeNull();
+
+    integrationsService.findAll = jest
+      .fn()
+      .mockRejectedValue(new Error('database down'));
+    await expect(service.readInstanceCatalogProviderKey()).rejects.toThrow(
+      'database down',
+    );
+  });
+
   it('keeps using the enabled configured provider in a legacy dual-config state', async () => {
     integrationsService.findAll = jest.fn().mockResolvedValue([
       {

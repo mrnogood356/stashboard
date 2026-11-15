@@ -109,6 +109,10 @@ describe('SceneStatusService', () => {
 
       return Promise.reject(new Error(`Unexpected integration type: ${type}`));
     });
+    catalogProviderService.readInstanceCatalogProviderKey = jest
+      .fn()
+      .mockResolvedValue('STASHDB');
+    sceneStashAliasFindManyMock.mockResolvedValue([]);
     catalogProviderService.getConfiguredCatalogProviderOrNull = jest
       .fn()
       .mockResolvedValue({
@@ -441,6 +445,23 @@ describe('SceneStatusService', () => {
       await expect(service.stashHasScene('scene-1')).resolves.toBe(true);
       findScenesByStashIdMock.mockResolvedValue([]);
       await expect(service.stashHasScene('scene-2')).resolves.toBe(false);
+    });
+
+    it('finds the scene in Stash under a scene you said is the same one', async () => {
+      sceneStashAliasFindManyMock.mockResolvedValue([
+        { stashId: 'scene-other', aliasOf: 'scene-1' },
+      ]);
+      findScenesByStashIdMock.mockImplementation((id: string) =>
+        Promise.resolve(id === 'scene-other' ? [{ id: 'local-1' }] : []),
+      );
+      await expect(service.stashHasScene('scene-1')).resolves.toBe(true);
+    });
+
+    it('says it can’t tell when the catalog settings can’t be read', async () => {
+      (
+        catalogProviderService.readInstanceCatalogProviderKey as jest.Mock
+      ).mockRejectedValue(new Error('database down'));
+      await expect(service.stashHasScene('scene-1')).resolves.toBeNull();
     });
 
     it('says it can’t tell when Stash doesn’t answer', async () => {
