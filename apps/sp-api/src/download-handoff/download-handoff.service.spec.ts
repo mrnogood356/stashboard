@@ -850,6 +850,16 @@ describe('DownloadHandoffService', () => {
       ).fail(placed, 'Stash never found it');
       expect(prisma.smallerCopyAttempt.findFirst).not.toHaveBeenCalled();
       expect(update).not.toHaveBeenCalled();
+      // The tried list doesn't stay at "on its way".
+      expect(prisma.smallerCopyTry.updateMany).toHaveBeenCalledWith({
+        where: { handoffId: 'h1' },
+        data: expect.objectContaining({
+          outcome: 'failed',
+          detail: expect.stringContaining('Downloads list') as unknown,
+        }) as unknown,
+      });
+      // Still listed, to look at.
+      expect(placed.clearedAt ?? null).toBeNull();
     });
 
     it('leaves a download moved to another category alone', async () => {

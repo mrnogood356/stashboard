@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { Subject, of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { SmallerCopies, SmallerCopiesApiService } from '../../core/api/smaller-copies.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
@@ -84,7 +84,11 @@ const DATA: SmallerCopies = {
   tryCounts: { failed: 1, replaced: 1 },
 };
 
-async function render(data: SmallerCopies = DATA, searched: SmallerCopies = data) {
+async function render(
+  data: SmallerCopies = DATA,
+  searched: SmallerCopies = data,
+  failFirst = false,
+) {
   const api = {
     status: vi.fn(() => of(data)),
     save: vi.fn(() => of(data)),
@@ -102,6 +106,9 @@ async function render(data: SmallerCopies = DATA, searched: SmallerCopies = data
       { provide: AppNotificationsService, useValue: notifications },
     ],
   }).compileComponents();
+  if (failFirst) {
+    api.status.mockReturnValueOnce(throwError(() => new Error('down')));
+  }
   const fixture = TestBed.createComponent(SmallerCopiesPageComponent);
   fixture.detectChanges();
   await fixture.whenStable();
@@ -111,7 +118,8 @@ async function render(data: SmallerCopies = DATA, searched: SmallerCopies = data
     (root.querySelector(`[data-testid="better-tab-${id}"]`) as HTMLButtonElement).click();
     fixture.detectChanges();
   };
-  return { fixture, root, api, notifications, openTab };
+  const component = (f: typeof fixture) => f.componentInstance;
+  return { fixture, root, api, notifications, openTab, component };
 }
 
 describe('SmallerCopiesPageComponent', () => {
@@ -191,6 +199,39 @@ describe('SmallerCopiesPageComponent', () => {
     expect(root.querySelector('[data-testid="smaller-saved"]')!.textContent).toContain(
       'Given back 1,403 GB so far, across 399 scenes replaced.',
     );
+  });
+
+  it('drops a refresh read before a save, so the old rules don’t come back', async () => {
+    const { component, api, fixture } = await render();
+    const page = component(fixture) as unknown as { refresh(): void };
+    const stale = new Subject<SmallerCopies>();
+    api.status.mockReturnValueOnce(stale);
+    page.refresh();
+    const saved = { ...DATA, settings: { ...DATA.settings, scenesPerHour: 30 } };
+    api.save.mockReturnValueOnce(of(saved));
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="better-enabled"]',
+    ) as HTMLInputElement;
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change'));
+    // The old answer lands after the save: ignored.
+    stale.next(DATA);
+    stale.complete();
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change'));
+    expect(api.save).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false, scenesPerHour: 30 }),
+    );
+  });
+
+  it('fills the rules form from a later refresh when the first load failed', async () => {
+    const { fixture, api, root, openTab } = await render(DATA, DATA, true);
+    expect(root.querySelector('[data-testid="better-tab-rules"]')).toBeNull();
+    api.status.mockReturnValue(of(DATA));
+    (fixture.componentInstance as unknown as { refresh(): void }).refresh();
+    fixture.detectChanges();
+    openTab('rules');
+    expect(root.querySelector('button[type="submit"]')).not.toBeNull();
   });
 
   it('turns on and off from the overview straight away', async () => {

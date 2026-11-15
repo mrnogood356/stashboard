@@ -1757,16 +1757,30 @@ export class DownloadHandoffService {
     row: DownloadHandoff,
     reason: string,
   ): Promise<void> {
+    const failed = /[.!?]$/.test(reason.trim())
+      ? reason.trim()
+      : `${reason.trim()}.`;
     if (row.finalPath) {
       // The file is in the library already (only Stash's part failed):
-      // grabbing the same release again would only make another copy.
+      // grabbing the same release again would only make another copy, so
+      // the scene's row is left as it is. The tried list still says so.
+      await this.prisma.smallerCopyTry
+        .updateMany({
+          where: { handoffId: row.id },
+          data: {
+            outcome: 'failed',
+            detail:
+              `The file came in but couldn’t be put on the scene: ${failed} It’s still on the Downloads list to look at.`.slice(
+                0,
+                300,
+              ),
+          },
+        })
+        .catch(() => undefined);
       return;
     }
     // The release stays on the scene's grabbed list: one that failed once
     // isn't grabbed again. Another release can be looked for in a day.
-    const failed = /[.!?]$/.test(reason.trim())
-      ? reason.trim()
-      : `${reason.trim()}.`;
     const detail =
       `The download failed: ${failed} This release won’t be grabbed again.`.slice(
         0,

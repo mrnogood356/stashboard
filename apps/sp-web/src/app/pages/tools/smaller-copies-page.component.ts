@@ -146,6 +146,11 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
     return filter === 'all' ? tries : tries.filter((row) => row.outcome === filter);
   });
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
+  /**
+   * Bumped by every change made from the page: a refresh read before it
+   * would put the old state (old rules, say) back, so its answer is dropped.
+   */
+  private changes = 0;
 
   ngOnInit(): void {
     this.api.status().subscribe({
@@ -167,8 +172,21 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
       return;
     }
+    const changes = this.changes;
     this.api.status().subscribe({
-      next: (data) => this.data.set(data),
+      next: (data) => {
+        if (changes !== this.changes) {
+          return;
+        }
+        // The first load failed and this one worked: fill the rules form
+        // too. After that the form keeps whatever is being edited.
+        if (!this.form) {
+          this.error.set(false);
+          this.show(data);
+          return;
+        }
+        this.data.set(data);
+      },
       error: () => undefined,
     });
   }
@@ -196,6 +214,7 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
         return next;
       });
     this.rechecking.update((set) => new Set(set).add(stashSceneId));
+    this.changes += 1;
     this.api.recheck(stashSceneId).subscribe({
       next: (data) => {
         done();
@@ -219,6 +238,7 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
     }
     this.confirmingRecheckAll.set(false);
     this.recheckingAll.set(true);
+    this.changes += 1;
     this.api.recheckAll().subscribe({
       next: (data) => {
         this.recheckingAll.set(false);
@@ -323,6 +343,7 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
   }
 
   private persist(settings: SmallerCopySettings, done: string): void {
+    this.changes += 1;
     this.saving.set(true);
     this.api.save(settings).subscribe({
       next: (data) => {
@@ -338,6 +359,7 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
   }
 
   protected searchNow(): void {
+    this.changes += 1;
     this.searching.set(true);
     this.api.searchNow().subscribe({
       next: (data) => {
@@ -369,6 +391,7 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
         return next;
       });
     this.grabbing.update((set) => new Set(set).add(stashSceneId));
+    this.changes += 1;
     this.api.grab(stashSceneId).subscribe({
       next: (data) => {
         done();
