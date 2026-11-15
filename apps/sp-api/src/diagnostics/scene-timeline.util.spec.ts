@@ -110,6 +110,39 @@ describe('buildTimeline', () => {
     expect(timeline.now).toBe('Searching for a release');
   });
 
+  it('leaves out an old import once the file is gone and Whisparr wants it again', () => {
+    const imported = {
+      eventType: 'downloadFolderImported' as const,
+      date: '2025-12-05T16:35:00Z',
+      sourceTitle: 'Bright.Summer.Afternoon.1080p',
+      indexer: null,
+      downloadClient: null,
+      message: null,
+      importedPath: '/data/scenes/Summer Afternoon.mp4',
+    };
+    const gone = buildTimeline(
+      facts({
+        row: row({ whisparrLastSyncedAt: new Date('2026-10-21T11:00:00Z') }),
+        history: { value: [imported], error: null },
+      }),
+      NOW,
+    );
+    expect(shape(gone.steps)).toEqual(['requested:done', 'searching:current']);
+    expect(gone.now).toBe('Searching for a release');
+
+    // Imported since Whisparr last said there's no file: that's news.
+    const fresh = buildTimeline(
+      facts({
+        row: row({ whisparrLastSyncedAt: new Date('2025-12-01T00:00:00Z') }),
+        history: { value: [imported], error: null },
+      }),
+      NOW,
+    );
+    expect(fresh.steps.find((step) => step.step === 'importing')?.status).toBe(
+      'done',
+    );
+  });
+
   it('tells the grab and download progress from Whisparr’s history and queue', () => {
     const timeline = buildTimeline(
       facts({
