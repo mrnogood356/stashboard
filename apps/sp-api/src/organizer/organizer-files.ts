@@ -497,8 +497,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
         /** Moved, one file goes to one of them: the others wait on how it went. */
         const heldBack: Array<{
           stashId: string;
-          sceneId: string;
-          first: string;
+          scene: StashOrganizerScene;
         }> = [];
         const missing = await this.handoff.missingInWhisparr();
         const found = await this.stashScenesForWhisparr(
@@ -515,7 +514,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
           const first = sending.get(scene.id);
           // Moved, one file can only go to one of them; copied, to each.
           if (first && !copying) {
-            heldBack.push({ stashId, sceneId: scene.id, first });
+            heldBack.push({ stashId, scene });
             continue;
           }
           scenes.set(stashId, scene);
@@ -558,34 +557,76 @@ export abstract class OrganizerFiles extends OrganizerCore {
         }
         const list = [...scenes.values()];
         this.runState.total = list.length;
-        const totals: HandoffResult = { sent: [], skipped: {}, failed: [] };
-        for (let index = 0; index < list.length; index += 25) {
-          const chunk = list.slice(index, index + 25);
-          const handed = await this.handoff.send(
-            config,
-            chunk,
-            settings,
-            (done) => {
-              this.runState.processed = index + done;
-              this.runState.message = `Checked ${this.runState.processed} of ${list.length}. Sent ${totals.sent.length}.`;
-            },
-          );
-          totals.sent.push(...handed.sent);
-          totals.failed.push(...handed.failed);
-          for (const [reason, count] of Object.entries(handed.skipped)) {
-            totals.skipped[reason as keyof HandoffResult['skipped']] =
-              (totals.skipped[reason as keyof HandoffResult['skipped']] ?? 0) +
-              (count ?? 0);
+        const totals: HandoffResult = {
+          sent: [],
+          skipped: {},
+          failed: [],
+          alreadyHad: [],
+        };
+        const sendAll = async (
+          batch: StashOrganizerScene[],
+          offset: number,
+        ) => {
+          for (let index = 0; index < batch.length; index += 25) {
+            const chunk = batch.slice(index, index + 25);
+            const handed = await this.handoff.send(
+              config,
+              chunk,
+              settings,
+              (done) => {
+                this.runState.processed = offset + index + done;
+                this.runState.message = `Checked ${this.runState.processed} of ${this.runState.total}. Sent ${totals.sent.length}.`;
+              },
+            );
+            totals.sent.push(...handed.sent);
+            totals.failed.push(...handed.failed);
+            totals.alreadyHad!.push(...(handed.alreadyHad ?? []));
+            for (const [reason, count] of Object.entries(handed.skipped)) {
+              totals.skipped[reason as keyof HandoffResult['skipped']] =
+                (totals.skipped[reason as keyof HandoffResult['skipped']] ??
+                  0) + (count ?? 0);
+            }
+            this.runState.renamed = totals.sent.length;
+            this.runState.failed = totals.failed.length;
           }
-          this.runState.renamed = totals.sent.length;
-          this.runState.failed = totals.failed.length;
+        };
+        await sendAll(list, 0);
+        // Moved, a shared file went to one target. Where Whisparr already had
+        // a file for that one, nothing was moved: the next target gets it.
+        let waiting = heldBack;
+        for (;;) {
+          const had = new Set(totals.alreadyHad);
+          const next = new Map<string, (typeof heldBack)[number]>();
+          for (const held of waiting) {
+            if (
+              had.has(sending.get(held.scene.id) ?? '') &&
+              !next.has(held.scene.id)
+            ) {
+              next.set(held.scene.id, held);
+            }
+          }
+          if (next.size === 0) {
+            break;
+          }
+          for (const held of next.values()) {
+            sending.set(held.scene.id, held.stashId);
+          }
+          waiting = waiting.filter(
+            (held) =>
+              !next.has(held.scene.id) || next.get(held.scene.id) !== held,
+          );
+          this.runState.total += next.size;
+          await sendAll(
+            [...next.values()].map((held) => held.scene),
+            this.runState.processed,
+          );
         }
         const sentScenes = new Set(totals.sent.map((entry) => entry.sceneId));
-        for (const held of heldBack) {
+        for (const held of waiting) {
           this.handoff.noteSharedFile(
             held.stashId,
-            held.first,
-            sentScenes.has(held.sceneId),
+            sending.get(held.scene.id) ?? '',
+            sentScenes.has(held.scene.id),
           );
         }
         const already = totals.skipped['already-has-file'] ?? 0;
