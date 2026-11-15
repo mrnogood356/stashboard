@@ -649,6 +649,45 @@ describe('AcquisitionPageComponent', () => {
     expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
   });
 
+  it('tries the cards again when the refresh after a finished download fails', async () => {
+    const queued = buildItem({
+      id: 'scene-queued',
+      status: { state: 'REQUESTED' },
+      queueState: null,
+    });
+    const { component, acquisitionService, downloadsApi } = await renderPage({
+      responses: { ANY: buildResponse([queued]) },
+      handoffs: [handoff({ id: 'h-q', sceneId: 'scene-queued', stage: 'linking' })],
+    });
+    const live = component as unknown as { liveRefresh(): void };
+    downloadsApi.processing.mockReturnValue(
+      of({
+        handoff: {
+          enabled: true,
+          sabnzbdReady: true,
+          category: 'stashboard',
+          sabnzbdUnreachable: false,
+        },
+        handoffs: [],
+        recentHandoffs: [],
+        dropIns: { watch: {}, active: [], recent: [] },
+        activeCount: 0,
+        problemCount: 0,
+      } as unknown as Processing),
+    );
+    const feed = acquisitionService.getScenesFeed.getMockImplementation();
+    acquisitionService.getScenesFeed.mockClear();
+    acquisitionService.getScenesFeed.mockReturnValueOnce(throwError(() => new Error('offline')));
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
+
+    if (feed) acquisitionService.getScenesFeed.mockImplementation(feed);
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(2);
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(2);
+  });
+
   it('doesn’t list a download again when its scene already has a card below', async () => {
     const { fixture } = await renderPage({
       handoffs: [handoff(), handoff({ id: 'h-dup', sceneId: 'scene-downloading' })],

@@ -1164,7 +1164,6 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     const loaded = pageAtStart * AcquisitionPageComponent.PAGE_SIZE;
     const replace = loaded <= LIVE_REFRESH_MAX;
     const version = this.feedVersion;
-    this.cardHandoffFinished = false;
     this.liveRefreshing = true;
     this.acquisitionService
       .getScenesFeed(
@@ -1176,11 +1175,19 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       .pipe(finalize(() => (this.liveRefreshing = false)))
       .subscribe({
         next: (response) => {
-          // A filter, search, reload or another page loaded since then wins:
-          // replacing the list now would drop the newer cards.
-          if (version !== this.feedVersion || this.inFlight() || this.page() !== pageAtStart) {
+          // A reload since then fetched every card afresh anyway.
+          if (version !== this.feedVersion) {
+            this.cardHandoffFinished = false;
             return;
           }
+          // Another page loaded since then wins: replacing the list now would
+          // drop the newer cards. A finished download is tried next time.
+          if (this.inFlight() || this.page() !== pageAtStart) {
+            return;
+          }
+          // Cleared only once the cards are fetched: a failed request leaves
+          // it set, so the next tick tries again.
+          this.cardHandoffFinished = false;
           this.countsByLifecycle.set(response.countsByLifecycle);
           if (replace) {
             this.total.set(response.total);
