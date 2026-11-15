@@ -226,6 +226,14 @@ export class MergeQueryDto {
   q?: string;
 }
 
+export class SkipProblemDto {
+  @IsIn(['no-file', 'no-length', 'unreadable', 'file-check', 'generate'])
+  kind!: 'no-file' | 'no-length' | 'unreadable' | 'file-check' | 'generate';
+
+  @Matches(/^\d{1,12}$/)
+  sceneId!: string;
+}
+
 export class IgnoreDuplicatesDto {
   @IsArray()
   @ArrayMinSize(2)

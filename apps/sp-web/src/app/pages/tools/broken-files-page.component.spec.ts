@@ -98,6 +98,64 @@ describe('BrokenFilesPageComponent', () => {
     expect(notifications.success).not.toHaveBeenCalled();
   });
 
+  it('says it’s working while Stash is asked, then started', async () => {
+    const reply = new Subject<{ jobId: string }>();
+    const generateFor = vi.fn().mockReturnValue(reply);
+    const { fixture, root, notifications } = await render(
+      [{ kind: 'generate', count: 1, scenes: scenes(1) }],
+      { generateFor },
+    );
+    const button = () =>
+      root.querySelector<HTMLButtonElement>('[data-testid="fix-generate-generate"]')!;
+    button().click();
+    fixture.detectChanges();
+    expect(button().textContent).toContain('Working');
+    expect(button().disabled).toBe(true);
+    reply.next({ jobId: '2' });
+    fixture.detectChanges();
+    expect(button().textContent).toContain('Started');
+    expect(notifications.success).toHaveBeenCalled();
+  });
+
+  it('skips a scene on its list, and shows skipped scenes again', async () => {
+    const skipProblem = vi.fn().mockReturnValue(of(undefined));
+    const clearProblemSkips = vi.fn().mockReturnValue(of(undefined));
+    const problems = vi
+      .fn()
+      .mockReturnValueOnce(
+        of([
+          {
+            kind: 'generate',
+            count: 2,
+            scenes: scenes(2),
+            skipped: 1,
+          },
+        ]),
+      )
+      .mockReturnValue(of([{ kind: 'generate', count: 3, scenes: scenes(3) }]));
+    const { fixture, root } = await render([], { problems, skipProblem, clearProblemSkips });
+    expect(root.querySelector('[data-testid="skipped-note"]')?.textContent).toContain(
+      '1 scene skipped',
+    );
+
+    root.querySelector<HTMLButtonElement>('[data-testid="skip-generate-2"]')!.click();
+    fixture.detectChanges();
+    expect(skipProblem).toHaveBeenCalledWith('generate', '2');
+    expect(root.querySelector('[data-testid="why-2"], [data-testid="skip-generate-2"]')).toBeNull();
+    expect(
+      root.querySelector('[data-testid="problem-generate"] .count-badge')?.textContent,
+    ).toContain('1');
+    expect(root.querySelector('[data-testid="skipped-note"]')?.textContent).toContain(
+      '2 scenes skipped',
+    );
+
+    Array.from(root.querySelectorAll<HTMLButtonElement>('.skipped-note button'))[0].click();
+    fixture.detectChanges();
+    expect(clearProblemSkips).toHaveBeenCalled();
+    expect(root.querySelector('[data-testid="skipped-note"]')).toBeNull();
+    expect(root.querySelectorAll('[data-testid="problem-generate"] .scenes > li').length).toBe(3);
+  });
+
   it('removes scenes with no file from Stash after a second tap, and deletes broken files but never a scene with more files', async () => {
     const deleteScene = vi.fn().mockReturnValue(of(undefined));
     const multi = { id: '3', title: 'Two files', path: '/x', fileCount: 2 };

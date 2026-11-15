@@ -374,6 +374,16 @@ export class LocalLibraryService {
   }
 
   /** `refresh`: check every marker's preview again instead of the last check. */
+  /** Leaves a scene off one Broken files list, until skips are cleared. */
+  skipProblem(kind: ProblemKind, sceneId: string): Observable<void> {
+    return this.http.post<void>('/api/local/problems/skip', { kind, sceneId });
+  }
+
+  /** Shows every skipped scene again. */
+  clearProblemSkips(): Observable<void> {
+    return this.http.delete<void>('/api/local/problems/skip');
+  }
+
   problems(refresh = false): Observable<ProblemList[]> {
     return this.http.get<ProblemList[]>('/api/local/problems', {
       params: refresh ? new HttpParams().set('refresh', '1') : new HttpParams(),
@@ -517,6 +527,8 @@ export interface ProblemList {
   unansweredWhy?: string;
   /** Why the count is unknown, in plain words. */
   note?: string;
+  /** Scenes you skipped on this list, left out of it and its count. */
+  skipped?: number;
 }
 
 export interface ProblemScene {

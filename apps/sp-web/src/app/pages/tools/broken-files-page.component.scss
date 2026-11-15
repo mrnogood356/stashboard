@@ -92,3 +92,27 @@
 .scenes a:hover {
   text-decoration: underline;
 }
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--focus-ring);
+  font: inherit;
+  cursor: pointer;
+}
+
+.link-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.scenes .skip {
+  justify-self: start;
+  font-size: 0.78rem;
+}
+
+.skipped-note {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+}

@@ -367,6 +367,54 @@ describe('LocalLibraryService', () => {
     expect(stash.findGenerateGaps).toHaveBeenCalledTimes(2);
   });
 
+  it('leaves skipped scenes off their own list only, and shows them again when cleared', async () => {
+    const skips = [{ kind: 'no-file', sceneId: '2' }];
+    const prisma = {
+      brokenFileSkip: {
+        findMany: jest.fn(() => Promise.resolve(skips)),
+        upsert: jest.fn().mockResolvedValue(undefined),
+        deleteMany: jest.fn().mockResolvedValue(undefined),
+      },
+    };
+    const withSkips = new LocalLibraryService(
+      playback as unknown as PlaybackService,
+      stash as unknown as StashAdapter,
+      undefined,
+      prisma as never,
+    );
+    const two = [
+      { id: '1', title: 'A', path: null },
+      { id: '2', title: 'B', path: null },
+    ];
+    // One answer for each quick list.
+    for (let i = 0; i < 3; i += 1) {
+      stash.findProblemScenes.mockResolvedValueOnce({ count: 2, scenes: two });
+    }
+    const lists = await withSkips.problems();
+    expect(lists.find((list) => list.kind === 'no-file')).toMatchObject({
+      count: 1,
+      scenes: [{ id: '1' }],
+      skipped: 1,
+    });
+    // Skipped on one list, still listed on the others.
+    expect(lists.find((list) => list.kind === 'no-length')).toMatchObject({
+      count: 2,
+      scenes: two,
+    });
+    expect(
+      lists.find((list) => list.kind === 'no-length')?.skipped,
+    ).toBeUndefined();
+
+    await withSkips.skipProblem('generate', '7');
+    expect(prisma.brokenFileSkip.upsert).toHaveBeenCalledWith({
+      where: { kind_sceneId: { kind: 'generate', sceneId: '7' } },
+      create: { kind: 'generate', sceneId: '7' },
+      update: {},
+    });
+    await withSkips.clearProblemSkips();
+    expect(prisma.brokenFileSkip.deleteMany).toHaveBeenCalledWith({});
+  });
+
   it('reads the scene list once for both background checks', async () => {
     stash.findProblemScenes.mockResolvedValue({ count: 0, scenes: [] });
     const rows = [{ id: '1', title: 'One', markerIds: [], files: [] }];
