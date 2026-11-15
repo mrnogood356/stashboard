@@ -768,7 +768,32 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
 
   /** Requested → Downloading → Waiting for Stash → In library, with where it is now. */
   protected stages(item: AcquisitionSceneItem): Stage[] {
-    return stagesForStatus(item.status.state, item.queueState);
+    const handoff = this.aheadHandoff(item);
+    return handoff
+      ? this.handoffStages(handoff)
+      : stagesForStatus(item.status.state, item.queueState);
+  }
+
+  /** Active downloads Stashboard sent, by the scene they're for. */
+  private readonly activeHandoffByScene = computed(
+    () =>
+      new Map(
+        this.handoffs()
+          .filter((handoff) => handoff.sceneId && ACTIVE_HANDOFF_STAGES.includes(handoff.stage))
+          .map((handoff) => [handoff.sceneId as string, handoff]),
+      ),
+  );
+
+  /**
+   * The download Stashboard sent for a card that still says Wanted: Whisparr
+   * doesn't know about it yet, so the card shows where the download is.
+   */
+  protected aheadHandoff(item: AcquisitionSceneItem): ProcessingHandoff | null {
+    const state = item.status.state;
+    if (state !== 'REQUESTED' && state !== 'NOT_REQUESTED') {
+      return null;
+    }
+    return this.activeHandoffByScene().get(item.id) ?? null;
   }
 
   /** "45% · 6 min left", or null when Whisparr hasn't said. */

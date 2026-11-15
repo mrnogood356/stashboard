@@ -592,14 +592,23 @@ describe('AcquisitionPageComponent', () => {
       status: { state: 'REQUESTED' },
       queueState: null,
     });
-    const { component, acquisitionService } = await renderPage({
+    const { fixture, component, acquisitionService } = await renderPage({
       responses: { ANY: buildResponse([queued]) },
       handoffs: [handoff({ id: 'h-q', sceneId: 'scene-queued', stage: 'downloading' })],
     });
+    const root = fixture.nativeElement as HTMLElement;
+
+    // Whisparr doesn't know yet; the card shows where the download is.
+    expect(stageStates(root, 'scene-queued')[1]).toBe('Downloading:current');
+    expect(
+      root
+        .querySelector('[data-testid="download-scene-queued"] [role="progressbar"]')
+        ?.getAttribute('aria-valuenow'),
+    ).toBe('40');
+    expect(root.querySelector('[data-testid="handoff-h-q"]')).toBeNull();
+
     acquisitionService.getScenesFeed.mockClear();
-
     (component as unknown as { liveRefresh(): void }).liveRefresh();
-
     expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
   });
 
