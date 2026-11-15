@@ -575,8 +575,9 @@ export class LocalLibraryService {
    * Covers come from a plain Generate, only where missing, so a picked one
    * stays. A scene whose file lacks the hash Stash names generated files by
    * is left out of the made-again job: Stash would write every such scene's
-   * preview to the same blank name. Says so, and why, when anything was
-   * left out or the covers couldn't be asked for.
+   * preview to the same blank name. Then a rescan that makes hover
+   * previews, for Stash builds whose Generate doesn't. Says so, and why,
+   * when anything was left out or couldn't be asked for.
    */
   async generateFor(
     sceneIds: string[],
@@ -622,6 +623,20 @@ export class LocalLibraryService {
       const why = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Couldn't start Generate for missing covers: ${why}`);
       notes.push(`Missing covers weren’t asked for (${why}); try again.`);
+    }
+    if (named.length > 0) {
+      // Some Stash builds' Generate makes no hover previews at all (Stash
+      // issue #7341), though a scan that makes them still works. It only
+      // makes the ones still missing, after the jobs above.
+      try {
+        await this.stash.rescanForPreviews(config, named);
+      } catch (error) {
+        const why = error instanceof Error ? error.message : String(error);
+        this.logger.warn(`Couldn't rescan for hover previews: ${why}`);
+        notes.push(
+          `The rescan that makes missing hover previews wasn’t asked for (${why}); try again.`,
+        );
+      }
     }
     this.logger.log(
       `Started Stash’s Generate for ${sceneIds.length} scene${sceneIds.length === 1 ? '' : 's'}, ${named.length} made again${jobId ? ` (job ${jobId})` : ''}.`,
