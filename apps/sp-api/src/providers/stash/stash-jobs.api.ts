@@ -646,7 +646,8 @@ export abstract class StashJobsApi extends StashGraphqlClient {
         : null;
     };
     const scope = ids?.length ? [...ids].sort().join(',') : '*';
-    if (options.now) {
+    // Made again always starts on its own: never gathered with plain asks.
+    if (options.now || options.overwrite) {
       // Made again is its own ask: never folded into a plain Generate.
       const kind = options.overwrite ? `${task}+overwrite` : task;
       return this.queueOnce(config, `${kind}:${scope}`, () => run(variables));

@@ -360,7 +360,8 @@ export class LocalLibraryService {
   }
 
   /** Generate (previews, sprites, covers, fingerprints) for just these scenes. */
-  generateFor(sceneIds: string[]): Observable<{ jobId: string | null }> {
+  /** `warning`: started, but something was left out, said why. */
+  generateFor(sceneIds: string[]): Observable<{ jobId: string | null; warning?: string }> {
     return this.http.post<{ jobId: string | null }>('/api/local/generate', { sceneIds });
   }
 

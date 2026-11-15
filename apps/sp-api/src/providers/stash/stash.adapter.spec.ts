@@ -793,6 +793,23 @@ describe('StashAdapter', () => {
       expect(sent()[1].variables.input).not.toHaveProperty('overwrite');
     });
 
+    it('never gathers a made-again Generate with a plain one', async () => {
+      (adapter as unknown as { laneGatherMs: number }).laneGatherMs = 30;
+      const plain = adapter.startLibraryTask(config, 'generate', ['1']);
+      const again = adapter.startLibraryTask(config, 'generate', ['2'], {
+        overwrite: true,
+      });
+      await Promise.all([plain, again]);
+      expect(sent()).toHaveLength(2);
+      const inputs = sent().map((call) => call.variables.input);
+      expect(inputs).toContainEqual(
+        expect.objectContaining({ overwrite: true, sceneIDs: ['2'] }),
+      );
+      expect(inputs).toContainEqual(
+        expect.not.objectContaining({ overwrite: true }),
+      );
+    });
+
     it('marks the jobs in Stash’s queue that Stashboard started', async () => {
       await adapter.scanLibraryFolders(config, ['/data/mine']);
       queue = [

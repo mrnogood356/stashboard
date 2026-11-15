@@ -569,33 +569,87 @@ export class LocalLibraryService {
     return { jobId };
   }
 
-  /** Generate (previews, sprites, covers, fingerprints) for just these scenes. */
-  async generateFor(sceneIds: string[]): Promise<{ jobId: string | null }> {
+  /**
+   * Generate for just these scenes, made again from scratch: Stash otherwise
+   * skips whatever it thinks it already has, which is how they stay broken.
+   * Covers come from a plain Generate, only where missing, so a picked one
+   * stays. A scene whose file lacks the hash Stash names generated files by
+   * is left out of the made-again job: Stash would write every such scene's
+   * preview to the same blank name. Says so, and why, when anything was
+   * left out or the covers couldn't be asked for.
+   */
+  async generateFor(
+    sceneIds: string[],
+  ): Promise<{ jobId: string | null; warning?: string }> {
     // An empty list would make Stash generate for the whole library.
     if (sceneIds.length === 0) {
       throw new BadRequestException('Pick at least one scene.');
     }
     const config = await this.playback.getStashConfig();
-    // Made again from scratch: Generate otherwise skips whatever Stash
-    // thinks it already has, which is how these scenes stay broken.
-    const jobId = await this.stash.startLibraryTask(
-      config,
-      'generate',
-      sceneIds,
-      { now: true, overwrite: true },
-    );
-    // Covers only where missing, so a picked or downloaded one stays.
-    await this.stash
-      .startLibraryTask(config, 'generate', sceneIds, { now: true })
-      .catch((error: unknown) =>
-        this.logger.warn(
-          `Couldn't start Generate for missing covers: ${error instanceof Error ? error.message : String(error)}`,
-        ),
+    const named = await this.withNamingHash(config, sceneIds);
+    const notes: string[] = [];
+    let jobId: string | null = null;
+    if (named.length > 0) {
+      jobId = await this.stash.startLibraryTask(config, 'generate', named, {
+        now: true,
+        overwrite: true,
+      });
+    }
+    const left = sceneIds.length - named.length;
+    if (left > 0) {
+      notes.push(
+        `${left} scene${left === 1 ? '' : 's'} couldn’t be made again: ${left === 1 ? 'its file has' : 'their files have'} no hash for Stash to name generated files by yet. Scan ${left === 1 ? 'it' : 'them'} again in Stash first.`,
       );
+    }
+    try {
+      const plain = await this.stash.startLibraryTask(
+        config,
+        'generate',
+        sceneIds,
+        { now: true },
+      );
+      jobId ??= plain;
+    } catch (error) {
+      // Nothing started at all: say so as an error.
+      if (named.length === 0) {
+        throw error;
+      }
+      const why = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Couldn't start Generate for missing covers: ${why}`);
+      notes.push(`Missing covers weren’t asked for (${why}); try again.`);
+    }
     this.logger.log(
-      `Started Stash’s Generate, made again, for ${sceneIds.length} scene${sceneIds.length === 1 ? '' : 's'}${jobId ? ` (job ${jobId})` : ''}.`,
+      `Started Stash’s Generate for ${sceneIds.length} scene${sceneIds.length === 1 ? '' : 's'}, ${named.length} made again${jobId ? ` (job ${jobId})` : ''}.`,
     );
-    return { jobId };
+    return notes.length > 0 ? { jobId, warning: notes.join(' ') } : { jobId };
+  }
+
+  /**
+   * The scenes whose main file has the hash Stash names generated files by.
+   * None when the setting or the scenes can't be read: better nothing made
+   * again than previews written under a blank name.
+   */
+  private async withNamingHash(
+    config: Awaited<ReturnType<PlaybackService['getStashConfig']>>,
+    sceneIds: string[],
+  ): Promise<string[]> {
+    const naming = await this.stash
+      .generatedFileNaming(config)
+      .catch(() => null);
+    if (!naming) {
+      return [];
+    }
+    const want = naming === 'MD5' ? 'md5' : 'oshash';
+    const scenes = await Promise.all(
+      sceneIds.map((id) =>
+        this.stash.getOrganizerScene(config, id).catch(() => null),
+      ),
+    );
+    return sceneIds.filter((_, index) =>
+      (scenes[index]?.files[0]?.fingerprints ?? []).some(
+        (print) => print.type === want && !!print.value,
+      ),
+    );
   }
 
   // ---------- tag cleanup ----------

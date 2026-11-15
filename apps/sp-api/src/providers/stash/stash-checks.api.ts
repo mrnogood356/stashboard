@@ -595,7 +595,7 @@ export abstract class StashChecksApi extends StashFilesApi {
 
   /** Ids of every scene Stash says is missing this (one query, ids only). */
   /** The hash Stash names generated files by: MD5 or OSHASH. */
-  protected async generatedFileNaming(
+  async generatedFileNaming(
     config: StashAdapterBaseConfig,
   ): Promise<'MD5' | 'OSHASH' | null> {
     const payload = (await this.executeQuery(
