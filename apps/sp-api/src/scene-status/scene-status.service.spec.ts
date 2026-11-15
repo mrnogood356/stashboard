@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import {
   IntegrationStatus,
   IntegrationType,
@@ -395,10 +396,43 @@ describe('SceneStatusService', () => {
   describe('stashHasScene', () => {
     it('answers from a fresh index row without asking Stash', async () => {
       getFreshSceneIndexRowsMock.mockResolvedValue(
-        new Map([['scene-1', { stashId: 'scene-1', stashAvailable: true }]]),
+        new Map([
+          [
+            'scene-1',
+            {
+              stashId: 'scene-1',
+              stashAvailable: true,
+              stashLastSyncedAt: new Date(),
+            },
+          ],
+        ]),
       );
       await expect(service.stashHasScene('scene-1')).resolves.toBe(true);
       expect(findScenesByStashIdMock).not.toHaveBeenCalled();
+    });
+
+    it('asks Stash when the row’s last word from Stash is old, however fresh the row', async () => {
+      getFreshSceneIndexRowsMock.mockResolvedValue(
+        new Map([
+          [
+            'scene-1',
+            {
+              stashId: 'scene-1',
+              stashAvailable: false,
+              stashLastSyncedAt: new Date(Date.now() - 2 * 3600_000),
+            },
+          ],
+        ]),
+      );
+      findScenesByStashIdMock.mockResolvedValue([{ id: 'local-1' }]);
+      await expect(service.stashHasScene('scene-1')).resolves.toBe(true);
+    });
+
+    it('says it can’t tell when Stash’s settings can’t be read, and no when Stash isn’t set up', async () => {
+      findOneMock.mockRejectedValue(new Error('database down'));
+      await expect(service.stashHasScene('scene-1')).resolves.toBeNull();
+      findOneMock.mockRejectedValue(new NotFoundException('not set up'));
+      await expect(service.stashHasScene('scene-1')).resolves.toBe(false);
     });
 
     it('asks Stash when the index can’t say, even when unknown scenes count as not requested', async () => {
