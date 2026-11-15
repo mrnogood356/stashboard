@@ -52,6 +52,7 @@ describe('LocalLibraryService', () => {
     mergePerformers: jest.fn().mockResolvedValue(undefined),
     mergeStudios: jest.fn().mockResolvedValue(undefined),
     startLibraryTask: jest.fn().mockResolvedValue('7'),
+    generatedFileNaming: jest.fn().mockResolvedValue('OSHASH'),
     findProblemScenes: jest.fn(),
     findGenerateGaps: jest.fn().mockResolvedValue({
       missing: 3,
@@ -194,11 +195,31 @@ describe('LocalLibraryService', () => {
     expect(stash.mergeStudios).not.toHaveBeenCalled();
   });
 
+  const withHash = (oshash: string | null) => ({
+    files: [
+      {
+        path: '/x.mp4',
+        fingerprints: oshash ? [{ type: 'oshash', value: oshash }] : [],
+      },
+    ],
+  });
+
   it('generates for the chosen scenes only, and never for the whole library by accident', async () => {
+    stash.getOrganizerScene.mockResolvedValue(withHash('o'));
     await expect(service.generateFor(['4', '5'])).resolves.toEqual({
       jobId: '7',
     });
-    expect(stash.startLibraryTask).toHaveBeenCalledWith(
+    // Made again from scratch, so Stash doesn't skip what it thinks it has…
+    expect(stash.startLibraryTask).toHaveBeenNthCalledWith(
+      1,
+      config,
+      'generate',
+      ['4', '5'],
+      { now: true, overwrite: true },
+    );
+    // …and covers only where missing, so a picked one stays.
+    expect(stash.startLibraryTask).toHaveBeenNthCalledWith(
+      2,
       config,
       'generate',
       ['4', '5'],
@@ -207,7 +228,82 @@ describe('LocalLibraryService', () => {
     await expect(service.generateFor([])).rejects.toThrow(
       'Pick at least one scene',
     );
+    expect(stash.startLibraryTask).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves a scene without the naming hash out of the made-again job, and says so', async () => {
+    stash.getOrganizerScene.mockImplementation((_config, id: string) =>
+      Promise.resolve(withHash(id === '5' ? null : 'o')),
+    );
+    const result = await service.generateFor(['4', '5']);
+    expect(stash.startLibraryTask).toHaveBeenNthCalledWith(
+      1,
+      config,
+      'generate',
+      ['4'],
+      { now: true, overwrite: true },
+    );
+    // The plain Generate still gets both: it skips what it can't name.
+    expect(stash.startLibraryTask).toHaveBeenNthCalledWith(
+      2,
+      config,
+      'generate',
+      ['4', '5'],
+      { now: true },
+    );
+    expect(result.warning).toContain('1 scene couldn’t be made again');
+  });
+
+  it('makes nothing again when Stash’s naming setting can’t be read', async () => {
+    stash.generatedFileNaming.mockRejectedValueOnce(new Error('down'));
+    stash.getOrganizerScene.mockResolvedValue(withHash('o'));
+    const result = await service.generateFor(['4']);
     expect(stash.startLibraryTask).toHaveBeenCalledTimes(1);
+    expect(stash.startLibraryTask).toHaveBeenCalledWith(
+      config,
+      'generate',
+      ['4'],
+      { now: true },
+    );
+    // Not known to lack the hash: just couldn't be checked.
+    expect(result.warning).toContain('Stash didn’t say');
+    expect(result.warning).not.toContain('Scan');
+  });
+
+  it('tells a scene Stash couldn’t look up apart from one without the hash', async () => {
+    stash.getOrganizerScene.mockImplementation((_config, id: string) =>
+      id === '6'
+        ? Promise.reject(new Error('down'))
+        : // Stash finds no scene 7 at all.
+          Promise.resolve(
+            id === '7' ? null : withHash(id === '5' ? null : 'o'),
+          ),
+    );
+    const result = await service.generateFor(['4', '5', '6', '7']);
+    expect(stash.startLibraryTask).toHaveBeenNthCalledWith(
+      1,
+      config,
+      'generate',
+      ['4'],
+      { now: true, overwrite: true },
+    );
+    expect(result.warning).toContain(
+      '2 scenes couldn’t be made again: Stash didn’t say',
+    );
+    expect(result.warning).toContain(
+      '1 scene couldn’t be made again: its file has no hash',
+    );
+  });
+
+  it('says when the covers couldn’t be asked for, keeping the job that started', async () => {
+    stash.getOrganizerScene.mockResolvedValue(withHash('o'));
+    stash.startLibraryTask
+      .mockResolvedValueOnce('7')
+      .mockRejectedValueOnce(new Error('Stash is busy'));
+    await expect(service.generateFor(['4'])).resolves.toEqual({
+      jobId: '7',
+      warning: expect.stringContaining('Stash is busy') as unknown,
+    });
   });
 
   it('lists each kind of broken file, and says when Stash couldn’t answer one', async () => {

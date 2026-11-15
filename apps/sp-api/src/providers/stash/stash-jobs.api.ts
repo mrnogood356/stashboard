@@ -562,12 +562,15 @@ export abstract class StashJobsApi extends StashGraphqlClient {
    * Starts one of Stash's library tasks. In the background (the default)
    * it waits its turn behind Stash's other jobs and joins others of its kind;
    * `now` starts it straight away, for something you just tapped.
+   * `overwrite` (Generate for named scenes): makes previews, thumbnails,
+   * chapter clips and fingerprints again even where Stash thinks it has
+   * them. Covers are left out, so a picked or downloaded cover stays.
    */
   async startLibraryTask(
     config: StashAdapterBaseConfig,
     task: StashLibraryTask,
     sceneIds?: string[],
-    options: { now?: boolean } = {},
+    options: { now?: boolean; overwrite?: boolean } = {},
   ): Promise<string | null> {
     const ids = sceneIds
       ?.map((id) => this.normalizeEntityId(id))
@@ -588,12 +591,13 @@ export abstract class StashJobsApi extends StashGraphqlClient {
         mutation = `mutation Generate($input: GenerateMetadataInput!) { metadataGenerate(input: $input) }`;
         variables = {
           input: {
-            covers: true,
+            covers: !options.overwrite,
             sprites: true,
             previews: true,
             markers: true,
             markerScreenshots: true,
             phashes: true,
+            ...(options.overwrite && ids?.length ? { overwrite: true } : {}),
             ...(ids?.length ? { sceneIDs: ids } : {}),
           },
         };
@@ -642,8 +646,11 @@ export abstract class StashJobsApi extends StashGraphqlClient {
         : null;
     };
     const scope = ids?.length ? [...ids].sort().join(',') : '*';
-    if (options.now) {
-      return this.queueOnce(config, `${task}:${scope}`, () => run(variables));
+    // Made again always starts on its own: never gathered with plain asks.
+    if (options.now || options.overwrite) {
+      // Made again is its own ask: never folded into a plain Generate.
+      const kind = options.overwrite ? `${task}+overwrite` : task;
+      return this.queueOnce(config, `${kind}:${scope}`, () => run(variables));
     }
     // Scenes' Generate or Identify: one job for every scene asked meanwhile.
     if (ids?.length && (task === 'generate' || task === 'identify')) {
