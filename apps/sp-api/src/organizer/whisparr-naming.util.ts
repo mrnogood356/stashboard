@@ -152,6 +152,19 @@ export function unknownWhisparrTokens(
     );
 }
 
+/** How many placeholders in this part spell out the scene's title. */
+export function sceneTitleCount(segment: string): number {
+  return [...segment.matchAll(TITLE_TOKEN)].filter((match) =>
+    [
+      'scenetitle',
+      'scenecleantitle',
+      'scenetitlethe',
+      'scenecleantitlenoseasonepisode',
+      'originaltitle',
+    ].includes(simplify(match.groups?.token ?? '')),
+  ).length;
+}
+
 /** Whether a scene placeholder that names the scene is in this part. */
 export function namesTheScene(segment: string): boolean {
   return [...segment.matchAll(TITLE_TOKEN)].some((match) =>

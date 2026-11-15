@@ -5,6 +5,11 @@
 .timeline {
   display: grid;
   gap: 0.75rem;
+
+  // The grid's gaps space it; a paragraph's own margins would double them.
+  p {
+    margin: 0;
+  }
 }
 
 .timeline-head {
@@ -70,7 +75,7 @@
   display: grid;
   grid-template-columns: 1.5rem minmax(0, 1fr);
   gap: 0.65rem;
-  padding-bottom: 0.7rem;
+  padding-bottom: 0.55rem;
 
   // The line joining each step to the next.
   &:not(:last-child)::before {
@@ -168,7 +173,7 @@
 
 .timeline-detail {
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   line-height: 1.4;
   // Release names and paths are long; wrap rather than push the page sideways.
   overflow-wrap: anywhere;
