@@ -198,7 +198,17 @@ describe('LocalLibraryService', () => {
     await expect(service.generateFor(['4', '5'])).resolves.toEqual({
       jobId: '7',
     });
-    expect(stash.startLibraryTask).toHaveBeenCalledWith(
+    // Made again from scratch, so Stash doesn't skip what it thinks it has…
+    expect(stash.startLibraryTask).toHaveBeenNthCalledWith(
+      1,
+      config,
+      'generate',
+      ['4', '5'],
+      { now: true, overwrite: true },
+    );
+    // …and covers only where missing, so a picked one stays.
+    expect(stash.startLibraryTask).toHaveBeenNthCalledWith(
+      2,
       config,
       'generate',
       ['4', '5'],
@@ -207,7 +217,7 @@ describe('LocalLibraryService', () => {
     await expect(service.generateFor([])).rejects.toThrow(
       'Pick at least one scene',
     );
-    expect(stash.startLibraryTask).toHaveBeenCalledTimes(1);
+    expect(stash.startLibraryTask).toHaveBeenCalledTimes(2);
   });
 
   it('lists each kind of broken file, and says when Stash couldn’t answer one', async () => {

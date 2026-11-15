@@ -576,14 +576,24 @@ export class LocalLibraryService {
       throw new BadRequestException('Pick at least one scene.');
     }
     const config = await this.playback.getStashConfig();
+    // Made again from scratch: Generate otherwise skips whatever Stash
+    // thinks it already has, which is how these scenes stay broken.
     const jobId = await this.stash.startLibraryTask(
       config,
       'generate',
       sceneIds,
-      { now: true },
+      { now: true, overwrite: true },
     );
+    // Covers only where missing, so a picked or downloaded one stays.
+    await this.stash
+      .startLibraryTask(config, 'generate', sceneIds, { now: true })
+      .catch((error: unknown) =>
+        this.logger.warn(
+          `Couldn't start Generate for missing covers: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
     this.logger.log(
-      `Started Stash’s Generate for ${sceneIds.length} scene${sceneIds.length === 1 ? '' : 's'}${jobId ? ` (job ${jobId})` : ''}.`,
+      `Started Stash’s Generate, made again, for ${sceneIds.length} scene${sceneIds.length === 1 ? '' : 's'}${jobId ? ` (job ${jobId})` : ''}.`,
     );
     return { jobId };
   }

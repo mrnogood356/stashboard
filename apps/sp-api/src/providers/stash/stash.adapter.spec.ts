@@ -768,6 +768,31 @@ describe('StashAdapter', () => {
       );
     });
 
+    it('makes things again for named scenes when asked, keeping covers, as its own job', async () => {
+      const again = adapter.startLibraryTask(config, 'generate', ['221'], {
+        now: true,
+        overwrite: true,
+      });
+      const covers = adapter.startLibraryTask(config, 'generate', ['221'], {
+        now: true,
+      });
+      await Promise.all([again, covers]);
+      expect(sent()).toHaveLength(2);
+      expect(sent()[0].variables.input).toEqual(
+        expect.objectContaining({
+          overwrite: true,
+          covers: false,
+          previews: true,
+          sprites: true,
+          sceneIDs: ['221'],
+        }),
+      );
+      expect(sent()[1].variables.input).toEqual(
+        expect.objectContaining({ covers: true, sceneIDs: ['221'] }),
+      );
+      expect(sent()[1].variables.input).not.toHaveProperty('overwrite');
+    });
+
     it('marks the jobs in Stash’s queue that Stashboard started', async () => {
       await adapter.scanLibraryFolders(config, ['/data/mine']);
       queue = [
