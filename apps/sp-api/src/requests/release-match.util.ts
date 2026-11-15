@@ -117,7 +117,8 @@ export function matchRelease(
     otherStudioFirst(
       releaseWords,
       studio,
-      new Set([...titleWords, ...performers.flat()]),
+      // All the title's words, stopwords too: "The.Sunset.24.03.15…".
+      new Set([...words(scene.title ?? ''), ...performers.flat()]),
     );
 
   const signals = [studioMatch, dateMatch, performerHits > 0, titleMatch];

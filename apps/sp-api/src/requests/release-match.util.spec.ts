@@ -111,6 +111,15 @@ describe('matchRelease', () => {
         performers: ['Jane Doe'],
       })?.strength,
     ).toBe('strong');
+    // Stopwords in the title are still the title.
+    expect(
+      matchRelease('The.Sunset.24.03.15.Jane.Doe.1080p', {
+        title: 'The Sunset',
+        studio: 'Brazzers',
+        releaseDate: '2024-03-15',
+        performers: ['Jane Doe'],
+      })?.strength,
+    ).toBe('strong');
   });
 
   it('calls another studio’s scene with the same performer on the same day weak', () => {

@@ -87,6 +87,8 @@ export class StashBusyError extends Error {
 }
 /** Checks in a row Stash may miss the moved file (or linking may fail) before giving up. */
 const MAX_LINK_ATTEMPTS = 5;
+/** How far apart Stash's clock and ours may be when telling new scenes from old. */
+const CLOCK_SLACK_MS = 10 * 60_000;
 /** SABnzbd's folders for a download it's still unpacking, or that failed. */
 const SAB_WORK_FOLDER = /^_(UNPACK|FAILED)_/i;
 /** Not in SABnzbd's queue or history this long after sending: it was removed there. */
@@ -1037,6 +1039,7 @@ export class DownloadHandoffService {
           row.sceneId,
           finalPath,
           row.replacesStashSceneId,
+          row.createdAt,
         )
       : null;
     if (moved) {
@@ -1515,6 +1518,8 @@ export class DownloadHandoffService {
     catalogSceneId: string,
     file: string,
     replacing: string | null = null,
+    /** When the download was sent: a scene Stash had before is an older copy. */
+    sentAt: Date | null = null,
   ): Promise<{ sceneId: string; path: string | null } | null> {
     const stillThere = await fs
       .stat(file)
@@ -1533,7 +1538,9 @@ export class DownloadHandoffService {
     // or, renamed into its own folder (by Match & rename, say), it's the
     // only scene for that catalog entry. Not for a Better copies download:
     // its catalog scene already has the older copy, which must never be
-    // taken for it, so only the name counts there. Unclear (two by name, or
+    // taken for it, so only the name counts there. Either way the scene must
+    // be new to Stash since the download was sent: one Stash had before is
+    // an older copy, whatever its file is called. Unclear (two by name, or
     // none): look by path instead, and retry until it is.
     const candidates = matches.filter((match) => match.id !== replacing);
     const name = path.basename(file);
@@ -1543,6 +1550,9 @@ export class DownloadHandoffService {
       const scene = await this.stash
         .getOrganizerScene(config, match.id)
         .catch(() => null);
+      if (!this.newSince(scene?.createdAt, sentAt)) {
+        continue;
+      }
       for (const candidate of scene?.files ?? []) {
         if (path.basename(candidate.path) === name) {
           byName.push({ sceneId: match.id, path: candidate.path });
@@ -1561,6 +1571,23 @@ export class DownloadHandoffService {
       `${file} was moved since it came in; Stash has its scene as ${found.sceneId}.`,
     );
     return found;
+  }
+
+  /**
+   * Whether Stash first scanned a scene in after the download was sent
+   * (give or take clocks a little apart). Unknown counts as no.
+   */
+  private newSince(
+    createdAt: string | null | undefined,
+    sentAt: Date | null,
+  ): boolean {
+    if (!sentAt) {
+      return true;
+    }
+    const created = createdAt ? Date.parse(createdAt) : Number.NaN;
+    return (
+      Number.isFinite(created) && created >= sentAt.getTime() - CLOCK_SLACK_MS
+    );
   }
 
   private async sceneFor(

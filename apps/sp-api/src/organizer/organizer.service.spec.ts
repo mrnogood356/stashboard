@@ -1088,13 +1088,82 @@ describe('OrganizerService', () => {
     await waitUntilIdle(service);
     expect(sentTo()).toEqual(['sdb-a', 'sdb-b']);
 
-    // Moved: to the first, and the other says why not.
+    // Moved: to the first, and the other says why not, by how it went.
     handoff.send.mockClear();
     settings.whisparrImportMode = 'move';
+    handoff.send.mockResolvedValue({
+      sent: [{ sceneId: '31', title: 'Scene' }],
+      skipped: {},
+      failed: [],
+    });
     service.startSendAll();
     await waitUntilIdle(service);
     expect(sentTo()).toEqual(['sdb-a']);
-    expect(handoff.noteSharedFile).toHaveBeenCalledWith('sdb-b', 'sdb-a');
+    expect(handoff.noteSharedFile).toHaveBeenCalledWith('sdb-b', 'sdb-a', true);
+
+    // The first didn't go (failed or skipped): the other doesn't say it did.
+    handoff.send.mockClear();
+    handoff.noteSharedFile.mockClear();
+    handoff.send.mockResolvedValue({
+      sent: [],
+      skipped: {},
+      failed: [{ sceneId: '31', title: 'Scene', reason: 'Whisparr said no' }],
+    });
+    service.startSendAll();
+    await waitUntilIdle(service);
+    expect(handoff.noteSharedFile).toHaveBeenCalledWith(
+      'sdb-b',
+      'sdb-a',
+      false,
+    );
+  });
+
+  it('with new scenes added too, keeps a missing scene’s partner file over its own fileless scene', async () => {
+    settings.addToWhisparr = true;
+    handoff.missingInWhisparr.mockResolvedValue(['sdb-a']);
+    prisma.sceneStashAlias.findMany.mockResolvedValue([
+      { stashId: 'sdb-a', aliasOf: 'sdb-b' },
+    ]);
+    const fileless = localScene({
+      id: '30',
+      files: [],
+      stashIds: [{ endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-a' }],
+    });
+    const withFile = localScene({
+      id: '31',
+      stashIds: [{ endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-b' }],
+    });
+    stash.findOrganizerScenes.mockImplementation(
+      (
+        _config: unknown,
+        query: {
+          sceneFilter: {
+            stash_id_endpoint: { stash_id?: string; modifier: string };
+          };
+        },
+      ) => {
+        const { stash_id: id, modifier } = query.sceneFilter.stash_id_endpoint;
+        return Promise.resolve(
+          modifier === 'NOT_NULL'
+            ? { total: 1, items: [fileless] }
+            : id === 'sdb-a'
+              ? { total: 1, items: [fileless] }
+              : id === 'sdb-b'
+                ? { total: 1, items: [withFile] }
+                : { total: 0, items: [] },
+        );
+      },
+    );
+
+    service.startSendAll();
+    await waitUntilIdle(service);
+
+    const [, sent] = handoff.send.mock.calls[0] as [
+      unknown,
+      Array<{ id: string; stashIds: Array<{ stashId: string }> }>,
+    ];
+    expect(sent.map((scene) => scene.id)).toEqual(['31']);
+    expect(sent[0].stashIds[0].stashId).toBe('sdb-a');
   });
 
   it('with new scenes added too, keeps a scene going to the missing one it was matched to', async () => {

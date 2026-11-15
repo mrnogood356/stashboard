@@ -494,6 +494,12 @@ export abstract class OrganizerFiles extends OrganizerCore {
         /** Stash scene → the Whisparr scene its file goes to. */
         const sending = new Map<string, string>();
         const copying = settings.whisparrImportMode === 'copy';
+        /** Moved, one file goes to one of them: the others wait on how it went. */
+        const heldBack: Array<{
+          stashId: string;
+          sceneId: string;
+          first: string;
+        }> = [];
         const missing = await this.handoff.missingInWhisparr();
         const found = await this.stashScenesForWhisparr(
           config,
@@ -509,7 +515,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
           const first = sending.get(scene.id);
           // Moved, one file can only go to one of them; copied, to each.
           if (first && !copying) {
-            this.handoff.noteSharedFile(stashId, first);
+            heldBack.push({ stashId, sceneId: scene.id, first });
             continue;
           }
           scenes.set(stashId, scene);
@@ -534,12 +540,14 @@ export abstract class OrganizerFiles extends OrganizerCore {
             });
             // Ones already going to a scene Whisparr is missing stay so.
             for (const scene of result.items) {
-              if (sending.has(scene.id)) {
-                continue;
-              }
               const own =
                 scene.stashIds.find((entry) => entry.endpoint === endpoint)
                   ?.stashId ?? `stash:${scene.id}`;
+              // Nor does a scene Whisparr is missing that has its file from
+              // a partner: its own (fileless) scene mustn't replace that.
+              if (sending.has(scene.id) || scenes.has(own)) {
+                continue;
+              }
               scenes.set(own, scene);
               sending.set(scene.id, own);
             }
@@ -571,6 +579,14 @@ export abstract class OrganizerFiles extends OrganizerCore {
           }
           this.runState.renamed = totals.sent.length;
           this.runState.failed = totals.failed.length;
+        }
+        const sentScenes = new Set(totals.sent.map((entry) => entry.sceneId));
+        for (const held of heldBack) {
+          this.handoff.noteSharedFile(
+            held.stashId,
+            held.first,
+            sentScenes.has(held.sceneId),
+          );
         }
         const already = totals.skipped['already-has-file'] ?? 0;
         const message =
