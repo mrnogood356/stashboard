@@ -20,7 +20,8 @@ const ACCURACY: Array<{ value: Accuracy; label: string }> = [
 
 /**
  * Copies of the same video, side by side (Stash's look-alike fingerprints).
- * The best copy is marked; the others can be removed.
+ * The best copy is marked and kept unless you pick another to keep; the
+ * others can be removed.
  */
 @Component({
   selector: 'app-duplicates-page',
@@ -46,8 +47,11 @@ export class DuplicatesPageComponent implements OnInit {
   /** Bring plays, tags, chapters and more over to the copy kept first. */
   protected carryOver = true;
   protected readonly hiddenCount = signal(0);
-  /** For each copy, the copy kept in its set. */
-  private keeperOf = new Map<string, string>();
+  /**
+   * The copy you chose to keep, by set (keyed by its suggested copy), where
+   * it isn't the suggested best one.
+   */
+  private readonly chosen = signal<ReadonlyMap<string, string>>(new Map());
   /** Sets being hidden, so a second tap doesn't count one twice. */
   private readonly hiding = new Set<string>();
   private loadRequest = 0;
@@ -78,13 +82,6 @@ export class DuplicatesPageComponent implements OnInit {
           return;
         }
         this.groups.set(groups);
-        this.keeperOf = new Map(
-          groups.flatMap((group) =>
-            group.scenes
-              .filter((scene) => scene.id !== group.suggestedKeepId)
-              .map((scene) => [scene.id, group.suggestedKeepId] as const),
-          ),
-        );
         this.loading.set(false);
       },
       error: () => {
@@ -105,17 +102,33 @@ export class DuplicatesPageComponent implements OnInit {
     this.pending.set([scene]);
   }
 
-  /** Every copy in this set but the best one. */
+  /** The copy kept in this set: your pick, or else the suggested best one. */
+  protected keeper(group: DuplicateGroup): string {
+    const pick = this.chosen().get(group.suggestedKeepId);
+    return pick && group.scenes.some((scene) => scene.id === pick) ? pick : group.suggestedKeepId;
+  }
+
+  /** Keep this copy rather than the suggested one; the best one can then go. */
+  protected keepInstead(group: DuplicateGroup, scene: DuplicateScene): void {
+    this.chosen.update((current) => new Map(current).set(group.suggestedKeepId, scene.id));
+  }
+
+  /** Every copy in this set but the one kept. */
   protected askDeleteExtras(group: DuplicateGroup): void {
-    this.pending.set(extras(group));
+    this.pending.set(this.extras(group));
   }
 
-  /** Every copy but the best one, in every set. */
+  /** Every copy but the one kept, in every set. */
   protected askDeleteAllExtras(): void {
-    this.pending.set(this.groups().flatMap(extras));
+    this.pending.set(this.groups().flatMap((group) => this.extras(group)));
   }
 
-  protected readonly extraCount = () => this.groups().flatMap(extras).length;
+  protected readonly extraCount = () => this.groups().flatMap((group) => this.extras(group)).length;
+
+  private extras(group: DuplicateGroup): DuplicateScene[] {
+    const keep = this.keeper(group);
+    return group.scenes.filter((scene) => scene.id !== keep);
+  }
 
   /** You checked these and they aren't copies: hidden until the set changes. */
   protected notDuplicates(group: DuplicateGroup): void {
@@ -173,6 +186,15 @@ export class DuplicatesPageComponent implements OnInit {
     const loadAtStart = this.loading() ? -1 : this.loadRequest;
     this.deleting.set(true);
     this.progress.set(scenes.length > 1 ? { done: 0, total: scenes.length } : null);
+    // Each copy's details go to the copy kept in its set, as chosen now.
+    const keeperOf = new Map(
+      this.groups().flatMap((group) => {
+        const keep = this.keeper(group);
+        return group.scenes
+          .filter((scene) => scene.id !== keep)
+          .map((scene) => [scene.id, keep] as const);
+      }),
+    );
     const removed = new Set<string>();
     const skipped = deleteFile ? this.multiFile(scenes) : [];
     let failed: DuplicateScene | null = null;
@@ -186,7 +208,7 @@ export class DuplicatesPageComponent implements OnInit {
             scene.id,
             deleteFile,
             deleteFile,
-            this.carryOver ? this.keeperOf.get(scene.id) : undefined,
+            this.carryOver ? keeperOf.get(scene.id) : undefined,
           ),
         );
         removed.add(scene.id);
@@ -280,8 +302,4 @@ export class DuplicatesPageComponent implements OnInit {
     const minutes = Math.floor(total / 60);
     return `${minutes}:${(total % 60).toString().padStart(2, '0')}`;
   }
-}
-
-function extras(group: DuplicateGroup): DuplicateScene[] {
-  return group.scenes.filter((scene) => scene.id !== group.suggestedKeepId);
 }
