@@ -413,6 +413,24 @@ describe('DownloadHandoffService', () => {
       expect(row().attempts).toBe(1);
     });
 
+    it('counts a try when its folder scan couldn’t be started', async () => {
+      rows.push(handoff({ id: 'h1' }));
+      await write(video());
+      sabnzbd.history.mockResolvedValue([historyEntry()]);
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      stash.requestFolderScan
+        .mockResolvedValueOnce('waiting')
+        .mockRejectedValueOnce(
+          new Error('Stash couldn’t start the scan: scan already running'),
+        );
+
+      await service.checkOpen();
+      expect(row()).toMatchObject({ attempts: 0 });
+      await service.checkOpen();
+      expect(row().attempts).toBe(1);
+      expect(row().error).toContain('couldn’t start the scan');
+    });
+
     it('doesn’t wait again for a scan another download in the folder is waiting on', async () => {
       const second = path.join(destination, 'Other.mkv');
       stash.sceneIdsForPaths.mockResolvedValue([]);

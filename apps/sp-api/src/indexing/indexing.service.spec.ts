@@ -2123,6 +2123,56 @@ describe('IndexingService library change check', () => {
     }
   });
 
+  it('keeps the change owed when a sync that started before it finishes after', async () => {
+    jest.useFakeTimers();
+    try {
+      let finishFirst!: (value: unknown) => void;
+      const first = new Promise((resolve) => {
+        finishFirst = resolve;
+      });
+      const getLibraryChangeMarker = jest.fn().mockResolvedValue('1|a|t1');
+      const runWithLease = jest
+        .fn()
+        .mockReturnValueOnce(first) // still reading the library
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue({ processedCount: 1, updatedCount: 1 });
+      const service = new IndexingService(
+        {} as PrismaService,
+        {} as IntegrationsService,
+        {} as CatalogProviderService,
+        {} as WhisparrAdapter,
+        { getLibraryChangeMarker } as unknown as StashAdapter,
+        {} as StashdbAdapter,
+        { runWithLease } as unknown as SyncStateService,
+      );
+      jest
+        .spyOn(
+          service as unknown as { getStashConfig: () => Promise<unknown> },
+          'getStashConfig',
+        )
+        .mockResolvedValue({ baseUrl: 'http://stash.local', apiKey: null });
+
+      await service.syncLibraryProjectionIfChanged();
+      const reading = service.syncLibraryProjection('organizer');
+      await service.syncLibraryProjection('automation'); // held back
+      await jest.advanceTimersByTimeAsync(20_000 * 6);
+      expect(runWithLease).toHaveBeenCalledTimes(6);
+
+      // The first sync finishes now, but it began before the change.
+      finishFirst({ processedCount: 1, updatedCount: 1 });
+      await reading;
+      await jest.advanceTimersByTimeAsync(60_000);
+      await service.syncLibraryProjectionIfChanged();
+      expect(runWithLease).toHaveBeenCalledTimes(7);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('stays quiet when Stash can’t be reached', async () => {
     const { service, sync } = build([new Error('Failed to reach Stash')]);
 
