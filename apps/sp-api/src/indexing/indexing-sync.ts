@@ -153,14 +153,21 @@ export abstract class IndexingSync extends IndexingCore {
         ],
       },
     });
-    const aliases = new Map<string, string>();
+    // Every partner of a scene: several scenes can be stored as the same
+    // one, and Stash may have only one of them.
+    const aliases = new Map<string, string[]>();
+    const addPartner = (id: string, partner: string) => {
+      const partners = aliases.get(id) ?? [];
+      if (!partners.includes(partner)) {
+        partners.push(partner);
+      }
+      aliases.set(id, partners);
+    };
     for (const row of aliasRows) {
-      aliases.set(row.stashId, row.aliasOf);
+      addPartner(row.stashId, row.aliasOf);
     }
     for (const row of aliasRows) {
-      if (!aliases.has(row.aliasOf)) {
-        aliases.set(row.aliasOf, row.stashId);
-      }
+      addPartner(row.aliasOf, row.stashId);
     }
 
     for (
@@ -181,8 +188,10 @@ export abstract class IndexingSync extends IndexingCore {
               });
             let matches = await lookup(stashId);
             // Stash has it under the scene this one is the same as.
-            const alias = matches.length === 0 ? aliases.get(stashId) : null;
-            if (alias) {
+            for (const alias of aliases.get(stashId) ?? []) {
+              if (matches.length > 0) {
+                break;
+              }
               matches = await lookup(alias);
             }
             return {

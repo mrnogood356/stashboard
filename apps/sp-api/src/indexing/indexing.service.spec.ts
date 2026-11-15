@@ -953,6 +953,35 @@ describe('IndexingService', () => {
     expect(sceneIndexStore.get('scene-1')?.stashAvailable).toBe(true);
   });
 
+  it('tries every partner of a scene, not only the first', async () => {
+    const { prisma, sceneIndexStore } = createPrismaMock({
+      sceneIndexRows: [
+        buildSceneIndexRow({ stashId: 'scene-1', stashAvailable: true }),
+      ],
+      // Two scenes stored as the same as scene-1; Stash has only the second.
+      aliases: [
+        { stashId: 'scene-a', aliasOf: 'scene-1' },
+        { stashId: 'scene-c', aliasOf: 'scene-1' },
+      ],
+    });
+    findScenesByStashIdMock.mockImplementation((id: string) =>
+      Promise.resolve(id === 'scene-c' ? [{ id: 'local-1' }] : []),
+    );
+    const service = new IndexingService(
+      prisma,
+      integrationsService,
+      catalogProviderService,
+      whisparrAdapter,
+      stashAdapter,
+      stashdbAdapter,
+      syncStateService,
+    );
+
+    await service.syncStashAvailability('whisparr-handoff', ['scene-1']);
+
+    expect(sceneIndexStore.get('scene-1')?.stashAvailable).toBe(true);
+  });
+
   it('notifies when a tracked request moves forward, but not for brand-new rows', async () => {
     const { prisma } = createPrismaMock({
       sceneIndexRows: [

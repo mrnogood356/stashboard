@@ -939,7 +939,10 @@ describe('DownloadHandoffService', () => {
       const movedTo = path.join(destination, 'Studio', 'Beach Day.mkv');
       await fs.rm(path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'));
       stash.findScenesByStashId.mockResolvedValue([{ id: '88' }]);
-      stash.getOrganizerScene.mockResolvedValue({ files: [{ path: movedTo }] });
+      stash.getOrganizerScene.mockResolvedValue({
+        files: [{ path: movedTo }],
+        createdAt: new Date().toISOString(),
+      });
       stash.requestFolderScan.mockClear();
 
       await service.checkOpen();
@@ -949,6 +952,26 @@ describe('DownloadHandoffService', () => {
         expect.anything(),
       );
       expect(row()).toMatchObject({ status: 'imported', stashSceneId: '88' });
+    });
+
+    it('never takes a scene Stash had before the download was sent', async () => {
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      rows.push(handoff({ id: 'h1' }));
+      await write(video());
+      sabnzbd.history.mockResolvedValue([historyEntry()]);
+      await service.checkOpen();
+
+      // Renamed before Stash scanned it; the only scene for the catalog entry
+      // is an older copy, even one with the same file name.
+      await fs.rm(path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'));
+      stash.findScenesByStashId.mockResolvedValue([{ id: '70' }]);
+      stash.getOrganizerScene.mockResolvedValue({
+        files: [{ path: '/library/old/Jane.Doe.Beach.Day.1080p.mkv' }],
+        createdAt: new Date(Date.now() - 30 * 24 * 3600_000).toISOString(),
+      });
+      await service.checkOpen();
+      expect(organizer.linkDownloadedScene).not.toHaveBeenCalled();
+      expect(row().status).not.toBe('imported');
     });
 
     it('never takes the older copy a Better copies download replaces for the download', async () => {
@@ -983,6 +1006,7 @@ describe('DownloadHandoffService', () => {
         (_config: unknown, id: string) =>
           Promise.resolve({
             files: [{ path: `/library/${id}/Jane.Doe.Beach.Day.1080p.mkv` }],
+            createdAt: new Date().toISOString(),
           }),
       );
       await service.checkOpen();
@@ -1007,6 +1031,7 @@ describe('DownloadHandoffService', () => {
         (_config: unknown, id: string) =>
           Promise.resolve({
             files: [{ path: id === '70' ? '/library/old-copy.mp4' : movedTo }],
+            createdAt: new Date().toISOString(),
           }),
       );
 
