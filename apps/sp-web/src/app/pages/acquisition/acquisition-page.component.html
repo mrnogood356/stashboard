@@ -469,6 +469,24 @@
                             <span class="download-text">{{ text }}</span>
                           }
                         </div>
+                      } @else if (aheadHandoff(item); as handoff) {
+                        <div class="download-progress" [attr.data-testid]="'download-' + item.id">
+                          @if (handoff.progress !== null) {
+                            <div
+                              class="download-bar"
+                              role="progressbar"
+                              aria-valuemin="0"
+                              aria-valuemax="100"
+                              [attr.aria-valuenow]="handoff.progress"
+                              [attr.aria-label]="'Download of ' + item.title"
+                            >
+                              <span [style.width.%]="handoff.progress"></span>
+                            </div>
+                          }
+                          @if (handoffProgressText(handoff); as text) {
+                            <span class="download-text">{{ text }}</span>
+                          }
+                        </div>
                       }
 
                       @if (
