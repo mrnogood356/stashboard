@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { Observable, Subscription, firstValueFrom } from 'rxjs';
 import {
@@ -99,7 +99,14 @@ export class BrokenFilesPageComponent implements OnInit {
   protected readonly started = signal<Set<string>>(new Set());
   protected readonly confirming = signal<string | null>(null);
   protected readonly busy = signal<string | null>(null);
+  /** "kind:sceneId" pairs being skipped. */
+  protected readonly skipping = signal<Set<string>>(new Set());
   protected readonly info = PROBLEMS;
+
+  /** Scenes skipped across the lists. */
+  protected readonly skippedCount = computed(() =>
+    this.lists().reduce((sum, list) => sum + (list.skipped ?? 0), 0),
+  );
 
   ngOnInit(): void {
     this.destroyRef.onDestroy(() => this.stopPolling());
@@ -200,8 +207,11 @@ export class BrokenFilesPageComponent implements OnInit {
       fix.action === 'generate' && everyScene
         ? this.library.generateFor(list.scenes.map((scene) => scene.id))
         : this.library.startJob(fix.action === 'scan' ? 'scan' : 'generate');
+    // Stash can take a while to answer: say it's under way meanwhile.
+    this.busy.set(key);
     run.subscribe({
       next: (result) => {
+        this.busy.set(null);
         this.started.update((set) => new Set(set).add(key));
         if (result.warning) {
           this.notifications.info('Started in Stash, with a note', result.warning);
@@ -212,8 +222,53 @@ export class BrokenFilesPageComponent implements OnInit {
           'Follow it in Library tools → Stash jobs, then Look again.',
         );
       },
-      error: () =>
-        this.notifications.error("Couldn't start it", 'Check that Stash is running and try again.'),
+      error: () => {
+        this.busy.set(null);
+        this.notifications.error("Couldn't start it", 'Check that Stash is running and try again.');
+      },
+    });
+  }
+
+  /** Leaves this scene off this list from now on (a damaged file you keep, say). */
+  protected skip(list: ProblemList, scene: ProblemScene): void {
+    const key = `${list.kind}:${scene.id}`;
+    if (this.skipping().has(key)) {
+      return;
+    }
+    this.skipping.update((set) => new Set(set).add(key));
+    const done = () =>
+      this.skipping.update((set) => {
+        const next = new Set(set);
+        next.delete(key);
+        return next;
+      });
+    this.library.skipProblem(list.kind, scene.id).subscribe({
+      next: () => {
+        done();
+        this.lists.update((lists) =>
+          lists.map((entry) =>
+            entry.kind === list.kind
+              ? {
+                  ...entry,
+                  count: entry.count === null ? null : Math.max(0, entry.count - 1),
+                  scenes: entry.scenes.filter((other) => other.id !== scene.id),
+                  skipped: (entry.skipped ?? 0) + 1,
+                }
+              : entry,
+          ),
+        );
+      },
+      error: () => {
+        done();
+        this.notifications.error("Couldn't skip it", 'Try again in a moment.');
+      },
+    });
+  }
+
+  protected showSkipped(): void {
+    this.library.clearProblemSkips().subscribe({
+      next: () => this.load(),
+      error: () => this.notifications.error("Couldn't show them again", 'Try again in a moment.'),
     });
   }
 

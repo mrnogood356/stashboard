@@ -800,6 +800,17 @@ model WatchLaterItem {
   @@index([position])
 }
 
+/// Scenes you chose to leave off a Broken files list (a damaged file you
+/// keep anyway, say). Per list, so the scene still shows if something else
+/// goes wrong with it.
+model BrokenFileSkip {
+  kind      String
+  sceneId   String
+  createdAt DateTime @default(now())
+
+  @@id([kind, sceneId])
+}
+
 /// Duplicate sets you said aren't duplicates; a set shows again if its scenes change.
 model DuplicateIgnore {
   /// The set's Stash scene ids, sorted and joined with commas.

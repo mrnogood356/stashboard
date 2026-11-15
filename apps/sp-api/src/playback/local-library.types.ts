@@ -135,6 +135,8 @@ export interface ProblemListDto {
   unansweredWhy?: string;
   /** Why the count is unknown, in plain words (the check failed, or Stash didn't answer). */
   note?: string;
+  /** Scenes you chose to skip on this list, left out of it and its count. */
+  skipped?: number;
 }
 
 export interface DuplicateGroupDto {

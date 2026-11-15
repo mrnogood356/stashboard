@@ -9,6 +9,7 @@ import {
 } from './tag-cleanup.util';
 import type {
   StashBackgroundProblemKind,
+  StashProblemKind,
   StashCheckScene,
 } from '../providers/stash/stash.types';
 import {
@@ -801,6 +802,49 @@ export class LocalLibraryService {
 
   /** Each kind of problem: how many scenes, and the first 50. Null when Stash couldn't say. */
   async problems(refresh = false): Promise<ProblemListDto[]> {
+    const [lists, skips] = await Promise.all([
+      this.problemLists(refresh),
+      this.problemSkips(),
+    ]);
+    return lists.map((list) => withoutSkipped(list, skips.get(list.kind)));
+  }
+
+  /** The scenes skipped on each list, by kind. */
+  private async problemSkips(): Promise<Map<string, Set<string>>> {
+    const rows =
+      (await this.prisma?.brokenFileSkip
+        .findMany({ select: { kind: true, sceneId: true } })
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `Broken files: couldn't read skipped scenes: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return [];
+        })) ?? [];
+    const skips = new Map<string, Set<string>>();
+    for (const row of rows) {
+      skips.set(row.kind, (skips.get(row.kind) ?? new Set()).add(row.sceneId));
+    }
+    return skips;
+  }
+
+  /** Leaves a scene off one list (a damaged file you keep anyway, say). */
+  async skipProblem(kind: StashProblemKind, sceneId: string): Promise<void> {
+    if (!this.prisma) {
+      throw new BadRequestException('Skipping needs the database.');
+    }
+    await this.prisma.brokenFileSkip.upsert({
+      where: { kind_sceneId: { kind, sceneId } },
+      create: { kind, sceneId },
+      update: {},
+    });
+  }
+
+  /** Shows every skipped scene again. */
+  async clearProblemSkips(): Promise<void> {
+    await this.prisma?.brokenFileSkip.deleteMany({});
+  }
+
+  private async problemLists(refresh: boolean): Promise<ProblemListDto[]> {
     const config = await this.playback.getStashConfig();
     const lists = await Promise.all(
       PROBLEM_KINDS.map(async (kind): Promise<ProblemListDto> => {
@@ -1380,4 +1424,24 @@ export class LocalLibraryService {
       items: result.items.map(toCard),
     };
   }
+}
+
+/**
+ * A list without the scenes you skipped on it. Its count drops by the ones
+ * listed; a skipped scene past the first 50 isn't known to be in it.
+ */
+function withoutSkipped(
+  list: ProblemListDto,
+  skipped: Set<string> | undefined,
+): ProblemListDto {
+  const left = skipped
+    ? list.scenes.filter((scene) => !skipped.has(scene.id))
+    : list.scenes;
+  const dropped = list.scenes.length - left.length;
+  return {
+    ...list,
+    scenes: left,
+    count: list.count === null ? null : Math.max(0, list.count - dropped),
+    ...(skipped?.size ? { skipped: skipped.size } : {}),
+  };
 }

@@ -29,6 +29,7 @@ import {
   MergeTagsDto,
   MergeEntitiesDto,
   IgnoreDuplicatesDto,
+  SkipProblemDto,
   ChaptersQueryDto,
   MergeQueryDto,
   LocalBulkScenesDto,
@@ -176,6 +177,20 @@ export class LocalLibraryController {
   @Get('problems')
   problems(@Query('refresh') refresh?: string): Promise<ProblemListDto[]> {
     return this.library.problems(refresh === '1' || refresh === 'true');
+  }
+
+  /** Leaves a scene off one Broken files list, until you show it again. */
+  @Post('problems/skip')
+  @HttpCode(204)
+  async skipProblem(@Body() body: SkipProblemDto): Promise<void> {
+    await this.library.skipProblem(body.kind, body.sceneId);
+  }
+
+  /** Shows every skipped scene again. */
+  @Delete('problems/skip')
+  @HttpCode(204)
+  async clearProblemSkips(): Promise<void> {
+    await this.library.clearProblemSkips();
   }
 
   @Delete('jobs/:jobId')
