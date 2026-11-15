@@ -1,6 +1,6 @@
 # Stashboard
 
-Stashboard is a self-hosted console that discovers scenes from a supported catalog provider, sends acquisitions to Whisparr, and validates availability against your local Stash library.
+Stashboard is a self-hosted app that finds scenes on a supported catalog provider, gets the ones you want through Whisparr, and checks them against your local Stash library.
 
 [![Latest release](https://img.shields.io/github/v/release/mrnogood356/stashboard?display_name=tag&sort=semver&style=for-the-badge)](https://github.com/mrnogood356/stashboard/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/mrnogood356/stashboard/ci.yml?branch=main&label=CI&style=for-the-badge)](https://github.com/mrnogood356/stashboard/actions/workflows/ci.yml)
@@ -11,19 +11,39 @@ Stashboard is a self-hosted console that discovers scenes from a supported catal
 
 ## What Stashboard Does
 
-- Discover scenes through a configured catalog provider during first-run setup.
-- Submit and track acquisition requests through Whisparr.
-- Check local Stash availability so you can see what is already in your library.
+Stashboard sits between your catalog (StashDB or FansDB), Whisparr and Stash. Find a scene, mark it Wanted, follow it through the download into Stash, then watch it in the same app on your phone or desktop.
 
-- Browse FansDB next to StashDB (or the other way round): add the second provider in Settings → Integrations as an optional browse provider. Requests keep going through your chosen provider.
-- Get Discord, ntfy or webhook notifications when requests start downloading, land in your library, or fail (Settings → Notifications).
-- Watch your Stash library in Stashboard: a built-in player with resume, scrub previews, quality choice, picture-in-picture and AirPlay/Chromecast. Progress and play counts sync back to Stash, and a Continue Watching rail picks up where you left off. Files your browser can't play are converted by Stash on the fly, so Stash's live transcoding should be enabled.
-- New scenes on autopilot (Settings → Automation): when Whisparr imports a scene, Stashboard has Stash scan for it, identify it on StashDB and generate its previews. Add Stashboard's webhook in Whisparr to make it instant; otherwise it notices new imports on its own within about 15 minutes.
-- Match & rename (Library tools): matches scenes Stash couldn't identify using every source it can reach: your main catalog (StashDB), every other stash-box set up in Stash (FansDB, ThePornDB…), ThePornDB from its API key, and finally Stash's own scrapers. It tries video fingerprints first, then the file name, and shows the likely matches with covers and reasons so you can pick one. You can also search StashDB yourself. "Match all" saves only the sure matches and can run every night. The renamer moves matched files into a pattern such as `{studio}/{date} - {title}`. It shows a preview first, can run automatically after each match, leaves Whisparr's own files alone, and the last run can be undone.
-- Send to Whisparr: scenes you match to StashDB that Whisparr shows as missing are handed to Whisparr's Manual Import, so Whisparr counts them as downloaded and takes over the file (move, or hardlink/copy). "Send them now" catches up on everything Stash has that Whisparr is missing. If Stash and Whisparr see your media under different paths, set the folder mapping on the Match tab and tap "Save and check".
-- Empty folders (Rename tab): removes folders left empty after renames, Unmatched moves and Whisparr moves, and has a one-tap cleanup for the whole library. It never removes library or Whisparr root folders. Stashboard needs to see your media for this: mount the same media path into the Stashboard container as Stash uses (for example host `/mnt/user/data` → container `/data`).
-- Repair Whisparr (Rename tab): when Whisparr shows scenes as missing because it's looking in the wrong folder, this points them back at the right root folder without moving anything, rescans, and re-imports the rest from where Stash has them.
-- Pick a release: on a requested scene, see every release your indexers found (quality, size, seeders, age, why Whisparr would skip it) and download the one you want.
+### Find scenes
+
+- Browse your catalog provider by scenes, performers and studios, with filters for tags, studios and more. FansDB can sit next to StashDB as an extra browse provider (Settings → Integrations); Wanted scenes keep going through your main one.
+- Search finds scenes, performers and studios in the catalog and in your library at once.
+- Calendar shows what's coming out, and You may enjoy suggests scenes by the categories you pick.
+- Follow performers and studios (optionally only scenes with chosen tags) and get their new scenes on Home and in notifications, or have them marked Wanted for you.
+
+### Wanted and downloads
+
+- Mark a scene Wanted and Stashboard hands it to Whisparr, then shows each step: searching, downloading, importing, in Stash.
+- Pick a release yourself: see every release your indexers found (quality, size, seeders, age, why Whisparr would skip it) and download the one you want.
+- Get Discord, ntfy or webhook notifications when a scene starts downloading, lands in your library, or fails (Settings → Notifications).
+- New scenes on autopilot (Settings → Automation): when Whisparr imports a scene, Stash scans it, identifies it on StashDB and generates its previews. Add Stashboard's webhook in Whisparr to make it instant; otherwise Stashboard notices new imports by itself within about 15 minutes.
+
+### Watch your library
+
+- A built-in player with resume, scrub previews, quality choice, picture-in-picture, AirPlay/Chromecast, looping a part or a chapter, and mirroring. Progress and play counts sync back to Stash. Files your browser can't play are converted by Stash on the fly, so enable Stash's live transcoding.
+- Continue watching, Watch later with a play queue, History, chapter playlists, and a swipe feed for phones.
+- Library cards show quality and length on the picture, and you can sort by Stash's production date.
+
+### Tools for your library
+
+- **Match scenes**: matches scenes Stash couldn't identify using every source it can reach: your main catalog, every other stash-box set up in Stash (FansDB, ThePornDB…), ThePornDB from its API key, and Stash's own scrapers. It tries video fingerprints first, then the file name, and shows likely matches with covers and reasons. "Match all" saves only the sure matches and can run every night. Matched scenes that Whisparr shows as missing are handed to Whisparr's Manual Import, so Whisparr counts them as downloaded.
+- **Rename files**: names and folders follow Whisparr's own naming, so both apps agree. It shows a preview first, can run after each match, never touches files Whisparr manages, and the last run can be undone. It also removes folders left empty, and Repair Whisparr points scenes Whisparr shows as missing back at the right root folder.
+- **Better copies**: swaps files that are too big, or too low quality, for a better copy, a few scenes an hour. The new file is checked before the old one is ever replaced.
+- **Broken files**, **Duplicates**, **Merge** (performers or studios entered more than once), **Tag cleanup**, **Samples**, **Library stats**, **Stash jobs** and **Schedules**. **Activity** lists everything Stashboard did, with Undo for renames.
+- Tools that change files need to see your media: mount the same media path into the Stashboard container as Stash uses (for example host `/mnt/user/data` → container `/data`). If Stash and Whisparr see your media under different paths, set the folder mapping in Settings → Integrations and tap "Save and check".
+
+### Make it yours
+
+- Light and dark themes, an accent colour that can follow the artwork, and a Home page you can rearrange.
 - App Lock (Settings → Privacy): require a PIN to reopen Stashboard after it's been in the background, enforced by the server. Face ID works too when Stashboard is opened over HTTPS with a domain name. Stashboard also tries to cover the screen when you leave, but iOS can still show a preview in the app switcher.
 - Install it on your phone: in Safari use Share → Add to Home Screen; in Chrome use Install app.
 
@@ -31,10 +51,10 @@ Stashboard is a self-hosted console that discovers scenes from a supported catal
 
 ![Stashboard Home on desktop](docs/screenshots/home.jpg)
 
-![Requests: where each request is, with download progress](docs/screenshots/requests.jpg)
+![Wanted: where each scene is, with download progress](docs/screenshots/wanted.jpg)
 
 <p align="center">
-  <img src="docs/screenshots/iphone.jpg" alt="Stashboard Home and Requests on iPhone" width="640">
+  <img src="docs/screenshots/iphone.jpg" alt="Stashboard Home and Wanted on iPhone" width="640">
 </p>
 
 Screenshots use sample data.
