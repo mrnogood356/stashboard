@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.7.0](https://github.com/mrnogood356/stashboard/compare/v1.6.0...v1.7.0) (2026-11-15)
+
+### Features
+
+* Better copies swaps big files for smaller ones a few scenes an hour, checks each new file before replacing anything, shows the space given back, and keeps a Tried tab with Check again
+* Follow performers and studios to get their new scenes, only with the tags you choose
+* Watch later with a play queue, a History page, and better related scenes
+* Chapter playlists: play a scene's chapters back to back or shuffled
+* The player can loop a part or a chapter, mirror the picture, and skip to the next chapter
+* Colourful themes, and an accent colour that matches the artwork
+* One Browse page and one Wanted page, with a filter bar that puts every choice one tap away
+* A Search tab on phones, for finding anything from one place
+* Performer and studio pages look the same for catalog and library, with photos one at a time and a studio's performers listed and searchable
+* Scene cards show quality and length on the picture, and Stash 0.32's production date
+* Match scenes and Rename files, with renames that follow Whisparr's naming and never touch Whisparr's files
+* Merge performers and studios, keeping details from the ones removed, and mark performers who've died
+* Broken files checks files on disk and everything Generate makes, says what's wrong with each, fixes what Stash skips, and lets you skip scenes you want to keep
+* Duplicates lets you choose which copy to keep, not only the suggested best one
+* Requests are now called Wanted, like Whisparr, and each card shows its download
+* Pull to refresh rebuilds the page in place
+* Stash jobs says which jobs Stashboard started
+* You may enjoy can be picked by category, and shuffled
+
+### Bug Fixes
+
+* Hover previews are made for every new scene, including on Stash 0.32 development builds
+* Automation never scans the whole library on its own
+* Downloads are tied to the right scene, and a release matching only the studio and date is no longer a strong match
+* Failed downloads are cleaned up, including their _FAILED_ folders
+* Better copies never grabs a failed release again, settles stuck tries, and looks for another release by itself
+* A stuck library sync can no longer leave every page waiting, and a server that doesn't answer shows "Can't reach Stashboard"
+* A Stash 403 says how to let Stashboard in, after Stash 0.32's new public-address rule
+* Backups keep Better copies and Schedules settings
+* Quick hide and the app-switcher cover work reliably on iPhone
+* Phone screens no longer scroll sideways, and the page behind menus and sheets stays put
+* Settings ask before dropping unsaved changes
+* Merge no longer suggests different people who only share an alias
+
 ## [1.6.0](https://github.com/mrnogood356/stashboard/compare/v1.5.1...v1.6.0) (2026-11-05)
 
 
