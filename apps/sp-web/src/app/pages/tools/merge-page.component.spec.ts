@@ -131,6 +131,29 @@ describe('MergePageComponent', () => {
     expect(rows().map(ticked)).toEqual([true, null, false]);
   });
 
+  it('doesn’t tick the one kept before when it’s tied to the new one only by an alias', async () => {
+    const { fixture, root } = await render([
+      {
+        keepId: '1',
+        items: [
+          {
+            ...item('1', 'JD', 9),
+            aliases: ['Jane Doe'],
+            match: { reason: 'alias', with: 'Jane Doe', sure: true },
+          },
+          { ...item('2', 'Jane Doe', 3), match: { reason: 'name', with: 'jane doe', sure: false } },
+          { ...item('3', 'jane doe', 2), match: { reason: 'name', with: 'Jane Doe', sure: false } },
+        ],
+      },
+    ]);
+    const rows = () => Array.from(root.querySelectorAll('[data-testid="merge-set"] .row'));
+    rows()[1].querySelector<HTMLInputElement>('input[type="radio"]')!.click();
+    fixture.detectChanges();
+    const ticked = (row: Element) =>
+      row.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked ?? null;
+    expect(rows().map(ticked)).toEqual([false, null, false]);
+  });
+
   it('merges a suggested set into the one kept, after a second tap, leaving out unticked ones', async () => {
     const { fixture, root, library } = await render();
     const set = root.querySelector('[data-testid="merge-set"]')!;
