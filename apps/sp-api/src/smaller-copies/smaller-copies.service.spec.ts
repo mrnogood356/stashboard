@@ -19,6 +19,7 @@ describe('SmallerCopiesService', () => {
   let files: Array<Record<string, unknown>>;
   let linked: Record<string, string | null>;
   let prisma: Record<string, Record<string, jest.Mock>>;
+  let transaction: jest.Mock;
   let downloads: { searchReleases: jest.Mock; grabRelease: jest.Mock };
   let handoff: { stashConfig: jest.Mock; isActive: jest.Mock };
   let stash: { listLibraryFiles: jest.Mock; getJobQueue: jest.Mock };
@@ -83,11 +84,11 @@ describe('SmallerCopiesService', () => {
       file('3', { width: 1920, height: 1080 }),
     ];
     linked = { '1': 'cat-1', '2': 'cat-2' };
+    // Runs each write in turn; a real one would undo both on a failure.
+    transaction = jest.fn((writes: Array<Promise<unknown>>) =>
+      Promise.all(writes),
+    );
     prisma = {
-      // Runs each write in turn; a real one would undo both on a failure.
-      $transaction: jest.fn((writes: Array<Promise<unknown>>) =>
-        Promise.all(writes),
-      ),
       smallerCopySettings: {
         upsert: jest.fn(({ update }: { update: Record<string, unknown> }) => {
           Object.assign(settings, update);
@@ -296,7 +297,7 @@ describe('SmallerCopiesService', () => {
         .mockResolvedValue({ providerKey: 'STASHDB' }),
     };
     service = new SmallerCopiesService(
-      prisma as unknown as PrismaService,
+      { ...prisma, $transaction: transaction } as unknown as PrismaService,
       downloads as unknown as DownloadsService,
       handoff as unknown as DownloadHandoffService,
       catalog as unknown as CatalogProviderService,
@@ -612,7 +613,7 @@ describe('SmallerCopiesService', () => {
     await service.tick(true);
     handoffRows.push({ id: 'h9', status: 'failed', error: 'Out of retention' });
     await service.status();
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(transaction).toHaveBeenCalledTimes(1);
     expect(tries[0]).toMatchObject({ outcome: 'failed' });
     expect(attempts.get('2')).toMatchObject({ outcome: 'failed' });
   });
