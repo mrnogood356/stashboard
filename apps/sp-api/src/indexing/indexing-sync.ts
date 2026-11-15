@@ -143,13 +143,25 @@ export abstract class IndexingSync extends IndexingCore {
 
     const now = new Date();
     const patches: SceneIndexPatch[] = [];
-    const aliases = new Map(
-      (
-        await this.prisma.sceneStashAlias.findMany({
-          where: { stashId: { in: normalizedIds } },
-        })
-      ).map((row) => [row.stashId, row.aliasOf]),
-    );
+    // A pair is one scene whichever way it was stored, as in the full sync;
+    // a scene's own link comes first when it has both.
+    const aliasRows = await this.prisma.sceneStashAlias.findMany({
+      where: {
+        OR: [
+          { stashId: { in: normalizedIds } },
+          { aliasOf: { in: normalizedIds } },
+        ],
+      },
+    });
+    const aliases = new Map<string, string>();
+    for (const row of aliasRows) {
+      aliases.set(row.stashId, row.aliasOf);
+    }
+    for (const row of aliasRows) {
+      if (!aliases.has(row.aliasOf)) {
+        aliases.set(row.aliasOf, row.stashId);
+      }
+    }
 
     for (
       let i = 0;

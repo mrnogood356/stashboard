@@ -419,13 +419,14 @@ export abstract class OrganizerFiles extends OrganizerCore {
     const found = new Map<string, StashOrganizerScene>();
     const lookUp = async (stashId: string) => {
       const direct = await findLinked(stashId);
-      if (direct) {
+      if (direct && direct.files.length > 0) {
         found.set(stashId, direct);
         return;
       }
+      // No scene, or one with no file: its partner may have the file.
       for (const other of othersOf(stashId)) {
         const viaOther = await findLinked(other);
-        if (viaOther) {
+        if (viaOther && viaOther.files.length > 0) {
           found.set(stashId, {
             ...viaOther,
             stashIds: [
@@ -437,6 +438,10 @@ export abstract class OrganizerFiles extends OrganizerCore {
           });
           return;
         }
+      }
+      if (direct) {
+        // Says why it can't go (no file) rather than "not in Stash".
+        found.set(stashId, direct);
       }
     };
     // A few at a time: quick reads, without a long line of one-by-one asks.
@@ -483,7 +488,12 @@ export abstract class OrganizerFiles extends OrganizerCore {
             'Stash doesn’t have your main catalog (StashDB) set up, so scenes can’t be linked to Whisparr.',
           );
         }
+        // One entry per Whisparr scene to fill, not per Stash scene: two
+        // catalog scenes Whisparr tracks apart can be one video in Stash.
         const scenes = new Map<string, StashOrganizerScene>();
+        /** Stash scene → the Whisparr scene its file goes to. */
+        const sending = new Map<string, string>();
+        const copying = settings.whisparrImportMode === 'copy';
         const missing = await this.handoff.missingInWhisparr();
         const found = await this.stashScenesForWhisparr(
           config,
@@ -492,11 +502,18 @@ export abstract class OrganizerFiles extends OrganizerCore {
         );
         for (const stashId of missing) {
           const scene = found.get(stashId);
-          if (scene) {
-            scenes.set(scene.id, scene);
-          } else {
+          if (!scene) {
             this.handoff.noteNotInStash(stashId);
+            continue;
           }
+          const first = sending.get(scene.id);
+          // Moved, one file can only go to one of them; copied, to each.
+          if (first && !copying) {
+            this.handoff.noteSharedFile(stashId, first);
+            continue;
+          }
+          scenes.set(stashId, scene);
+          sending.set(scene.id, first ?? stashId);
         }
         if (settings.addToWhisparr && !missingOnly) {
           for (let page = 1; page <= MAX_BACKLOG / 100; page += 1) {
@@ -515,7 +532,17 @@ export abstract class OrganizerFiles extends OrganizerCore {
                   : {}),
               },
             });
-            result.items.forEach((scene) => scenes.set(scene.id, scene));
+            // Ones already going to a scene Whisparr is missing stay so.
+            for (const scene of result.items) {
+              if (sending.has(scene.id)) {
+                continue;
+              }
+              const own =
+                scene.stashIds.find((entry) => entry.endpoint === endpoint)
+                  ?.stashId ?? `stash:${scene.id}`;
+              scenes.set(own, scene);
+              sending.set(scene.id, own);
+            }
             if (page * 100 >= result.total || result.items.length === 0) {
               break;
             }

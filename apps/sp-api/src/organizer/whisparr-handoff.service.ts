@@ -177,6 +177,14 @@ export class WhisparrHandoffService {
   }
 
   /** Stash has no scene linked to it (nor to one it's the same as). */
+  /** Two scenes Whisparr is missing are one file in Stash, moved to the other. */
+  noteSharedFile(stashId: string, sentTo: string): void {
+    this.sendProblems.set(stashId, {
+      reason: `Stash has one file for this and for ${sentTo}, which Whisparr is missing too; it went to that one, and a moved file can’t go to both. With Whisparr set to copy, it goes to each.`,
+      at: new Date(),
+    });
+  }
+
   noteNotInStash(stashId: string): void {
     this.sendProblems.set(stashId, {
       reason:
