@@ -261,6 +261,7 @@ describe('OrganizerService', () => {
       send: jest.fn().mockResolvedValue({ sent: [], skipped: {}, failed: [] }),
       isAvailable: jest.fn().mockResolvedValue(true),
       missingInWhisparr: jest.fn().mockResolvedValue([]),
+      countMissingInWhisparr: jest.fn().mockResolvedValue(0),
       catalogEndpoint: jest
         .fn()
         .mockResolvedValue('https://stashdb.org/graphql'),

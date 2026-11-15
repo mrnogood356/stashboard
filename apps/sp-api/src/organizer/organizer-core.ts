@@ -708,10 +708,7 @@ export abstract class OrganizerCore {
         .catch(() => [] as string[]),
       this.folderAccess().catch(() => false),
       this.handoff.isAvailable().catch(() => false),
-      this.handoff
-        .missingInWhisparr()
-        .then((ids) => ids.length)
-        .catch(() => 0),
+      this.handoff.countMissingInWhisparr().catch(() => 0),
       this.describeSources(settings),
       this.handoff.leavesCopies(settings).catch(() => null),
       this.renamingPattern(settings),

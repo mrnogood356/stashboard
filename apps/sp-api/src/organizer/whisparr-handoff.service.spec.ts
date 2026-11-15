@@ -119,6 +119,7 @@ describe('WhisparrHandoffService', () => {
     };
     const prisma = {
       sceneIndex: {
+        count: jest.fn().mockResolvedValue(5001),
         findMany: jest
           .fn()
           .mockResolvedValue([
@@ -147,6 +148,10 @@ describe('WhisparrHandoffService', () => {
       indexing as unknown as IndexingService,
     );
     service.sleep = () => Promise.resolve();
+  });
+
+  it('counts every scene Whisparr is missing, past the list’s 5,000', async () => {
+    await expect(service.countMissingInWhisparr()).resolves.toBe(5001);
   });
 
   it('passes on Whisparr being unreachable instead of answering "nothing"', async () => {

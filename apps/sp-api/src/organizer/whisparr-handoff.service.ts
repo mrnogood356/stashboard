@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { OrganizerSettings } from '@prisma/client';
+import { OrganizerSettings, Prisma } from '@prisma/client';
 import { IndexingService } from '../indexing/indexing.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CatalogProviderService } from '../providers/catalog/catalog-provider.service';
@@ -23,6 +23,13 @@ export type HandoffSkip =
   | 'already-has-file'
   | 'no-file'
   | 'missing-info';
+
+/** Scenes Whisparr tracks without a file that Stash has. */
+const MISSING_IN_WHISPARR = {
+  whisparrMovieId: { not: null },
+  NOT: { whisparrHasFile: true },
+  stashAvailable: true,
+} satisfies Prisma.SceneIndexWhereInput;
 
 export interface HandoffResult {
   sent: Array<{ sceneId: string; title: string }>;
@@ -1202,15 +1209,16 @@ export class WhisparrHandoffService {
   /** StashDB ids Whisparr is tracking without a file, that Stash already has. */
   async missingInWhisparr(): Promise<string[]> {
     const rows = await this.prisma.sceneIndex.findMany({
-      where: {
-        whisparrMovieId: { not: null },
-        NOT: { whisparrHasFile: true },
-        stashAvailable: true,
-      },
+      where: MISSING_IN_WHISPARR,
       select: { stashId: true },
       take: 5000,
     });
     return rows.map((row) => row.stashId);
+  }
+
+  /** How many there are in all: the list above stops at 5,000. */
+  countMissingInWhisparr(): Promise<number> {
+    return this.prisma.sceneIndex.count({ where: MISSING_IN_WHISPARR });
   }
 
   /** The stash-box endpoint, as Stash knows it, for your main catalog. */
