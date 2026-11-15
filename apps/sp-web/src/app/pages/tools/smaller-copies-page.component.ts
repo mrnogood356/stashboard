@@ -216,11 +216,16 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
       });
     this.rechecking.update((set) => new Set(set).add(stashSceneId));
     this.changes += 1;
+    const started = this.changes;
     this.api.recheck(stashSceneId).subscribe({
       next: (data) => {
+        // Another change started since: its answer is the newer one.
+        const current = this.changes === started;
         this.changes += 1;
         done();
-        this.data.set(data);
+        if (current) {
+          this.data.set(data);
+        }
         this.notifications.success('Checked again soon', 'It’s looked at on the next search.');
       },
       error: (error: { error?: { message?: string } }) => {
@@ -242,11 +247,16 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
     this.confirmingRecheckAll.set(false);
     this.recheckingAll.set(true);
     this.changes += 1;
+    const started = this.changes;
     this.api.recheckAll().subscribe({
       next: (data) => {
+        // Another change started since: its answer is the newer one.
+        const current = this.changes === started;
         this.changes += 1;
         this.recheckingAll.set(false);
-        this.data.set(data);
+        if (current) {
+          this.data.set(data);
+        }
         this.notifications.success(
           'Looking at everything again',
           `${data.due} scene${data.due === 1 ? '' : 's'} to look at, a few an hour.`,
@@ -368,11 +378,16 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
   protected searchNow(): void {
     this.changes += 1;
     this.searching.set(true);
+    const started = this.changes;
     this.api.searchNow().subscribe({
       next: (data) => {
+        // Another change started since: its answer is the newer one.
+        const current = this.changes === started;
         this.changes += 1;
         this.searching.set(false);
-        this.data.set(data);
+        if (current) {
+          this.data.set(data);
+        }
         if (data.notice) {
           this.notifications.info('Nothing searched', data.notice);
         }
@@ -401,11 +416,16 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
       });
     this.grabbing.update((set) => new Set(set).add(stashSceneId));
     this.changes += 1;
+    const started = this.changes;
     this.api.grab(stashSceneId).subscribe({
       next: (data) => {
+        // Another change started since: its answer is the newer one.
+        const current = this.changes === started;
         this.changes += 1;
         done();
-        this.data.set(data);
+        if (current) {
+          this.data.set(data);
+        }
         this.notifications.success('Grabbed', 'Sent to SABnzbd.');
       },
       error: (error: { error?: { message?: string } }) => {

@@ -250,6 +250,30 @@ describe('SmallerCopiesPageComponent', () => {
     );
   });
 
+  it('drops a Check again answer when a save landed while it was on its way', async () => {
+    const { api, fixture, openTab } = await render();
+    const rechecking = new Subject<SmallerCopies>();
+    api.recheck.mockReturnValueOnce(rechecking);
+    openTab('overview');
+    (fixture.nativeElement.querySelector('[data-testid="recheck-3"]') as HTMLButtonElement).click();
+    api.save.mockReturnValueOnce(
+      of({ ...DATA, settings: { ...DATA.settings, scenesPerHour: 30 } }),
+    );
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="better-enabled"]',
+    ) as HTMLInputElement;
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change'));
+    // The recheck answers last, with the rules from before the save.
+    rechecking.next(DATA);
+    rechecking.complete();
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change'));
+    expect(api.save).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false, scenesPerHour: 30 }),
+    );
+  });
+
   it('fills the rules form from a later refresh when the first load failed', async () => {
     const { fixture, api, root, openTab } = await render(DATA, DATA, true);
     expect(root.querySelector('[data-testid="better-tab-rules"]')).toBeNull();
