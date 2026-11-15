@@ -1,4 +1,11 @@
 import {
+  DEFAULT_RULES,
+  checkNewCopy,
+  reasonFor,
+  rulesOf,
+  type CopyFile,
+} from '../smaller-copies/smaller-copies.util';
+import {
   BadRequestException,
   ConflictException,
   Inject,
@@ -80,6 +87,8 @@ export class StashBusyError extends Error {
 }
 /** Checks in a row Stash may miss the moved file (or linking may fail) before giving up. */
 const MAX_LINK_ATTEMPTS = 5;
+/** How far apart Stash's clock and ours may be when telling new scenes from old. */
+const CLOCK_SLACK_MS = 10 * 60_000;
 /** SABnzbd's folders for a download it's still unpacking, or that failed. */
 const SAB_WORK_FOLDER = /^_(UNPACK|FAILED)_/i;
 /** Not in SABnzbd's queue or history this long after sending: it was removed there. */
@@ -1019,10 +1028,26 @@ export class DownloadHandoffService {
       );
       return;
     }
-    const finalPath = row.finalPath;
+    let finalPath = row.finalPath;
     let sceneId: string | undefined;
+    // Gone from where it was put: moved since (renamed into its own folder,
+    // say). If Stash already has the catalog scene, that's it: looking for
+    // the old path would only scan the folder again and again.
+    const moved = row.sceneId
+      ? await this.movedInStash(
+          config,
+          row.sceneId,
+          finalPath,
+          row.replacesStashSceneId,
+          row.createdAt,
+        )
+      : null;
+    if (moved) {
+      sceneId = moved.sceneId;
+      finalPath = moved.path ?? finalPath;
+    }
     try {
-      sceneId = await this.findInStash(config, finalPath);
+      sceneId ??= await this.findInStash(config, finalPath);
     } catch (error) {
       if (error instanceof StashBusyError) {
         await this.waitForStash(row, error.message);
@@ -1129,10 +1154,11 @@ export class DownloadHandoffService {
   }
 
   /**
-   * Smaller copies: the new download joins the scene it replaces (plays,
+   * Better copies: the new download joins the scene it replaces (plays,
    * chapters and details stay with it), then that scene's other files are
-   * deleted. Only when the new file has a length close to the old one's;
-   * otherwise both are kept and the attempt says why.
+   * deleted. Only when the new file passes checkNewCopy (the same video by
+   * its picture fingerprint, the resolution and saving promised, within the
+   * rules); otherwise both are kept and the attempt says why.
    */
   private async replaceOldCopy(
     config: StashAdapterBaseConfig,
@@ -1175,25 +1201,30 @@ export class DownloadHandoffService {
         fresh?.files.find((file) => samePath(file.path, newPath)) ??
         fresh?.files[0] ??
         null;
-      const oldLength = Math.max(
-        0,
-        ...old.files.map((file) => file.duration ?? 0),
-      );
-      const newLength = newFile?.duration ?? 0;
-      if (!newFile || newLength <= 0) {
+      const settings = await this.prisma.smallerCopySettings
+        .findUnique({ where: { key: 'GLOBAL' } })
+        .catch(() => null);
+      const rules = settings ? rulesOf(settings) : DEFAULT_RULES;
+      // The old scene's main file: its biggest, the one the rules looked at.
+      const oldFile =
+        [...old.files].sort((a, b) => (b.size ?? 0) - (a.size ?? 0))[0] ?? null;
+      if (!newFile) {
         await record(
           'kept-both',
-          'The new file reads as 0 seconds long, so the old one was kept.',
+          'Stash hasn’t got the new file on a scene yet, so the old one was kept.',
         );
         return;
       }
-      if (
-        oldLength > 0 &&
-        Math.abs(newLength - oldLength) > Math.max(60, oldLength * 0.1)
-      ) {
+      const problem = checkNewCopy(
+        copyFileOf(oldFile),
+        copyFileOf(newFile),
+        oldFile ? reasonFor(oldFile, rules.target) : 'too-big',
+        rules,
+      );
+      if (problem) {
         await record(
           'kept-both',
-          `The new file runs ${Math.round(newLength / 60)} min and the old one ${Math.round(oldLength / 60)} min, so both were kept to check by hand.`,
+          `${problem} Both were kept to check by hand.`,
           newFile.size,
         );
         return;
@@ -1210,10 +1241,7 @@ export class DownloadHandoffService {
         );
         return;
       }
-      const settings = await this.prisma.smallerCopySettings
-        .findUnique({ where: { key: 'GLOBAL' } })
-        .catch(() => null);
-      if (settings?.oldCopy === 'keep') {
+      if (settings?.oldCopy !== 'delete') {
         await this.prisma.downloadHandoff.update({
           where: { id: row.id },
           data: { stashSceneId: oldSceneId },
@@ -1428,7 +1456,12 @@ export class DownloadHandoffService {
     const folder = path.dirname(file);
     const earlier = this.scans.get(file);
     if (earlier) {
-      const queue = await this.stash.getJobQueue(config);
+      // Stash can't say how its scan stands: it may still be running, so
+      // wait rather than count a miss.
+      const queue = await this.stash.getJobQueue(config).catch(() => null);
+      if (!queue) {
+        throw new StashBusyError(folder);
+      }
       const job = queue.find((entry) => entry.id === earlier);
       if (job && !['FINISHED', 'FAILED', 'CANCELLED'].includes(job.status)) {
         throw new StashBusyError(folder);
@@ -1436,13 +1469,35 @@ export class DownloadHandoffService {
       // That scan has run without finding it: scan again.
       this.scans.delete(file);
     }
-    const job = await this.stash.scanLibraryFolders(config, [folder]);
-    this.logger.log(`Asked Stash to scan ${folder}.`);
-    // The same scan another file is already waiting on (Stash hands back a
-    // queued one): it's still waiting its turn, so no need to wait again.
-    if (job && [...this.scans.values()].includes(job)) {
-      this.scans.set(file, job);
+    // One scan for every folder asked meanwhile, started once nothing is
+    // waiting in Stash's queue: until then, say Stash is busy.
+    const job = await this.stash.requestFolderScan(config, folder);
+    if (job === 'waiting') {
+      this.logger.debug(`Scan of ${folder} waits its turn in Stash.`);
       throw new StashBusyError(folder);
+    }
+    // The same scan another file is already waiting on: while it still runs
+    // there's no need to wait on it twice. Once it has finished it's used up
+    // for every file that waited on it, and this one looks for itself.
+    if ([...this.scans.values()].includes(job)) {
+      // Stash can't say how it stands: it may still be running, so wait on
+      // it rather than count a miss.
+      const queue = await this.stash.getJobQueue(config).catch(() => null);
+      const entry = queue?.find((candidate) => candidate.id === job);
+      if (
+        !queue ||
+        (entry && !['FINISHED', 'FAILED', 'CANCELLED'].includes(entry.status))
+      ) {
+        this.scans.set(file, job);
+        throw new StashBusyError(folder);
+      }
+      for (const [other, otherJob] of [...this.scans]) {
+        if (otherJob === job) {
+          this.scans.delete(other);
+        }
+      }
+      this.stash.forgetFolderScan(config, folder);
+      return this.sceneFor(config, file);
     }
     if (job) {
       const result = await this.stash.waitForJob(config, job, {
@@ -1453,8 +1508,93 @@ export class DownloadHandoffService {
         this.scans.set(file, job);
         throw new StashBusyError(folder);
       }
+      // That scan has run: this look uses it up (a try, if the file isn't
+      // found), and the next look asks for a new one.
+      this.stash.forgetFolderScan(config, folder);
     }
     return this.sceneFor(config, file);
+  }
+
+  /**
+   * The scene Stash links to this catalog scene, when the downloaded file
+   * is no longer where it was put. Null while the file is still there, or
+   * Stash has no such scene.
+   */
+  private async movedInStash(
+    config: StashAdapterBaseConfig,
+    catalogSceneId: string,
+    file: string,
+    replacing: string | null = null,
+    /** When the download was sent: a scene Stash had before is an older copy. */
+    sentAt: Date | null = null,
+  ): Promise<{ sceneId: string; path: string | null } | null> {
+    const stillThere = await fs
+      .stat(file)
+      .then(() => true)
+      .catch(() => false);
+    if (stillThere) {
+      return null;
+    }
+    const matches = await this.stash
+      .findScenesByStashId(catalogSceneId, config)
+      .catch(() => []);
+    if (matches.length === 0) {
+      return null;
+    }
+    // Which scene is this download: one of the scene's files has its name,
+    // or, renamed into its own folder (by Match & rename, say), it's the
+    // only scene for that catalog entry. Not for a Better copies download:
+    // its catalog scene already has the older copy, which must never be
+    // taken for it, so only the name counts there. Either way the scene must
+    // be new to Stash since the download was sent: one Stash had before is
+    // an older copy, whatever its file is called. Unclear (two by name, or
+    // none): look by path instead, and retry until it is.
+    const candidates = matches.filter((match) => match.id !== replacing);
+    const name = path.basename(file);
+    const byName: Array<{ sceneId: string; path: string }> = [];
+    let lone: { sceneId: string; path: string | null } | null = null;
+    for (const match of candidates) {
+      const scene = await this.stash
+        .getOrganizerScene(config, match.id)
+        .catch(() => null);
+      if (!this.newSince(scene?.createdAt, sentAt)) {
+        continue;
+      }
+      for (const candidate of scene?.files ?? []) {
+        if (path.basename(candidate.path) === name) {
+          byName.push({ sceneId: match.id, path: candidate.path });
+        }
+      }
+      if (matches.length === 1 && !replacing) {
+        lone = { sceneId: match.id, path: scene?.files[0]?.path ?? null };
+      }
+    }
+    const found =
+      byName.length === 1 ? byName[0] : byName.length === 0 ? lone : null;
+    if (!found) {
+      return null;
+    }
+    this.logger.log(
+      `${file} was moved since it came in; Stash has its scene as ${found.sceneId}.`,
+    );
+    return found;
+  }
+
+  /**
+   * Whether Stash first scanned a scene in after the download was sent
+   * (give or take clocks a little apart). Unknown counts as no.
+   */
+  private newSince(
+    createdAt: string | null | undefined,
+    sentAt: Date | null,
+  ): boolean {
+    if (!sentAt) {
+      return true;
+    }
+    const created = createdAt ? Date.parse(createdAt) : Number.NaN;
+    return (
+      Number.isFinite(created) && created >= sentAt.getTime() - CLOCK_SLACK_MS
+    );
   }
 
   private async sceneFor(
@@ -1511,7 +1651,9 @@ export class DownloadHandoffService {
       );
       return;
     }
-    await this.stash
+    // Not awaited: Generate waits its turn behind Stash's other jobs, and the
+    // download is done meanwhile.
+    void this.stash
       .startLibraryTask(config, 'generate', [sceneId])
       .then(() =>
         this.logger.debug(`Started generating previews for scene ${sceneId}.`),
@@ -1823,4 +1965,25 @@ function messageOf(error: unknown): string {
 function samePath(a: string, b: string): boolean {
   const flat = (path: string) => path.replace(/[\\/]+$/, '').toLowerCase();
   return flat(a) === flat(b);
+}
+
+/** A Stash file as the Better copies check reads it. */
+function copyFileOf(
+  file: {
+    size: number | null;
+    duration: number | null;
+    width: number | null;
+    height: number | null;
+    fingerprints: Array<{ type: string; value: string }>;
+  } | null,
+): CopyFile {
+  return {
+    size: file?.size ?? null,
+    duration: file?.duration ?? null,
+    width: file?.width ?? null,
+    height: file?.height ?? null,
+    phash:
+      file?.fingerprints.find((print) => print.type.toLowerCase() === 'phash')
+        ?.value ?? null,
+  };
 }

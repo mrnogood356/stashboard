@@ -172,6 +172,49 @@ export class SceneStatusService {
     }
   }
 
+  /**
+   * Whether Stash has the scene, for deciding to request it on its own:
+   * true or false when known (a fresh index row, the other catalog, or
+   * Stash asked just now), null when it can't be told (Stash didn't answer).
+   * Without Stash set up there's no library to have it.
+   */
+  async stashHasScene(stashId: string): Promise<boolean | null> {
+    const normalized = stashId.trim();
+    if (!normalized) {
+      return false;
+    }
+    if ((await this.secondaryLocalSceneIds([normalized])).has(normalized)) {
+      return true;
+    }
+    const row = (
+      await this.indexingService.getFreshSceneIndexRows([normalized])
+    ).get(normalized);
+    if (row && typeof row.stashAvailable === 'boolean') {
+      return row.stashAvailable;
+    }
+    const [stashConfig, provider] = await Promise.all([
+      this.getStashConfig(),
+      this.getActiveCatalogProviderKey(),
+    ]);
+    if (!stashConfig || !provider) {
+      return false;
+    }
+    try {
+      return await this.lookupStashAvailability(
+        normalized,
+        stashConfig,
+        provider,
+      );
+    } catch (error) {
+      this.logger.debug(
+        `stashHasScene couldn't ask Stash about stashId=${normalized}. error=${this.safeJson(
+          this.serializeError(error),
+        )}`,
+      );
+      return null;
+    }
+  }
+
   async resolveForScenes(
     stashIds: string[],
   ): Promise<Map<string, SceneStatusDto>> {

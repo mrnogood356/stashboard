@@ -114,10 +114,13 @@ export class ReleasesApiService {
     query?: string,
   ): Observable<ReleaseSearchResult> {
     return this.http
-      .get<{ releases: ProwlarrRelease[]; queries: string[]; notice?: string }>(
-        `/api/downloads/scenes/${encodeURIComponent(sceneId)}/releases`,
-        { params: query?.trim() ? { provider, q: query.trim() } : { provider } },
-      )
+      .get<{
+        releases: ProwlarrRelease[];
+        queries: string[];
+        notice?: string;
+      }>(`/api/downloads/scenes/${encodeURIComponent(sceneId)}/releases`, {
+        params: query?.trim() ? { provider, q: query.trim() } : { provider },
+      })
       .pipe(
         map((result) => ({
           releases: result.releases.map(fromProwlarr),

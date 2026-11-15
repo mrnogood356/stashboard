@@ -13,7 +13,8 @@ export interface ReleaseMatchScene {
  * (studio and date alone fit every scene that studio put out that day).
  * `partial`: studio and date only, or one of the others (studio alone
  * doesn't count, every scene from that studio has it). `weak`: none, or the
- * name has a different date, so it's almost surely another scene.
+ * name has a different date or starts with a different studio, so it's
+ * almost surely another scene.
  */
 export type ReleaseMatchStrength = 'strong' | 'partial' | 'weak';
 
@@ -107,18 +108,32 @@ export function matchRelease(
     matched.push('title');
   }
 
+  // Scene releases are named "Studio.YY.MM.DD.Performer…": a name that starts
+  // with another studio is another studio's scene, even with the same
+  // performer on the same day.
+  const studioConflict =
+    studio.length >= 3 &&
+    !studioMatch &&
+    otherStudioFirst(
+      releaseWords,
+      studio,
+      // All the title's words, stopwords too: "The.Sunset.24.03.15…".
+      new Set([...words(scene.title ?? ''), ...performers.flat()]),
+    );
+
   const signals = [studioMatch, dateMatch, performerHits > 0, titleMatch];
   const count = signals.filter(Boolean).length;
   // Studio and date say which studio and day, not which scene: studios put
   // out several a day. Only a performer or the title names the scene itself.
   const namesScene = performerHits > 0 || titleMatch;
-  const strength: ReleaseMatchStrength = dateConflict
-    ? 'weak'
-    : count >= 2 && namesScene
-      ? 'strong'
-      : count >= 2 || (count === 1 && !studioMatch)
-        ? 'partial'
-        : 'weak';
+  const strength: ReleaseMatchStrength =
+    dateConflict || studioConflict
+      ? 'weak'
+      : count >= 2 && namesScene
+        ? 'strong'
+        : count >= 2 || (count === 1 && !studioMatch)
+          ? 'partial'
+          : 'weak';
 
   return { strength, matched };
 }
@@ -194,4 +209,43 @@ function sameDate(left: DateParts, right: DateParts): boolean {
     left.month === right.month &&
     left.day === right.day
   );
+}
+
+/**
+ * Whether the name starts with a studio other than the scene's: the words
+ * before its date ("TrueAnal" in "TrueAnal.26.10.21.Maddie.Wren"). Names
+ * without a date up front say nothing either way.
+ */
+function otherStudioFirst(
+  releaseWords: string[],
+  studio: string,
+  /** The scene's title and performer words: those in front aren't a studio. */
+  known: Set<string>,
+): boolean {
+  // The same shapes datesIn reads: YYYYMMDD, YY.MM.DD, YYYY.MM.DD, DD.MM.YYYY.
+  const dateAt = releaseWords.findIndex((word, index) => {
+    const [month, last] = releaseWords.slice(index + 1, index + 3);
+    return (
+      /^\d{8}$/.test(word) ||
+      (/^\d{2}$/.test(month ?? '') &&
+        ((/^(\d{2}|\d{4})$/.test(word) && /^\d{2}$/.test(last ?? '')) ||
+          (/^\d{2}$/.test(word) && /^\d{4}$/.test(last ?? ''))))
+    );
+  });
+  // A studio is a word or three in front; a longer run is a title.
+  if (dateAt <= 0 || dateAt > 3) {
+    return false;
+  }
+  const front = releaseWords.slice(0, dateAt);
+  // "Sunset.Rendezvous.24.03.15…" or "Maddie.Wren.26.10.21…": the scene's
+  // own title or performer in front, not another studio.
+  if (front.every((word) => known.has(word))) {
+    return false;
+  }
+  const prefix = front.join('');
+  if (prefix.length < 3) {
+    return false;
+  }
+  // "BrazzersExxtra" for "Brazzers Exxtra", or a shortened name either way.
+  return !prefix.includes(studio) && !studio.includes(prefix);
 }

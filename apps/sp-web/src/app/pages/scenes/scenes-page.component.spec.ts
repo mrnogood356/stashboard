@@ -108,6 +108,21 @@ const HEALTHY_RUNTIME_HEALTH: RuntimeHealthResponse = {
   },
 };
 
+/** The Hide words box is in its filter chip's list: open it, then find it. */
+async function openExclude(fixture: {
+  nativeElement: HTMLElement;
+  detectChanges(): void;
+  whenStable(): Promise<unknown>;
+}) {
+  (
+    fixture.nativeElement.querySelector('[data-testid="scenes-exclude"]') as HTMLButtonElement
+  ).click();
+  fixture.detectChanges();
+  await fixture.whenStable();
+  fixture.detectChanges();
+  return fixture.nativeElement.querySelector('#scenes-exclude') as HTMLInputElement;
+}
+
 describe('ScenesPageComponent', () => {
   beforeEach(() => {
     vi.stubGlobal(
@@ -209,7 +224,7 @@ describe('ScenesPageComponent', () => {
   it('initializes the canonical scenes discovery view with TRENDING sort', async () => {
     const { fixture, discoverService, navigateSpy, runtimeHealthService } = await renderPage();
     const resetButton = fixture.nativeElement.querySelector(
-      '.reset-filters-button',
+      '[data-testid="scenes-clear-filters"]',
     ) as HTMLButtonElement | null;
     const pageText = fixture.nativeElement.textContent ?? '';
 
@@ -228,7 +243,8 @@ describe('ScenesPageComponent', () => {
       '',
     );
     expect(navigateSpy).not.toHaveBeenCalled();
-    expect(resetButton?.disabled).toBe(true);
+    // Nothing to clear yet, so no Clear all.
+    expect(resetButton).toBeNull();
     expect(pageText).not.toContain('Already In library');
     expect(pageText).not.toContain('Missing From Library');
     expect(pageText).not.toContain('Favorite Tags');
@@ -268,11 +284,10 @@ describe('ScenesPageComponent', () => {
       studioNames: 'Studio One,Studio Two',
     });
     const resetButton = fixture.nativeElement.querySelector(
-      '.reset-filters-button',
+      '[data-testid="scenes-clear-filters"]',
     ) as HTMLButtonElement | null;
 
     expect(resetButton).toBeTruthy();
-    expect(resetButton?.disabled).toBe(false);
 
     resetButton?.click();
     fixture.detectChanges();
@@ -367,9 +382,9 @@ describe('ScenesPageComponent', () => {
 
   it('sends excluded words from the URL and counts them as an active filter', async () => {
     const { fixture, discoverService } = await renderPage({ exclude: 'trans,transgender' });
-    const input = fixture.nativeElement.querySelector('#scenes-exclude') as HTMLInputElement;
+    const input = await openExclude(fixture);
     const resetButton = fixture.nativeElement.querySelector(
-      '.reset-filters-button',
+      '[data-testid="scenes-clear-filters"]',
     ) as HTMLButtonElement | null;
 
     expect(discoverService.getScenesFeed).toHaveBeenCalledWith(
@@ -387,7 +402,7 @@ describe('ScenesPageComponent', () => {
       '',
     );
     expect(input.value).toBe('trans, transgender');
-    expect(resetButton?.disabled).toBe(false);
+    expect(resetButton).not.toBeNull();
   });
 
   it('sends tag names with the tags and says which ones this catalog lacks', async () => {
@@ -417,7 +432,7 @@ describe('ScenesPageComponent', () => {
 
   it('applies typed exclude words on Enter and keeps them in the URL', async () => {
     const { fixture, discoverService, navigateSpy } = await renderPage();
-    const input = fixture.nativeElement.querySelector('#scenes-exclude') as HTMLInputElement;
+    const input = await openExclude(fixture);
 
     input.value = 'Trans, -transgender  trans';
     input.dispatchEvent(new Event('input'));
@@ -527,8 +542,8 @@ describe('ScenesPageComponent', () => {
     ) as HTMLElement;
     expect(chip.textContent).toContain('Matching “blue studio”');
     expect(
-      (fixture.nativeElement.querySelector('.reset-filters-button') as HTMLButtonElement).disabled,
-    ).toBe(false);
+      fixture.nativeElement.querySelector('[data-testid="scenes-clear-filters"]'),
+    ).not.toBeNull();
 
     (chip.querySelector('button') as HTMLButtonElement).click();
     fixture.detectChanges();

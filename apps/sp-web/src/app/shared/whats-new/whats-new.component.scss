@@ -117,7 +117,7 @@ h3 {
   height: 2.5rem;
   padding: 0 1.3rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--focus-ring, var(--accent));
   color: var(--accent-contrast, #fff);
   font: inherit;

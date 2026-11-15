@@ -30,9 +30,12 @@ import {
   parseFileName,
   scoreByName,
 } from './match-scoring.util';
-import { WhisparrHandoffService } from './whisparr-handoff.service';
+import {
+  type MissingInWhisparrScene,
+  WhisparrHandoffService,
+} from './whisparr-handoff.service';
 import type { UnmatchedScope, UnmatchedSort } from './dto/organizer.dto';
-import { DEFAULT_RENAME_PATTERN, splitPath } from './rename.util';
+import { splitPath } from './rename.util';
 import {
   CANDIDATE_TTL_MS,
   IDLE_RUN,
@@ -304,7 +307,11 @@ export class OrganizerService
         return 'Off: Send matches to Whisparr is switched off';
       }
       const missing = await this.handoff.missingInWhisparr();
-      if (missing.length === 0) {
+      // "Also add scenes Whisparr doesn't have" on: new scenes in Stash too,
+      // the last two days' (a day missed still gets them), not the whole
+      // library every morning.
+      const addNew = settings.addToWhisparr;
+      if (missing.length === 0 && !addNew) {
         return 'Nothing to send';
       }
       if (this.runState.running) {
@@ -314,11 +321,13 @@ export class OrganizerService
         return 'Skipped: the organizer was busy';
       }
       this.logger.log(
-        `Sending ${missing.length} ${missing.length === 1 ? 'scene' : 'scenes'} you have that Whisparr shows as missing.`,
+        `Sending ${missing.length} ${missing.length === 1 ? 'scene' : 'scenes'} you have that Whisparr shows as missing${addNew ? ', and new scenes from the last two days Whisparr doesn’t have' : ''}.`,
       );
-      // Missing ones only: "add new ones" stays a choice you make on the page.
-      this.startSendAll(true);
-      return `Started: ${missing.length} ${missing.length === 1 ? 'scene' : 'scenes'}`;
+      this.startSendAll(
+        !addNew,
+        addNew ? new Date(Date.now() - 2 * 24 * 3600_000) : null,
+      );
+      return `Started: ${missing.length} ${missing.length === 1 ? 'scene' : 'scenes'}${addNew ? ' and new ones' : ''}`;
     } catch (error) {
       this.logger.warn(
         `Sending scenes Whisparr is missing skipped: ${messageOf(error)}`,
@@ -1283,7 +1292,7 @@ export class OrganizerService
     }
     const config = await this.stashConfig();
     const settings = await this.getSettings();
-    const pattern = settings.renamePattern || DEFAULT_RENAME_PATTERN;
+    const { pattern } = await this.renamingPattern(settings);
     const plan = () =>
       this.planAll(
         config,
@@ -1569,6 +1578,41 @@ export class OrganizerService
     return this.checkWaitingScenes();
   }
 
+  /** Scenes Stash has that Whisparr wants without a file, each with why it hasn't gone. */
+  missingInWhisparrScenes(): Promise<MissingInWhisparrScene[]> {
+    return this.handoff.missingInWhisparrScenes();
+  }
+
+  /**
+   * The other answer: Stash has this file linked to the wrong catalog scene
+   * (a download grabbed for another scene, say). Links Stash's scene to
+   * Whisparr's instead, which replaces the wrong link, so it stops waiting.
+   */
+  async linkToWaitingScene(stashId: string): Promise<WaitingCheckResult> {
+    const file = (await this.whisparrFiles()).find(
+      (entry) => entry.stashId === stashId,
+    );
+    if (!file) {
+      throw new NotFoundException('Whisparr no longer lists a file for it.');
+    }
+    const context = await this.context();
+    const [scene] = await this.stashScenesForFile(
+      context.config,
+      file.filePath,
+    );
+    if (!scene) {
+      throw new NotFoundException('Stash has no file at this path.');
+    }
+    const provider = await this.catalogProvider.getInstanceCatalogProvider();
+    await this.linkDownloadedScene(scene.id, {
+      provider: provider.providerKey,
+      sceneId: stashId,
+    });
+    this.linkProblems.delete(stashId);
+    await this.indexing.requestImmediateRefresh([stashId], 'waiting-link');
+    return this.checkWaitingScenes();
+  }
+
   /** Whisparr's stashId is the scene Stash has as aliasOf. */
   protected async rememberSameScene(
     stashId: string,
@@ -1713,7 +1757,7 @@ export class OrganizerService
               ? `Stash links this file to a different ${catalog} scene (${other}). If it’s the same scene, say so and it will count as in your library.`
               : linkedHere
                 ? 'Stash has it linked; the status should catch up within a few minutes.'
-                : `Stash has the file, but it isn’t linked to this ${catalog} scene yet, so it doesn’t count as in your library. Check it in Match & rename.`,
+                : `Stash has the file, but it isn’t linked to this ${catalog} scene yet, so it doesn’t count as in your library. Check it in Match scenes.`,
       });
     }
     if (nudge && lookAgain.length > 0) {
@@ -1730,6 +1774,14 @@ export class OrganizerService
   }
 
   /** Every file Whisparr has, as Stash sees it; none when Whisparr can't be asked. */
+  /** Where Whisparr keeps these scenes' files, as Stash sees the paths. */
+  async whisparrFilesFor(stashIds: string[]): Promise<string[]> {
+    const wanted = new Set(stashIds);
+    return (await this.whisparrFiles())
+      .filter((file) => wanted.has(file.stashId))
+      .map((file) => file.filePath);
+  }
+
   protected async whisparrFiles(): Promise<
     Array<{
       stashId: string;

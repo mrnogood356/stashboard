@@ -7,9 +7,6 @@ import {
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { NgModel } from '@angular/forms';
-import { By } from '@angular/platform-browser';
-import { Select } from 'primeng/select';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { SceneTimeline, TimelineApiService } from '../../core/api/timeline.service';
@@ -268,6 +265,7 @@ describe('AcquisitionPageComponent', () => {
         }),
       ),
       markSameScene: vi.fn(() => of({ checked: 1, fixed: 1, left: [] })),
+      linkToWaitingScene: vi.fn(() => of({ checked: 1, fixed: 1, left: [] })),
     };
     const notifications = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
     const timelineApi = {
@@ -408,7 +406,7 @@ describe('AcquisitionPageComponent', () => {
     const root = fixture.nativeElement as HTMLElement;
 
     expect(stageStates(root, 'scene-downloading')).toEqual([
-      'Requested:done',
+      'Wanted:done',
       'Downloading:current',
       'Waiting for Stash:todo',
       'In library:todo',
@@ -574,10 +572,11 @@ describe('AcquisitionPageComponent', () => {
     const root = fixture.nativeElement as HTMLElement;
 
     const section = root.querySelector('[data-testid="handoff-section"]');
-    expect(section?.textContent).toContain('Your downloads');
+    expect(section?.textContent).toContain('Downloading now');
     const card = root.querySelector('[data-testid="handoff-h1"]');
     expect(card?.textContent).toContain('Golden Hour');
-    expect(card?.textContent).toContain('Golden.Hour.1080p');
+    // The scene's title, not the download's name (that's on Downloads).
+    expect(card?.textContent).not.toContain('Golden.Hour.1080p');
     expect(stageStates(root, 'h1')[1]).toBe('Downloading:current');
     expect(card?.textContent).toContain('40% · 12 min left');
     expect(stageStates(root, 'h2')[1]).toBe('Downloading:failed');
@@ -585,6 +584,45 @@ describe('AcquisitionPageComponent', () => {
       'Retry in Downloads',
     );
     expect(root.querySelector('[data-testid="handoff-h3"]')).toBeNull();
+  });
+
+  it('keeps a queued card current while its hidden download moves on', async () => {
+    const queued = buildItem({
+      id: 'scene-queued',
+      status: { state: 'REQUESTED' },
+      queueState: null,
+    });
+    const { fixture, component, acquisitionService } = await renderPage({
+      responses: { ANY: buildResponse([queued]) },
+      handoffs: [handoff({ id: 'h-q', sceneId: 'scene-queued', stage: 'downloading' })],
+    });
+    const root = fixture.nativeElement as HTMLElement;
+
+    // Whisparr doesn't know yet; the card shows where the download is.
+    expect(stageStates(root, 'scene-queued')[1]).toBe('Downloading:current');
+    expect(
+      root
+        .querySelector('[data-testid="download-scene-queued"] [role="progressbar"]')
+        ?.getAttribute('aria-valuenow'),
+    ).toBe('40');
+    expect(root.querySelector('[data-testid="handoff-h-q"]')).toBeNull();
+
+    acquisitionService.getScenesFeed.mockClear();
+    (component as unknown as { liveRefresh(): void }).liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
+  });
+
+  it('doesn’t list a download again when its scene already has a card below', async () => {
+    const { fixture } = await renderPage({
+      handoffs: [handoff(), handoff({ id: 'h-dup', sceneId: 'scene-downloading' })],
+    });
+    const root = fixture.nativeElement as HTMLElement;
+
+    expect(root.querySelector('[data-testid="handoff-h1"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="handoff-h-dup"]')).toBeNull();
+    expect(root.querySelector('[data-testid="handoff-section"]')?.textContent).toContain(
+      '1 download',
+    );
   });
 
   it('leaves downloads you started off the other tabs and searches', async () => {
@@ -671,7 +709,7 @@ describe('AcquisitionPageComponent', () => {
       sort: 'status',
     });
     expect(failedTab?.textContent).toContain('1');
-    expect(lifecycleHeadings).toEqual(['Failed', 'Downloading', 'Requested']);
+    expect(lifecycleHeadings).toEqual(['Failed', 'Downloading', 'Wanted']);
     // In plain words, with Whisparr's own words beneath.
     expect(text).toContain(
       'The download stalled: nobody was sending the file. Pick another release.',
@@ -730,6 +768,12 @@ describe('AcquisitionPageComponent', () => {
     const card = fixture.nativeElement.querySelector('[data-state="IMPORT_PENDING"]');
     expect(card?.textContent).toContain('different StashDB scene');
     expect(card?.textContent).toContain('/data/a/a.mp4');
+    // Or it's another scene: match it to this one, or pick another match.
+    expect(card?.querySelector('[data-testid="card-link-here-scene-waiting"]')).not.toBeNull();
+    const pick = Array.from<HTMLAnchorElement>(card?.querySelectorAll('a') ?? []).find((link) =>
+      link.textContent?.includes('Pick a different match'),
+    );
+    expect(pick?.getAttribute('href')).toBe('/tools/match?q=a&scope=all');
 
     (
       fixture.nativeElement.querySelector(
@@ -927,7 +971,7 @@ describe('AcquisitionPageComponent', () => {
     const headings = Array.from(
       fixture.nativeElement.querySelectorAll('.lifecycle-section h3') as NodeListOf<HTMLElement>,
     ).map((element) => element.textContent?.trim());
-    expect(headings).toEqual(['Failed', 'Downloading', 'Waiting for Stash', 'Requested']);
+    expect(headings).toEqual(['Failed', 'Downloading', 'Waiting for Stash', 'Wanted']);
   });
 
   it('searches after a pause and keeps the search in the address', async () => {
@@ -999,12 +1043,17 @@ describe('AcquisitionPageComponent', () => {
 
   it('sorts by date as one list instead of grouping by stage', async () => {
     const { fixture, router, acquisitionService } = await renderPage();
-    // The themed PrimeNG dropdown (a native <select> popup ignores the theme).
-    const sort = fixture.debugElement.query(By.css('[data-testid="acquisition-sort"]'));
-    expect(sort.componentInstance).toBeInstanceOf(Select);
+    // The filter bar's Sort, as on every other list (never a native <select>).
     expect(fixture.nativeElement.querySelector('select')).toBeNull();
-
-    sort.injector.get(NgModel).viewToModelUpdate('requested-desc');
+    (
+      fixture.nativeElement.querySelector('[data-testid="acquisition-sort"]') as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    (
+      fixture.nativeElement.querySelector(
+        '[data-testid="acquisition-sort-option-requested-desc"]',
+      ) as HTMLButtonElement
+    ).click();
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -1036,8 +1085,8 @@ describe('AcquisitionPageComponent', () => {
       sort: 'released-asc',
     });
     await fixture.whenStable();
-    const sort = fixture.debugElement.query(By.css('[data-testid="acquisition-sort"]'));
-    expect(sort.injector.get(NgModel).value).toBe('released-asc');
-    expect(sort.nativeElement.textContent).toContain('Oldest release');
+    fixture.detectChanges();
+    const sort = fixture.nativeElement.querySelector('[data-testid="acquisition-sort"]');
+    expect(sort?.textContent).toContain('Oldest release');
   });
 });

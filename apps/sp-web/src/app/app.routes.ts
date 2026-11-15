@@ -1,4 +1,5 @@
-import { Routes } from '@angular/router';
+import { inject } from '@angular/core';
+import { Router, Routes } from '@angular/router';
 import { libraryStudioRedirectGuard } from './core/guards/library-studio-redirect.guard';
 import { libraryPerformerRedirectGuard } from './core/guards/library-performer-redirect.guard';
 import {
@@ -11,6 +12,7 @@ import {
   requireSetupCompleteGuard,
   setupOnlyWhenIncompleteGuard,
 } from './core/guards/setup-route.guard';
+import { unsavedChangesGuard } from './core/navigation/unsaved-changes.guard';
 import { AppShellLayoutComponent } from './layouts/app-shell-layout/app-shell-layout.component';
 import { UnreachablePageComponent } from './features/unreachable/unreachable-page.component';
 
@@ -57,6 +59,14 @@ export const routes: Routes = [
     component: AppShellLayoutComponent,
     canActivate: [requireAuthenticatedGuard, requireSetupCompleteGuard],
     children: [
+      // Pull to refresh passes through here to rebuild the page in place.
+      {
+        path: 'refreshing',
+        loadComponent: () =>
+          import('./shared/pull-to-refresh/refreshing-page.component').then(
+            (m) => m.RefreshingPageComponent,
+          ),
+      },
       {
         path: 'home',
         loadComponent: () =>
@@ -83,7 +93,30 @@ export const routes: Routes = [
           import('./pages/tools/fix-library-page.component').then((m) => m.FixLibraryPageComponent),
       },
       {
+        // Match & rename was one page: its links land on Match scenes or Rename files.
         path: 'tools/organize',
+        pathMatch: 'full',
+        redirectTo: ({ queryParams }) => {
+          const tab = queryParams['tab'];
+          const toMatch = tab === 'review' || tab === 'match' || !!queryParams['q'];
+          return inject(Router).createUrlTree([toMatch ? '/tools/match' : '/tools/rename'], {
+            queryParams: toMatch
+              ? { ...(queryParams['q'] ? { q: queryParams['q'] } : {}) }
+              : tab === 'settings' || tab === 'rename'
+                ? { tab }
+                : {},
+          });
+        },
+      },
+      {
+        path: 'tools/match',
+        data: { tool: 'match' },
+        loadComponent: () =>
+          import('./pages/tools/organize-page.component').then((m) => m.OrganizePageComponent),
+      },
+      {
+        path: 'tools/rename',
+        data: { tool: 'rename' },
         loadComponent: () =>
           import('./pages/tools/organize-page.component').then((m) => m.OrganizePageComponent),
       },
@@ -122,7 +155,13 @@ export const routes: Routes = [
           import('./pages/tools/merge-page.component').then((m) => m.MergePageComponent),
       },
       {
+        // Its old name; links and bookmarks still land.
         path: 'tools/smaller-copies',
+        redirectTo: 'tools/better-copies',
+        pathMatch: 'full',
+      },
+      {
+        path: 'tools/better-copies',
         loadComponent: () =>
           import('./pages/tools/smaller-copies-page.component').then(
             (m) => m.SmallerCopiesPageComponent,
@@ -292,6 +331,7 @@ export const routes: Routes = [
           },
           {
             path: 'notifications',
+            canDeactivate: [unsavedChangesGuard],
             loadComponent: () =>
               import('./pages/settings/settings-notifications-page.component').then(
                 (m) => m.SettingsNotificationsPageComponent,
@@ -306,6 +346,7 @@ export const routes: Routes = [
           },
           {
             path: 'hidden',
+            canDeactivate: [unsavedChangesGuard],
             loadComponent: () =>
               import('./pages/settings/settings-hidden-page.component').then(
                 (m) => m.SettingsHiddenPageComponent,
@@ -320,6 +361,7 @@ export const routes: Routes = [
           },
           {
             path: 'appearance',
+            canDeactivate: [unsavedChangesGuard],
             loadComponent: () =>
               import('./pages/settings/settings-appearance-page.component').then(
                 (m) => m.SettingsAppearancePageComponent,

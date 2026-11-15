@@ -150,11 +150,19 @@
       </div>
     </div>
 
-    <a class="group link-row" routerLink="/tools/organize">
+    <a class="group link-row" routerLink="/tools/match" [queryParams]="{ tab: 'settings' }">
       <span class="link-icon" aria-hidden="true"><i class="pi pi-link"></i></span>
       <span class="row-copy">
-        <strong>Match &amp; rename</strong>
-        <small>Matching, renaming and keeping Whisparr in step.</small>
+        <strong>Match scenes</strong>
+        <small>Matching every night, and where matches come from.</small>
+      </span>
+      <i class="pi pi-chevron-right chevron" aria-hidden="true"></i>
+    </a>
+    <a class="group link-row" routerLink="/tools/rename" [queryParams]="{ tab: 'settings' }">
+      <span class="link-icon" aria-hidden="true"><i class="pi pi-folder-open"></i></span>
+      <span class="row-copy">
+        <strong>Rename files</strong>
+        <small>Renaming after a match, sending to Whisparr, and empty folders.</small>
       </span>
       <i class="pi pi-chevron-right chevron" aria-hidden="true"></i>
     </a>

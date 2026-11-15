@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { explainRename } from './organize-page.component';
+import { explainRename } from './explain-rename.util';
 
 const plan = (from: string, to: string) => ({
   sceneId: '1',

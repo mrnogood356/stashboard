@@ -36,8 +36,8 @@ describe('native form controls follow the theme', () => {
 
   it('declares color-scheme in the stylesheet too, for the paint before the theme script', () => {
     expect(rule(":root[data-theme='dark']")).toBeTruthy();
-    expect(styles).toMatch(/:root\[data-theme='dark'\] \{\s*color-scheme: dark;/);
-    expect(styles).toMatch(/:root \{\s*color-scheme: light;/);
+    expect(styles).toMatch(/:root\[data-theme='dark'\] \{[^}]*color-scheme: dark;/);
+    expect(styles).toMatch(/:root \{[^}]*color-scheme: light;/);
   });
 
   it('gives option lists a themed background and text, never inherited transparency', () => {
@@ -52,9 +52,8 @@ describe('native form controls follow the theme', () => {
   });
 
   it('defines the control tokens on :root, not only inside .app-control-shell', () => {
-    const root = styles.slice(styles.indexOf(':root {\n  --app-control-height'));
-    expect(root).toMatch(/^:root \{[^}]*--app-control-bg: var\(--surface-2\);/);
-    expect(root).toMatch(/^:root \{[^}]*--app-control-text: var\(--text-primary\);/);
+    expect(styles).toMatch(/(^|\n):root \{[^}]*--app-control-bg: var\(--surface-2\);/);
+    expect(styles).toMatch(/(^|\n):root \{[^}]*--app-control-text: var\(--text-primary\);/);
   });
 
   it('keeps option text readable on the option background in every theme', () => {

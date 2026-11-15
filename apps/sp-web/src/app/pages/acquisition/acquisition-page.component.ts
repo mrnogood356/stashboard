@@ -1,11 +1,21 @@
+import {
+  FilterChipComponent,
+  FilterPanelDirective,
+} from '../../shared/filter-bar/filter-chip.component';
+import {
+  FilterOption,
+  FilterOptionsComponent,
+} from '../../shared/filter-bar/filter-options.component';
+import { PageTabsComponent, REQUESTS_TABS } from '../../shared/page-tabs/page-tabs.component';
 import { failureReason } from './failure-reason';
 import { YouMayEnjoyComponent } from '../../shared/you-may-enjoy/you-may-enjoy.component';
 import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
 import {
   Stage,
-  buildStages,
+  stagesForHandoff,
   stagesForStatus,
   timeLeftText,
+  percentText,
 } from '../../shared/stage-track/stage-track';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
@@ -23,9 +33,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { finalize, Subscription } from 'rxjs';
-import { FormsModule } from '@angular/forms';
 import { Message } from 'primeng/message';
-import { Select } from 'primeng/select';
 import { AcquisitionService } from '../../core/api/acquisition.service';
 import {
   DownloadHandoffApiService,
@@ -68,6 +76,8 @@ interface AcquisitionTab {
 /** A failed download you started stays on Requests this long. */
 const FAILED_HANDOFF_SHOWN_MS = 24 * 3600_000;
 /** While something is downloading, the list refreshes itself this often. */
+/** A download still on its way (not done, failed or stopped watching). */
+const ACTIVE_HANDOFF_STAGES = ['queued', 'downloading', 'unpacking', 'moving', 'linking'];
 const LIVE_REFRESH_MS = 15_000;
 /** The API sends at most 50 at once: up to two pages refresh as one. */
 const LIVE_REFRESH_MAX = 48;
@@ -90,8 +100,8 @@ interface AcquisitionUrlState {
 
 export const ACQUISITION_SORT_OPTIONS: ReadonlyArray<{ value: AcquisitionSort; label: string }> = [
   { value: 'status', label: 'By status' },
-  { value: 'requested-desc', label: 'Newest requested' },
-  { value: 'requested-asc', label: 'Oldest requested' },
+  { value: 'requested-desc', label: 'Recently added' },
+  { value: 'requested-asc', label: 'Oldest added' },
   { value: 'released-desc', label: 'Newest release' },
   { value: 'released-asc', label: 'Oldest release' },
   { value: 'title', label: 'Title (A–Z)' },
@@ -108,12 +118,14 @@ interface AcquisitionPageAlert {
 @Component({
   selector: 'app-acquisition-page',
   imports: [
+    FilterChipComponent,
+    FilterPanelDirective,
+    FilterOptionsComponent,
+    PageTabsComponent,
     StageTrackComponent,
     SkeletonComponent,
     RouterLink,
-    FormsModule,
     Message,
-    Select,
     SelectionBarComponent,
     SceneTimelineComponent,
     YouMayEnjoyComponent,
@@ -122,6 +134,7 @@ interface AcquisitionPageAlert {
   styleUrl: './acquisition-page.component.scss',
 })
 export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestroy {
+  protected readonly pageTabs = REQUESTS_TABS;
   private static readonly PAGE_SIZE = 24;
   private static readonly EMPTY_COUNTS: AcquisitionCountsByLifecycle = {
     REQUESTED: 0,
@@ -145,6 +158,11 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
 
   /** In flight, or failed in the last day; SABnzbd's, so not in Whisparr's list. */
   protected readonly handoffs = signal<ProcessingHandoff[]>([]);
+  /** Downloads whose scene isn't already a card below, so nothing shows twice. */
+  protected readonly extraHandoffs = computed(() => {
+    const shown = new Set(this.items().map((item) => item.id));
+    return this.handoffs().filter((handoff) => !handoff.sceneId || !shown.has(handoff.sceneId));
+  });
   private handoffsRequest: Subscription | null = null;
 
   /** Only All and Downloading show them, and not while searching. */
@@ -198,33 +216,33 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
 
   /** The same four steps as a request, from where SABnzbd and Stashboard are. */
   protected handoffStages(handoff: ProcessingHandoff): Stage[] {
-    switch (handoff.stage) {
-      case 'queued':
-        return buildStages(0);
-      case 'downloading':
-      case 'unpacking':
-        return buildStages(1);
-      case 'moving':
-      case 'linking':
-        return buildStages(2);
-      case 'done':
-        return buildStages(3, { finished: true });
-      default:
-        // Failed after it was moved in: it stopped at Waiting for Stash.
-        return buildStages(handoff.finalPath ? 2 : 1, { failed: true });
-    }
+    return stagesForHandoff(handoff.stage, !!handoff.finalPath);
   }
 
   protected handoffProgressText(handoff: ProcessingHandoff): string | null {
     const left = timeLeftText(handoff.timeLeft);
-    const parts = [handoff.progress !== null ? `${handoff.progress}%` : null, left].filter(Boolean);
+    const parts = [
+      handoff.progress !== null ? `${percentText(handoff.progress)}%` : null,
+      left,
+    ].filter(Boolean);
     return parts.length ? parts.join(' · ') : null;
   }
 
   private handoffsActive(): boolean {
-    return this.handoffs().some((handoff) =>
-      ['queued', 'downloading', 'unpacking', 'moving', 'linking'].includes(handoff.stage),
+    return this.handoffs().some((handoff) => ACTIVE_HANDOFF_STAGES.includes(handoff.stage));
+  }
+
+  /**
+   * A card on screen whose download (hidden behind the card) is on its way:
+   * the card's own step moves with it, so it's fetched again too.
+   */
+  private cardHasActiveHandoff(): boolean {
+    const active = new Set(
+      this.handoffs()
+        .filter((handoff) => handoff.sceneId && ACTIVE_HANDOFF_STAGES.includes(handoff.stage))
+        .map((handoff) => handoff.sceneId),
     );
+    return active.size > 0 && this.items().some((item) => active.has(item.id));
   }
   private readonly notifications = inject(AppNotificationsService);
   private readonly timelineApi = inject(TimelineApiService);
@@ -431,7 +449,15 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   protected readonly items = signal<AcquisitionSceneItem[]>([]);
   protected readonly runtimeHealth = this.runtimeHealthService.status;
   protected readonly selectedLifecycle = signal<AcquisitionLifecycleFilter>('ANY');
-  protected readonly sortOptions = [...ACQUISITION_SORT_OPTIONS];
+  protected readonly sortChoices: FilterOption[] = ACQUISITION_SORT_OPTIONS.map((option) => ({
+    id: option.value,
+    label: option.label,
+  }));
+  protected readonly sortLabel = computed(
+    () =>
+      ACQUISITION_SORT_OPTIONS.find((option) => option.value === this.selectedSort())?.label ??
+      'Sort',
+  );
   /** The search the list is showing; `searchDraft` is what is typed so far. */
   protected readonly searchQuery = signal('');
   protected readonly searchDraft = signal('');
@@ -615,6 +641,42 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       });
   }
 
+  /** Stash has the file under the wrong scene: link it to this one instead. */
+  protected linkToWaitingScene(stashId: string): void {
+    if (this.checkingWaiting()) {
+      return;
+    }
+    this.checkingWaiting.set(true);
+    this.waitingCheckError.set(null);
+    this.organizerService
+      .linkToWaitingScene(stashId)
+      .pipe(finalize(() => this.checkingWaiting.set(false)))
+      .subscribe({
+        next: (result) => {
+          this.waitingCheck.set(result);
+          this.resetFeedAndReload();
+        },
+        error: (error: { error?: { message?: unknown } }) => {
+          const message = error?.error?.message;
+          this.waitingCheckError.set(
+            typeof message === 'string' && message
+              ? message
+              : 'Couldn’t link it to this scene. Try again.',
+          );
+        },
+      });
+  }
+
+  /** Match scenes, searched for this file among all scenes (it's matched, just wrongly). */
+  protected pickMatchParams(path: string | null): Record<string, string> {
+    const name =
+      (path ?? '')
+        .split(/[\\/]/)
+        .pop()
+        ?.replace(/\.[^.]+$/, '') ?? '';
+    return { q: name, scope: 'all' };
+  }
+
   /** Counts Whisparr's scene as the one Stash has, so it stops waiting. */
   protected markSameScene(stashId: string): void {
     if (this.checkingWaiting()) {
@@ -706,7 +768,32 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
 
   /** Requested → Downloading → Waiting for Stash → In library, with where it is now. */
   protected stages(item: AcquisitionSceneItem): Stage[] {
-    return stagesForStatus(item.status.state, item.queueState);
+    const handoff = this.aheadHandoff(item);
+    return handoff
+      ? this.handoffStages(handoff)
+      : stagesForStatus(item.status.state, item.queueState);
+  }
+
+  /** Active downloads Stashboard sent, by the scene they're for. */
+  private readonly activeHandoffByScene = computed(
+    () =>
+      new Map(
+        this.handoffs()
+          .filter((handoff) => handoff.sceneId && ACTIVE_HANDOFF_STAGES.includes(handoff.stage))
+          .map((handoff) => [handoff.sceneId as string, handoff]),
+      ),
+  );
+
+  /**
+   * The download Stashboard sent for a card that still says Wanted: Whisparr
+   * doesn't know about it yet, so the card shows where the download is.
+   */
+  protected aheadHandoff(item: AcquisitionSceneItem): ProcessingHandoff | null {
+    const state = item.status.state;
+    if (state !== 'REQUESTED' && state !== 'NOT_REQUESTED') {
+      return null;
+    }
+    return this.activeHandoffByScene().get(item.id) ?? null;
   }
 
   /** "45% · 6 min left", or null when Whisparr hasn't said. */
@@ -716,7 +803,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       return null;
     }
     const left = timeLeftText(download.timeLeft);
-    return [download.progress !== null ? `${download.progress}%` : null, left]
+    return [download.progress !== null ? `${percentText(download.progress)}%` : null, left]
       .filter(Boolean)
       .join(' · ');
   }
@@ -840,7 +927,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
 
     switch (this.selectedLifecycle()) {
       case 'FAILED':
-        return 'Nothing has failed. Requests that fail show up here.';
+        return 'Nothing has failed. Wanted scenes that fail show up here.';
       case 'IMPORT_PENDING':
         return 'Downloads are not waiting on the final Stash handoff right now.';
       case 'DOWNLOADING':
@@ -848,7 +935,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       case 'REQUESTED':
         return 'Whisparr is not holding any queued requests that have not started yet.';
       case 'AVAILABLE':
-        return 'Requests show up here for two weeks once they’re in your library.';
+        return 'Wanted scenes show up here for two weeks once they’re in your library.';
       case 'ANY':
       default:
         return firstUseEmptyStateCopy('acquisition').message;
@@ -893,7 +980,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   private filterLabel(lifecycle: AcquisitionLifecycleFilter): string {
     switch (lifecycle) {
       case 'REQUESTED':
-        return 'Requested';
+        return 'Wanted';
       case 'DOWNLOADING':
         return 'Downloading';
       case 'IMPORT_PENDING':
@@ -920,7 +1007,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
         return '';
       case 'REQUESTED':
       default:
-        return 'Waiting for Whisparr to start them.';
+        return 'In Whisparr, waiting for a release to grab.';
     }
   }
 
@@ -1027,7 +1114,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
           }
 
           if (isInitialPage) {
-            this.error.set('Requests couldn’t load. Try again.');
+            this.error.set('Couldn’t load what you want. Try again.');
           } else {
             this.loadMoreError.set('More requests couldn’t load. Try again.');
           }
@@ -1052,7 +1139,8 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       this.selecting() ||
       this.selectedLifecycle() === 'AVAILABLE' ||
       (typeof document !== 'undefined' && document.visibilityState === 'hidden') ||
-      !this.items().some((item) => item.status.state === 'DOWNLOADING')
+      (!this.items().some((item) => item.status.state === 'DOWNLOADING') &&
+        !this.cardHasActiveHandoff())
     ) {
       return;
     }
@@ -1128,7 +1216,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   }
 
   private readSort(value: string | null): AcquisitionSort {
-    return this.sortOptions.find((option) => option.value === value)?.value ?? 'status';
+    return ACQUISITION_SORT_OPTIONS.find((option) => option.value === value)?.value ?? 'status';
   }
 
   private applyUrlState(state: AcquisitionUrlState): boolean {

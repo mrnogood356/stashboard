@@ -14,6 +14,10 @@ export const LIGHT_THEME_IDS = [
   'github-light',
   'rose-pine-dawn',
   'gruvbox-light',
+  'peach',
+  'mint',
+  'lavender',
+  'bubblegum',
 ] as const;
 
 /** Built-in themes with a dark background. */
@@ -31,6 +35,12 @@ export const DARK_THEME_IDS = [
   'rose-pine',
   'everforest',
   'github-dark',
+  'synthwave',
+  'ocean',
+  'sunset',
+  'aurora',
+  'cherry',
+  'cyber',
 ] as const;
 
 export const APPEARANCE_MODES = ['light', 'dark', 'system'] as const;
@@ -47,6 +57,10 @@ export const APPEARANCE_MATERIALS = ['solid', 'glass', 'adaptive'] as const;
 export const CUSTOM_CSS_MAX_LENGTH = 20_000;
 
 export const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+/** The accent follows the artwork on screen (the poster or photo you're looking at). */
+export const ARTWORK_ACCENT = 'artwork';
+/** A #rrggbb colour, or "artwork". */
+export const ACCENT_PATTERN = /^(#[0-9a-fA-F]{6}|artwork)$/;
 
 export type LightThemeId = (typeof LIGHT_THEME_IDS)[number];
 export type DarkThemeId = (typeof DARK_THEME_IDS)[number];
@@ -69,8 +83,8 @@ export class UpdateAppearanceDto {
   /** #rrggbb, or null/omitted for the theme's own accent. */
   @IsOptional()
   @IsString()
-  @Matches(HEX_COLOR_PATTERN, {
-    message: 'accentColor must be a #rrggbb colour.',
+  @Matches(ACCENT_PATTERN, {
+    message: 'accentColor must be a #rrggbb colour or "artwork".',
   })
   accentColor?: string | null;
 

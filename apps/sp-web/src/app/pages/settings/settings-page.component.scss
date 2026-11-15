@@ -56,3 +56,9 @@ p {
     padding-inline: 0.85rem;
   }
 }
+
+/* The shell's own gap already spaces the back link from the page: don't add
+   the link's margin too, so the title sits where it does on other pages. */
+.settings-shell > .app-back-link {
+  margin-bottom: -0.25rem;
+}

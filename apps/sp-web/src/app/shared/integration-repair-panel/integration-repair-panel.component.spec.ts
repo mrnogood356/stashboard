@@ -75,7 +75,7 @@ describe('IntegrationRepairPanelComponent', () => {
       errorMessage: 'Connection refused',
     });
 
-    expect(root.querySelector('.state-badge')?.textContent?.trim()).toBe('Test Failed');
+    expect(root.querySelector('.state-badge')?.textContent?.trim()).toBe('Test failed');
     expect(root.querySelector('.state-badge')?.classList).toContain('is-error');
     expect(root.textContent).toContain('Last test failed 2026-10-01 10:00');
     expect(root.textContent).toContain('Connection refused');

@@ -259,11 +259,11 @@ describe('ProcessingPageComponent', () => {
     expect(text(item?.querySelector('.pill'))).toBe('Downloading');
     expect(item?.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('42');
     expect(text(item?.querySelector('.meta'))).toBe('42% · 5 min left');
-    // Queued → Downloading: one step done, one current.
+    // The same four steps as Wanted: one done, Downloading current.
     const steps = [...(item?.querySelectorAll('.stage-track li') ?? [])].map((step) =>
       step.getAttribute('data-state'),
     );
-    expect(steps).toEqual(['done', 'current', 'todo', 'todo', 'todo', 'todo']);
+    expect(steps).toEqual(['done', 'current', 'todo', 'todo']);
 
     const failed = root.querySelector('[data-testid="recent-handoff"]');
     expect(text(failed)).toContain('Out of retention');
@@ -318,7 +318,8 @@ describe('ProcessingPageComponent', () => {
     const steps = [...manual.querySelectorAll('.stage-track li')].map((step) =>
       step.getAttribute('data-state'),
     );
-    expect(steps).toEqual(['done', 'done', 'done', 'done', 'current', 'todo']);
+    // Waiting for Stash: the third of the same four steps as Wanted.
+    expect(steps).toEqual(['done', 'done', 'current', 'todo']);
     expect(manual.querySelector('[role="progressbar"]')).toBeNull();
     expect(text(manual)).toContain('identify it');
 

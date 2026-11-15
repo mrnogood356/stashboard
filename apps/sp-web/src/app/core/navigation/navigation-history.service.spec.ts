@@ -23,7 +23,7 @@ describe('NavigationHistoryService', () => {
 
   it('names pages for the back button', () => {
     expect(pageLabel(null)).toBe('Home');
-    expect(pageLabel('/acquisition?lifecycle=FAILED')).toBe('Requests');
+    expect(pageLabel('/acquisition?lifecycle=FAILED')).toBe('Wanted');
     expect(pageLabel('/settings/indexing')).toBe('Indexing');
     expect(pageLabel('/scene/abc?returnTo=%2Fscenes')).toBe('Scene');
     expect(pageLabel('/library/performer/7')).toBe('Performer');

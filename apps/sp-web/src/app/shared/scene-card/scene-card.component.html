@@ -90,9 +90,7 @@
       @if (showActions) {
         <div class="media-action">
           @if (requestable) {
-            <button type="button" class="request-cta" (click)="requestScene($event)">
-              Request
-            </button>
+            <button type="button" class="request-cta" (click)="requestScene($event)">Want</button>
           } @else if (footerLinkText(); as label) {
             @if (footerLinkIsExternal()) {
               <a
@@ -136,7 +134,11 @@
             </button>
           } @else {
             @if (footerStatus(); as footerStatus) {
-              <app-scene-status-badge class="footer-status-badge" [status]="footerStatus" />
+              <app-scene-status-badge
+                class="footer-status-badge"
+                [status]="footerStatus"
+                [short]="true"
+              />
             }
           }
         </div>

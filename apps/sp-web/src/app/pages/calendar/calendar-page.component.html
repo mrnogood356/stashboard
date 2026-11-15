@@ -168,7 +168,16 @@
                   >
                   <span class="release-meta">
                     @if (scene.studio) {
-                      <span class="release-studio">{{ scene.studio }}</span>
+                      @if (scene.studioId) {
+                        <a
+                          class="release-studio studio-link"
+                          [routerLink]="['/studio', scene.studioId]"
+                          [queryParams]="{ returnTo: returnTo() }"
+                          >{{ scene.studio }}</a
+                        >
+                      } @else {
+                        <span class="release-studio">{{ scene.studio }}</span>
+                      }
                     }
                     @if (scene.inWhisparr) {
                       <span class="whisparr-tag" data-testid="in-whisparr">In Whisparr</span>

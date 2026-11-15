@@ -144,14 +144,14 @@ describe('FollowSheetComponent', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(closed).toHaveBeenCalledTimes(1);
 
-    const mask = document.querySelector('.follow-dialog-mask') as HTMLElement;
-    mask.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    const mask = document.querySelector('.sheet-backdrop') as HTMLElement;
+    mask.click();
     expect(closed).toHaveBeenCalledTimes(2);
 
     state.autoRequest.set(true);
     click('follow-save');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    mask.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    mask.click();
     expect(closed).toHaveBeenCalledTimes(2);
   });
 

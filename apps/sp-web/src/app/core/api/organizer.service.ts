@@ -96,8 +96,23 @@ export interface OrganizerRun {
   message: string | null;
 }
 
+export interface MissingInWhisparrScene {
+  stashId: string;
+  title: string | null;
+  studio: string | null;
+  /** Why it didn't go on its last try; null when not tried yet. */
+  reason: string | null;
+  triedAt: string | null;
+}
+
 export interface OrganizerSettings {
+  /** Your own pattern: used without Whisparr, or when its naming can't be. */
   renamePattern: string;
+  /**
+   * What renames use: Whisparr's own naming when it's set up, else
+   * renamePattern; problem says why Whisparr's couldn't be used.
+   */
+  naming?: { pattern: string; source: 'whisparr' | 'own'; problem: string | null };
   renameRoot: string;
   libraryRoots: string[];
   renameAfterMatch: boolean;
@@ -314,6 +329,11 @@ export class OrganizerApiService {
     return this.http.get<WhisparrNaming | null>('/api/organizer/whisparr/naming');
   }
 
+  /** Scenes Stash has that Whisparr wants without a file, each with why it hasn't gone. */
+  missingInWhisparr(): Observable<MissingInWhisparrScene[]> {
+    return this.http.get<MissingInWhisparrScene[]>('/api/organizer/whisparr/missing');
+  }
+
   whisparrRepair(): Observable<WhisparrRepairPlan | null> {
     return this.http.get<WhisparrRepairPlan | null>('/api/organizer/whisparr/repair');
   }
@@ -329,6 +349,17 @@ export class OrganizerApiService {
   /** Fixes what it can for scenes waiting for import, and says why the rest wait. */
   checkWaiting(): Observable<WaitingCheck> {
     return this.http.post<WaitingCheck>('/api/organizer/waiting/check', {});
+  }
+
+  /**
+   * Stash has Whisparr's file under the wrong StashDB scene: link it to
+   * Whisparr's scene instead (replacing the wrong link).
+   */
+  linkToWaitingScene(stashId: string): Observable<WaitingCheck> {
+    return this.http.post<WaitingCheck>(
+      `/api/organizer/waiting/${encodeURIComponent(stashId)}/link-here`,
+      {},
+    );
   }
 
   /** Counts Whisparr's StashDB scene as the one Stash has its file linked to. */
@@ -401,7 +432,10 @@ export class OrganizerApiService {
   }
 
   /** Scans what Stash doesn't know, or merges and drops the extra copy, for these "taken" files. */
-  fixTaken(sceneIds: string[]): Observable<{
+  fixTaken(
+    sceneIds: string[],
+    fix?: 'scan' | 'merge',
+  ): Observable<{
     scanned: number;
     merged: number;
     skipped: Array<{ sceneId: string; reason: string }>;
@@ -410,7 +444,7 @@ export class OrganizerApiService {
       scanned: number;
       merged: number;
       skipped: Array<{ sceneId: string; reason: string }>;
-    }>('/api/organizer/rename/taken/fix', { sceneIds });
+    }>('/api/organizer/rename/taken/fix', { sceneIds, fix });
   }
 
   preview(pattern?: string): Observable<RenamePreview> {

@@ -14,10 +14,10 @@ ul {
 
 .hero-shell {
   position: relative;
-  border-radius: 24px;
+  border-radius: 0;
   border: 0;
-  overflow: hidden;
-  background: var(--surface-2);
+  overflow: visible;
+  background: none;
 }
 
 .hero-backdrop {
@@ -43,8 +43,9 @@ ul {
   z-index: 1;
   display: grid;
   grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);
-  gap: 1rem;
-  padding: 1rem;
+  gap: 2rem;
+  padding: 1.6rem;
+  align-items: start;
 }
 
 .media-column {
@@ -54,10 +55,9 @@ ul {
 }
 
 .carousel-main {
-  border-radius: 11px;
   overflow: hidden;
   border: 0;
-  border-radius: 18px;
+  border-radius: var(--radius-md);
   background: rgb(255 255 255 / 92%);
   aspect-ratio: 16 / 10;
 }
@@ -65,8 +65,10 @@ ul {
 .carousel-main img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
+  padding: 1rem;
+  box-sizing: border-box;
 }
 
 .carousel-placeholder {
@@ -76,7 +78,7 @@ ul {
   place-items: center;
   font-size: 1.8rem;
   font-weight: 700;
-  color: var(--text-on-media);
+  color: var(--text-muted);
 }
 
 .carousel-controls {
@@ -137,14 +139,15 @@ ul {
 
 .title-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.55rem;
-  justify-content: space-between;
+  gap: 0.62rem;
 }
 
+/* The name and its star as on the performer page. */
 .title-row h1 {
-  font-size: clamp(1.5rem, 2.3vw, 2rem);
-  line-height: 1.12;
+  font-size: clamp(1.7rem, 5.3vw, 3rem);
+  line-height: 1.05;
   margin: 0;
   /* Long studio names wrap instead of pushing the star off the screen. */
   min-width: 0;
@@ -182,7 +185,7 @@ ul {
 }
 
 .meta-chip {
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid rgb(220 233 246 / 35%);
   background: rgb(10 22 34 / 62%);
   color: var(--text-on-media);
@@ -232,8 +235,8 @@ ul {
 }
 
 .section h2 {
-  font-size: 1.15rem;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .hierarchy-card {
@@ -429,24 +432,6 @@ ul {
   }
 }
 
-/* ---------- 2026 look ---------- */
-
-.hero-layout {
-  padding: 1.6rem;
-  gap: 1.6rem;
-  align-items: start;
-}
-
-.carousel-main img {
-  object-fit: contain;
-  padding: 1rem;
-  box-sizing: border-box;
-}
-
-.carousel-placeholder {
-  color: var(--text-muted);
-}
-
 .carousel-main:has(.carousel-placeholder) {
   background: var(--surface-2);
 }
@@ -455,6 +440,21 @@ ul {
   .hero-layout {
     grid-template-columns: minmax(0, 1fr);
     padding: 1rem;
+    gap: 1rem;
+  }
+
+  /* A logo, not a screen-wide box, centred like the performer pages on a
+     phone, with the name and buttons under it. */
+  .media-column {
+    justify-self: center;
+    width: min(56vw, 15rem);
+  }
+
+  .title-row,
+  .aliases,
+  .hide-row {
+    justify-content: center;
+    text-align: center;
   }
 }
 
@@ -466,50 +466,18 @@ ul {
   margin-top: 0.6rem;
 }
 
-/* The Filters button only shows on phones, where the filters fold away. */
-.scenes-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-}
-
-.filters-toggle {
-  display: none;
-  align-items: center;
-  gap: 0.4rem;
-  border: 0;
-  border-radius: 999px;
-  padding: 0.4rem 0.85rem;
-  background: var(--chip-bg);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.filters-count {
-  min-width: 1.2rem;
-  padding: 0 0.3rem;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 0.72rem;
-  text-align: center;
-}
-
-.filter-body {
+/* Scenes: the heading, then the filter bar on its own line. */
+.scenes-section {
   display: grid;
-  gap: 0.6rem;
+  gap: 0.75rem;
+  margin-top: 2rem;
+}
+
+.scenes-section h2 {
+  margin: 0;
 }
 
 @media (max-width: 640px) {
-  /* A logo, not a screen-wide box. */
-  .media-column {
-    justify-self: start;
-    width: min(42vw, 11rem);
-  }
-
   /* Child studios as a row of names, not a card each. */
   .child-grid {
     display: flex;
@@ -541,14 +509,6 @@ ul {
     margin: 0;
     font-size: 0.85rem;
   }
-
-  .filters-toggle {
-    display: inline-flex;
-  }
-
-  .filter-body:not(.open) {
-    display: none;
-  }
 }
 
 /* Taps on a child studio's name and aliases reach the link stretched under them. */
@@ -557,4 +517,54 @@ ul {
 .child-card .child-name,
 .child-card .child-aliases {
   pointer-events: none;
+}
+
+.hero-backdrop,
+.hero-shade {
+  display: none;
+}
+
+/* With no picture behind them, the name and aliases sit on the page itself:
+   the page's text colours, so they read in the light theme too. The chips
+   keep their own dark fill and light text. */
+.hero-info {
+  color: var(--text-primary);
+}
+
+.aliases {
+  color: var(--text-secondary);
+}
+
+.hero-layout {
+  padding: 0.25rem 0 0;
+}
+
+@media (max-width: 640px) {
+  .hero-layout {
+    padding: 0;
+  }
+}
+
+/* Scene grid: the same room between cards as Scenes and Library. */
+.grid {
+  gap: 1.5rem 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+}
+
+@media (max-width: 560px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.1rem 0.75rem;
+  }
+}
+
+.section.app-section-panel {
+  --app-section-padding: 1rem;
+  --app-section-radius: var(--radius-md);
+  --app-section-bg: var(--surface-1);
+  --app-section-border: 0;
+}
+
+.content-shell.app-section-stack {
+  gap: 0.75rem;
 }

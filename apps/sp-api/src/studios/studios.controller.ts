@@ -1,3 +1,5 @@
+import type { StashdbSceneFacets } from '../providers/stashdb/stashdb.types';
+import { SceneFacetsService } from '../scene-facets/scene-facets.service';
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { StudioDetailsDto } from './dto/studio-details.dto';
 import { StudioFeedResponseDto } from './dto/studio-feed-response.dto';
@@ -6,7 +8,10 @@ import { StudiosService } from './studios.service';
 
 @Controller('api/studios')
 export class StudiosController {
-  constructor(private readonly studiosService: StudiosService) {}
+  constructor(
+    private readonly studiosService: StudiosService,
+    private readonly sceneFacets: SceneFacetsService,
+  ) {}
 
   @Get()
   getStudiosFeed(
@@ -18,6 +23,14 @@ export class StudiosController {
       direction: query.direction,
       favoritesOnly: query.favoritesOnly,
     });
+  }
+
+  /** Their own categories and studios, the most used first, with counts. */
+  @Get(':studioId/facets')
+  getStudioFacets(
+    @Param('studioId') studioId: string,
+  ): Promise<StashdbSceneFacets> {
+    return this.sceneFacets.forStudio(studioId);
   }
 
   @Get(':studioId')

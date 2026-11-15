@@ -22,6 +22,7 @@ import {
   joinPath,
   splitPath,
   validatePattern,
+  patternFromWhisparr,
 } from './rename.util';
 import {
   DEFAULT_WHISPARR_NAMING,
@@ -61,7 +62,7 @@ import {
 } from './organizer-plan.util';
 import { OrganizerCore } from './organizer-core';
 import type { NewActivity } from '../activity/activity.model';
-import { trimSeparators, trimTrailingSeparators } from '../path-separators';
+import { trimTrailingSeparators } from '../path-separators';
 
 /**
  * The organizer's file work: renaming and undo, moving unmatched files,
@@ -374,12 +375,98 @@ export abstract class OrganizerFiles extends OrganizerCore {
   // ---------- Whisparr ----------
 
   /**
+   * Stash's scene for each of Whisparr's catalog scenes, by its link. For a
+   * scene you said is the same as another, Stash has the file under that
+   * other one: it's found there and handed back as Whisparr's scene, so its
+   * file goes to Whisparr's entry.
+   */
+  protected async stashScenesForWhisparr(
+    config: StashAdapterBaseConfig,
+    endpoint: string,
+    stashIds: string[],
+  ): Promise<Map<string, StashOrganizerScene>> {
+    // "Same scene" works both ways: Whisparr may have either id of the pair.
+    const pairs = await this.prisma.sceneStashAlias
+      .findMany({
+        where: {
+          OR: [{ stashId: { in: stashIds } }, { aliasOf: { in: stashIds } }],
+        },
+      })
+      .catch(() => [] as Array<{ stashId: string; aliasOf: string }>);
+    const othersOf = (stashId: string) =>
+      pairs.flatMap((row) =>
+        row.stashId === stashId
+          ? [row.aliasOf]
+          : row.aliasOf === stashId
+            ? [row.stashId]
+            : [],
+      );
+    const findLinked = (stashId: string) =>
+      this.stash
+        .findOrganizerScenes(config, {
+          page: 1,
+          perPage: 1,
+          sceneFilter: {
+            stash_id_endpoint: {
+              endpoint,
+              stash_id: stashId,
+              modifier: 'EQUALS',
+            },
+          },
+        })
+        .then((found) => found.items[0] ?? null)
+        .catch(() => null);
+    const found = new Map<string, StashOrganizerScene>();
+    const lookUp = async (stashId: string) => {
+      const direct = await findLinked(stashId);
+      if (direct && direct.files.length > 0) {
+        found.set(stashId, direct);
+        return;
+      }
+      // No scene, or one with no file: its partner may have the file.
+      for (const other of othersOf(stashId)) {
+        const viaOther = await findLinked(other);
+        if (viaOther && viaOther.files.length > 0) {
+          found.set(stashId, {
+            ...viaOther,
+            stashIds: [
+              ...viaOther.stashIds.filter(
+                (entry) => entry.endpoint !== endpoint,
+              ),
+              { endpoint, stashId },
+            ],
+          });
+          return;
+        }
+      }
+      if (direct) {
+        // Says why it can't go (no file) rather than "not in Stash".
+        found.set(stashId, direct);
+      }
+    };
+    // A few at a time: quick reads, without a long line of one-by-one asks.
+    let next = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(4, stashIds.length) }, async () => {
+        while (next < stashIds.length) {
+          const stashId = stashIds[next];
+          next += 1;
+          await lookUp(stashId);
+        }
+      }),
+    );
+    return found;
+  }
+
+  /**
    * Sends every scene Stash has that Whisparr still shows as missing (and,
    * if that's switched on, scenes Whisparr doesn't know yet).
    */
   startSendAll(
     /** Only scenes Whisparr shows as missing, even with "add new ones" on. */
     missingOnly = false,
+    /** With "add new ones" on, only scenes added to Stash since then. */
+    addedSince: Date | null = null,
   ): OrganizerRunDto {
     this.assertIdle();
     this.runState = {
@@ -401,22 +488,37 @@ export abstract class OrganizerFiles extends OrganizerCore {
             'Stash doesn’t have your main catalog (StashDB) set up, so scenes can’t be linked to Whisparr.',
           );
         }
+        // One entry per Whisparr scene to fill, not per Stash scene: two
+        // catalog scenes Whisparr tracks apart can be one video in Stash.
         const scenes = new Map<string, StashOrganizerScene>();
-        for (const stashId of await this.handoff.missingInWhisparr()) {
-          const found = await this.stash
-            .findOrganizerScenes(config, {
-              page: 1,
-              perPage: 1,
-              sceneFilter: {
-                stash_id_endpoint: {
-                  endpoint,
-                  stash_id: stashId,
-                  modifier: 'EQUALS',
-                },
-              },
-            })
-            .catch(() => ({ total: 0, items: [] as StashOrganizerScene[] }));
-          found.items.forEach((scene) => scenes.set(scene.id, scene));
+        /** Stash scene → the Whisparr scene its file goes to. */
+        const sending = new Map<string, string>();
+        const copying = settings.whisparrImportMode === 'copy';
+        /** Moved, one file goes to one of them: the others wait on how it went. */
+        const heldBack: Array<{
+          stashId: string;
+          scene: StashOrganizerScene;
+        }> = [];
+        const missing = await this.handoff.missingInWhisparr();
+        const found = await this.stashScenesForWhisparr(
+          config,
+          endpoint,
+          missing,
+        );
+        for (const stashId of missing) {
+          const scene = found.get(stashId);
+          if (!scene) {
+            this.handoff.noteNotInStash(stashId);
+            continue;
+          }
+          const first = sending.get(scene.id);
+          // Moved, one file can only go to one of them; copied, to each.
+          if (first && !copying) {
+            heldBack.push({ stashId, scene });
+            continue;
+          }
+          scenes.set(stashId, scene);
+          sending.set(scene.id, first ?? stashId);
         }
         if (settings.addToWhisparr && !missingOnly) {
           for (let page = 1; page <= MAX_BACKLOG / 100; page += 1) {
@@ -425,9 +527,29 @@ export abstract class OrganizerFiles extends OrganizerCore {
               perPage: 100,
               sceneFilter: {
                 stash_id_endpoint: { endpoint, modifier: 'NOT_NULL' },
+                ...(addedSince
+                  ? {
+                      created_at: {
+                        value: addedSince.toISOString(),
+                        modifier: 'GREATER_THAN',
+                      },
+                    }
+                  : {}),
               },
             });
-            result.items.forEach((scene) => scenes.set(scene.id, scene));
+            // Ones already going to a scene Whisparr is missing stay so.
+            for (const scene of result.items) {
+              const own =
+                scene.stashIds.find((entry) => entry.endpoint === endpoint)
+                  ?.stashId ?? `stash:${scene.id}`;
+              // Nor does a scene Whisparr is missing that has its file from
+              // a partner: its own (fileless) scene mustn't replace that.
+              if (sending.has(scene.id) || scenes.has(own)) {
+                continue;
+              }
+              scenes.set(own, scene);
+              sending.set(scene.id, own);
+            }
             if (page * 100 >= result.total || result.items.length === 0) {
               break;
             }
@@ -435,27 +557,77 @@ export abstract class OrganizerFiles extends OrganizerCore {
         }
         const list = [...scenes.values()];
         this.runState.total = list.length;
-        const totals: HandoffResult = { sent: [], skipped: {}, failed: [] };
-        for (let index = 0; index < list.length; index += 25) {
-          const chunk = list.slice(index, index + 25);
-          const handed = await this.handoff.send(
-            config,
-            chunk,
-            settings,
-            (done) => {
-              this.runState.processed = index + done;
-              this.runState.message = `Checked ${this.runState.processed} of ${list.length}. Sent ${totals.sent.length}.`;
-            },
-          );
-          totals.sent.push(...handed.sent);
-          totals.failed.push(...handed.failed);
-          for (const [reason, count] of Object.entries(handed.skipped)) {
-            totals.skipped[reason as keyof HandoffResult['skipped']] =
-              (totals.skipped[reason as keyof HandoffResult['skipped']] ?? 0) +
-              (count ?? 0);
+        const totals: HandoffResult = {
+          sent: [],
+          skipped: {},
+          failed: [],
+          alreadyHad: [],
+        };
+        const sendAll = async (
+          batch: StashOrganizerScene[],
+          offset: number,
+        ) => {
+          for (let index = 0; index < batch.length; index += 25) {
+            const chunk = batch.slice(index, index + 25);
+            const handed = await this.handoff.send(
+              config,
+              chunk,
+              settings,
+              (done) => {
+                this.runState.processed = offset + index + done;
+                this.runState.message = `Checked ${this.runState.processed} of ${this.runState.total}. Sent ${totals.sent.length}.`;
+              },
+            );
+            totals.sent.push(...handed.sent);
+            totals.failed.push(...handed.failed);
+            totals.alreadyHad!.push(...(handed.alreadyHad ?? []));
+            for (const [reason, count] of Object.entries(handed.skipped)) {
+              totals.skipped[reason as keyof HandoffResult['skipped']] =
+                (totals.skipped[reason as keyof HandoffResult['skipped']] ??
+                  0) + (count ?? 0);
+            }
+            this.runState.renamed = totals.sent.length;
+            this.runState.failed = totals.failed.length;
           }
-          this.runState.renamed = totals.sent.length;
-          this.runState.failed = totals.failed.length;
+        };
+        await sendAll(list, 0);
+        // Moved, a shared file went to one target. Where Whisparr already had
+        // a file for that one, nothing was moved: the next target gets it.
+        let waiting = heldBack;
+        for (;;) {
+          const had = new Set(totals.alreadyHad);
+          const next = new Map<string, (typeof heldBack)[number]>();
+          for (const held of waiting) {
+            if (
+              had.has(sending.get(held.scene.id) ?? '') &&
+              !next.has(held.scene.id)
+            ) {
+              next.set(held.scene.id, held);
+            }
+          }
+          if (next.size === 0) {
+            break;
+          }
+          for (const held of next.values()) {
+            sending.set(held.scene.id, held.stashId);
+          }
+          waiting = waiting.filter(
+            (held) =>
+              !next.has(held.scene.id) || next.get(held.scene.id) !== held,
+          );
+          this.runState.total += next.size;
+          await sendAll(
+            [...next.values()].map((held) => held.scene),
+            this.runState.processed,
+          );
+        }
+        const sentScenes = new Set(totals.sent.map((entry) => entry.sceneId));
+        for (const held of waiting) {
+          this.handoff.noteSharedFile(
+            held.stashId,
+            sending.get(held.scene.id) ?? '',
+            sentScenes.has(held.scene.id),
+          );
         }
         const already = totals.skipped['already-has-file'] ?? 0;
         const message =
@@ -572,19 +744,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
     if (!naming) {
       return null;
     }
-    if (!naming.fileFormat) {
-      return {
-        ...naming,
-        pattern: null,
-        problem: 'Whisparr has no Standard Scene Format set.',
-      };
-    }
-    const pattern = [naming.folderFormat, naming.fileFormat]
-      .filter((part): part is string => !!part)
-      .map((part) => trimSeparators(part))
-      .join('/');
-    const problem = validatePattern(pattern);
-    return { ...naming, pattern: problem ? null : pattern, problem };
+    return { ...naming, ...patternFromWhisparr(naming) };
   }
 
   /** How many scenes "Repair Whisparr" would fix. */
@@ -736,26 +896,17 @@ export abstract class OrganizerFiles extends OrganizerCore {
           this.runState.message = message;
         });
         const endpoint = await this.handoff.catalogEndpoint(config);
-        const scenes: StashOrganizerScene[] = [];
-        for (const entry of plan.lost) {
-          if (!endpoint) {
-            break;
-          }
-          const result = await this.stash
-            .findOrganizerScenes(config, {
-              page: 1,
-              perPage: 1,
-              sceneFilter: {
-                stash_id_endpoint: {
+        const scenes: StashOrganizerScene[] = endpoint
+          ? [
+              ...(
+                await this.stashScenesForWhisparr(
+                  config,
                   endpoint,
-                  stash_id: entry.stashId,
-                  modifier: 'EQUALS',
-                },
-              },
-            })
-            .catch(() => ({ total: 0, items: [] as StashOrganizerScene[] }));
-          scenes.push(...result.items);
-        }
+                  plan.lost.map((entry) => entry.stashId),
+                )
+              ).values(),
+            ]
+          : [];
         const totals: HandoffResult = { sent: [], skipped: {}, failed: [] };
         // Import into Whisparr's own folders, whatever the copy setting says.
         const moveSettings = { ...settings, whisparrImportMode: 'move' };
@@ -854,8 +1005,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
   async renamePreview(patternOverride?: string): Promise<RenamePreviewDto> {
     const settings = await this.getSettings();
     const pattern =
-      (patternOverride ?? settings.renamePattern).trim() ||
-      DEFAULT_RENAME_PATTERN;
+      patternOverride?.trim() || (await this.renamingPattern(settings)).pattern;
     const problem = validatePattern(pattern);
     if (problem) {
       throw new BadRequestException(problem);
@@ -908,7 +1058,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
     sceneIds: string[],
   ): Promise<{ pattern: string; plans: RenamePlanDto[] }> {
     const settings = await this.getSettings();
-    const pattern = settings.renamePattern || DEFAULT_RENAME_PATTERN;
+    const { pattern } = await this.renamingPattern(settings);
     const config = await this.stashConfig();
     const plans = await this.planScenes(
       config,
@@ -1168,9 +1318,13 @@ export abstract class OrganizerFiles extends OrganizerCore {
   /**
    * Fixes "taken" files the safe way: has Stash scan the other file's
    * folder, or merges the other file's scene into this one and deletes this
-   * extra copy. Anything that might be a different video is left alone.
+   * extra copy. Anything that might be a different video is left alone, and
+   * so is anything whose fix isn't the one agreed to from the preview.
    */
-  async fixTaken(sceneIds: string[]): Promise<{
+  async fixTaken(
+    sceneIds: string[],
+    agreed: 'scan' | 'merge',
+  ): Promise<{
     scanned: number;
     merged: number;
     skipped: Array<{ sceneId: string; reason: string }>;
@@ -1178,7 +1332,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
     this.assertIdle();
     const settings = await this.getSettings();
     const config = await this.stashConfig();
-    const pattern = settings.renamePattern || DEFAULT_RENAME_PATTERN;
+    const { pattern } = await this.renamingPattern(settings);
     const plans = (
       await this.planScenes(config, settings, pattern, sceneIds, false)
     ).filter((plan) => plan.state === 'taken');
@@ -1196,6 +1350,20 @@ export abstract class OrganizerFiles extends OrganizerCore {
     }
     for (const plan of plans) {
       const taken = plan.taken;
+      // Stash may have found the other file since the preview, turning a
+      // scan into a merge that deletes: back to the preview, never past it.
+      // (One with no safe fix at all says why below.)
+      if (
+        (taken?.fix === 'scan' || taken?.fix === 'merge') &&
+        taken.fix !== agreed
+      ) {
+        skipped.push({
+          sceneId: plan.sceneId,
+          reason:
+            'What fixing it takes has changed since the preview; look again.',
+        });
+        continue;
+      }
       if (taken?.fix === 'scan') {
         folders.push(splitPath(plan.to!).folder);
         lines.scanned.push(plan.to!);
@@ -1235,8 +1403,14 @@ export abstract class OrganizerFiles extends OrganizerCore {
       }
     }
     if (folders.length > 0) {
-      await this.stash.scanPaths(config, folders);
-      this.markRescanned(folders);
+      // Waits its turn behind Stash's other jobs; no need to hold the answer.
+      // Marked as asked only once Stash took it: a failed ask can be retried.
+      void this.stash
+        .scanPaths(config, folders)
+        .then(() => this.markRescanned(folders))
+        .catch((error: unknown) =>
+          this.logger.warn(`Couldn't ask Stash to rescan: ${messageOf(error)}`),
+        );
     }
     const merged = lines.merged.length;
     const scanned = lines.scanned.length;
@@ -1285,7 +1459,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
   }> {
     const settings = await this.getSettings();
     const config = await this.stashConfig();
-    const pattern = settings.renamePattern || DEFAULT_RENAME_PATTERN;
+    const { pattern } = await this.renamingPattern(settings);
     let plans: RenamePlanDto[];
     if (sceneIds) {
       plans = await this.planScenes(config, settings, pattern, sceneIds);
@@ -1529,7 +1703,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
     });
     const config = await this.stashConfig();
     const settings = await this.getSettings();
-    const pattern = settings.renamePattern || DEFAULT_RENAME_PATTERN;
+    const { pattern } = await this.renamingPattern(settings);
     const [roots, scene] = await Promise.all([
       this.stash.getLibraryRoots(config),
       this.stash.getOrganizerScene(config, sceneId),
@@ -1664,7 +1838,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
     const config = await this.stashConfig();
     const plans = await this.planAll(
       config,
-      settings.renamePattern || DEFAULT_RENAME_PATTERN,
+      (await this.renamingPattern(settings)).pattern,
       settings.skipWhisparrFiles,
       settings.renameRoot,
     );

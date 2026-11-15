@@ -3,29 +3,10 @@
     <h1>Home</h1>
 
     <nav class="home-quick-links" aria-label="Home shortcuts">
-      <!-- Phones only: Search left the tab bar for Requests. -->
-      <a
-        class="quick-link quick-link--phone"
-        [routerLink]="['/search']"
-        aria-label="Search"
-        title="Search"
-        data-testid="home-search-link"
-      >
+      <app-image-obscuration-toggle class="phone-eye" />
+      <a class="quick-link" routerLink="/search" aria-label="Search" title="Search">
         <i class="pi pi-search" aria-hidden="true"></i>
         <span>Search</span>
-      </a>
-      <a
-        class="quick-link"
-        [routerLink]="['/performers']"
-        aria-label="Performers"
-        title="Performers"
-      >
-        <i class="pi pi-users" aria-hidden="true"></i>
-        <span>Performers</span>
-      </a>
-      <a class="quick-link" [routerLink]="['/studios']" aria-label="Studios" title="Studios">
-        <i class="pi pi-building" aria-hidden="true"></i>
-        <span>Studios</span>
       </a>
       <button
         type="button"
@@ -42,8 +23,10 @@
     </nav>
   </header>
 
-  <app-needs-you-card />
-  <app-processing-card />
+  <div class="home-status">
+    <app-needs-you-card />
+    <app-processing-card />
+  </div>
 
   @if (pageAlert(); as alert) {
     <section class="home-alert app-page-alert" data-testid="home-readiness-alert" role="status">
@@ -490,7 +473,7 @@
                         "
                       >
                         <i class="pi pi-plus" aria-hidden="true"></i>
-                        Request
+                        Want
                       </button>
                     }
                     @if (slide.detailsCommands; as commands) {

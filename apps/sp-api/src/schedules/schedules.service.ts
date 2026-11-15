@@ -95,6 +95,37 @@ export class SchedulesService {
     };
   }
 
+  /** Every job's times, saved or default, for Settings → Backup. */
+  async exportForBackup(): Promise<{
+    schedules: Array<ScheduleTime & { job: ScheduledJob }>;
+  }> {
+    const rows = new Map(
+      (await this.prisma.jobSchedule.findMany()).map((row) => [row.job, row]),
+    );
+    return {
+      schedules: SCHEDULED_JOBS.map((job) => {
+        const row = rows.get(job);
+        const time = row
+          ? {
+              enabled: row.enabled,
+              hour: row.hour,
+              minute: row.minute,
+              days: row.days,
+            }
+          : JOB_INFO[job].defaults;
+        return { job, ...time, days: [...time.days] };
+      }),
+    };
+  }
+
+  async restoreFromBackup(input: {
+    schedules: Array<ScheduleTime & { job: string }>;
+  }): Promise<void> {
+    for (const { job, ...time } of input.schedules) {
+      await this.update(job, time);
+    }
+  }
+
   async update(job: string, input: ScheduleTime): Promise<SchedulesDto> {
     if (!(SCHEDULED_JOBS as readonly string[]).includes(job)) {
       throw new BadRequestException('There’s no such job.');
@@ -155,13 +186,17 @@ export class SchedulesService {
           status = (await this.organizer?.sendMissingDaily()) ?? status;
           break;
         case 'stash-scan':
-          await this.library?.startJob('scan');
-          break;
         case 'stash-generate':
-          await this.library?.startJob('generate');
-          break;
         case 'stash-clean':
-          await this.library?.startJob('clean');
+          // Stash's job waits its turn behind Stash's others: noted as asked
+          // now, and updated once it starts, without holding up the rest.
+          if (this.library) {
+            // Written before it starts, so a quick "Started" or "Failed"
+            // lands after it rather than under it.
+            await this.record(job, now, 'Waiting its turn in Stash');
+            this.startInBackground(job, STASH_TASKS[job], now);
+            return;
+          }
           break;
         case 'follow-check':
           status = (await this.follows?.runScheduled()) ?? status;
@@ -177,6 +212,36 @@ export class SchedulesService {
         `Scheduled ${JOB_INFO[job].label.toLowerCase()} ${status.toLowerCase()}`,
       );
     }
+    await this.record(job, now, status);
+  }
+
+  private startInBackground(
+    job: ScheduledJob,
+    task: 'scan' | 'generate' | 'clean',
+    now: Date,
+  ): void {
+    void this.library!.startJob(task, { now: false })
+      .then(() => 'Started')
+      .catch((error: unknown) => {
+        const status = `Failed: ${error instanceof Error ? error.message : String(error)}`;
+        this.logger.warn(
+          `Scheduled ${JOB_INFO[job].label.toLowerCase()} ${status.toLowerCase()}`,
+        );
+        return status;
+      })
+      .then((status) => this.record(job, now, status))
+      .catch((error: unknown) =>
+        this.logger.warn(
+          `Couldn't note how ${JOB_INFO[job].label.toLowerCase()} went: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+  }
+
+  private async record(
+    job: ScheduledJob,
+    now: Date,
+    status: string,
+  ): Promise<void> {
     await this.prisma.jobSchedule.upsert({
       where: { job },
       create: {
@@ -189,3 +254,10 @@ export class SchedulesService {
     });
   }
 }
+
+/** Stash's library task for each of its scheduled jobs. */
+const STASH_TASKS = {
+  'stash-scan': 'scan',
+  'stash-generate': 'generate',
+  'stash-clean': 'clean',
+} as const;

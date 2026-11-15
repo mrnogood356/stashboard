@@ -392,6 +392,29 @@ describe('SceneStatusService', () => {
     });
   });
 
+  describe('stashHasScene', () => {
+    it('answers from a fresh index row without asking Stash', async () => {
+      getFreshSceneIndexRowsMock.mockResolvedValue(
+        new Map([['scene-1', { stashId: 'scene-1', stashAvailable: true }]]),
+      );
+      await expect(service.stashHasScene('scene-1')).resolves.toBe(true);
+      expect(findScenesByStashIdMock).not.toHaveBeenCalled();
+    });
+
+    it('asks Stash when the index can’t say, even when unknown scenes count as not requested', async () => {
+      canResolveUnknownScenesAsNotRequestedMock.mockResolvedValue(true);
+      findScenesByStashIdMock.mockResolvedValue([{ id: 'local-1' }]);
+      await expect(service.stashHasScene('scene-1')).resolves.toBe(true);
+      findScenesByStashIdMock.mockResolvedValue([]);
+      await expect(service.stashHasScene('scene-2')).resolves.toBe(false);
+    });
+
+    it('says it can’t tell when Stash doesn’t answer', async () => {
+      findScenesByStashIdMock.mockRejectedValue(new Error('Stash is down'));
+      await expect(service.stashHasScene('scene-1')).resolves.toBeNull();
+    });
+  });
+
   describe('resolveForScenes', () => {
     it('returns empty map for no ids', async () => {
       await expect(service.resolveForScenes([])).resolves.toEqual(new Map());

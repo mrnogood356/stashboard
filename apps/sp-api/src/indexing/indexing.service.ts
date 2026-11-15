@@ -28,10 +28,32 @@ import {
 import { IndexingSync } from './indexing-sync';
 export * from './indexing.model';
 
+/** Library syncs set off by something happening, merged when close together. */
+const EVENT_SYNC_REASONS = new Set([
+  'library-changed',
+  'organizer',
+  'automation',
+]);
+/** At most one of those every this long; the rest wait for a follow-up. */
+const LIBRARY_SYNC_GAP_MS = 20_000;
+/** How often a held-back library sync tries before the full sync covers it. */
+const FOLLOW_UP_SYNC_TRIES = 5;
+
 @Injectable()
 export class IndexingService extends IndexingSync {
   /** Where Stash's library was at the last change check; null until the first. */
   private libraryChangeMarker: string | null = null;
+  /**
+   * A change whose held-back sync ran out of tries, synced at the next
+   * check: the order it was noted in, or null when nothing is owed. Only a
+   * sync that started after it pays it off.
+   */
+  private libraryChangeOwed: number | null = null;
+  /** Orders syncs' starts against owed changes. */
+  private librarySyncOrder = 0;
+  /** When the last library sync started, and a follow-up one waiting. */
+  private lastLibrarySyncAt = 0;
+  private followUpLibrarySync: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     prisma: PrismaService,
@@ -192,7 +214,17 @@ export class IndexingService extends IndexingSync {
   async syncLibraryProjection(
     reason = 'scheduled',
   ): Promise<SyncRunSummary | null> {
-    return this.syncStateService.runWithLease(
+    // A new scene sets off several asks within seconds (Stash changed, the
+    // organizer, automation): one sync shortly after covers them all, rather
+    // than reading the whole library from Stash for each.
+    const since = Date.now() - this.lastLibrarySyncAt;
+    if (EVENT_SYNC_REASONS.has(reason) && since < LIBRARY_SYNC_GAP_MS) {
+      this.scheduleFollowUpSync(reason, LIBRARY_SYNC_GAP_MS - since, 1);
+      return null;
+    }
+    this.lastLibrarySyncAt = Date.now();
+    const started = ++this.librarySyncOrder;
+    const result = await this.syncStateService.runWithLease(
       {
         jobName: INDEXING_JOB_NAMES.LIBRARY_PROJECTION,
         leaseMs: INDEXING_LIMITS.LIBRARY_LEASE_MS,
@@ -205,6 +237,54 @@ export class IndexingService extends IndexingSync {
       },
       async () => this.performLibraryProjectionSync(reason),
     );
+    // A sync that ran, having started after the change was owed, covers it;
+    // one already going then may have read past it.
+    if (
+      result !== null &&
+      this.libraryChangeOwed !== null &&
+      started > this.libraryChangeOwed
+    ) {
+      this.libraryChangeOwed = null;
+    }
+    return result;
+  }
+
+  /**
+   * The sync that covers asks held back meanwhile. It stays owed until one
+   * runs: blocked by a sync still going, or failed, it tries again shortly.
+   */
+  private scheduleFollowUpSync(
+    reason: string,
+    delayMs: number,
+    attempt: number,
+  ): void {
+    if (this.followUpLibrarySync) {
+      return;
+    }
+    this.followUpLibrarySync = setTimeout(() => {
+      this.followUpLibrarySync = null;
+      void this.syncLibraryProjection(reason)
+        .then((result) => result !== null || !!this.followUpLibrarySync)
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `Library sync failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return false;
+        })
+        .then((done) => {
+          if (done) {
+            return;
+          }
+          if (attempt < FOLLOW_UP_SYNC_TRIES) {
+            this.scheduleFollowUpSync(reason, LIBRARY_SYNC_GAP_MS, attempt + 1);
+          } else {
+            // Out of tries: the next change check syncs even if Stash
+            // hasn't changed again since.
+            this.libraryChangeOwed = ++this.librarySyncOrder;
+          }
+        });
+    }, delayMs);
+    this.followUpLibrarySync.unref?.();
   }
 
   /**
@@ -229,12 +309,16 @@ export class IndexingService extends IndexingSync {
     }
     const previous = this.libraryChangeMarker;
     this.libraryChangeMarker = marker;
-    if (previous === null || previous === marker) {
+    if (
+      previous === null ||
+      (previous === marker && this.libraryChangeOwed === null)
+    ) {
       return null;
     }
     try {
       const result = await this.syncLibraryProjection('library-changed');
-      if (result === null) {
+      // Null with a follow-up sync waiting: that one covers this change.
+      if (result === null && !this.followUpLibrarySync) {
         // Another sync held the lease; check again next time.
         this.libraryChangeMarker = previous;
       }

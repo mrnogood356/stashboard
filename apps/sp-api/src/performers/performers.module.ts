@@ -1,3 +1,4 @@
+import { SceneFacetsService } from '../scene-facets/scene-facets.service';
 import { Module } from '@nestjs/common';
 import { HiddenContentModule } from '../hidden-content/hidden-content.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
@@ -14,7 +15,7 @@ import { PerformersService } from './performers.service';
     HiddenContentModule,
   ],
   controllers: [PerformersController],
-  providers: [PerformersService],
+  providers: [SceneFacetsService, PerformersService],
   exports: [PerformersService],
 })
 export class PerformersModule {}

@@ -1,7 +1,18 @@
 import { AcquisitionService } from '../../core/api/acquisition.service';
 import { AppLockService } from '../../core/app-lock/app-lock.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Component, DestroyRef, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  OnDestroy,
+  OnInit,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import { lockPageScroll, unlockPageScroll } from '../../core/navigation/page-scroll-lock';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { finalize, merge, of, switchMap, timer } from 'rxjs';
 import { catchError, filter } from 'rxjs/operators';
@@ -19,6 +30,9 @@ import { PlaybackSettingsService } from '../../core/playback/playback-settings.s
 import { QuickSearchComponent } from '../../shared/quick-search/quick-search.component';
 import { WhatsNewComponent } from '../../shared/whats-new/whats-new.component';
 import { NavigationHistoryService } from '../../core/navigation/navigation-history.service';
+import { BackScrollService } from '../../core/navigation/back-scroll.service';
+import { ArtworkAccentService } from '../../core/theme/artwork-accent.service';
+import { PullToRefreshComponent } from '../../shared/pull-to-refresh/pull-to-refresh.component';
 
 interface ShellDegradedState {
   kind: 'setup' | 'runtime';
@@ -43,14 +57,6 @@ const HOME_NAV_ITEM: ShellNavItem = {
   exact: true,
 };
 
-const SCENES_NAV_ITEM: ShellNavItem = {
-  label: 'Scenes',
-  route: '/scenes',
-  icon: 'pi pi-video',
-  exact: false,
-  activePrefixes: ['/scenes', '/scene/'],
-};
-
 const CALENDAR_NAV_ITEM: ShellNavItem = {
   label: 'Calendar',
   route: '/calendar',
@@ -58,18 +64,22 @@ const CALENDAR_NAV_ITEM: ShellNavItem = {
   exact: true,
 };
 
+/** Queue: what you asked for (Requests) and what's on its way (Downloads), as two tabs. */
 const ACQUISITION_NAV_ITEM: ShellNavItem = {
-  label: 'Requests',
+  label: 'Queue',
   route: '/acquisition',
   icon: 'pi pi-inbox',
-  exact: true,
+  exact: false,
+  activePrefixes: ['/acquisition', '/processing'],
 };
 
-const PROCESSING_NAV_ITEM: ShellNavItem = {
-  label: 'Downloads',
-  route: '/processing',
-  icon: 'pi pi-sync',
-  exact: true,
+/** Browse: Scenes, People and Studios as tabs of one page. */
+const BROWSE_NAV_ITEM: ShellNavItem = {
+  label: 'Browse',
+  route: '/scenes',
+  icon: 'pi pi-compass',
+  exact: false,
+  activePrefixes: ['/scenes', '/scene/', '/performers', '/performer/', '/studios', '/studio/'],
 };
 
 const LIBRARY_NAV_ITEM: ShellNavItem = {
@@ -78,22 +88,6 @@ const LIBRARY_NAV_ITEM: ShellNavItem = {
   icon: 'pi pi-folder-open',
   exact: false,
   activePrefixes: ['/library'],
-};
-
-const PERFORMERS_NAV_ITEM: ShellNavItem = {
-  label: 'Performers',
-  route: '/performers',
-  icon: 'pi pi-users',
-  exact: false,
-  activePrefixes: ['/performers', '/performer/'],
-};
-
-const STUDIOS_NAV_ITEM: ShellNavItem = {
-  label: 'Studios',
-  route: '/studios',
-  icon: 'pi pi-building',
-  exact: false,
-  activePrefixes: ['/studios', '/studio/'],
 };
 
 const FOLLOWING_NAV_ITEM: ShellNavItem = {
@@ -133,6 +127,33 @@ const TOOLS_NAV_ITEM: ShellNavItem = {
   activePrefixes: ['/tools'],
 };
 
+const WATCH_LATER_NAV_ITEM: ShellNavItem = {
+  label: 'Watch later',
+  route: '/watch-later',
+  icon: 'pi pi-bookmark',
+  exact: true,
+};
+
+const HISTORY_NAV_ITEM: ShellNavItem = {
+  label: 'History',
+  route: '/history',
+  icon: 'pi pi-history',
+  exact: true,
+};
+
+const CHAPTERS_NAV_ITEM: ShellNavItem = {
+  label: 'Chapters',
+  route: '/chapters',
+  icon: 'pi pi-list',
+  exact: true,
+};
+
+/** The phone's Browse tab: also lit for Search, Calendar and Following, which it leads to. */
+const MOBILE_BROWSE_NAV_ITEM: ShellNavItem = {
+  ...BROWSE_NAV_ITEM,
+  activePrefixes: [...(BROWSE_NAV_ITEM.activePrefixes ?? []), '/search', '/calendar', '/following'],
+};
+
 interface ShellNavGroup {
   /** Shown above the group in the sidebar; none for the first and last. */
   label: string | null;
@@ -143,43 +164,37 @@ const DESKTOP_NAV_GROUPS: readonly ShellNavGroup[] = [
   { label: null, items: [HOME_NAV_ITEM, SEARCH_NAV_ITEM] },
   {
     label: 'Browse',
-    items: [
-      SCENES_NAV_ITEM,
-      CALENDAR_NAV_ITEM,
-      PERFORMERS_NAV_ITEM,
-      STUDIOS_NAV_ITEM,
-      FOLLOWING_NAV_ITEM,
-    ],
+    items: [BROWSE_NAV_ITEM, CALENDAR_NAV_ITEM, FOLLOWING_NAV_ITEM],
   },
   { label: 'Your library', items: [LIBRARY_NAV_ITEM, FEED_NAV_ITEM, TOOLS_NAV_ITEM] },
-  { label: 'Requests & downloads', items: [ACQUISITION_NAV_ITEM, PROCESSING_NAV_ITEM] },
+  { label: null, items: [ACQUISITION_NAV_ITEM] },
   { label: null, items: [SETTINGS_NAV_ITEM] },
 ];
 
-// Requests is checked often, so it gets a tab; Search is one tap from
-// Home's header (and first under More).
+// Browse holds search and everything to look through; Library and
+// Queue (Requests and Downloads) are checked often, so they get tabs too.
 const MOBILE_PRIMARY_NAV_ITEMS: readonly ShellNavItem[] = [
   HOME_NAV_ITEM,
-  SCENES_NAV_ITEM,
-  ACQUISITION_NAV_ITEM,
+  MOBILE_BROWSE_NAV_ITEM,
   LIBRARY_NAV_ITEM,
+  ACQUISITION_NAV_ITEM,
 ];
 
-const MOBILE_SECONDARY_NAV_ITEMS: readonly ShellNavItem[] = [
-  SEARCH_NAV_ITEM,
-  CALENDAR_NAV_ITEM,
-  PERFORMERS_NAV_ITEM,
-  STUDIOS_NAV_ITEM,
-  FOLLOWING_NAV_ITEM,
-  FEED_NAV_ITEM,
-  TOOLS_NAV_ITEM,
-  PROCESSING_NAV_ITEM,
-  SETTINGS_NAV_ITEM,
+/** More, on a phone: the rest, in a few short groups. */
+const MOBILE_SECONDARY_NAV_GROUPS: readonly ShellNavGroup[] = [
+  { label: 'Browse', items: [FOLLOWING_NAV_ITEM, CALENDAR_NAV_ITEM, SEARCH_NAV_ITEM] },
+  {
+    label: 'Watching',
+    items: [WATCH_LATER_NAV_ITEM, HISTORY_NAV_ITEM, CHAPTERS_NAV_ITEM, FEED_NAV_ITEM],
+  },
+  { label: 'Your library', items: [TOOLS_NAV_ITEM] },
+  { label: null, items: [SETTINGS_NAV_ITEM] },
 ];
 
 @Component({
   selector: 'app-shell-layout',
   imports: [
+    PullToRefreshComponent,
     RouterLink,
     RouterOutlet,
     ThemeToggleComponent,
@@ -206,6 +221,9 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
   private readonly themeService = inject(ThemeService);
   private readonly playbackSettings = inject(PlaybackSettingsService);
   private readonly navigationHistory = inject(NavigationHistoryService);
+  private readonly backScroll = inject(BackScrollService);
+  /** Accent "Match the artwork": runs for as long as the app is open. */
+  protected readonly artworkAccent = inject(ArtworkAccentService);
   private readonly phoneShellMediaQuery = this.createPhoneShellMediaQuery();
   private readonly phoneShellMediaChangeHandler = (event: MediaQueryListEvent) => {
     this.mobileShell.set(event.matches);
@@ -223,8 +241,14 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
   protected readonly mobilePrimaryNavItems = computed(() =>
     this.visibleNavItems(MOBILE_PRIMARY_NAV_ITEMS),
   );
+  protected readonly mobileSecondaryNavGroups = computed(() =>
+    MOBILE_SECONDARY_NAV_GROUPS.map((group) => ({
+      label: group.label,
+      items: this.visibleNavItems(group.items),
+    })).filter((group) => group.items.length > 0),
+  );
   protected readonly mobileSecondaryNavItems = computed(() =>
-    this.visibleNavItems(MOBILE_SECONDARY_NAV_ITEMS),
+    this.mobileSecondaryNavGroups().flatMap((group) => group.items),
   );
   /** Failed requests and downloads, shown as a count on Requests. */
   protected readonly requestsAttention = signal(0);
@@ -233,6 +257,22 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
     typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform ?? '');
   protected readonly mobileShell = signal(this.phoneShellMediaQuery?.matches ?? false);
   protected readonly moreMenuOpen = signal(false);
+  private readonly shellDocument = inject(DOCUMENT);
+  private moreMenuLocked = false;
+  /** The page behind the More menu stays put while it's open. */
+  private readonly lockBehindMoreMenu = effect(() => {
+    const open = this.moreMenuOpen();
+    if (open === this.moreMenuLocked) {
+      return;
+    }
+    this.moreMenuLocked = open;
+    const doc = this.shellDocument;
+    if (open) {
+      lockPageScroll(doc);
+    } else {
+      unlockPageScroll(doc);
+    }
+  });
   protected readonly loggingOut = signal(false);
   protected readonly currentUrl = signal(this.router.url);
   protected readonly authStatus = this.authService.status;
@@ -261,14 +301,20 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
       message: runtimeState.message,
     };
   });
+  /** More is lit for a page only it leads to: not one a tab already lights (Search for Scenes). */
   protected readonly moreNavActive = computed(() => {
     const currentUrl = this.currentUrl();
+    if (this.mobilePrimaryNavItems().some((item) => this.matchesNavItem(item, currentUrl))) {
+      return false;
+    }
     return this.mobileSecondaryNavItems().some((item) => this.matchesNavItem(item, currentUrl));
   });
 
   ngOnInit(): void {
     // So the back button on More's sections knows where you came from.
     this.navigationHistory.start();
+    // Browser Back returns to where you were on the page, once it has loaded.
+    this.backScroll.start();
     void this.appLock.refresh();
     // The saved theme may have changed on another device.
     void this.themeService.syncFromServer();
@@ -337,6 +383,9 @@ export class AppShellLayoutComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.moreMenuLocked) {
+      unlockPageScroll(this.shellDocument);
+    }
     this.phoneShellMediaQuery?.removeEventListener('change', this.phoneShellMediaChangeHandler);
     this.runtimeHealthService.stop();
   }

@@ -66,6 +66,8 @@ export function resetFailedClips(): void {
       height: 100%;
       object-fit: cover;
       pointer-events: none;
+      /* Hides a garbage line along a clip's edge, as on scene cards. */
+      transform: scale(1.03);
       opacity: 0;
       transition: opacity 0.25s ease;
     }

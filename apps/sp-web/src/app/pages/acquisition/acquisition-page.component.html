@@ -1,9 +1,6 @@
 <main class="app-page-shell app-page-shell--wide">
+  <app-page-tabs title="Queue" [tabs]="pageTabs" />
   <header class="page-head-compact">
-    <div class="page-head-compact__title">
-      <h1>Requests</h1>
-      <p>Scenes you asked for, on their way into your library.</p>
-    </div>
     <button
       type="button"
       class="select-toggle"
@@ -39,15 +36,15 @@
   }
 
   <form
-    class="list-toolbar app-control-shell"
+    class="list-toolbar"
     role="search"
     aria-label="Find tracked scenes"
     (submit)="$event.preventDefault(); submitSearch()"
   >
-    <label class="toolbar-field toolbar-field--search app-control-field">
+    <label class="toolbar-search">
+      <i class="pi pi-search" aria-hidden="true"></i>
       <span class="app-control-label">Search</span>
       <input
-        class="app-control-input"
         type="search"
         inputmode="search"
         name="q"
@@ -61,22 +58,17 @@
     </label>
 
     @if (selectedLifecycle() !== 'AVAILABLE') {
-      <div class="toolbar-field app-control-field">
-        <span id="acquisition-sort-label" class="app-control-label">Sort</span>
-        <p-select
-          inputId="acquisition-sort"
-          ariaLabelledBy="acquisition-sort-label"
-          data-testid="acquisition-sort"
-          [ngModel]="selectedSort()"
-          (ngModelChange)="selectSort($event)"
-          [ngModelOptions]="{ standalone: true }"
-          [options]="sortOptions"
-          optionLabel="label"
-          optionValue="value"
-          [appendTo]="'body'"
-          panelStyleClass="app-overlay-panel"
-        />
-      </div>
+      <app-filter-chip label="Sort" [value]="sortLabel()" neutral testId="acquisition-sort">
+        <ng-template appFilterPanel>
+          <app-filter-options
+            [options]="sortChoices"
+            [selected]="[selectedSort()]"
+            [clearable]="false"
+            testId="acquisition-sort-option"
+            (changed)="selectSort($any($event[0]))"
+          />
+        </ng-template>
+      </app-filter-chip>
     }
   </form>
 
@@ -105,7 +97,7 @@
       }
     </nav>
 
-    @if (handoffs().length > 0) {
+    @if (extraHandoffs().length > 0) {
       <section
         class="lifecycle-section app-section-panel handoff-section"
         data-tone="active"
@@ -114,14 +106,16 @@
         <div class="lifecycle-section-head app-section-head">
           <div class="app-section-head__copy">
             <div class="section-title-row">
-              <h3>Your downloads</h3>
-              <span class="section-count">{{ countLabel(handoffs().length, 'download') }}</span>
+              <h3>Downloading now</h3>
+              <span class="section-count">{{
+                countLabel(extraHandoffs().length, 'download')
+              }}</span>
             </div>
           </div>
-          <a class="secondary-action compact" routerLink="/processing">Downloads</a>
+          <a class="secondary-action compact" routerLink="/processing">All downloads</a>
         </div>
         <div class="acquisition-list">
-          @for (handoff of handoffs(); track handoff.id) {
+          @for (handoff of extraHandoffs(); track handoff.id) {
             <article
               class="acquisition-card"
               [attr.data-state]="handoff.stage === 'failed' ? 'FAILED' : 'DOWNLOADING'"
@@ -147,9 +141,6 @@
                 </div>
                 <div class="card-copy">
                   <h4 class="card-title">{{ handoff.scene?.title ?? handoff.releaseTitle }}</h4>
-                  @if (handoff.scene) {
-                    <p class="release-name">{{ handoff.releaseTitle }}</p>
-                  }
                   <app-stage-track
                     [stages]="handoffStages(handoff)"
                     [label]="handoff.scene?.title ?? handoff.releaseTitle"
@@ -212,7 +203,7 @@
       </section>
     }
 
-    @if (!hasItems() && handoffs().length === 0) {
+    @if (!hasItems() && extraHandoffs().length === 0) {
       <section
         class="state-shell empty-shell app-state-block"
         data-testid="acquisition-empty-state"
@@ -297,14 +288,20 @@
               }
             </div>
 
-            @if (section.lifecycle === 'IMPORT_PENDING') {
+            <!-- All tracked sorted by title or date has one ANY section, with
+                 the waiting cards' actions in it: their errors show there. -->
+            @if (section.lifecycle === 'IMPORT_PENDING' || section.lifecycle === 'ANY') {
               @if (waitingCheckError(); as checkError) {
                 <p class="waiting-check-summary" role="alert">{{ checkError }}</p>
               }
+            }
+            @if (section.lifecycle === 'IMPORT_PENDING') {
               @if (waitingCheck(); as check) {
                 <div class="waiting-check" data-testid="waiting-check" role="status">
                   <p class="waiting-check-summary">
-                    Checked {{ check.checked }}.
+                    @if (check.checked > 0) {
+                      Checked {{ countLabel(check.checked, 'scene') }}.
+                    }
                     @if (check.fixed > 0) {
                       {{ check.fixed }} {{ check.fixed === 1 ? 'is' : 'are' }} no longer waiting.
                     }
@@ -335,6 +332,21 @@
                             >
                               It’s the same scene
                             </button>
+                            <button
+                              type="button"
+                              class="secondary-action compact"
+                              [attr.data-testid]="'link-here-' + scene.stashId"
+                              [disabled]="checkingWaiting()"
+                              (click)="linkToWaitingScene(scene.stashId)"
+                            >
+                              Link the file to this scene
+                            </button>
+                            <a
+                              class="secondary-action compact"
+                              routerLink="/tools/match"
+                              [queryParams]="pickMatchParams(scene.path)"
+                              >Pick a different match</a
+                            >
                           }
                         </li>
                       }
@@ -391,8 +403,36 @@
                         <span class="added-at">{{ added }}</span>
                       }
 
-                      @if (cardMeta(item.releaseDate, item.studio); as meta) {
-                        <p class="card-meta">{{ meta }}</p>
+                      @if (cardMeta(item.releaseDate, null); as date) {
+                        <p class="card-meta">
+                          {{ date }}
+                          @if (item.studio) {
+                            ·
+                            @if (item.studioId) {
+                              <a
+                                class="studio-link"
+                                [routerLink]="['/studio', item.studioId]"
+                                [queryParams]="{ returnTo: currentRouteUrl() }"
+                                >{{ item.studio }}</a
+                              >
+                            } @else {
+                              {{ item.studio }}
+                            }
+                          }
+                        </p>
+                      } @else if (item.studio) {
+                        <p class="card-meta">
+                          @if (item.studioId) {
+                            <a
+                              class="studio-link"
+                              [routerLink]="['/studio', item.studioId]"
+                              [queryParams]="{ returnTo: currentRouteUrl() }"
+                              >{{ item.studio }}</a
+                            >
+                          } @else {
+                            {{ item.studio }}
+                          }
+                        </p>
                       }
                     </div>
 
@@ -429,6 +469,24 @@
                             <span class="download-text">{{ text }}</span>
                           }
                         </div>
+                      } @else if (aheadHandoff(item); as handoff) {
+                        <div class="download-progress" [attr.data-testid]="'download-' + item.id">
+                          @if (handoff.progress !== null) {
+                            <div
+                              class="download-bar"
+                              role="progressbar"
+                              aria-valuemin="0"
+                              aria-valuemax="100"
+                              [attr.aria-valuenow]="handoff.progress"
+                              [attr.aria-label]="'Download of ' + item.title"
+                            >
+                              <span [style.width.%]="handoff.progress"></span>
+                            </div>
+                          }
+                          @if (handoffProgressText(handoff); as text) {
+                            <span class="download-text">{{ text }}</span>
+                          }
+                        </div>
                       }
 
                       @if (
@@ -452,10 +510,25 @@
                             >
                               It’s the same scene
                             </button>
+                            <button
+                              type="button"
+                              class="secondary-action compact"
+                              [attr.data-testid]="'card-link-here-' + item.id"
+                              [disabled]="checkingWaiting()"
+                              (click)="linkToWaitingScene(item.id)"
+                            >
+                              Link the file to this scene
+                            </button>
+                            <a
+                              class="secondary-action compact"
+                              routerLink="/tools/match"
+                              [queryParams]="pickMatchParams(waiting.path)"
+                              >Pick a different match</a
+                            >
                           }
                           @if (waiting.kind === 'not-linked') {
-                            <a class="secondary-action compact" routerLink="/tools/organize"
-                              >Match &amp; rename</a
+                            <a class="secondary-action compact" routerLink="/tools/match"
+                              >Match scenes</a
                             >
                           }
                           @if (waiting.kind === 'not-in-stash') {

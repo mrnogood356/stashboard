@@ -9,9 +9,14 @@ export interface SmallerCopySettings {
   target: SmallerCopyTarget;
   replaceHigher: boolean;
   upgradeLower: boolean;
-  maxFileSizeGb: number | null;
-  minFileSizeGb: number | null;
-  maxNewSizeGb: number | null;
+  /** Sizes are GB per hour of video. At the target but heavier: replace. */
+  maxGbPerHour: number | null;
+  /** Leave files lighter than this alone. */
+  minGbPerHour: number | null;
+  /** The new copy's cap. */
+  maxNewGbPerHour: number | null;
+  /** The new copy's floor: lighter is too squeezed to swap in. */
+  minNewGbPerHour: number | null;
   minSavingsPercent: number;
   codec: 'any' | 'prefer-efficient' | 'efficient-only';
   prefer: 'largest' | 'smallest';
@@ -43,6 +48,8 @@ export interface SmallerCopyAttempt {
 export interface SmallerCopies {
   settings: SmallerCopySettings;
   blocked: string | null;
+  /** After Search now: why nothing was searched, if nothing was. */
+  notice?: string | null;
   candidates: number;
   due: number;
   lastSearchAt: string | null;

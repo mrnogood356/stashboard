@@ -151,6 +151,8 @@ export interface StashJob {
   subTasks: string[];
   addTime: string | null;
   startTime: string | null;
+  /** Stashboard started it (since it last started); otherwise Stash, a plugin or another app. */
+  byStashboard?: boolean;
 }
 
 export interface StashDuplicateScene {

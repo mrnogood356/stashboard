@@ -16,8 +16,8 @@
   gap: 0.45rem;
   height: 2.25rem;
   padding: 0 0.9rem;
-  border-radius: 999px;
-  background: var(--chip-bg);
+  border-radius: var(--radius-sm);
+  background: var(--soft-fill);
   color: var(--text-primary);
   font-size: 0.86rem;
   font-weight: 600;
@@ -30,6 +30,7 @@ button.head-action {
   font-size: 0.86rem;
   font-weight: 600;
   cursor: pointer;
+  background: var(--soft-fill);
 }
 
 button.head-action:disabled {
@@ -38,10 +39,10 @@ button.head-action:disabled {
 }
 
 .block {
-  --app-section-radius: 18px;
-  --app-section-padding: 0.95rem;
-  --app-section-border: 1px solid color-mix(in srgb, var(--border-strong) 52%, transparent);
-  --app-section-bg: color-mix(in srgb, var(--surface-elevated) 92%, var(--surface-1));
+  --app-section-radius: 0;
+  --app-section-padding: 0;
+  --app-section-border: 0;
+  --app-section-bg: transparent;
 }
 
 .block[data-tone='active'] {
@@ -71,13 +72,13 @@ button.head-action:disabled {
 }
 
 .title-row h2 {
-  font-size: 1.15rem;
-  font-weight: 700;
+  font-size: 1.1rem;
+  font-weight: 600;
 }
 
 /* A small dot in the section's colour, like Requests. */
 .block[data-tone]:not([data-tone='']) .title-row h2::before {
-  content: '';
+  content: none;
   display: inline-block;
   width: 0.55rem;
   height: 0.55rem;
@@ -90,12 +91,13 @@ button.head-action:disabled {
 .count {
   display: inline-flex;
   align-items: center;
-  min-height: 1.6rem;
-  padding: 0.1rem 0.6rem;
-  border-radius: 999px;
-  background: var(--chip-bg);
-  font-size: 0.76rem;
-  font-weight: 700;
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 0.86rem;
+  font-weight: 400;
+  color: var(--text-muted);
 }
 
 .head-actions {
@@ -134,7 +136,7 @@ button.head-action:disabled {
 
 .cards {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
 
 .card {
@@ -172,7 +174,7 @@ button.head-action:disabled {
 .card-art {
   align-self: start;
   aspect-ratio: 16 / 10;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   font-size: 1.6rem;
 }
 
@@ -219,7 +221,15 @@ button.head-action:disabled {
 .release {
   margin-top: -0.25rem;
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.release.release-full {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 app-stage-track {
@@ -290,15 +300,18 @@ app-stage-track {
   align-items: center;
   min-height: 1.45rem;
   padding: 0 0.55rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   font-size: 0.72rem;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .source-tag {
-  background: var(--chip-bg);
+  background: none;
   color: var(--text-muted);
+  min-height: 0;
+  padding: 0;
+  font-weight: 500;
 }
 
 .pill {
@@ -347,10 +360,8 @@ app-stage-track {
 .sub {
   margin-top: 0.35rem;
   color: var(--text-muted);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .rows {
@@ -358,9 +369,9 @@ app-stage-track {
   margin: 0;
   padding: 0;
   list-style: none;
-  border-radius: 14px;
-  border: 1px solid var(--acquisition-card-border);
-  background: var(--acquisition-card-bg);
+  border-radius: var(--radius-md);
+  border: 0;
+  background: var(--surface-1);
   overflow: hidden;
 }
 
@@ -369,7 +380,7 @@ app-stage-track {
   grid-template-columns: 3.6rem minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.8rem;
-  padding: 0.6rem 0.75rem;
+  padding: 0.75rem 0.9rem;
 }
 
 .row + .row {
@@ -441,10 +452,8 @@ app-stage-track {
 
 .facts dt {
   color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .facts dd {
@@ -538,4 +547,103 @@ app-stage-track {
     grid-column: 1 / -1;
     margin-top: 0;
   }
+}
+
+.card,
+.card[data-stage] {
+  grid-template-columns: minmax(120px, 176px) minmax(0, 1fr);
+  gap: 1rem;
+  padding: 0.9rem 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  box-shadow: none;
+}
+
+.card + .card {
+  border-top: 0;
+}
+
+/* A status is a dot and a word, not a coloured pill. */
+.pill,
+.pill[data-stage],
+.pill[data-watch] {
+  gap: 0.4rem;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.pill::before {
+  content: '';
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.pill[data-stage='downloading']::before,
+.pill[data-stage='unpacking']::before,
+.pill[data-stage='moving']::before {
+  background: var(--warning);
+}
+
+.pill[data-stage='linking']::before,
+.pill[data-watch='watching']::before {
+  background: var(--info);
+}
+
+.pill[data-stage='done']::before {
+  background: var(--success);
+}
+
+.pill[data-stage='failed'],
+.pill[data-watch='problem'] {
+  color: var(--danger-text);
+}
+
+.pill[data-stage='failed']::before,
+.pill[data-watch='problem']::before {
+  background: var(--danger);
+}
+
+.pill[data-stage='ignored']::before,
+.pill[data-watch='off']::before {
+  background: var(--border-strong);
+}
+
+@media (max-width: 640px) {
+  .card,
+  .card[data-stage] {
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+    gap: 0.75rem;
+    padding: 0.75rem 0;
+  }
+}
+
+.head-action {
+  border: 1px solid var(--border-subtle);
+  border-color: transparent;
+  background: var(--soft-fill);
+}
+
+.head-action:hover {
+  border-color: transparent;
+  background: var(--soft-fill-hover);
+}
+
+.footnote a {
+  color: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.card,
+.card[data-stage] {
+  padding: 0.9rem;
 }

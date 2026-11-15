@@ -176,7 +176,7 @@ ol {
   min-height: 2.3rem;
   padding: 0 1rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--chip-bg);
   color: var(--text-primary);
   font: inherit;
@@ -288,4 +288,13 @@ ol {
   .url-row .pill {
     align-self: flex-start;
   }
+}
+
+/* A plain icon, as on Settings, not a blue tile. */
+.link-icon {
+  width: 1.25rem;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  color: var(--text-muted);
 }

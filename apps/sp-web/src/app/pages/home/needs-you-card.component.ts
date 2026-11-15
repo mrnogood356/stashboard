@@ -48,8 +48,8 @@ export class NeedsYouCardComponent implements OnInit, OnDestroy {
         icon: 'pi pi-check-circle',
         label: 'Matches to check',
         count: attention.matchesToCheck,
-        path: '/tools/organize',
-        queryParams: { tab: 'match' },
+        path: '/tools/match',
+        queryParams: null,
       },
       {
         id: 'failed',
@@ -72,7 +72,7 @@ export class NeedsYouCardComponent implements OnInit, OnDestroy {
         icon: 'pi pi-link',
         label: 'Scenes not matched',
         count: attention.unmatched,
-        path: '/tools/organize',
+        path: '/tools/match',
         queryParams: null,
       },
     ];

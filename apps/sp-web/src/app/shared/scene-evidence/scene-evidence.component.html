@@ -7,16 +7,14 @@
       [attr.aria-controls]="bodyId"
       (click)="toggle()"
     >
-      <span class="evidence-toggle-copy">
-        <span class="evidence-title">Status details</span>
-        <span class="evidence-subtitle">What Stashboard, Whisparr and Stash each report</span>
-      </span>
-      <i [class]="open() ? 'pi pi-chevron-up' : 'pi pi-chevron-down'" aria-hidden="true"></i>
+      <span class="evidence-title">Status details</span>
+      <i class="pi pi-chevron-down" [class.is-open]="open()" aria-hidden="true"></i>
     </button>
   </h2>
 
   @if (open()) {
     <div class="evidence-body" [id]="bodyId">
+      <p class="evidence-note">What Stashboard, Whisparr and Stash each report about this scene.</p>
       @if (loading()) {
         <p class="evidence-note" role="status">Asking Stashboard, Whisparr and Stash…</p>
       } @else if (error(); as message) {

@@ -150,6 +150,9 @@ export const appConfig: ApplicationConfig = {
       // placed against it, and with Glass (backdrop-filter) that put them in
       // the wrong spot for a moment before they jumped into place.
       overlayAppendTo: 'body',
+      // Dropdowns above the app's sheets (1100–1101), so a select inside a
+      // sheet opens over it rather than behind it.
+      zIndex: { modal: 1100, overlay: 1200, menu: 1200, tooltip: 1300 },
       theme: {
         preset: StashboardPreset,
         options: {

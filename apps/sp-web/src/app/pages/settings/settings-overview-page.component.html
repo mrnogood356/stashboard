@@ -16,7 +16,7 @@
     <app-skeleton kind="rows" [count]="6" label="Loading settings" />
   } @else {
     <section
-      class="hero-card"
+      class="status-summary"
       [class.tone-good]="statusTone() === 'good'"
       [class.tone-warn]="statusTone() === 'warn'"
     >
@@ -27,7 +27,7 @@
         </div>
 
         <span
-          class="status-pill"
+          class="status-note"
           [class.tone-good]="statusTone() === 'good'"
           [class.tone-warn]="statusTone() === 'warn'"
         >

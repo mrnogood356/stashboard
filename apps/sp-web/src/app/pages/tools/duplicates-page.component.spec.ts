@@ -66,8 +66,10 @@ async function settle(fixture: { detectChanges(): void }): Promise<void> {
   fixture.detectChanges();
 }
 
+/** Looks in the whole page too: the confirmation sheet sits at the end of it. */
 function button(root: HTMLElement, text: string): HTMLButtonElement {
-  return Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find((entry) =>
+  const scope = root.isConnected ? document.body : root;
+  return Array.from(scope.querySelectorAll<HTMLButtonElement>('button')).find((entry) =>
     entry.textContent?.includes(text),
   )!;
 }
@@ -137,7 +139,7 @@ describe('DuplicatesPageComponent', () => {
 
     root.querySelectorAll<HTMLButtonElement>('.copy .btn.danger')[1].click();
     fixture.detectChanges();
-    expect(root.querySelector('.sheet')?.textContent).toContain('c.mp4');
+    expect(document.querySelector('.sheet')?.textContent).toContain('c.mp4');
     button(root, 'Remove from Stash only').click();
     await settle(fixture);
 
@@ -146,7 +148,7 @@ describe('DuplicatesPageComponent', () => {
       'Removed from Stash',
       'The file was left on disk.',
     );
-    expect(root.querySelector('.sheet')).toBeNull();
+    expect(document.querySelector('.sheet')).toBeNull();
     expect(Array.from(root.querySelectorAll('.copy-title')).map((el) => el.textContent)).toEqual([
       'Scene a',
       'Scene b',
@@ -165,7 +167,7 @@ describe('DuplicatesPageComponent', () => {
     button(root, 'Cancel').click();
     fixture.detectChanges();
 
-    expect(root.querySelector('.sheet')).toBeNull();
+    expect(document.querySelector('.sheet')).toBeNull();
     expect(library.deleteScene).not.toHaveBeenCalled();
     expect(root.querySelectorAll('.copy').length).toBe(2);
   });
@@ -247,7 +249,7 @@ describe('DuplicatesPageComponent', () => {
 
     root.querySelector<HTMLButtonElement>('[data-testid="remove-all-extras"]')!.click();
     fixture.detectChanges();
-    expect(root.querySelector('.sheet h2')?.textContent).toContain('Remove 3 copies?');
+    expect(document.querySelector('.sheet h2')?.textContent).toContain('Remove 3 copies?');
     button(root, 'Remove from Stash only').click();
     await settle(fixture);
 
@@ -257,6 +259,34 @@ describe('DuplicatesPageComponent', () => {
       '3 copies removed, files left on disk.',
     );
     expect(root.querySelectorAll('.copy').length).toBe(0);
+  });
+
+  it('only offers removing every extra copy at once for exact matches', async () => {
+    const scene = (id: string) => ({
+      id,
+      title: id,
+      date: null,
+      imageUrl: null,
+      studio: null,
+      playCount: 0,
+      organized: false,
+      file: null,
+    });
+    const groups = [
+      { suggestedKeepId: 'a', scenes: [scene('a'), scene('b')] },
+      { suggestedKeepId: 'c', scenes: [scene('c'), scene('d')] },
+    ];
+    const library = {
+      duplicates: vi.fn().mockReturnValue(of(groups)),
+      deleteScene: vi.fn().mockReturnValue(of(undefined)),
+    };
+    const { fixture, root } = await render(library);
+    expect(root.querySelector('[data-testid="remove-all-extras"]')).not.toBeNull();
+    button(root, 'Close').click();
+    await settle(fixture);
+    // A looser match can pair two different scenes: set by set only.
+    expect(root.querySelector('[data-testid="remove-all-extras"]')).toBeNull();
+    expect(root.querySelector('[data-testid="check-each-set"]')).not.toBeNull();
   });
 
   it('stops at the first copy that fails and keeps the rest to try again', async () => {
@@ -277,8 +307,8 @@ describe('DuplicatesPageComponent', () => {
     button(root, 'Delete the files from disk').click();
     await settle(fixture);
 
-    expect(root.querySelector('.sheet h2')?.textContent).toContain('Remove this copy?');
-    expect(root.querySelector('.sheet')?.textContent).toContain('c.mp4');
+    expect(document.querySelector('.sheet h2')?.textContent).toContain('Remove this copy?');
+    expect(document.querySelector('.sheet')?.textContent).toContain('c.mp4');
   });
 
   it('never deletes from disk a scene with more than one file', async () => {
@@ -295,7 +325,7 @@ describe('DuplicatesPageComponent', () => {
     // Only that one: deleting from disk isn't offered.
     root.querySelectorAll<HTMLButtonElement>('.copy .btn.danger')[1].click();
     fixture.detectChanges();
-    expect(root.querySelector('[data-testid="multi-file-note"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="multi-file-note"]')).toBeTruthy();
     expect(button(root, 'Delete the file from disk').disabled).toBe(true);
     button(root, 'Cancel').click();
     fixture.detectChanges();
@@ -362,7 +392,7 @@ describe('DuplicatesPageComponent', () => {
     button(root, 'Remove this copy').click();
     fixture.detectChanges();
     await fixture.whenStable();
-    const carry = root.querySelector('input[name="carryOver"]') as HTMLInputElement;
+    const carry = document.querySelector('input[name="carryOver"]') as HTMLInputElement;
     expect(carry.checked).toBe(true);
     carry.click();
     fixture.detectChanges();

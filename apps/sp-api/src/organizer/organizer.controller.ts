@@ -19,6 +19,7 @@ import {
   RenameScenesDto,
   ScrapeSceneDto,
   UpdateOrganizerSettingsDto,
+  FixTakenDto,
 } from './dto/organizer.dto';
 import { OrganizerService } from './organizer.service';
 
@@ -97,6 +98,12 @@ export class OrganizerController {
     return this.organizer.whisparrNaming();
   }
 
+  /** Scenes Stash has that Whisparr wants, each with why it hasn't gone. */
+  @Get('whisparr/missing')
+  missingInWhisparr() {
+    return this.organizer.missingInWhisparrScenes();
+  }
+
   @Get('whisparr/repair')
   whisparrRepairCount() {
     return this.organizer.whisparrRepairCount();
@@ -131,6 +138,12 @@ export class OrganizerController {
   @HttpCode(200)
   markSameScene(@Param('stashId', ParseUUIDPipe) stashId: string) {
     return this.organizer.markSameScene(stashId);
+  }
+
+  @Post('waiting/:stashId/link-here')
+  @HttpCode(200)
+  linkToWaitingScene(@Param('stashId', ParseUUIDPipe) stashId: string) {
+    return this.organizer.linkToWaitingScene(stashId);
   }
 
   @Post('unmatched/move')
@@ -188,8 +201,8 @@ export class OrganizerController {
 
   @Post('rename/taken/fix')
   @HttpCode(200)
-  fixTaken(@Body() body: PickedScenesDto) {
-    return this.organizer.fixTaken(body.sceneIds);
+  fixTaken(@Body() body: FixTakenDto) {
+    return this.organizer.fixTaken(body.sceneIds, body.fix);
   }
 
   @Post('rename/preview')

@@ -91,7 +91,7 @@ legend,
   align-items: center;
   gap: 0.45rem;
   padding: 0.45rem 0.85rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid color-mix(in srgb, var(--border-strong) 50%, transparent);
   cursor: pointer;
 }
@@ -130,7 +130,7 @@ legend,
 .button {
   height: 2.5rem;
   padding: 0 1.1rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid color-mix(in srgb, var(--focus-ring) 70%, transparent);
   background: var(--focus-ring);
   color: var(--accent-contrast, #fff);

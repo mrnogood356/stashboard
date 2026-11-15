@@ -121,13 +121,15 @@ describe('LocalLibraryService', () => {
       name: string,
       sceneCount: number,
       aliases: string[] = [],
+      extra: { note?: string; links?: string[] } = {},
     ) => ({
       id,
       name,
       aliases,
       sceneCount,
-      note: null,
+      note: extra.note ?? null,
       deathDate: null,
+      links: extra.links ?? [],
     });
     stash.listForMerge.mockResolvedValue([
       person('1', 'Jane Doe', 3),
@@ -161,6 +163,34 @@ describe('LocalLibraryService', () => {
       '1',
       '5',
     ]);
+
+    // Same name, but StashDB says two people, or Stash tells them apart.
+    stash.listForMerge.mockResolvedValue([
+      person('1', 'Lily', 9, [], {
+        links: ['https://stashdb.org/graphql|aaa'],
+      }),
+      person('2', 'Lily', 5, [], {
+        links: ['https://stashdb.org/graphql|bbb'],
+      }),
+      person('3', 'Lily', 2),
+      person('4', 'Mia', 4, [], { note: 'UK' }),
+      person('5', 'Mia', 3, [], { note: 'US' }),
+    ]);
+    const apart = await service.mergeCandidates('performer');
+    expect(
+      apart.groups.map((group) => group.items.map((item) => item.id)),
+    ).toEqual([['1', '3']]);
+    await expect(service.merge('performer', '1', ['2'])).rejects.toThrow(
+      'different catalog entry',
+    );
+    await expect(service.merge('performer', '4', ['5'])).rejects.toThrow(
+      'isn’t the same',
+    );
+    // Two sources at odds with each other, though each fits an unlinked keeper.
+    await expect(service.merge('performer', '3', ['1', '2'])).rejects.toThrow(
+      'different catalog entry',
+    );
+    expect(stash.mergePerformers).toHaveBeenCalledTimes(1);
     expect(stash.mergeStudios).not.toHaveBeenCalled();
   });
 
@@ -168,10 +198,12 @@ describe('LocalLibraryService', () => {
     await expect(service.generateFor(['4', '5'])).resolves.toEqual({
       jobId: '7',
     });
-    expect(stash.startLibraryTask).toHaveBeenCalledWith(config, 'generate', [
-      '4',
-      '5',
-    ]);
+    expect(stash.startLibraryTask).toHaveBeenCalledWith(
+      config,
+      'generate',
+      ['4', '5'],
+      { now: true },
+    );
     await expect(service.generateFor([])).rejects.toThrow(
       'Pick at least one scene',
     );
@@ -492,6 +524,26 @@ describe('LocalLibraryService', () => {
     });
   });
 
+  it("narrows a performer's scenes to every picked category and any picked studio", async () => {
+    stash.findLocalScenes.mockResolvedValue({ total: 1, items: [] });
+
+    await service.performerScenes('p1', 1, 'DATE', 0, {
+      tagIds: ['t1', 't2'],
+      studioIds: ['s1'],
+    });
+    await service.studioScenes('s1', 1, 'DATE', 0, { tagIds: ['t1'] });
+
+    expect(stash.findLocalScenes.mock.calls[0][1].sceneFilter).toEqual({
+      performers: { value: ['p1'], modifier: 'INCLUDES_ALL' },
+      tags: { value: ['t1', 't2'], modifier: 'INCLUDES_ALL', depth: 0 },
+      studios: { value: ['s1'], modifier: 'INCLUDES', depth: -1 },
+    });
+    expect(stash.findLocalScenes.mock.calls[1][1].sceneFilter).toEqual({
+      studios: { value: ['s1'], modifier: 'INCLUDES', depth: -1 },
+      tags: { value: ['t1'], modifier: 'INCLUDES_ALL', depth: 0 },
+    });
+  });
+
   it('saves edits and returns the refreshed scene', async () => {
     await expect(service.updateScene('1', { rating100: 60 })).resolves.toEqual({
       id: '1',
@@ -554,10 +606,12 @@ describe('LocalLibraryService', () => {
     });
     stash.findSampleScenes.mockResolvedValue([
       scene('1', '/data/Studio.Title.1080p/sample.mkv', 30),
-      scene('2', '/data/Studio.Title.1080p/Samples/clip.mp4', 900),
+      scene('2', '/data/Studio.Title.1080p/Samples/clip.mp4', 300),
       scene('3', '/data/Examples/trailer.mp4', 45),
       // Stash matched "sample" inside a word; not a sample.
       scene('4', '/data/Resampled Studio/scene.mp4', 1800),
+      // A real 30-minute scene that lives in a folder called Samples.
+      scene('5', '/data/Samples/Studio - Real Scene.mp4', 1800),
     ]);
 
     const found = await service.samples(1);

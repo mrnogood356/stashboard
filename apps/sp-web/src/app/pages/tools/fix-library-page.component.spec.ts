@@ -59,7 +59,7 @@ async function render(library: Record<string, unknown>, query: Record<string, st
 }
 
 function tab(root: HTMLElement, label: string): HTMLButtonElement {
-  return Array.from(root.querySelectorAll<HTMLButtonElement>('.segmented button')).find((entry) =>
+  return Array.from(root.querySelectorAll<HTMLButtonElement>('.app-tabs button')).find((entry) =>
     entry.textContent?.includes(label),
   )!;
 }
@@ -82,7 +82,10 @@ describe('FixLibraryPageComponent', () => {
     expect(tab(root, 'Not matched').querySelector('.count-badge')?.textContent).toBe('4');
     expect(tab(root, 'No tags').querySelector('.count-badge')?.textContent).toBe('7');
     expect(titles(root)).toEqual(['Scene u1']);
-    expect(root.querySelector('a.organizer-link')?.getAttribute('href')).toBe('/tools/organize');
+    expect(root.querySelector('a.organizer-link')?.getAttribute('href')).toBe('/tools/match');
+    expect(root.querySelector('[data-testid="match-by-hand"]')?.getAttribute('href')).toBe(
+      '/tools/match?q=Scene%20u1',
+    );
 
     tab(root, 'No tags').click();
     fixture.detectChanges();
@@ -91,6 +94,7 @@ describe('FixLibraryPageComponent', () => {
     expect(tab(root, 'No tags').getAttribute('aria-selected')).toBe('true');
     expect(titles(root)).toEqual(['Scene t1']);
     expect(root.querySelector('a.organizer-link')).toBeNull();
+    expect(root.querySelector('[data-testid="match-by-hand"]')).toBeNull();
   });
 
   it('opens the list a Library tools count links to', async () => {

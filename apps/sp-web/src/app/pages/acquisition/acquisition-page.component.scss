@@ -38,10 +38,11 @@ a {
 .lifecycle-tabs {
   margin-top: 1rem;
   display: flex;
-  gap: 0.4rem;
+  gap: 1.25rem;
   overflow-x: auto;
   scrollbar-width: none;
   padding-bottom: 0.1rem;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .lifecycle-tabs::-webkit-scrollbar {
@@ -53,16 +54,17 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  height: 2.25rem;
-  padding: 0 0.85rem;
+  height: 2.5rem;
+  padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: 0;
   background: var(--surface-2);
   color: var(--text-muted);
   font: inherit;
   font-size: 0.88rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
+  border-bottom: 2px solid transparent;
 }
 
 .lifecycle-tab:hover {
@@ -72,16 +74,18 @@ a {
 .lifecycle-tab.is-active {
   background: var(--accent-soft);
   color: var(--accent-text);
+  border-bottom-color: var(--text-primary);
 }
 
 .lifecycle-tab-count {
-  min-width: 1.4rem;
-  padding: 0 0.4rem;
+  min-width: 0;
+  padding: 0;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  background: none;
   font-size: 0.78rem;
   line-height: 1.4rem;
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .lifecycle-tab[data-tone='attention'] .lifecycle-tab-count.has-count {
@@ -93,13 +97,12 @@ a {
   outline-offset: 2px;
 }
 
-/* ---------- where each request is ---------- */
-
 .download-progress {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   min-width: 0;
+  max-width: 28rem;
 }
 
 .download-bar {
@@ -123,13 +126,6 @@ a {
   font-size: 0.8rem;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
-}
-
-.release-name {
-  margin: -0.2rem 0 0;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  overflow-wrap: anywhere;
 }
 
 .handoff-section {
@@ -163,8 +159,8 @@ a {
 }
 
 .lifecycle-section {
-  margin-top: 1rem;
-  --app-section-radius: 18px;
+  margin-top: 1.5rem;
+  --app-section-radius: 0;
   --app-section-padding: 0.95rem;
   --app-section-border: 1px solid color-mix(in srgb, var(--border-strong) 52%, transparent);
   --app-section-bg: color-mix(in srgb, var(--surface-elevated) 92%, var(--surface-1));
@@ -189,7 +185,7 @@ a {
 
 /* A small dot in the section's colour, instead of tinting the whole panel. */
 .lifecycle-section[data-tone]:not([data-tone='']) .section-title-row h3::before {
-  content: '';
+  content: none;
   display: inline-block;
   width: 0.55rem;
   height: 0.55rem;
@@ -233,20 +229,29 @@ a {
 }
 
 .section-count {
-  font-weight: 700;
+  font-weight: 400;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.86rem;
 }
 
 .section-priority {
-  border: 1px solid var(--acquisition-attention-border);
-  background: color-mix(in srgb, var(--badge-failed-bg) 82%, var(--surface-elevated));
-  color: var(--acquisition-attention-copy);
-  font-weight: 700;
+  border: 0;
+  background: none;
+  color: var(--danger-text);
+  font-weight: 500;
+  min-height: 0;
+  padding: 0;
+  font-size: 0.86rem;
 }
 
 .acquisition-list {
-  margin-top: 0.85rem;
+  margin-top: 0.5rem;
   display: grid;
-  gap: 0.8rem;
+  gap: 0.6rem;
 }
 
 .acquisition-card {
@@ -257,7 +262,8 @@ a {
   padding: 0.75rem;
   border-radius: 16px;
   border: 1px solid var(--acquisition-card-border);
-  background: var(--acquisition-card-bg);
+  background: var(--surface-1);
+  position: relative;
 }
 
 .acquisition-card[data-state='FAILED'] {
@@ -274,7 +280,7 @@ a {
 }
 
 .card-art-link {
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   min-height: 0;
   background: var(--surface-2);
@@ -294,10 +300,11 @@ a {
 .card-art {
   width: 100%;
   height: 100%;
-  min-height: 100%;
+  min-height: 0;
   aspect-ratio: 4 / 3;
   object-fit: cover;
   display: block;
+  border-radius: 12px;
 }
 
 .card-art.placeholder {
@@ -331,6 +338,7 @@ a {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  border: 0;
 }
 
 .card-copy {
@@ -344,6 +352,7 @@ a {
   overflow-wrap: anywhere;
   font-size: 1.08rem;
   line-height: 1.25;
+  font-weight: 600;
 }
 
 .card-title a {
@@ -387,11 +396,11 @@ a {
   align-items: center;
   justify-content: center;
   min-height: 2.3rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   padding: 0.45rem 0.88rem;
   text-decoration: none;
   font-size: 0.86rem;
-  font-weight: 700;
+  font-weight: 600;
   transition:
     transform 140ms ease,
     border-color 140ms ease,
@@ -401,7 +410,7 @@ a {
 .primary-link:hover,
 .secondary-link:hover,
 .secondary-action:hover {
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .primary-link {
@@ -412,11 +421,15 @@ a {
 .secondary-link,
 .secondary-action {
   border: 1px solid color-mix(in srgb, var(--border-strong) 56%, transparent);
-  background: color-mix(in srgb, var(--surface-elevated) 96%, var(--surface-1));
+  border-color: transparent;
+  background: var(--soft-fill);
 }
 
 .secondary-action {
   cursor: pointer;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--soft-fill);
 }
 
 .small,
@@ -498,27 +511,10 @@ a {
   }
 }
 
-/* ---------- 2026 look ---------- */
-
 .acquisition-card {
   border: 0;
   border-radius: 18px;
-  background: var(--surface-1);
   box-shadow: none;
-}
-
-.card-art {
-  border-radius: 12px;
-}
-
-.studio-pill {
-  border: 0;
-}
-
-.secondary-action {
-  border: 0;
-  border-radius: 999px;
-  background: var(--chip-bg);
 }
 
 .waiting-check {
@@ -558,14 +554,46 @@ a {
   margin-top: 0.25rem;
 }
 
-/* ---------- search and sort ---------- */
-
 .list-toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(10rem, 13rem);
-  gap: 0.6rem;
-  align-items: end;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   margin-bottom: 1rem;
+}
+
+/* The same soft search box as Browse's. */
+.toolbar-search {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  max-width: 36rem;
+  min-height: 2.5rem;
+  padding: 0 0.9rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-muted);
+}
+
+.toolbar-search:focus-within {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.toolbar-search input {
+  flex: 1;
+  min-width: 0;
+  height: 2.5rem;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  outline: none;
+}
+
+.toolbar-search input::placeholder {
+  color: var(--text-muted);
 }
 
 .toolbar-field {
@@ -582,12 +610,6 @@ a {
   white-space: nowrap;
 }
 
-@media (max-width: 560px) {
-  .list-toolbar {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 9rem);
-  }
-}
-
 .select-toggle {
   display: inline-flex;
   flex-shrink: 0;
@@ -596,8 +618,8 @@ a {
   height: 2.25rem;
   padding: 0 0.9rem;
   border: 0;
-  border-radius: 999px;
-  background: var(--chip-bg);
+  border-radius: var(--radius-sm);
+  background: var(--soft-fill);
   color: var(--text-primary);
   font: inherit;
   font-size: 0.88rem;
@@ -608,10 +630,6 @@ a {
 .select-toggle.active {
   background: var(--accent-soft, color-mix(in srgb, var(--accent) 14%, transparent));
   color: var(--accent);
-}
-
-.acquisition-card {
-  position: relative;
 }
 
 .acquisition-card.picked {
@@ -704,25 +722,19 @@ a {
   margin-top: 0.35rem;
 }
 
-/* ---------- card meta and actions ---------- */
-
 .card-meta {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   color: var(--text-muted);
 }
 
-/* One look for every action on a card; the scene link is the accent one. */
+/* One quiet look for every action on a card. */
 .card-actions .primary-link,
 .card-actions .secondary-link,
 .card-actions .secondary-action {
-  border: 0;
-  background: var(--chip-bg);
+  border: 1px solid var(--border-subtle);
+  background: transparent;
   color: var(--text-primary);
-}
-
-.card-actions .primary-link {
-  color: var(--accent-text);
 }
 
 @media (max-width: 640px) {
@@ -757,4 +769,150 @@ a {
 .card-actions .secondary-link .pi {
   margin-right: 0.3rem;
   font-size: 0.72rem;
+}
+
+@media (max-width: 640px) {
+  /* More tabs off to the side: fade the edge so it reads as scrollable. */
+  .lifecycle-tabs {
+    mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+    padding-right: 1.5rem;
+  }
+
+  /* On a phone the cards are the panels: no second frame around them. */
+  .lifecycle-section {
+    --app-section-padding: 0;
+    --app-section-border: 0;
+    --app-section-bg: transparent;
+  }
+}
+
+.lifecycle-section {
+  --app-section-padding: 0;
+  --app-section-border: 0;
+  --app-section-bg: transparent;
+}
+
+.section-title-row h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.acquisition-card,
+.acquisition-card[data-state] {
+  grid-template-columns: minmax(120px, 176px) minmax(0, 1fr);
+  gap: 1rem;
+  padding: 0.9rem 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  box-shadow: none;
+}
+
+.acquisition-card + .acquisition-card {
+  border-top: 0;
+}
+
+.card-art-link {
+  align-self: start;
+}
+
+.card-art {
+  aspect-ratio: 16 / 9;
+}
+
+.card-title {
+  font-size: 1rem;
+}
+
+.primary-link,
+.secondary-link,
+.secondary-action {
+  border-radius: var(--radius-sm);
+}
+
+.primary-link:hover,
+.secondary-link:hover,
+.secondary-action:hover {
+  border-color: var(--border-strong);
+}
+
+.primary-link,
+.secondary-link,
+.secondary-action,
+.secondary-action.compact {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.lifecycle-tab {
+  background: none;
+}
+
+.lifecycle-tab.is-active {
+  background: none;
+  color: var(--text-primary);
+}
+
+.lifecycle-tab-count {
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .acquisition-card,
+  .acquisition-card[data-state] {
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+    gap: 0.75rem;
+    padding: 0.75rem 0;
+  }
+}
+
+.acquisition-card,
+.acquisition-card[data-state] {
+  row-gap: 0.65rem;
+  padding: 1.25rem 0;
+}
+
+.acquisition-card > .card-actions,
+.acquisition-card > .card-actions:is(*) {
+  grid-column: 2 / -1;
+  justify-content: flex-start;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .acquisition-card,
+  .acquisition-card[data-state] {
+    padding: 1.1rem 0;
+  }
+
+  .acquisition-card > .card-actions,
+  .acquisition-card > .card-actions:is(*) {
+    grid-column: 1 / -1;
+  }
+}
+
+.acquisition-card,
+.acquisition-card[data-state] {
+  padding: 0.9rem;
+}
+
+@media (max-width: 640px) {
+  .acquisition-card,
+  .acquisition-card[data-state] {
+    padding: 0.8rem;
+  }
+}
+
+/* The studio opens its page; it reads as text until you point at it. */
+.studio-link {
+  color: inherit;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
 }

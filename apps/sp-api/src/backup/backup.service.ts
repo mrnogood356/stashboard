@@ -1,3 +1,7 @@
+import { SmallerCopySettingsDto } from '../smaller-copies/smaller-copies.controller';
+import { SmallerCopiesService } from '../smaller-copies/smaller-copies.service';
+import { SchedulesBackupDto } from '../schedules/schedules.controller';
+import { SchedulesService } from '../schedules/schedules.service';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { IntegrationStatus, IntegrationType } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
@@ -72,6 +76,8 @@ interface Section<T extends object = object> {
   dto: new () => T;
   fields: readonly string[];
   secretFields?: readonly string[];
+  /** Fields where null is a setting ("no limit"), kept as such. */
+  nullableFields?: readonly string[];
   read(): Promise<Values>;
   /** Saves values the DTO's checks have passed. */
   write(values: T): Promise<unknown>;
@@ -110,6 +116,8 @@ export class BackupService {
     playback: PlaybackSettingsService,
     logs: LogsService,
     follows: FollowsService,
+    smallerCopies: SmallerCopiesService,
+    schedules: SchedulesService,
   ) {
     this.sections = [
       defineSection({
@@ -149,7 +157,7 @@ export class BackupService {
       }),
       defineSection({
         id: 'organizer',
-        label: 'Match & rename',
+        label: 'Match scenes and Rename files',
         dto: UpdateOrganizerSettingsDto,
         fields: [
           'renamePattern',
@@ -236,6 +244,54 @@ export class BackupService {
         write: (values) => logs.updateSettings(values),
       }),
       defineSection({
+        id: 'betterCopies',
+        label: 'Better copies',
+        dto: SmallerCopySettingsDto,
+        fields: [
+          'enabled',
+          'target',
+          'replaceHigher',
+          'upgradeLower',
+          'maxGbPerHour',
+          'minGbPerHour',
+          'maxNewGbPerHour',
+          'minNewGbPerHour',
+          'minSavingsPercent',
+          'codec',
+          'prefer',
+          'matchStrength',
+          'studioMode',
+          'studioNames',
+          'autoGrab',
+          'oldCopy',
+          'scenesPerHour',
+          'activeFromHour',
+          'activeToHour',
+        ],
+        nullableFields: [
+          'maxGbPerHour',
+          'minGbPerHour',
+          'maxNewGbPerHour',
+          'minNewGbPerHour',
+          'activeFromHour',
+          'activeToHour',
+        ],
+        read: async () => {
+          const { targetResolution, ...saved } =
+            await smallerCopies.getSettings();
+          return { ...saved, target: targetResolution };
+        },
+        write: (values) => smallerCopies.saveSettings(values),
+      }),
+      defineSection({
+        id: 'schedules',
+        label: 'Schedules',
+        dto: SchedulesBackupDto,
+        fields: ['schedules'],
+        read: async () => ({ ...(await schedules.exportForBackup()) }),
+        write: (values) => schedules.restoreFromBackup(values),
+      }),
+      defineSection({
         id: 'follows',
         label: 'Following',
         dto: FollowsBackupDto,
@@ -256,6 +312,7 @@ export class BackupService {
         section.fields.filter(
           (field) => includeSecrets || !section.secretFields?.includes(field),
         ),
+        section.nullableFields,
       );
       settings[section.id] = values;
     }
@@ -306,8 +363,8 @@ export class BackupService {
       }
       // Anything the file leaves out keeps its current value.
       const values = {
-        ...pick(await section.read(), section.fields),
-        ...pick(fromFile, section.fields),
+        ...pick(await section.read(), section.fields, section.nullableFields),
+        ...pick(fromFile, section.fields, section.nullableFields),
       };
       const checked = await check(section.dto, values);
       if (typeof checked === 'string') {
@@ -476,12 +533,19 @@ function readBackup(file: unknown): SettingsBackup['settings'] {
   return file.settings as SettingsBackup['settings'];
 }
 
-/** The named fields that have a value; null and undefined are left out. */
-function pick(values: Values, fields: readonly string[]): Values {
+/**
+ * The named fields that have a value; undefined is left out, and null too
+ * except for fields where null is a setting of its own.
+ */
+function pick(
+  values: Values,
+  fields: readonly string[],
+  nullable: readonly string[] = [],
+): Values {
   const picked: Values = {};
   for (const field of fields) {
     const value = values[field];
-    if (value !== undefined && value !== null) {
+    if (value !== undefined && (value !== null || nullable.includes(field))) {
       picked[field] = value;
     }
   }

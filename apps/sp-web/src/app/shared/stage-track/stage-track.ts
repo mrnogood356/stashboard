@@ -6,12 +6,7 @@ export interface Stage {
   state: 'done' | 'current' | 'failed' | 'todo';
 }
 
-export const STAGE_LABELS = [
-  'Requested',
-  'Downloading',
-  'Waiting for Stash',
-  'In library',
-] as const;
+export const STAGE_LABELS = ['Wanted', 'Downloading', 'Waiting for Stash', 'In library'] as const;
 
 /**
  * The four steps with where it is now. `at` is the step it's on (0–3);
@@ -58,11 +53,36 @@ export function stagesForStatus(state: SceneStatusState, queueState?: string | n
   }
 }
 
+/**
+ * The same four steps for a download Stashboard sent to SABnzbd, so Wanted
+ * and Downloads count the same way. A failure after the file was moved in
+ * stopped at Waiting for Stash; any other at Downloading.
+ */
+export function stagesForHandoff(stage: string, movedIn: boolean): Stage[] {
+  switch (stage) {
+    case 'queued':
+      return buildStages(0);
+    case 'downloading':
+    case 'unpacking':
+      return buildStages(1);
+    case 'moving':
+    case 'linking':
+      return buildStages(2);
+    case 'done':
+      return buildStages(3, { finished: true });
+    case 'ignored':
+      // You stopped watching it: no step is "failed".
+      return buildStages(-1);
+    default:
+      return buildStages(movedIn ? 2 : 1, { failed: true });
+  }
+}
+
 /** "Step 2 of 4 · Downloading", for where the step names don't fit. */
 export function stageNowText(stages: Stage[]): string {
   const index = stages.findIndex((stage) => stage.state === 'current' || stage.state === 'failed');
   if (index === -1) {
-    return stages.every((stage) => stage.state === 'done') ? 'In library' : 'Not requested';
+    return stages.every((stage) => stage.state === 'done') ? 'In library' : 'Not added';
   }
   const stage = stages[index];
   return `Step ${index + 1} of ${stages.length} · ${stage.label}${stage.state === 'failed' ? ' failed' : ''}`;
@@ -87,4 +107,9 @@ export function timeLeftText(value: string | null | undefined): string | null {
     return minutes > 0 ? `${hours} h ${minutes} min left` : `${hours} h left`;
   }
   return minutes > 0 ? `${minutes} min left` : 'Under a minute left';
+}
+
+/** "0.4", "7.5", "47": whole percent, or one decimal under 10%, never a long float. */
+export function percentText(progress: number): string {
+  return progress < 10 ? String(Math.round(progress * 10) / 10) : String(Math.round(progress));
 }

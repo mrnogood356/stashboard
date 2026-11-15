@@ -368,7 +368,7 @@ describe('ScenesService', () => {
     expect(result.items[0].localSceneId).toBeNull();
   });
 
-  it('reuses a catalog page for a minute, but not after a failure or a favorite change', async () => {
+  it('reuses a catalog page for a few minutes, but not after a failure or a favorite change', async () => {
     await service.getScenesFeed(1, 16, 'DATE', 'DESC', [], 'OR', 'STUDIO');
     await service.getScenesFeed(1, 16, 'DATE', 'DESC', [], 'OR', 'STUDIO');
     expect(stashdbAdapter.getScenesBySort).toHaveBeenCalledTimes(1);
@@ -388,6 +388,26 @@ describe('ScenesService', () => {
     await expect(service.getScenesFeed(2, 16)).rejects.toThrow('catalog down');
     await service.getScenesFeed(2, 16);
     expect(stashdbAdapter.getScenesBySort).toHaveBeenCalledTimes(5);
+  });
+
+  it('asks for the next page ahead, so scrolling on finds it ready', async () => {
+    const getScenesBySort = stashdbAdapter.getScenesBySort as jest.Mock;
+    getScenesBySort.mockResolvedValue({ total: 100, scenes: [] });
+    await service.getScenesFeed(1, 24, 'DATE', 'DESC', ['tag-1'], 'OR');
+    const pages = () =>
+      getScenesBySort.mock.calls.map(
+        (call: [{ page: number }]) => call[0].page,
+      );
+    expect(pages()).toEqual([1, 2]);
+
+    // Page 2 is the one already asked for; only page 3 is new.
+    await service.getScenesFeed(2, 24, 'DATE', 'DESC', ['tag-1'], 'OR');
+    expect(pages()).toEqual([1, 2, 3]);
+
+    // The last page has nothing after it.
+    getScenesBySort.mockClear();
+    await service.getScenesFeed(5, 24, 'DATE', 'DESC', ['tag-1'], 'OR');
+    expect(pages()).toEqual([5]);
   });
 
   it('drops a catalog page read while a favorite change was still in flight', async () => {

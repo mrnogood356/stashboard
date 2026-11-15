@@ -1,3 +1,7 @@
+import { isSignal } from '@angular/core';
+import { OrganizeStore } from './organize.store';
+import { OrganizeListStore } from './organize-list.store';
+import { OrganizeFilesStore } from './organize-files.store';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
@@ -70,7 +74,24 @@ const candidate = {
   reasons: ['Same video fingerprint'],
 };
 
-async function render(api: Record<string, unknown>, tab?: string) {
+/** The page's state, from whichever of its three stores holds it. */
+function stores(fixture: { debugElement: { injector: { get<T>(token: unknown): T } } }): any {
+  const all = [OrganizeStore, OrganizeListStore, OrganizeFilesStore].map((token) =>
+    fixture.debugElement.injector.get<Record<string, unknown>>(token),
+  );
+  return new Proxy(
+    {},
+    {
+      get: (_, key: string) => {
+        const owner = all.find((store) => key in store);
+        const value = owner?.[key];
+        return typeof value === 'function' && !isSignal(value) ? value.bind(owner) : value;
+      },
+    },
+  );
+}
+
+async function render(api: Record<string, unknown>, tab?: string, tool?: 'match' | 'rename') {
   const notifications = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
   await TestBed.configureTestingModule({
     imports: [OrganizePageComponent],
@@ -78,7 +99,15 @@ async function render(api: Record<string, unknown>, tab?: string) {
       provideRouter([]),
       {
         provide: OrganizerApiService,
-        useValue: { proposals: vi.fn().mockReturnValue(of([])), ...api },
+        useValue: {
+          proposals: vi.fn().mockReturnValue(of([])),
+          // Rename's To do count loads on open; tests that don't look at it
+          // still get an empty answer rather than a missing method.
+          preview: vi
+            .fn()
+            .mockReturnValue(of({ pattern: '', scanned: 0, counts: {}, changes: [], skipped: [] })),
+          ...api,
+        },
       },
       { provide: AppNotificationsService, useValue: notifications },
       {
@@ -103,6 +132,12 @@ async function render(api: Record<string, unknown>, tab?: string) {
     await router.navigateByUrl(`/?tab=${tab}`);
   }
   const fixture = TestBed.createComponent(OrganizePageComponent);
+  if (tool) {
+    // As /tools/match or /tools/rename would give it.
+    (fixture.componentInstance as unknown as { route: unknown }).route = {
+      snapshot: { data: { tool } },
+    };
+  }
   fixture.detectChanges();
   await fixture.whenStable();
   fixture.detectChanges();
@@ -252,6 +287,39 @@ describe('OrganizePageComponent', () => {
     expect(root.textContent).not.toContain('Studio.23.08.14.Title.mp4');
   });
 
+  it('keeps the newest lookup’s answer, and offers to try again when one fails', async () => {
+    const slow = new Subject<unknown>();
+    const lookup = vi
+      .fn()
+      .mockReturnValueOnce(slow)
+      .mockReturnValueOnce(of([{ sceneId: '7', searchedFor: 'Own', candidates: [candidate] }]))
+      .mockReturnValueOnce(throwError(() => ({ error: { message: 'StashDB is down' } })))
+      .mockReturnValue(of([{ sceneId: '7', searchedFor: null, candidates: [candidate] }]));
+    const api = {
+      settings: vi.fn().mockReturnValue(of(settings)),
+      unmatched: vi.fn().mockReturnValue(of({ total: 1, page: 1, hasMore: false, items: [scene] })),
+      lookup,
+    };
+    const { fixture, root } = await render(api);
+    const list = fixture.componentRef.injector.get(OrganizeListStore);
+
+    list.lookup(scene);
+    list.lookup(scene, 'Own');
+    // The first, slower answer arrives last: it doesn't replace the newer one.
+    slow.next([{ sceneId: '7', searchedFor: null, candidates: [] }]);
+    slow.complete();
+    expect(list.matchState('7')?.result?.searchedFor).toBe('Own');
+
+    list.lookup(scene);
+    fixture.detectChanges();
+    const retry = root.querySelector('[data-testid="lookup-retry"]') as HTMLButtonElement;
+    expect(retry).not.toBeNull();
+    retry.click();
+    fixture.detectChanges();
+    expect(lookup).toHaveBeenCalledTimes(4);
+    expect(list.matchState('7')?.error).toBeNull();
+  });
+
   it('picks scenes in the Match list and matches just those', async () => {
     const matchSelected = vi.fn().mockReturnValue(of({ ...idle, running: true, kind: 'match' }));
     const api = {
@@ -281,7 +349,7 @@ describe('OrganizePageComponent', () => {
       unmatched: vi.fn().mockReturnValue(of({ total: 0, page: 1, hasMore: false, items: [] })),
       update: vi.fn().mockReturnValue(of({ ...settings, autoMatchNightly: true })),
     };
-    const { root } = await render(api, 'settings');
+    const { root } = await render(api, 'settings', 'match');
     (root.querySelector('[role="switch"]') as HTMLButtonElement).click();
     expect(api.update).toHaveBeenCalledWith({ autoMatchNightly: true });
   });
@@ -321,7 +389,24 @@ describe('OrganizePageComponent', () => {
     });
     expect(root.textContent).toContain('No scenes match.');
     // The Overview still counts every unmatched scene, not the search.
-    expect((fixture.componentInstance as unknown as { total(): number }).total()).toBe(12);
+    expect(stores(fixture).total()).toBe(12);
+  });
+
+  it('opens the scene list already searched when Fix my library links here', async () => {
+    const api = {
+      settings: vi.fn().mockReturnValue(of(settings)),
+      unmatched: vi.fn().mockReturnValue(of({ total: 0, page: 1, hasMore: false, items: [] })),
+    };
+    const { root } = await render(api, 'review&q=Summer%20scene');
+
+    expect(api.unmatched).toHaveBeenCalledWith(1, {
+      q: 'Summer scene',
+      sort: 'added-desc',
+      scope: 'unmatched',
+    });
+    expect((root.querySelector('input[type="search"]') as HTMLInputElement).value).toBe(
+      'Summer scene',
+    );
   });
 
   it('shows the Whisparr folder mapping read-only and links to Settings to change it', async () => {
@@ -377,7 +462,7 @@ describe('OrganizePageComponent', () => {
       unmatched: vi.fn().mockReturnValue(of({ total: 0, page: 1, hasMore: false, items: [] })),
       update: vi.fn().mockReturnValue(of({ ...settings, hasTpdbKey: true })),
     };
-    const { fixture, root } = await render(api, 'settings');
+    const { fixture, root } = await render(api, 'settings', 'match');
     expect(root.querySelector('.source-list')?.textContent).toContain('FansDB');
     // Stash's scrapers aren't a step of matching; they're offered one scene at a time.
     expect(root.querySelector('.source-list')?.textContent).not.toContain('Stash’s scrapers');
@@ -442,7 +527,7 @@ describe('OrganizePageComponent', () => {
     fixture.detectChanges();
     expect(api.fixTaken).not.toHaveBeenCalled();
     button(root, 'Tap again to delete this copy').click();
-    expect(api.fixTaken).toHaveBeenCalledWith(['5']);
+    expect(api.fixTaken).toHaveBeenCalledWith(['5'], 'merge');
     expect(api.preview).toHaveBeenCalledTimes(2);
   });
 
@@ -587,7 +672,7 @@ describe('OrganizePageComponent', () => {
       '/data/stash content',
       '/data/scenes',
     ]);
-    tab(fixture, root, 'Overview');
+    tab(fixture, root, 'To do');
 
     expect(row(root, 'Empty folders')).toContain('2');
     openRow(fixture, root, 'Empty folders');
@@ -674,7 +759,7 @@ describe('OrganizePageComponent', () => {
       ),
     };
     const { fixture, root } = await render(api, 'settings');
-    const component = fixture.componentInstance as any;
+    const component = stores(fixture);
 
     component.setPattern('{studio}/{date} - {title}');
     component.setFolderPart('scenes/{studio}');
@@ -712,6 +797,29 @@ describe('OrganizePageComponent', () => {
       'Goes into its own folder: Summer Afternoon',
       'Adds Studio, WEBDL, 1080p',
     ]);
+    fixture.destroy();
+  });
+
+  it('saves an edited pattern before renaming one file, so it gets the name previewed', async () => {
+    const edited = '{studio}/{title}';
+    const update = vi.fn().mockReturnValue(of({ ...settings, renamePattern: edited }));
+    const rename = vi.fn().mockReturnValue(of({ moved: [{ to: '/data/x.mp4' }], failed: [] }));
+    const api = renameApi({
+      preview: vi.fn((pattern?: string) => of(renamePreview(pattern ?? settings.renamePattern))),
+      update,
+      rename,
+    });
+    const { fixture } = await render(api, 'rename');
+    const files = fixture.componentRef.injector.get(OrganizeFilesStore);
+
+    files.pattern.set(edited);
+    files.loadPreview();
+    expect(files.previewOutdated()).toBe(false);
+    files.renameOne('1');
+
+    expect(update).toHaveBeenCalledWith({ renamePattern: edited });
+    expect(update.mock.invocationCallOrder[0]).toBeLessThan(rename.mock.invocationCallOrder[0]);
+    expect(rename).toHaveBeenCalledWith(['1']);
     fixture.destroy();
   });
 
@@ -779,7 +887,7 @@ describe('OrganizePageComponent', () => {
   it('won’t rename with a pattern nobody previewed', async () => {
     const api = renameApi();
     const { fixture, root } = await render(api, 'rename');
-    const component = fixture.componentInstance as any;
+    const component = stores(fixture);
 
     component.setPattern('{performers}/{title}');
     fixture.detectChanges();
@@ -797,7 +905,7 @@ describe('OrganizePageComponent', () => {
     const second = new Subject<unknown>();
     const api = renameApi();
     const { fixture } = await render(api, 'rename');
-    const component = fixture.componentInstance as any;
+    const component = stores(fixture);
     api.preview.mockReturnValueOnce(first).mockReturnValueOnce(second);
 
     component.setPattern('{title}');
@@ -815,7 +923,7 @@ describe('OrganizePageComponent', () => {
   it('keeps following a run after one status check fails', async () => {
     const api = renameApi();
     const { fixture } = await render(api, 'rename');
-    const component = fixture.componentInstance as any;
+    const component = stores(fixture);
     vi.useFakeTimers();
     try {
       api.status
@@ -877,11 +985,24 @@ describe('OrganizePageComponent', () => {
       unmatched: vi
         .fn()
         .mockReturnValue(of({ total: 533, toMove: 0, page: 1, hasMore: false, items: [scene] })),
+      moveUnmatched: vi.fn().mockReturnValue(of({ ...idle, running: true, kind: 'unmatched' })),
+      status: vi.fn().mockReturnValue(of(idle)),
     };
-    const { root } = await render(api, 'overview');
+    const { fixture, root } = await render(api, 'review');
 
-    expect(row(root, 'Not matched yet')).toContain('533');
-    expect(row(root, 'Not matched yet')).not.toContain('to Unmatched');
+    expect(root.querySelector('.list-title')?.textContent).toContain('533');
+    expect(root.querySelector('[data-testid="move-unmatched"]')).toBeNull();
+    expect(root.querySelector('[data-testid="match-all"]')).not.toBeNull();
+
+    api.unmatched.mockReturnValue(
+      of({ total: 533, toMove: 12, page: 1, hasMore: false, items: [scene] }),
+    );
+    stores(fixture).loadScenes(1);
+    fixture.detectChanges();
+    expect(root.querySelector('.to-move')?.textContent).toContain('12 unmatched files');
+    (root.querySelector('[data-testid="move-unmatched"]') as HTMLButtonElement).click();
+    expect(api.moveUnmatched).toHaveBeenCalled();
+    fixture.destroy();
   });
 
   it('shows the whole new folder when a file moves to another library folder', async () => {
@@ -912,7 +1033,7 @@ describe('OrganizePageComponent', () => {
     api.preview.mockImplementation((pattern?: string) => of(renamePreview(pattern ?? '', 2)));
     const { fixture, root } = await render(api, 'settings');
     // Settings shows the names once they're worked out.
-    (fixture.componentInstance as any).loadPreview();
+    stores(fixture).loadPreview();
     fixture.detectChanges();
     vi.useFakeTimers();
     try {
@@ -954,8 +1075,8 @@ describe('OrganizePageComponent', () => {
     const update = vi.fn().mockReturnValue(of({ ...settings, renamePattern: '{studio}/{title}' }));
     const api = renameApi({ update });
     const { fixture, root, notifications } = await render(api, 'settings');
-    (fixture.componentInstance as any).loadPreview();
-    const component = fixture.componentInstance as any;
+    stores(fixture).loadPreview();
+    const component = stores(fixture);
     const previews = api.preview.mock.calls.length;
     const repairs = api.whisparrRepair.mock.calls.length;
     const relocations = api.whisparrRelocation.mock.calls.length;
@@ -981,7 +1102,7 @@ describe('OrganizePageComponent', () => {
     const saved = new Subject<unknown>();
     const api = renameApi({ update: vi.fn().mockReturnValue(saved) });
     const { fixture } = await render(api, 'rename');
-    const component = fixture.componentInstance as any;
+    const component = stores(fixture);
 
     component.setPattern('{studio}/{Scene Title}');
     component.savePattern();
@@ -1025,56 +1146,140 @@ describe('OrganizePageComponent', () => {
     }
   });
 
-  it('reloads the Match list and the Rename names after matching everything', async () => {
+  it('reloads the Match list after matching everything, and leaves renaming to Rename files', async () => {
     const api = renameApi({
       status: vi.fn().mockReturnValue(of({ ...idle, kind: 'match' })),
     });
-    const { fixture } = await render(api, 'rename');
-    const component = fixture.componentInstance as any;
+    const { fixture } = await render(api, 'review');
+    const component = stores(fixture);
     vi.useFakeTimers();
     try {
       const lists = api.unmatched.mock.calls.length;
-      const previews = api.preview.mock.calls.length;
       component.run.set({ ...idle, running: true, kind: 'match' });
       component.startPolling();
       vi.advanceTimersByTime(2_000);
       expect(api.unmatched).toHaveBeenCalledTimes(lists + 1);
-      expect(api.preview).toHaveBeenCalledTimes(previews + 1);
+      expect(api.preview).not.toHaveBeenCalled();
     } finally {
       fixture.destroy();
       vi.useRealTimers();
     }
   });
 
-  it('works out names again on the Overview after a scene is matched', async () => {
-    const api = {
-      ...renameApi(),
-      unmatched: vi.fn().mockReturnValue(of({ total: 1, page: 1, hasMore: false, items: [scene] })),
-      lookup: vi
-        .fn()
-        .mockReturnValue(of([{ sceneId: '7', searchedFor: null, candidates: [candidate] }])),
-      apply: vi.fn().mockReturnValue(of({ sceneId: '7', renamedTo: null })),
-    };
-    const { fixture, root } = await render(api);
-    tab(fixture, root, 'Overview');
-    fixture.detectChanges();
-    expect(api.preview).toHaveBeenCalledTimes(1);
-    tab(fixture, root, 'Review');
-    fixture.detectChanges();
-    tab(fixture, root, 'Overview');
-    fixture.detectChanges();
-    // Nothing changed: the names on screen still hold.
-    expect(api.preview).toHaveBeenCalledTimes(1);
+  it('shows Whisparr’s naming instead of a pattern to edit, and never offers to rename Whisparr’s files', async () => {
+    const api = renameApi({
+      settings: vi.fn().mockReturnValue(
+        of({
+          ...settings,
+          naming: {
+            source: 'whisparr',
+            pattern: '{Studio Title}/{Release Date} - {Scene Title}',
+            problem: null,
+          },
+        }),
+      ),
+    });
+    const { root } = await render(api, 'settings', 'rename');
+    const naming = root.querySelector('[data-testid="naming-from-whisparr"]');
+    expect(naming?.textContent).toContain('{Studio Title}/{Release Date} - {Scene Title}');
+    expect(root.querySelector('#rename-file')).toBeNull();
+    expect(root.textContent).toContain('Whisparr’s files are left alone');
+    expect(root.querySelector('[aria-label="Leave Whisparr’s files alone"]')).toBeNull();
+  });
 
-    tab(fixture, root, 'Review');
+  it('edits your own pattern when Whisparr’s naming can’t be used, saying why', async () => {
+    const api = renameApi({
+      settings: vi.fn().mockReturnValue(
+        of({
+          ...settings,
+          naming: {
+            source: 'own',
+            pattern: settings.renamePattern,
+            problem: 'Whisparr has no Standard Scene Format set.',
+          },
+        }),
+      ),
+    });
+    const { root } = await render(api, 'settings', 'rename');
+    expect(root.querySelector('[data-testid="naming-problem"]')?.textContent).toContain(
+      'no Standard Scene Format',
+    );
+    expect(root.querySelector('#rename-file')).not.toBeNull();
+  });
+
+  it('lists what Whisparr still wants, each with why it hasn’t gone', async () => {
+    const api = renameApi({
+      settings: vi
+        .fn()
+        .mockReturnValue(of({ ...settings, whisparrAvailable: true, missingInWhisparr: 2 })),
+      missingInWhisparr: vi.fn().mockReturnValue(
+        of([
+          {
+            stashId: 'sdb-1',
+            title: 'Angel',
+            studio: 'HeavenPOV',
+            reason: 'Whisparr ran the import but didn’t take it.',
+            triedAt: '2026-11-13T21:53:00Z',
+          },
+          { stashId: 'sdb-2', title: 'New One', studio: null, reason: null, triedAt: null },
+        ]),
+      ),
+    });
+    const { fixture, root } = await render(api, 'overview', 'rename');
+    (root.querySelector('[data-testid="missing-in-whisparr-why"]') as HTMLButtonElement).click();
     fixture.detectChanges();
-    button(root, 'Find match').click();
+    const list = root.querySelector('[data-testid="missing-in-whisparr"]')?.textContent ?? '';
+    expect(list).toContain('Angel');
+    expect(list).toContain('didn’t take it');
+    expect(list).toContain('Not tried yet');
+  });
+
+  it('says when the missing list is cut short, and offers a retry when it can’t be read', async () => {
+    const missingInWhisparr = vi
+      .fn()
+      .mockReturnValueOnce(throwError(() => new Error('down')))
+      .mockReturnValue(
+        of([{ stashId: 'sdb-1', title: 'Angel', studio: null, reason: null, triedAt: null }]),
+      );
+    const api = renameApi({
+      settings: vi
+        .fn()
+        .mockReturnValue(of({ ...settings, whisparrAvailable: true, missingInWhisparr: 201 })),
+      missingInWhisparr,
+    });
+    const { fixture, root } = await render(api, 'overview', 'rename');
+    (root.querySelector('[data-testid="missing-in-whisparr-why"]') as HTMLButtonElement).click();
     fixture.detectChanges();
-    button(root, 'This one').click();
+    const failed = root.querySelector('[data-testid="missing-in-whisparr-failed"]');
+    expect(failed?.textContent).toContain('Couldn’t read the list');
+    expect(root.querySelector('[data-testid="missing-in-whisparr"]')).toBeNull();
+
+    (failed?.querySelector('button') as HTMLButtonElement).click();
     fixture.detectChanges();
-    tab(fixture, root, 'Overview');
-    expect(api.preview).toHaveBeenCalledTimes(2);
-    fixture.destroy();
+    expect(root.querySelector('[data-testid="missing-in-whisparr"]')?.textContent).toContain(
+      'Angel',
+    );
+    expect(root.querySelector('[data-testid="missing-in-whisparr-more"]')?.textContent).toContain(
+      '200 more',
+    );
+  });
+
+  it('is two tools: Match scenes (Review, Settings) and Rename files (To do, Settings)', async () => {
+    const api = renameApi();
+    const match = await render(api, undefined, 'match');
+    const tabs = (root: HTMLElement) =>
+      Array.from(root.querySelectorAll('[role="tab"]')).map((el) => el.textContent?.trim());
+    expect(match.root.querySelector('h1')?.textContent).toBe('Match scenes');
+    expect(tabs(match.root)).toEqual(['Review', 'Settings']);
+    expect(api.preview).not.toHaveBeenCalled();
+    match.fixture.destroy();
+    TestBed.resetTestingModule();
+
+    const rename = await render(renameApi(), undefined, 'rename');
+    expect(rename.root.querySelector('h1')?.textContent).toBe('Rename files');
+    expect(tabs(rename.root)[0]).toMatch(/^To do/);
+    expect(tabs(rename.root)[1]).toBe('Settings');
+    rename.fixture.destroy();
   });
 
   it('puts back only the setting that failed to save', async () => {
@@ -1094,7 +1299,7 @@ describe('OrganizePageComponent', () => {
       update: vi.fn().mockReturnValue(saving),
     };
     const { fixture, root, notifications } = await render(api, 'settings');
-    const component = fixture.componentInstance as any;
+    const component = stores(fixture);
 
     button(root, 'Hardlink / copy').click();
     expect(component.settings().whisparrImportMode).toBe('copy');

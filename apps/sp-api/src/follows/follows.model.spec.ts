@@ -95,7 +95,7 @@ describe('describeCheck', () => {
   it('says what was found and requested', () => {
     expect(describeCheck(base)).toBe('No new scenes.');
     expect(describeCheck({ ...base, found: 3, requested: 2, failed: 1 })).toBe(
-      'Found 3 new scenes; requested 2; 1 couldn’t be requested.',
+      'Found 3 new scenes; added 2 to Wanted; 1 couldn’t be added.',
     );
     expect(describeCheck({ ...base, found: 1, errors: 1 })).toBe(
       'Found 1 new scene; 1 follow couldn’t be checked.',

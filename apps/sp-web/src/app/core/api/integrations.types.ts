@@ -102,11 +102,11 @@ export function integrationReadinessState(
 export function integrationReadinessLabel(state: ReadinessState): string {
   switch (state) {
     case 'NOT_SAVED':
-      return 'Not Saved';
+      return 'Not saved';
     case 'SAVED':
       return 'Saved';
     case 'TEST_FAILED':
-      return 'Test Failed';
+      return 'Test failed';
     case 'READY':
       return 'Ready';
   }

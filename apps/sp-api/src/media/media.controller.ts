@@ -2,10 +2,28 @@ import { Controller, Get, Param, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { normalizeThumbnailWidth } from './image-resize.util';
 import { MediaService } from './media.service';
+import { ArtworkColorService } from './artwork-color.service';
 
 @Controller('api/media')
 export class MediaController {
-  constructor(private readonly mediaService: MediaService) {}
+  constructor(
+    private readonly mediaService: MediaService,
+    private readonly artworkColor: ArtworkColorService,
+  ) {}
+
+  /** The vivid colour of a catalog picture, for the "Match the artwork" accent. */
+  @Get('accent')
+  async getAccent(
+    @Query('url') url: unknown,
+  ): Promise<{ color: string | null }> {
+    // One address only: ?url=a&url=b arrives as a list.
+    return {
+      color:
+        typeof url === 'string' && url
+          ? await this.artworkColor.colorOf(url.slice(0, 2048))
+          : null,
+    };
+  }
 
   @Get('stash/scenes/:sceneId/screenshot')
   async getStashSceneScreenshot(

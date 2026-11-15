@@ -66,13 +66,13 @@ const NOUN: Record<FollowKind, string> = { PERFORMER: 'performer', STUDIO: 'stud
       max-width: 100%;
       min-height: 2.25rem;
       padding: 0.3rem 0.85rem;
-      border-radius: 999px;
-      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
       background: transparent;
       color: var(--text-secondary);
       font: inherit;
       font-size: 0.86rem;
-      font-weight: 600;
+      font-weight: 500;
       cursor: pointer;
     }
 
@@ -81,9 +81,9 @@ const NOUN: Record<FollowKind, string> = { PERFORMER: 'performer', STUDIO: 'stud
     }
 
     .follow-toggle.active {
-      border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-      background: color-mix(in srgb, var(--accent) 14%, transparent);
-      color: var(--accent-text, var(--accent));
+      border-color: var(--border-strong);
+      background: var(--chip-bg);
+      color: var(--text-primary);
     }
 
     .follow-toggle:disabled {
