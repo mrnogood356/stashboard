@@ -844,6 +844,27 @@ describe('StashAdapter', () => {
       expect(sent()).toHaveLength(1);
     });
 
+    it('says once when a folder’s scan didn’t start, so it counts as a try', async () => {
+      const base = fetchMock.getMockImplementation()!;
+      fetchMock.mockImplementation(async (url, init) => {
+        if (String(init?.body).includes('metadataScan')) {
+          return new Response(JSON.stringify({ data: { metadataScan: null } }));
+        }
+        return base(url, init);
+      });
+      await expect(adapter.requestFolderScan(config, '/data/a')).resolves.toBe(
+        'waiting',
+      );
+      await settle();
+      await expect(
+        adapter.requestFolderScan(config, '/data/a'),
+      ).rejects.toThrow('didn’t start the scan');
+      // Said once: the next ask tries again.
+      await expect(adapter.requestFolderScan(config, '/data/a')).resolves.toBe(
+        'waiting',
+      );
+    });
+
     it('keeps different whole-library tasks apart while they wait', async () => {
       queue = [{ id: '9', status: 'READY' }];
       const scan = adapter.startLibraryTask(config, 'scan');

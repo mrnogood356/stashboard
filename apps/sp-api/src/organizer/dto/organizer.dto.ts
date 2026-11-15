@@ -180,9 +180,9 @@ export class PickedScenesDto {
 
 /** Taken files to fix, with the fix the preview showed and was agreed to. */
 export class FixTakenDto extends PickedScenesDto {
-  @IsOptional()
+  /** Required: nothing is merged or scanned without the fix the preview showed. */
   @IsIn(['scan', 'merge'])
-  fix?: 'scan' | 'merge';
+  fix!: 'scan' | 'merge';
 }
 
 /** Every unmatched scene, or just the picked ones. */
