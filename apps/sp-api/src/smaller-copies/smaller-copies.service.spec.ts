@@ -10,6 +10,7 @@ describe('SmallerCopiesService', () => {
   let settings: Record<string, unknown>;
   let attempts: Map<string, Record<string, unknown>>;
   let tries: Array<Record<string, unknown>>;
+  let handoffRows: Array<{ id: string; status: string; error: string | null }>;
   let files: Array<Record<string, unknown>>;
   let linked: Record<string, string | null>;
   let prisma: Record<string, Record<string, jest.Mock>>;
@@ -70,6 +71,7 @@ describe('SmallerCopiesService', () => {
     };
     attempts = new Map();
     tries = [];
+    handoffRows = [];
     files = [
       file('1'),
       file('2', { size: 9e9 }),
@@ -137,6 +139,13 @@ describe('SmallerCopiesService', () => {
         findUnique: jest.fn(({ where }: { where: { stashSceneId: string } }) =>
           Promise.resolve(attempts.get(where.stashSceneId) ?? null),
         ),
+        findFirst: jest.fn(({ where }: { where: { handoffId: string } }) =>
+          Promise.resolve(
+            [...attempts.values()].find(
+              (row) => row.handoffId === where.handoffId,
+            ) ?? null,
+          ),
+        ),
         updateMany: jest.fn(
           ({
             where,
@@ -145,20 +154,27 @@ describe('SmallerCopiesService', () => {
             where: {
               stashSceneId?: string;
               retryAfter?: { gt: Date };
-              outcome?: { not: string };
+              outcome?: { not: string } | string;
+              handoffId?: string;
             };
-            data: { retryAfter: Date };
+            data: Record<string, unknown>;
           }) => {
             let count = 0;
             for (const row of attempts.values()) {
+              const outcome = where.outcome;
               if (
                 (where.stashSceneId === undefined ||
                   row.stashSceneId === where.stashSceneId) &&
                 (!where.retryAfter ||
                   (row.retryAfter as Date) > where.retryAfter.gt) &&
-                (!where.outcome || row.outcome !== where.outcome.not)
+                (outcome === undefined ||
+                  (typeof outcome === 'string'
+                    ? row.outcome === outcome
+                    : row.outcome !== outcome.not)) &&
+                (where.handoffId === undefined ||
+                  row.handoffId === where.handoffId)
               ) {
-                row.retryAfter = data.retryAfter;
+                Object.assign(row, data);
                 count += 1;
               }
             }
@@ -176,7 +192,30 @@ describe('SmallerCopiesService', () => {
           });
           return Promise.resolve();
         }),
-        findMany: jest.fn(() => Promise.resolve([...tries].reverse())),
+        findMany: jest.fn(({ where }: { where?: { outcome?: string } } = {}) =>
+          Promise.resolve(
+            [...tries]
+              .reverse()
+              .filter(
+                (row) => !where?.outcome || row.outcome === where.outcome,
+              ),
+          ),
+        ),
+        update: jest.fn(
+          ({
+            where,
+            data,
+          }: {
+            where: { id: string };
+            data: Record<string, unknown>;
+          }) => {
+            Object.assign(
+              tries.find((row) => row.id === where.id)!,
+              data,
+            );
+            return Promise.resolve();
+          },
+        ),
         groupBy: jest.fn(() => {
           const counts = new Map<string, number>();
           for (const row of tries) {
@@ -199,7 +238,14 @@ describe('SmallerCopiesService', () => {
         ),
       },
       downloadHandoff: {
-        findMany: jest.fn().mockResolvedValue([]),
+        // Open replacements for dueOf; by id for settling the tried list.
+        findMany: jest.fn(({ where }: { where: { id?: { in: string[] } } }) =>
+          Promise.resolve(
+            where.id
+              ? handoffRows.filter((row) => where.id!.in.includes(row.id))
+              : [],
+          ),
+        ),
         findFirst: jest.fn().mockResolvedValue({ id: 'h9' }),
         count: jest.fn().mockResolvedValue(0),
       },
@@ -479,6 +525,8 @@ describe('SmallerCopiesService', () => {
 
   it('keeps every release it grabs in the tried list, with counts, through later searches', async () => {
     await service.tick(true);
+    // Its download is still going a month on.
+    handoffRows.push({ id: 'h9', status: 'downloading', error: null });
     now += 31 * 24 * 3600_000;
     downloads.searchReleases.mockResolvedValue({ releases: [] });
     await service.tick(true);
@@ -494,6 +542,49 @@ describe('SmallerCopiesService', () => {
     expect(status.tryCounts).toEqual({ grabbed: 1 });
     // The scene's own row has moved on; the tried list still has the grab.
     expect(attempts.get('2')).toMatchObject({ outcome: 'none-found' });
+  });
+
+  it('settles a grab whose download was dropped: failed, release kept skipped, scene due again', async () => {
+    await service.tick(true);
+    expect(attempts.get('2')).toMatchObject({
+      outcome: 'grabbed',
+      handoffId: 'h9',
+    });
+    const dueBefore = (await service.status()).due;
+
+    // SABnzbd forgot the job: Finished downloads stopped watching it.
+    handoffRows.push({ id: 'h9', status: 'ignored', error: null });
+    const status = await service.status();
+
+    expect(status.tries[0]).toMatchObject({
+      outcome: 'failed',
+      detail: expect.stringContaining('stopped watching') as unknown,
+    });
+    expect(status.tryCounts).toEqual({ failed: 1 });
+    expect(attempts.get('2')).toMatchObject({
+      outcome: 'failed',
+      grabbedGuids: ['g1'],
+    });
+    expect(status.due).toBe(dueBefore + 1);
+  });
+
+  it('takes the recorded outcome for a grab whose download came in', async () => {
+    await service.tick(true);
+    attempts.get('2')!.outcome = 'replaced';
+    attempts.get('2')!.detail = 'Deleted /lib/old.mkv.';
+    handoffRows.push({ id: 'h9', status: 'imported', error: null });
+    expect((await service.status()).tries[0]).toMatchObject({
+      outcome: 'replaced',
+      detail: 'Deleted /lib/old.mkv.',
+    });
+  });
+
+  it('leaves a grab whose download is still on its way', async () => {
+    await service.tick(true);
+    handoffRows.push({ id: 'h9', status: 'downloading', error: null });
+    expect((await service.status()).tries[0]).toMatchObject({
+      outcome: 'grabbed',
+    });
   });
 
   it('looks at a scene again on the next search when asked, still skipping releases tried', async () => {
