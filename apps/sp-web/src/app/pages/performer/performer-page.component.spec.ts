@@ -78,14 +78,17 @@ describe('PerformerPageComponent', () => {
     TestBed.resetTestingModule();
   });
 
-  async function renderPage(scene: DiscoverItem = buildScene()) {
+  async function renderPage(
+    scene: DiscoverItem = buildScene(),
+    performer: PerformerDetails = buildPerformer(),
+  ) {
     const paramMap$ = new BehaviorSubject(convertToParamMap({ performerId: 'performer-1' }));
     const queryParamMap$ = new BehaviorSubject(convertToParamMap({}));
     const discoverService = {
       getPerformerFacets: vi.fn(() =>
         of<SceneFacets>({ total: 0, scanned: 0, tags: [], studios: [] }),
       ),
-      getPerformerDetails: vi.fn().mockReturnValue(of(buildPerformer())),
+      getPerformerDetails: vi.fn().mockReturnValue(of(performer)),
       getPerformerScenesFeed: vi.fn().mockReturnValue(
         of({
           total: 1,
@@ -144,6 +147,61 @@ describe('PerformerPageComponent', () => {
 
     return { fixture, discoverService };
   }
+
+  it('shows one photo at a time, with arrows and a swipe to the others', async () => {
+    const images = ['a', 'b', 'c'].map((id) => ({ id, url: `http://cdn.local/${id}.jpg` }));
+    const { fixture } = await renderPage(buildScene(), buildPerformer({ images } as never));
+    const root = fixture.nativeElement as HTMLElement;
+    const photo = () =>
+      root.querySelector<HTMLImageElement>('[data-testid="performer-photo"] img')!.src;
+    const count = () => root.querySelector('[data-testid="photo-count"]')!.textContent?.trim();
+
+    expect(root.querySelectorAll('[data-testid="performer-photo"] img')).toHaveLength(1);
+    expect(photo()).toContain('/a.jpg');
+    expect(count()).toBe('1 / 3');
+
+    (root.querySelector('[data-testid="photo-next"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(photo()).toContain('/b.jpg');
+    (root.querySelector('[data-testid="photo-prev"]') as HTMLButtonElement).click();
+    (root.querySelector('[data-testid="photo-prev"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    // Back from the first wraps round to the last.
+    expect(photo()).toContain('/c.jpg');
+    expect(count()).toBe('3 / 3');
+
+    const swipe = (fromX: number, toX: number) => {
+      const target = root.querySelector('[data-testid="performer-photo"]')!;
+      for (const [type, x] of [
+        ['pointerdown', fromX],
+        ['pointerup', toX],
+      ] as const) {
+        const event = new Event(type) as PointerEvent;
+        Object.defineProperties(event, {
+          pointerType: { value: 'touch' },
+          clientX: { value: x },
+          clientY: { value: 100 },
+        });
+        target.dispatchEvent(event);
+      }
+      fixture.detectChanges();
+    };
+    swipe(200, 100);
+    expect(photo()).toContain('/a.jpg');
+    // A small move is a tap, not a swipe.
+    swipe(200, 190);
+    expect(photo()).toContain('/a.jpg');
+  });
+
+  it('shows no arrows for a performer with a single photo', async () => {
+    const { fixture } = await renderPage(
+      buildScene(),
+      buildPerformer({ images: [{ id: 'a', url: 'http://cdn.local/a.jpg' }] } as never),
+    );
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="photo-next"]')).toBeNull();
+    expect(root.querySelector('[data-testid="photo-count"]')).toBeNull();
+  });
 
   it('renders performer scenes with the shared scene card and keeps request handling on the page', async () => {
     const { fixture } = await renderPage();

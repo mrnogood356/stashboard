@@ -66,7 +66,7 @@ const INDEXING_JOB_DEFINITIONS: Record<string, JobDefinition> = {
     triggerJob: null,
   },
   'scene-index-request-rows': {
-    label: 'Your requests',
+    label: 'Wanted',
     purpose: 'Applies what you requested to each scene’s status.',
     cadence: 'With every sync',
     triggerJob: null,
@@ -127,7 +127,7 @@ export class IndexingSettingsPageComponent implements OnInit {
 
     return [
       {
-        label: 'Your requests',
+        label: 'Wanted',
         ok: status.freshness.requestRowsFresh,
       },
       {

@@ -586,6 +586,36 @@ describe('AcquisitionPageComponent', () => {
     expect(root.querySelector('[data-testid="handoff-h3"]')).toBeNull();
   });
 
+  it('keeps a queued card current while its hidden download moves on', async () => {
+    const queued = buildItem({
+      id: 'scene-queued',
+      status: { state: 'REQUESTED' },
+      queueState: null,
+    });
+    const { component, acquisitionService } = await renderPage({
+      responses: { ANY: buildResponse([queued]) },
+      handoffs: [handoff({ id: 'h-q', sceneId: 'scene-queued', stage: 'downloading' })],
+    });
+    acquisitionService.getScenesFeed.mockClear();
+
+    (component as unknown as { liveRefresh(): void }).liveRefresh();
+
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
+  });
+
+  it('doesn’t list a download again when its scene already has a card below', async () => {
+    const { fixture } = await renderPage({
+      handoffs: [handoff(), handoff({ id: 'h-dup', sceneId: 'scene-downloading' })],
+    });
+    const root = fixture.nativeElement as HTMLElement;
+
+    expect(root.querySelector('[data-testid="handoff-h1"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="handoff-h-dup"]')).toBeNull();
+    expect(root.querySelector('[data-testid="handoff-section"]')?.textContent).toContain(
+      '1 download',
+    );
+  });
+
   it('leaves downloads you started off the other tabs and searches', async () => {
     const { fixture, downloadsApi } = await renderPage({
       handoffs: [handoff()],

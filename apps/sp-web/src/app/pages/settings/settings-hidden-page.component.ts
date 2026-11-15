@@ -1,3 +1,4 @@
+import { HasUnsavedChanges } from '../../core/navigation/unsaved-changes.guard';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnDestroy, OnInit, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -30,7 +31,7 @@ const MAX_RESULTS = 8;
   templateUrl: './settings-hidden-page.component.html',
   styleUrls: ['./settings-hidden-page.component.scss', './settings-shared.scss'],
 })
-export class SettingsHiddenPageComponent implements OnInit, OnDestroy {
+export class SettingsHiddenPageComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   private readonly hiddenContent = inject(HiddenContentService);
   private readonly discover = inject(DiscoverService);
   private readonly searches = new Subject<{ kind: PickerKind; text: string }>();
@@ -96,6 +97,24 @@ export class SettingsHiddenPageComponent implements OnInit, OnDestroy {
     this.load();
   }
 
+  /** What's saved, to tell edits apart. */
+  private savedSnapshot: string | null = null;
+
+  hasUnsavedChanges(): boolean {
+    return this.savedSnapshot !== null && this.snapshot() !== this.savedSnapshot;
+  }
+
+  private snapshot(): string {
+    const ids = (items: HiddenItem[]) => items.map((item) => item.id).sort();
+    return JSON.stringify({
+      words: splitWords(this.wordsText()),
+      tags: ids(this.tags()),
+      studios: ids(this.studios()),
+      performers: ids(this.performers()),
+      hideOwned: this.hideOwned(),
+    });
+  }
+
   protected load(): void {
     this.loading.set(true);
     this.loadFailed.set(false);
@@ -107,6 +126,7 @@ export class SettingsHiddenPageComponent implements OnInit, OnDestroy {
         this.studios.set(settings.studios);
         this.performers.set(settings.performers ?? []);
         this.hideOwned.set(settings.hideOwned === true);
+        this.savedSnapshot = this.snapshot();
         this.loading.set(false);
       },
       error: () => {
@@ -187,6 +207,7 @@ export class SettingsHiddenPageComponent implements OnInit, OnDestroy {
           this.performers.set(saved.performers ?? []);
           this.hideOwned.set(saved.hideOwned === true);
           this.hideOwnedTouched = false;
+          this.savedSnapshot = this.snapshot();
           this.saving.set(false);
           this.status.set({ kind: 'ok', text: 'Saved. Lists use it from now on.' });
         },

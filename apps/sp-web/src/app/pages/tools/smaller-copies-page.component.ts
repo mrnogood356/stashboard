@@ -233,6 +233,9 @@ export class SmallerCopiesPageComponent implements OnInit {
       next: (data) => {
         this.searching.set(false);
         this.data.set(data);
+        if (data.notice) {
+          this.notifications.info('Nothing searched', data.notice);
+        }
       },
       error: () => {
         this.searching.set(false);

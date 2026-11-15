@@ -1774,6 +1774,14 @@ export class OrganizerService
   }
 
   /** Every file Whisparr has, as Stash sees it; none when Whisparr can't be asked. */
+  /** Where Whisparr keeps these scenes' files, as Stash sees the paths. */
+  async whisparrFilesFor(stashIds: string[]): Promise<string[]> {
+    const wanted = new Set(stashIds);
+    return (await this.whisparrFiles())
+      .filter((file) => wanted.has(file.stashId))
+      .map((file) => file.filePath);
+  }
+
   protected async whisparrFiles(): Promise<
     Array<{
       stashId: string;

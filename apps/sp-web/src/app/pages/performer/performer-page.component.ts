@@ -67,6 +67,9 @@ import {
   readableDate,
 } from './performer-facts';
 
+/** How far a finger moves sideways before it counts as a swipe. */
+const SWIPE_PX = 40;
+
 interface SelectedStudioChip {
   id: string;
   label: string;
@@ -579,6 +582,35 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
     }
 
     return images[index]?.url ?? null;
+  }
+
+  private photoTouch: { x: number; y: number } | null = null;
+
+  /** One photo back or on, wrapping round. */
+  protected stepPhoto(by: number): void {
+    const count = this.performer()?.images.length ?? 0;
+    if (count < 2) {
+      return;
+    }
+    this.activeImageIndex.set((this.activeImageIndex() + by + count) % count);
+  }
+
+  protected photoPointerDown(event: PointerEvent): void {
+    this.photoTouch = event.pointerType === 'touch' ? { x: event.clientX, y: event.clientY } : null;
+  }
+
+  /** A sideways swipe on the photo flips it; a tap or a scroll doesn't. */
+  protected photoPointerUp(event: PointerEvent): void {
+    const start = this.photoTouch;
+    this.photoTouch = null;
+    if (!start) {
+      return;
+    }
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      this.stepPhoto(dx < 0 ? 1 : -1);
+    }
   }
 
   protected setActiveImage(index: number): void {

@@ -311,4 +311,23 @@ describe('AppLockService', () => {
     expect(beacon).not.toHaveBeenCalled();
     Object.defineProperty(window, 'location', { configurable: true, value: original });
   });
+
+  it('doesn’t lock on pull to refresh or any other reload of the same page', async () => {
+    const reload = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...original, reload },
+    });
+    await load(status({ timeoutSeconds: 0 }));
+
+    service.reload();
+    window.dispatchEvent(new Event('pagehide'));
+    setVisibility('hidden');
+
+    expect(reload).toHaveBeenCalled();
+    expect(service.locked()).toBe(false);
+    expect(beacon).not.toHaveBeenCalled();
+    Object.defineProperty(window, 'location', { configurable: true, value: original });
+  });
 });

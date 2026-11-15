@@ -13,8 +13,13 @@ import {
   WhisparrImports,
 } from '../../core/api/download-handoff.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
-import { HANDOFF_STEPS, fileSize, relativeTime, stageLabel, stepIndex } from './processing.format';
-import { Stage, timeLeftText, percentText } from '../../shared/stage-track/stage-track';
+import { fileSize, relativeTime, stageLabel } from './processing.format';
+import {
+  Stage,
+  percentText,
+  stagesForHandoff,
+  timeLeftText,
+} from '../../shared/stage-track/stage-track';
 import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
 
 /** How often the page refreshes while it's on screen. */
@@ -57,7 +62,6 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
     }
   };
 
-  protected readonly steps = HANDOFF_STEPS;
   protected readonly data = signal<Processing | null>(null);
   protected readonly loadError = signal(false);
   protected readonly checking = signal(false);
@@ -227,27 +231,9 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
     return relativeTime(iso, this.now());
   }
 
-  /**
-   * A download's steps for the step track. A failure is shown where it
-   * stopped: at Waiting for Stash once it was moved in, else at Downloading.
-   */
+  /** A download's steps: the same four as on Wanted. */
   protected stages(entry: ProcessingHandoff): Stage[] {
-    const failed = entry.stage === 'failed';
-    const at = failed
-      ? stepIndex(entry.finalPath ? 'linking' : 'downloading')
-      : stepIndex(entry.stage);
-    const finished = entry.stage === 'done';
-    return this.steps.map((step, index) => ({
-      label: step.label,
-      state:
-        index < at || (finished && index <= at)
-          ? 'done'
-          : index === at
-            ? failed
-              ? 'failed'
-              : 'current'
-            : 'todo',
-    }));
+    return stagesForHandoff(entry.stage, !!entry.finalPath);
   }
 
   private run(

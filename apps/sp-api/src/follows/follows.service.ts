@@ -756,6 +756,29 @@ export class FollowsService {
       duration: scene.duration,
     };
 
+    // Already in Stash (under this id or one you said is the same scene):
+    // sending it to Whisparr would only download it again. Asked only when
+    // this follow would request it.
+    const owned =
+      requestsOnItsOwn &&
+      (!elsewhere || elsewhere.state === FollowedSceneState.NEW) &&
+      (await this.alreadyInLibrary(scene.id));
+    if (owned) {
+      const dismissed = {
+        state: FollowedSceneState.DISMISSED,
+        detail: 'Already in your library',
+      };
+      // Waiting for review under another follow: it isn't any more.
+      await this.prisma.followedScene.updateMany({
+        where: { sceneId: scene.id, state: FollowedSceneState.NEW },
+        data: dismissed,
+      });
+      await this.prisma.followedScene.create({
+        data: { ...base, ...dismissed },
+      });
+      return null;
+    }
+
     if (elsewhere) {
       if (!requestsOnItsOwn || elsewhere.state !== FollowedSceneState.NEW) {
         await this.prisma.followedScene.create({
@@ -778,6 +801,18 @@ export class FollowsService {
       : { state: FollowedSceneState.NEW, detail: null };
     await this.prisma.followedScene.create({ data: { ...base, ...outcome } });
     return { state: outcome.state };
+  }
+
+  /**
+   * Whether Stash has the scene now: the scene's status as every page sees
+   * it, which reads the index only while it's fresh and asks Stash otherwise.
+   * Can't tell: not in the library, so the follow does what it was set to.
+   */
+  private async alreadyInLibrary(sceneId: string): Promise<boolean> {
+    const status = await this.sceneStatus
+      .resolveForScene(sceneId)
+      .catch(() => null);
+    return status?.state === 'AVAILABLE';
   }
 
   /** Sends a found scene to Whisparr, saying why when it couldn't. */

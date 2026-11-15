@@ -12,7 +12,7 @@ import { YouMayEnjoyComponent } from '../../shared/you-may-enjoy/you-may-enjoy.c
 import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
 import {
   Stage,
-  buildStages,
+  stagesForHandoff,
   stagesForStatus,
   timeLeftText,
   percentText,
@@ -76,6 +76,8 @@ interface AcquisitionTab {
 /** A failed download you started stays on Requests this long. */
 const FAILED_HANDOFF_SHOWN_MS = 24 * 3600_000;
 /** While something is downloading, the list refreshes itself this often. */
+/** A download still on its way (not done, failed or stopped watching). */
+const ACTIVE_HANDOFF_STAGES = ['queued', 'downloading', 'unpacking', 'moving', 'linking'];
 const LIVE_REFRESH_MS = 15_000;
 /** The API sends at most 50 at once: up to two pages refresh as one. */
 const LIVE_REFRESH_MAX = 48;
@@ -156,6 +158,11 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
 
   /** In flight, or failed in the last day; SABnzbd's, so not in Whisparr's list. */
   protected readonly handoffs = signal<ProcessingHandoff[]>([]);
+  /** Downloads whose scene isn't already a card below, so nothing shows twice. */
+  protected readonly extraHandoffs = computed(() => {
+    const shown = new Set(this.items().map((item) => item.id));
+    return this.handoffs().filter((handoff) => !handoff.sceneId || !shown.has(handoff.sceneId));
+  });
   private handoffsRequest: Subscription | null = null;
 
   /** Only All and Downloading show them, and not while searching. */
@@ -209,21 +216,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
 
   /** The same four steps as a request, from where SABnzbd and Stashboard are. */
   protected handoffStages(handoff: ProcessingHandoff): Stage[] {
-    switch (handoff.stage) {
-      case 'queued':
-        return buildStages(0);
-      case 'downloading':
-      case 'unpacking':
-        return buildStages(1);
-      case 'moving':
-      case 'linking':
-        return buildStages(2);
-      case 'done':
-        return buildStages(3, { finished: true });
-      default:
-        // Failed after it was moved in: it stopped at Waiting for Stash.
-        return buildStages(handoff.finalPath ? 2 : 1, { failed: true });
-    }
+    return stagesForHandoff(handoff.stage, !!handoff.finalPath);
   }
 
   protected handoffProgressText(handoff: ProcessingHandoff): string | null {
@@ -236,9 +229,20 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   }
 
   private handoffsActive(): boolean {
-    return this.handoffs().some((handoff) =>
-      ['queued', 'downloading', 'unpacking', 'moving', 'linking'].includes(handoff.stage),
+    return this.handoffs().some((handoff) => ACTIVE_HANDOFF_STAGES.includes(handoff.stage));
+  }
+
+  /**
+   * A card on screen whose download (hidden behind the card) is on its way:
+   * the card's own step moves with it, so it's fetched again too.
+   */
+  private cardHasActiveHandoff(): boolean {
+    const active = new Set(
+      this.handoffs()
+        .filter((handoff) => handoff.sceneId && ACTIVE_HANDOFF_STAGES.includes(handoff.stage))
+        .map((handoff) => handoff.sceneId),
     );
+    return active.size > 0 && this.items().some((item) => active.has(item.id));
   }
   private readonly notifications = inject(AppNotificationsService);
   private readonly timelineApi = inject(TimelineApiService);
@@ -1110,7 +1114,8 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       this.selecting() ||
       this.selectedLifecycle() === 'AVAILABLE' ||
       (typeof document !== 'undefined' && document.visibilityState === 'hidden') ||
-      !this.items().some((item) => item.status.state === 'DOWNLOADING')
+      (!this.items().some((item) => item.status.state === 'DOWNLOADING') &&
+        !this.cardHasActiveHandoff())
     ) {
       return;
     }

@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   buildFollowedMessage,
@@ -230,10 +230,26 @@ describe('NotificationsService', () => {
     findUniqueMock.mockResolvedValue(
       enabledSettings({ channel: 'WEBHOOK', url: 'http://hook.local' }),
     );
-    fetchMock.mockResolvedValue({ ok: false, status: 500 });
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      headers: new Headers(),
+    });
+    (
+      service as unknown as { retryWait: (ms: number) => Promise<void> }
+    ).retryWait = () => Promise.resolve();
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
     await expect(
       service.notifySceneChanges([{ event: 'AVAILABLE', title: 'X' }]),
     ).resolves.toBeUndefined();
+    // Tried again once, then said why it couldn't.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('the server replied 500'),
+    );
+    warn.mockRestore();
   });
 
   it('still sends the other messages when one fails', async () => {
@@ -268,6 +284,33 @@ describe('NotificationsService', () => {
         notifyFailed: true,
       }),
     ).rejects.toThrow('the server replied 404');
+  });
+
+  it('tries once more when told to slow down, after the wait asked for', async () => {
+    const waits: number[] = [];
+    (
+      service as unknown as { retryWait: (ms: number) => Promise<void> }
+    ).retryWait = (ms) => {
+      waits.push(ms);
+      return Promise.resolve();
+    };
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        headers: new Headers({ 'retry-after': '3' }),
+      })
+      .mockResolvedValueOnce({ ok: true, status: 204 });
+    await service.sendTest({
+      enabled: true,
+      channel: 'DISCORD',
+      url: 'https://discord.com/api/webhooks/1/abc',
+      notifyDownloading: false,
+      notifyAvailable: true,
+      notifyFailed: true,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(waits).toEqual([3000]);
   });
 
   describe('followed releases', () => {

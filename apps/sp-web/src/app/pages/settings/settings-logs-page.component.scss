@@ -358,3 +358,8 @@ p {
 .pill.danger {
   background: transparent;
 }
+
+/* The search spans the row: a box half a phone wide cuts its own hint off. */
+.filter.search {
+  grid-column: 1 / -1;
+}

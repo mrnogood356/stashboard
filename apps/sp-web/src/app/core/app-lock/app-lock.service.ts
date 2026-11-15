@@ -254,6 +254,12 @@ export class AppLockService implements OnDestroy {
     window.location.assign(url);
   }
 
+  /** Reloads this page (pull to refresh, an update, a restore) without locking the app. */
+  reload(): void {
+    this.reloading = true;
+    window.location.reload();
+  }
+
   private onBackground(): void {
     if (this.reloading) {
       return;

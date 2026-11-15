@@ -216,6 +216,25 @@ describe('SmallerCopiesService', () => {
     expect(downloads.searchReleases).toHaveBeenCalledTimes(1);
   });
 
+  it('Search now still searches while Stash is busy, and says why when it can’t', async () => {
+    stash.getJobQueue.mockResolvedValue([{ id: '1', status: 'READY' }]);
+    await expect(service.tick()).resolves.toBe(
+      'Stash has jobs waiting in its queue.',
+    );
+    expect(downloads.searchReleases).not.toHaveBeenCalled();
+
+    // A tap: searching only asks Prowlarr, so a busy Stash doesn't stop it.
+    await expect(service.tick(true)).resolves.toBeNull();
+    expect(downloads.searchReleases).toHaveBeenCalledTimes(1);
+
+    // Replacements still coming in hold even a tap back, with the reason.
+    prisma.downloadHandoff.count.mockResolvedValue(2);
+    await expect(service.tick(true)).resolves.toContain(
+      '2 replacements are still on their way in',
+    );
+    expect(downloads.searchReleases).toHaveBeenCalledTimes(1);
+  });
+
   it('searches no faster than the hourly limit', async () => {
     await service.tick();
     now += 5 * 60_000;

@@ -41,6 +41,9 @@ const TAP_SLOP_PX = 80;
  */
 const REVEAL_GUARD_MS = 500;
 const IDLE_CHECK_MS = 15_000;
+/** A tap is a touch lifted this soon, without moving further than TAP_MOVE_PX: a flick or scroll isn't one. */
+const TAP_MAX_MS = 300;
+const TAP_MOVE_PX = 12;
 
 /**
  * Quick hide: one gesture covers the screen, pauses anything playing and
@@ -62,6 +65,8 @@ export class QuickHideService implements OnDestroy {
   private escAt = 0;
   private hiddenAt = 0;
   private taps: Array<{ at: number; x: number; y: number }> = [];
+  /** The touch that's down now, to tell a tap from a scroll when it lifts. */
+  private down: { id: number; at: number; x: number; y: number } | null = null;
   /** Takes the listeners and the idle timer away again. */
   private readonly stopListening = new AbortController();
   private idleTimer: number | null = null;
@@ -77,12 +82,32 @@ export class QuickHideService implements OnDestroy {
     const win = this.document.defaultView ?? window;
     const signal = this.stopListening.signal;
     win.addEventListener('keydown', (event) => this.onKey(event), { capture: true, signal });
-    win.addEventListener('pointerdown', (event) => this.onPointer(event), {
+    win.addEventListener('pointerdown', (event) => this.onPointerDown(event), {
       capture: true,
       passive: true,
       signal,
     });
-    for (const type of ['pointermove', 'wheel', 'scroll'] as const) {
+    win.addEventListener('pointerup', (event) => this.onPointerUp(event), {
+      capture: true,
+      passive: true,
+      signal,
+    });
+    // The browser took the touch over (a scroll): it was no tap, and the
+    // taps before it don't count either.
+    win.addEventListener(
+      'pointercancel',
+      () => {
+        this.down = null;
+        this.taps = [];
+      },
+      { capture: true, passive: true, signal },
+    );
+    win.addEventListener('pointermove', (event) => this.onPointerMove(event), {
+      capture: true,
+      passive: true,
+      signal,
+    });
+    for (const type of ['wheel', 'scroll'] as const) {
       win.addEventListener(type, () => this.touch(), { capture: true, passive: true, signal });
     }
     this.idleTimer = win.setInterval(() => this.checkIdle(), IDLE_CHECK_MS);
@@ -140,6 +165,11 @@ export class QuickHideService implements OnDestroy {
 
   /** For tests: the idle check, without waiting for its timer. */
   checkIdle(now = Date.now()): void {
+    // Watching something hands-free isn't being away.
+    if (this.somethingPlaying()) {
+      this.lastActivity = now;
+      return;
+    }
     const minutes = this.settings().idleMinutes;
     if (minutes > 0 && now - this.lastActivity >= minutes * 60_000) {
       this.obscuration.setMode('obscured');
@@ -171,12 +201,49 @@ export class QuickHideService implements OnDestroy {
     this.escAt = now;
   }
 
-  private onPointer(event: PointerEvent): void {
+  private onPointerDown(event: PointerEvent): void {
     this.touch();
-    if (!this.settings().gesture || event.pointerType !== 'touch' || this.hidden()) {
+    this.down =
+      event.pointerType === 'touch'
+        ? { id: event.pointerId, at: Date.now(), x: event.clientX, y: event.clientY }
+        : null;
+  }
+
+  /** A touch that wanders off is a drag, even if it comes back before letting go. */
+  private onPointerMove(event: PointerEvent): void {
+    this.touch();
+    const down = this.down;
+    if (
+      down &&
+      down.id === event.pointerId &&
+      Math.hypot(event.clientX - down.x, event.clientY - down.y) > TAP_MOVE_PX
+    ) {
+      this.down = null;
+      this.taps = [];
+    }
+  }
+
+  /** Three quick taps in one spot hide; scrolls and flicks never count. */
+  private onPointerUp(event: PointerEvent): void {
+    const down = this.down;
+    this.down = null;
+    if (
+      !down ||
+      down.id !== event.pointerId ||
+      !this.settings().gesture ||
+      event.pointerType !== 'touch' ||
+      this.hidden()
+    ) {
       return;
     }
     const now = Date.now();
+    if (
+      now - down.at > TAP_MAX_MS ||
+      Math.hypot(event.clientX - down.x, event.clientY - down.y) > TAP_MOVE_PX
+    ) {
+      this.taps = [];
+      return;
+    }
     const last = this.taps.at(-1);
     if (
       last &&
@@ -190,6 +257,13 @@ export class QuickHideService implements OnDestroy {
       this.taps = [];
       this.hide();
     }
+  }
+
+  private somethingPlaying(): boolean {
+    return Array.from(this.document.querySelectorAll('video, audio')).some((media) => {
+      const element = media as HTMLMediaElement;
+      return !element.paused && !element.ended;
+    });
   }
 }
 

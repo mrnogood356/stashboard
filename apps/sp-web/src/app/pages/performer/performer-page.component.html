@@ -25,7 +25,12 @@
 
       <div class="hero-layout">
         <div class="media-column">
-          <div class="carousel-main">
+          <div
+            class="carousel-main"
+            data-testid="performer-photo"
+            (pointerdown)="photoPointerDown($event)"
+            (pointerup)="photoPointerUp($event)"
+          >
             @if (activeCarouselImageUrl(); as activeImage) {
               <img [src]="activeImage" [alt]="performer.name" />
             } @else {
@@ -33,27 +38,33 @@
                 {{ performerInitial(performer.name) }}
               </div>
             }
-          </div>
 
-          @if (hasCarouselImages()) {
-            <div class="carousel-thumbs">
-              @for (image of performer.images; track image.id; let i = $index) {
-                <button
-                  type="button"
-                  class="thumb"
-                  [class.active]="activeImageIndex() === i"
-                  (click)="setActiveImage(i)"
+            @if (hasCarouselImages()) {
+              <button
+                type="button"
+                class="photo-step prev"
+                aria-label="Previous photo"
+                data-testid="photo-prev"
+                (click)="stepPhoto(-1)"
+              >
+                <i class="pi pi-chevron-left" aria-hidden="true"></i>
+              </button>
+              <button
+                type="button"
+                class="photo-step next"
+                aria-label="Next photo"
+                data-testid="photo-next"
+                (click)="stepPhoto(1)"
+              >
+                <i class="pi pi-chevron-right" aria-hidden="true"></i>
+              </button>
+              <div class="photo-bar" aria-live="polite">
+                <span class="photo-count" data-testid="photo-count"
+                  >{{ activeImageIndex() + 1 }} / {{ performer.images.length }}</span
                 >
-                  <img
-                    [src]="image.url"
-                    [alt]="performer.name + ' image ' + (i + 1)"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </button>
-              }
-            </div>
-          }
+              </div>
+            }
+          </div>
         </div>
 
         <div class="hero-info">
