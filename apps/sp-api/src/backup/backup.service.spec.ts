@@ -297,13 +297,25 @@ describe('BackupService', () => {
 
   it('restores Better copies’ “no limit” over limits set here', async () => {
     const { service, smallerCopies } = setup();
+    const here = await smallerCopies.getSettings();
     // The file's settings have no hours or size limits …
+    smallerCopies.getSettings.mockResolvedValueOnce({
+      ...here,
+      maxGbPerHour: null,
+      minGbPerHour: null,
+      maxNewGbPerHour: null,
+      minNewGbPerHour: null,
+      activeFromHour: null,
+      activeToHour: null,
+    });
     const file = await service.export(false);
-    // … and this server has some.
+    // … and this server has all of them.
     smallerCopies.getSettings.mockResolvedValue({
-      ...(await smallerCopies.getSettings()),
+      ...here,
       maxGbPerHour: 9,
       minGbPerHour: 2,
+      maxNewGbPerHour: 5,
+      minNewGbPerHour: 1,
       activeFromHour: 9,
       activeToHour: 17,
     });
@@ -312,8 +324,10 @@ describe('BackupService', () => {
 
     expect(smallerCopies.saveSettings).toHaveBeenCalledWith(
       expect.objectContaining({
-        maxGbPerHour: 6,
+        maxGbPerHour: null,
         minGbPerHour: null,
+        maxNewGbPerHour: null,
+        minNewGbPerHour: null,
         activeFromHour: null,
         activeToHour: null,
       }),
