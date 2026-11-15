@@ -194,6 +194,11 @@ export class SmallerCopiesService {
   }
 
   async status(): Promise<SmallerCopiesDto> {
+    await this.settleTries().catch((error: unknown) =>
+      this.logger.warn(
+        `Couldn't bring the tried list up to date: ${messageOf(error)}`,
+      ),
+    );
     const settings = await this.getSettings();
     const blocked = await this.blockedBy(settings);
     const candidates = settings.enabled
@@ -247,6 +252,95 @@ export class SmallerCopiesService {
         counts.map((row) => [row.outcome, row._count._all]),
       ),
     };
+  }
+
+  /**
+   * Tries still "on the way" whose download is no longer being watched are
+   * settled from what became of it. Imported: the outcome the swap recorded.
+   * Failed, stopped or lost: failed, with the release kept skipped and the
+   * scene due again, so another is looked for on the next search.
+   */
+  private async settleTries(): Promise<void> {
+    const open = await this.prisma.smallerCopyTry.findMany({
+      where: { outcome: 'grabbed' },
+    });
+    if (open.length === 0) {
+      return;
+    }
+    const ids = open.flatMap((row) => (row.handoffId ? [row.handoffId] : []));
+    const handoffs = new Map(
+      (
+        await this.prisma.downloadHandoff.findMany({
+          where: { id: { in: ids } },
+          select: { id: true, status: true, error: true },
+        })
+      ).map((row) => [row.id, row]),
+    );
+    for (const row of open) {
+      const handoff = row.handoffId ? handoffs.get(row.handoffId) : undefined;
+      if (
+        handoff &&
+        (OPEN_HANDOFF_STATUSES as string[]).includes(handoff.status)
+      ) {
+        continue;
+      }
+      // Just grabbed: give its download a moment to be written down.
+      if (!handoff && this.now() - row.createdAt.getTime() < HOUR) {
+        continue;
+      }
+      if (handoff?.status === 'imported') {
+        const attempt = await this.prisma.smallerCopyAttempt.findFirst({
+          where: { handoffId: row.handoffId },
+        });
+        const recorded =
+          attempt &&
+          (attempt.outcome === 'replaced' || attempt.outcome === 'kept-both');
+        // Only while still on its way: another call may have settled it.
+        await this.prisma.smallerCopyTry.updateMany({
+          where: { id: row.id, outcome: 'grabbed' },
+          data: recorded
+            ? { outcome: attempt.outcome, detail: attempt.detail }
+            : {
+                outcome: 'kept-both',
+                detail:
+                  'It came in, but how it was swapped wasn’t recorded; check the scene.',
+              },
+        });
+        continue;
+      }
+      const why =
+        handoff?.status === 'failed'
+          ? `The download failed: ${handoff.error ?? 'no reason given'}`
+          : handoff?.status === 'ignored'
+            ? 'Stashboard stopped watching the download (SABnzbd no longer listed it, or it was stopped).'
+            : 'Stashboard lost track of the download.';
+      const detail =
+        `${/[.!?]$/.test(why) ? why : `${why}.`} This release won’t be grabbed again; another is looked for next.`.slice(
+          0,
+          300,
+        );
+      // Both or neither: a try marked failed whose scene wasn't made due
+      // would never be looked at again until its old wait ran out.
+      await this.prisma.$transaction([
+        this.prisma.smallerCopyTry.updateMany({
+          where: { id: row.id, outcome: 'grabbed' },
+          data: { outcome: 'failed', detail },
+        }),
+        // The scene's own row, if it's still on this grab: due again now.
+        this.prisma.smallerCopyAttempt.updateMany({
+          where: {
+            stashSceneId: row.stashSceneId,
+            outcome: 'grabbed',
+            ...(row.handoffId ? { handoffId: row.handoffId } : {}),
+          },
+          data: {
+            outcome: 'failed',
+            detail,
+            retryAfter: new Date(this.now()),
+          },
+        }),
+      ]);
+    }
   }
 
   /**
@@ -342,6 +436,13 @@ export class SmallerCopiesService {
     }
     this.running = true;
     try {
+      // A grab whose download ended where nothing noted it (SABnzbd forgot
+      // it, it was stopped by hand): failed, and the scene is due again.
+      await this.settleTries().catch((error: unknown) =>
+        this.logger.warn(
+          `Couldn't bring the tried list up to date: ${messageOf(error)}`,
+        ),
+      );
       const settings = await this.getSettings();
       if (!settings.enabled) {
         return 'Better copies is switched off.';
