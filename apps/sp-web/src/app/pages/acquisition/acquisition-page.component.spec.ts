@@ -625,13 +625,20 @@ describe('AcquisitionPageComponent', () => {
     );
   });
 
-  it('leaves downloads you started off the other tabs and searches', async () => {
-    const { fixture, downloadsApi } = await renderPage({
-      handoffs: [handoff()],
+  it('leaves downloads you started off the other tabs and searches, but their cards still show them', async () => {
+    const queued = buildItem({
+      id: 'scene-queued',
+      status: { state: 'REQUESTED' },
+      queueState: null,
+    });
+    const { fixture } = await renderPage({
+      responses: { REQUESTED: buildResponse([queued]) },
+      handoffs: [handoff(), handoff({ id: 'h-q', sceneId: 'scene-queued', stage: 'downloading' })],
       queryParams: { lifecycle: 'REQUESTED' },
     });
-    expect(downloadsApi.processing).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.querySelector('[data-testid="handoff-section"]')).toBeNull();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="handoff-section"]')).toBeNull();
+    expect(stageStates(root, 'scene-queued')[1]).toBe('Downloading:current');
   });
 
   it('says where each card is now from one batched request, and opens the whole story on tap', async () => {

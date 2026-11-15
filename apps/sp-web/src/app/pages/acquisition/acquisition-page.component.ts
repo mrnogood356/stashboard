@@ -160,8 +160,16 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   protected readonly handoffs = signal<ProcessingHandoff[]>([]);
   /** Downloads whose scene isn't already a card below, so nothing shows twice. */
   protected readonly extraHandoffs = computed(() => {
+    if (!this.showsHandoffs()) {
+      return [];
+    }
     const shown = new Set(this.items().map((item) => item.id));
-    return this.handoffs().filter((handoff) => !handoff.sceneId || !shown.has(handoff.sceneId));
+    const downloading = this.selectedLifecycle() === 'DOWNLOADING';
+    return this.handoffs().filter(
+      (handoff) =>
+        (!handoff.sceneId || !shown.has(handoff.sceneId)) &&
+        (!downloading || ['queued', 'downloading', 'unpacking'].includes(handoff.stage)),
+    );
   });
   private handoffsRequest: Subscription | null = null;
 
@@ -186,28 +194,16 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     // A newer view wins over a request still in flight.
     this.handoffsRequest?.unsubscribe();
     this.handoffsRequest = null;
-    if (!this.showsHandoffs()) {
-      this.handoffs.set([]);
-      return;
-    }
-    const lifecycle = this.selectedLifecycle();
+    // Read in every view: the cards show where their downloads are, even
+    // where the downloads aren't listed on their own (Wanted, a search).
     this.handoffsRequest = this.downloadsApi.processing().subscribe({
       next: (processing) => {
-        if (this.selectedLifecycle() !== lifecycle || !this.showsHandoffs()) {
-          return;
-        }
         const since = Date.now() - FAILED_HANDOFF_SHOWN_MS;
         const active = processing.handoffs.filter((handoff) => handoff.stage !== 'ignored');
         const failed = processing.recentHandoffs.filter(
           (handoff) => handoff.stage === 'failed' && Date.parse(handoff.updatedAt) >= since,
         );
-        this.handoffs.set(
-          lifecycle === 'DOWNLOADING'
-            ? active.filter((handoff) =>
-                ['queued', 'downloading', 'unpacking'].includes(handoff.stage),
-              )
-            : [...active, ...failed],
-        );
+        this.handoffs.set([...active, ...failed]);
       },
       // Keep what is shown; the next refresh tries again.
       error: () => undefined,
