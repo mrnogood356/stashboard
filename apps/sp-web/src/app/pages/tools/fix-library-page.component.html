@@ -40,11 +40,11 @@
   </div>
 
   @if (kind() === 'unmatched' && items().length > 0) {
-    <a class="notice organizer-link" routerLink="/tools/organize">
+    <a class="notice organizer-link" routerLink="/tools/match">
       <i class="pi pi-link" aria-hidden="true"></i>
       <span
         ><strong>Identify didn’t find them?</strong> Pick searches StashDB by file name and lets you
-        choose the match, in Match &amp; rename.</span
+        choose the match, in Match scenes.</span
       >
       <i class="pi pi-chevron-right" aria-hidden="true"></i>
     </a>
@@ -105,8 +105,8 @@
               <a
                 class="btn small ghost"
                 data-testid="match-by-hand"
-                routerLink="/tools/organize"
-                [queryParams]="{ tab: 'review', q: item.title }"
+                routerLink="/tools/match"
+                [queryParams]="{ q: item.title }"
                 [attr.aria-label]="'Match ' + item.title + ' by hand'"
               >
                 <i class="pi pi-search" aria-hidden="true"></i><span class="label">Pick</span>

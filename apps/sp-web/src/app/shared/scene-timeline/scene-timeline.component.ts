@@ -41,7 +41,7 @@ const STATUS_ICON: Record<TimelineStepStatus, string> = {
 
 /** Where an action that's a page in Stashboard goes. */
 const ACTION_LINK: Partial<Record<TimelineAction['kind'], string>> = {
-  'check-matches': '/tools/organize',
+  'check-matches': '/tools/match',
   scan: '/tools/jobs',
   generate: '/tools/jobs',
 };

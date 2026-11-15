@@ -172,7 +172,7 @@ describe('SceneTimelineComponent', () => {
     expect(root.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('42');
     const link = root.querySelector<HTMLAnchorElement>('a.timeline-action');
     expect(link?.textContent).toContain('Check these matches');
-    expect(link?.getAttribute('href')).toBe('/tools/organize');
+    expect(link?.getAttribute('href')).toBe('/tools/match');
   });
 
   it('says which sources couldn’t be asked', async () => {

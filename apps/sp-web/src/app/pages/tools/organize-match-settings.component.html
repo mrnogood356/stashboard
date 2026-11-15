@@ -1,0 +1,142 @@
+<!-- Match scenes → Settings: when and where matches are looked for. -->
+@if (store.settings(); as settings) {
+  <section class="card panel">
+    <div class="card-head">
+      <div class="card-copy">
+        <h2>Matching</h2>
+        <p class="muted">When Stashboard looks for matches, and what happens to the rest.</p>
+      </div>
+    </div>
+    <div class="switch-row">
+      <span class="row-copy">
+        <strong>Every night</strong>
+        <small
+          >Looks again every night (4 AM unless changed in
+          <a routerLink="/tools/schedules">Schedules</a>), as StashDB keeps adding scenes. What it
+          finds waits for you here.</small
+        >
+      </span>
+      <button
+        type="button"
+        class="switch"
+        [class.on]="settings.autoMatchNightly"
+        aria-label="Every night"
+        role="switch"
+        [attr.aria-checked]="settings.autoMatchNightly"
+        [disabled]="store.saving() !== null"
+        (click)="store.toggle('autoMatchNightly')"
+      ></button>
+    </div>
+    <div class="switch-row">
+      <span class="row-copy">
+        <strong>Move what’s left to “Unmatched”</strong>
+        <small
+          >After Match all, files nothing could match go into an Unmatched folder in your library.
+          Stash moves them itself, so scenes, plays and markers stay. Undo puts them back.</small
+        >
+      </span>
+      <button
+        type="button"
+        class="switch"
+        [class.on]="settings.moveUnmatched"
+        aria-label="Move what’s left to “Unmatched”"
+        role="switch"
+        [attr.aria-checked]="settings.moveUnmatched"
+        [disabled]="store.saving() !== null"
+        (click)="store.toggle('moveUnmatched')"
+      ></button>
+    </div>
+  </section>
+}
+
+@if (store.settings(); as settings) {
+  <section class="card panel sources">
+    <div class="card-head">
+      <div class="card-copy">
+        <h2>Where matches come from</h2>
+        <p class="muted">
+          Each scene is checked in this order. Every stash-box you add in Stash shows up here on its
+          own.
+        </p>
+      </div>
+    </div>
+    <ol class="source-list">
+      @for (source of settings.sources; track source.name; let i = $index) {
+        <li>
+          <span class="source-num">{{ i + 1 }}</span>
+          <i class="pi" [class]="'pi ' + store.sourceIcon(source.kind)" aria-hidden="true"></i>
+          <span class="source-name">{{ source.name }}</span>
+          <span class="muted small">{{
+            source.kind === 'catalog' ? 'Main catalog' : 'From Stash'
+          }}</span>
+        </li>
+      } @empty {
+        <li class="muted small">No sources yet. Set up StashDB in Settings → Integrations.</li>
+      }
+    </ol>
+
+    @if (!settings.hasTpdbKey && !store.hasTpdbSource(settings)) {
+      @if (store.tpdbEditing()) {
+        <form
+          class="own-search"
+          (submit)="$event.preventDefault(); store.saveTpdbKey(tpdbKey.value)"
+        >
+          <label class="sr-only" for="tpdb-key">ThePornDB API key</label>
+          <input
+            #tpdbKey
+            id="tpdb-key"
+            type="password"
+            autocomplete="off"
+            placeholder="ThePornDB API key"
+          />
+          <button type="submit" class="btn small primary" [disabled]="store.saving() !== null">
+            Add
+          </button>
+        </form>
+        <p class="muted small">Find it on theporndb.net under your profile → API Tokens.</p>
+      } @else {
+        <button type="button" class="link" (click)="store.tpdbEditing.set(true)">
+          + Add ThePornDB
+        </button>
+      }
+    } @else if (settings.hasTpdbKey) {
+      <button
+        type="button"
+        class="link danger-link"
+        [disabled]="store.saving() !== null"
+        (click)="store.saveTpdbKey('')"
+      >
+        Remove ThePornDB key
+      </button>
+    }
+
+    <div class="switch-row">
+      <span class="row-copy">
+        <strong>Offer Stash’s scrapers</strong>
+        <small
+          >Adds “Try Stash’s scrapers” to scenes nothing else found. Stash saves what its scrapers
+          return straight away, so it runs one scene at a time, only when you ask.</small
+        >
+      </span>
+      <button
+        type="button"
+        class="switch"
+        [class.on]="settings.useStashScrapers"
+        aria-label="Use Stash’s scrapers too"
+        role="switch"
+        [attr.aria-checked]="settings.useStashScrapers"
+        [disabled]="store.saving() !== null"
+        (click)="store.toggle('useStashScrapers')"
+      ></button>
+    </div>
+    @if (settings.useStashScrapers) {
+      <p class="muted small scraper-names">
+        {{
+          settings.scrapers.length
+            ? 'Scrapers that can read a file: ' + settings.scrapers.join(', ')
+            : 'Stash has no scrapers that can read a file. Add some in Stash under Settings → Metadata Providers.'
+        }}
+      </p>
+    }
+  </section>
+}

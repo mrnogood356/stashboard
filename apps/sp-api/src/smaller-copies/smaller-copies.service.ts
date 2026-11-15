@@ -39,6 +39,8 @@ const LONG_WAIT = 30 * DAY;
 const FAILED_WAIT = DAY;
 /** The library's files are read again at most this often. */
 const FILES_TTL = HOUR;
+/** Replacements being brought in at once, at most. */
+const MAX_ON_THE_WAY = 2;
 
 export interface SmallerCopySettingsInput extends SmallerCopyRules {
   enabled: boolean;
@@ -282,6 +284,10 @@ export class SmallerCopiesService {
       ) {
         return;
       }
+      // Never more work for Stash while it's behind: its queue first.
+      if (await this.waitingOnStash()) {
+        return;
+      }
       const due = await this.dueOf(await this.candidates(settings));
       // Scenes with no catalog link cost no search: noted, and the next one tried.
       for (const candidate of due.slice(0, 50)) {
@@ -295,6 +301,31 @@ export class SmallerCopiesService {
     } finally {
       this.running = false;
     }
+  }
+
+  /**
+   * Stash is behind (a job waits its turn in its queue), or replacements are
+   * still being brought in: each one means a scan, a Generate and an
+   * Identify, so no new search until they've gone through.
+   */
+  private async waitingOnStash(): Promise<boolean> {
+    const config = await this.handoff.stashConfig();
+    if (!config || !this.stash) {
+      return true;
+    }
+    const queue = await this.stash.getJobQueue(config).catch(() => null);
+    if (!queue || queue.some((job) => job.status === 'READY')) {
+      return true;
+    }
+    const onTheWay = await this.prisma.downloadHandoff
+      .count({
+        where: {
+          replacesStashSceneId: { not: null },
+          status: { in: OPEN_HANDOFF_STATUSES },
+        },
+      })
+      .catch(() => MAX_ON_THE_WAY);
+    return onTheWay >= MAX_ON_THE_WAY;
   }
 
   /** Searches for one scene; false when it couldn't be searched at all (no catalog link). */

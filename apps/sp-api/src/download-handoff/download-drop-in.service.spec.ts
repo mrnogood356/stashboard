@@ -197,6 +197,7 @@ describe('DownloadDropInService', () => {
     stash = {
       getLibraryRoots: jest.fn().mockResolvedValue([library]),
       scanLibraryFolders: jest.fn().mockResolvedValue('job-1'),
+      requestFolderScan: jest.fn().mockResolvedValue('job-1'),
       waitForJob: jest.fn().mockResolvedValue('FINISHED'),
       sceneIdsForPaths: jest.fn().mockResolvedValue(['88']),
       startLibraryTask: jest.fn().mockResolvedValue('job-2'),
@@ -259,9 +260,10 @@ describe('DownloadDropInService', () => {
     expect(await exists(source)).toBe(false);
     expect(await exists(placed)).toBe(true);
     // Stash scans just that folder and finds the scene by its exact path.
-    expect(stash.scanLibraryFolders).toHaveBeenCalledWith(expect.anything(), [
+    expect(stash.requestFolderScan).toHaveBeenCalledWith(
+      expect.anything(),
       destination,
-    ]);
+    );
     expect(stash.sceneIdsForPaths).toHaveBeenCalledWith(expect.anything(), [
       placed,
     ]);

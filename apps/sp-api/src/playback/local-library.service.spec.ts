@@ -198,10 +198,12 @@ describe('LocalLibraryService', () => {
     await expect(service.generateFor(['4', '5'])).resolves.toEqual({
       jobId: '7',
     });
-    expect(stash.startLibraryTask).toHaveBeenCalledWith(config, 'generate', [
-      '4',
-      '5',
-    ]);
+    expect(stash.startLibraryTask).toHaveBeenCalledWith(
+      config,
+      'generate',
+      ['4', '5'],
+      { now: true },
+    );
     await expect(service.generateFor([])).rejects.toThrow(
       'Pick at least one scene',
     );

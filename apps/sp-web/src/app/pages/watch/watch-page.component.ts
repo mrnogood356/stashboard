@@ -14,6 +14,7 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type Hls from 'hls.js';
+import { releaseVideo } from '../../core/playback/release-video.util';
 import { PlaybackInfo, PlaybackService, SceneMarker } from '../../core/api/playback.service';
 import { LocalLibraryService, LocalSceneCard } from '../../core/api/local-library.service';
 import { AppLockService } from '../../core/app-lock/app-lock.service';
@@ -289,10 +290,34 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     this.stopSaveTimer();
     this.clearTimer(this.hideTimer);
     this.clearTimer(this.refreshTimer);
+    // Stop it before letting the stream go: on an iPhone a video taken off
+    // the page keeps playing in the background.
+    this.videoRef?.nativeElement.pause();
     this.destroyHls();
+    releaseVideo(this.videoRef?.nativeElement);
     this.cleanup.forEach((dispose) => dispose());
     if ('mediaSession' in navigator) {
-      navigator.mediaSession.metadata = null;
+      const session = navigator.mediaSession;
+      session.metadata = null;
+      // The lock screen and headphone buttons stop pointing at this video.
+      for (const action of [
+        'play',
+        'pause',
+        'seekbackward',
+        'seekforward',
+        'seekto',
+      ] as MediaSessionAction[]) {
+        try {
+          session.setActionHandler(action, null);
+        } catch {
+          // Not every browser supports every action.
+        }
+      }
+      try {
+        session.playbackState = 'none';
+      } catch {
+        // Older browsers have no playbackState.
+      }
     }
     this.unlockOrientation();
   }

@@ -5,7 +5,7 @@ import {
   nameKey,
   type SimilarTagGroup,
   cannotBeOne,
-  splitUnmergeable,
+  groupMergeCandidates,
 } from './tag-cleanup.util';
 import type {
   StashBackgroundProblemKind,
@@ -520,10 +520,12 @@ export class LocalLibraryService {
       throw new BadRequestException('Pick at least one scene to identify.');
     }
     const config = await this.playback.getStashConfig();
+    // You asked: it goes in Stash's queue now.
     const jobId = await this.stash.startLibraryTask(
       config,
       'identify',
       sceneIds,
+      { now: true },
     );
     this.logger.log(
       `Asked Stash to identify ${sceneIds.length} scene(s)${jobId ? ` (job ${jobId})` : ''}.`,
@@ -544,9 +546,18 @@ export class LocalLibraryService {
     return this.stash.getJobQueue(config);
   }
 
-  async startJob(task: StashLibraryTask): Promise<{ jobId: string | null }> {
+  /**
+   * One of Stash's library tasks. From Stash jobs it goes in Stash's queue
+   * now; from a schedule (`now` false) it waits until Stash's queue has room.
+   */
+  async startJob(
+    task: StashLibraryTask,
+    options: { now?: boolean } = { now: true },
+  ): Promise<{ jobId: string | null }> {
     const config = await this.playback.getStashConfig();
-    const jobId = await this.stash.startLibraryTask(config, task);
+    const jobId = await this.stash.startLibraryTask(config, task, undefined, {
+      now: options.now ?? true,
+    });
     this.logger.log(
       `Started Stash’s ${JOB_NAMES[task]}${jobId ? ` (job ${jobId})` : ''}.`,
     );
@@ -569,6 +580,7 @@ export class LocalLibraryService {
       config,
       'generate',
       sceneIds,
+      { now: true },
     );
     this.logger.log(
       `Started Stash’s Generate for ${sceneIds.length} scene${sceneIds.length === 1 ? '' : 's'}${jobId ? ` (job ${jobId})` : ''}.`,
@@ -630,19 +642,7 @@ export class LocalLibraryService {
   ): Promise<MergeCandidatesDto> {
     const config = await this.playback.getStashConfig();
     const all = await this.stash.listForMerge(config, kind);
-    const byId = new Map(all.map((item) => [item.id, item]));
-    const groups = groupSimilarTags(
-      all.map(({ id, name, aliases, sceneCount }) => ({
-        id,
-        name,
-        aliases,
-        sceneCount,
-      })),
-      nameKey,
-    ).flatMap((group) =>
-      // Same name, but not if StashDB or Stash itself tells them apart.
-      splitUnmergeable(group.tags.map((tag) => byId.get(tag.id)!)),
-    );
+    const groups = groupMergeCandidates(all);
     const words = nameKey(typeof query === 'string' ? query.slice(0, 100) : '');
     const matches = words
       ? all

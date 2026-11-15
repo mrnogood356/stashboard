@@ -14,7 +14,7 @@ describe('SmallerCopiesService', () => {
   let prisma: Record<string, Record<string, jest.Mock>>;
   let downloads: { searchReleases: jest.Mock; grabRelease: jest.Mock };
   let handoff: { stashConfig: jest.Mock; isActive: jest.Mock };
-  let stash: { listLibraryFiles: jest.Mock };
+  let stash: { listLibraryFiles: jest.Mock; getJobQueue: jest.Mock };
   let service: SmallerCopiesService;
   let now: number;
 
@@ -146,6 +146,7 @@ describe('SmallerCopiesService', () => {
       downloadHandoff: {
         findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn().mockResolvedValue({ id: 'h9' }),
+        count: jest.fn().mockResolvedValue(0),
       },
     };
     downloads = {
@@ -162,7 +163,10 @@ describe('SmallerCopiesService', () => {
         .mockResolvedValue({ baseUrl: 'http://stash:9999' }),
       isActive: jest.fn().mockResolvedValue(true),
     };
-    stash = { listLibraryFiles: jest.fn(() => Promise.resolve(files)) };
+    stash = {
+      listLibraryFiles: jest.fn(() => Promise.resolve(files)),
+      getJobQueue: jest.fn().mockResolvedValue([]),
+    };
     const catalog = {
       getInstanceCatalogProvider: jest
         .fn()
@@ -195,6 +199,21 @@ describe('SmallerCopiesService', () => {
     });
     // Scene 3 is already 1080p, so it's no candidate.
     expect((await service.status()).candidates).toBe(2);
+  });
+
+  it('searches nothing while Stash is behind, or two replacements are still coming in', async () => {
+    stash.getJobQueue.mockResolvedValue([{ id: '1', status: 'READY' }]);
+    await service.tick();
+    expect(downloads.searchReleases).not.toHaveBeenCalled();
+
+    stash.getJobQueue.mockResolvedValue([{ id: '1', status: 'RUNNING' }]);
+    prisma.downloadHandoff.count.mockResolvedValue(2);
+    await service.tick();
+    expect(downloads.searchReleases).not.toHaveBeenCalled();
+
+    prisma.downloadHandoff.count.mockResolvedValue(1);
+    await service.tick();
+    expect(downloads.searchReleases).toHaveBeenCalledTimes(1);
   });
 
   it('searches no faster than the hourly limit', async () => {

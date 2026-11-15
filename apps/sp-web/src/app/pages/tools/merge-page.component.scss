@@ -158,3 +158,13 @@
   display: grid;
   gap: 0.5rem;
 }
+
+.why {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+
+  &.weak {
+    color: var(--warning-text, var(--text-muted));
+  }
+}

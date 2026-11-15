@@ -97,7 +97,13 @@ export interface OrganizerRun {
 }
 
 export interface OrganizerSettings {
+  /** Your own pattern: used without Whisparr, or when its naming can't be. */
   renamePattern: string;
+  /**
+   * What renames use: Whisparr's own naming when it's set up, else
+   * renamePattern; problem says why Whisparr's couldn't be used.
+   */
+  naming?: { pattern: string; source: 'whisparr' | 'own'; problem: string | null };
   renameRoot: string;
   libraryRoots: string[];
   renameAfterMatch: boolean;
@@ -401,7 +407,10 @@ export class OrganizerApiService {
   }
 
   /** Scans what Stash doesn't know, or merges and drops the extra copy, for these "taken" files. */
-  fixTaken(sceneIds: string[]): Observable<{
+  fixTaken(
+    sceneIds: string[],
+    fix?: 'scan' | 'merge',
+  ): Observable<{
     scanned: number;
     merged: number;
     skipped: Array<{ sceneId: string; reason: string }>;
@@ -410,7 +419,7 @@ export class OrganizerApiService {
       scanned: number;
       merged: number;
       skipped: Array<{ sceneId: string; reason: string }>;
-    }>('/api/organizer/rename/taken/fix', { sceneIds });
+    }>('/api/organizer/rename/taken/fix', { sceneIds, fix });
   }
 
   preview(pattern?: string): Observable<RenamePreview> {

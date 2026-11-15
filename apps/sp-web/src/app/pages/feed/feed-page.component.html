@@ -27,7 +27,16 @@
 
         <div class="slide-info">
           @if (item.studio) {
-            <p class="slide-studio">{{ item.studio }}</p>
+            @if (item.studioId) {
+              <a
+                class="slide-studio"
+                [routerLink]="['/library/studio', item.studioId, 'all']"
+                [queryParams]="{ returnTo: '/feed' }"
+                >{{ item.studio }}</a
+              >
+            } @else {
+              <p class="slide-studio">{{ item.studio }}</p>
+            }
           }
           <h2 class="slide-title">{{ item.title }}</h2>
           <p class="slide-meta">

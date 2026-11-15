@@ -8,13 +8,18 @@ import {
   LocalLibraryService,
   type MergeCandidate,
   type MergeKind,
+  type MergeReason,
 } from '../../core/api/local-library.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { SheetComponent } from '../../shared/sheet/sheet.component';
 
+type SetItem = MergeCandidate & {
+  match?: { reason: MergeReason; with: string; sure?: boolean };
+};
+
 interface MergeSet {
   key: string;
-  items: MergeCandidate[];
+  items: SetItem[];
   keepId: string;
   /** Ones ticked to merge into the kept one. */
   merge: ReadonlySet<string>;
@@ -113,10 +118,22 @@ export class MergePageComponent implements OnInit {
   }
 
   protected setKeep(set: MergeSet, id: string): void {
-    this.update(set, {
-      keepId: id,
-      merge: new Set(set.items.filter((item) => item.id !== id).map((item) => item.id)),
-    });
+    // Two are surely one only when both surely are the suggested keeper. So
+    // with a sure keeper, the one kept before joins if it's sure too; with
+    // one tied only through an alias, no sure tick holds and they're left for
+    // you. What you left unticked stays unticked either way.
+    const merge = new Set(set.merge);
+    const before = set.items.find((item) => item.id === set.keepId);
+    const after = set.items.find((item) => item.id === id);
+    if (after && isSure(after)) {
+      if (before && isSure(before)) {
+        merge.add(set.keepId);
+      }
+    } else {
+      set.items.filter(isSure).forEach((item) => merge.delete(item.id));
+    }
+    merge.delete(id);
+    this.update(set, { keepId: id, merge });
   }
 
   protected toggle(set: MergeSet, id: string): void {
@@ -127,6 +144,21 @@ export class MergePageComponent implements OnInit {
       merge.add(id);
     }
     this.update(set, { merge });
+  }
+
+  /** Why it's suggested, in a few words. */
+  protected why(item: SetItem): string | null {
+    const match = item.match;
+    if (!match) {
+      return null;
+    }
+    return match.reason === 'catalog'
+      ? `Same StashDB entry as ${match.with}`
+      : match.reason === 'name'
+        ? 'Same name'
+        : item.aliases.some((alias) => nameKey(alias) === nameKey(match.with))
+          ? `Lists ${match.with} as an alias`
+          : `${match.with} lists this name as an alias`;
   }
 
   protected keptName(set: MergeSet): string {
@@ -213,8 +245,12 @@ export class MergePageComponent implements OnInit {
             key: group.items.map((item) => item.id).join(','),
             items: group.items,
             keepId: group.keepId,
+            // Tied to the one kept only through an alias: ticked by you, not
+            // for you, even when it matches another entry by name.
             merge: new Set(
-              group.items.filter((item) => item.id !== group.keepId).map((item) => item.id),
+              group.items
+                .filter((item) => item.id !== group.keepId && isSure(item))
+                .map((item) => item.id),
             ),
           })),
         );
@@ -243,4 +279,20 @@ export class MergePageComponent implements OnInit {
       error: () => this.matches.set([]),
     });
   }
+}
+
+/** Names as the server compares them: case, Latin accents, spacing and punctuation aside. */
+function nameKey(name: string): string {
+  return name
+    .normalize('NFKD')
+    .replace(/(\p{Script=Latin})[\u0300-\u036f]+/gu, '$1')
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, '');
+}
+
+/** Tied to the suggested keeper by catalog entry or name, not only an alias. */
+function isSure(item: SetItem): boolean {
+  return item.match?.sure ?? item.match?.reason !== 'alias';
 }

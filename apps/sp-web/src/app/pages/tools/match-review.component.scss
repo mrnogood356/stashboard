@@ -4,13 +4,9 @@
   background: none;
 }
 
-/* The section: the same panel and dot heading as Requests and Downloads. */
+/* The section sits on the page; each match is its own card. */
 .review {
-  margin-top: 1rem;
-  --app-section-radius: 18px;
-  --app-section-padding: 0.95rem;
-  --app-section-border: 1px solid color-mix(in srgb, var(--border-strong) 52%, transparent);
-  --app-section-bg: color-mix(in srgb, var(--surface-elevated) 92%, var(--surface-1));
+  margin-top: 1.25rem;
 }
 
 .app-section-head {

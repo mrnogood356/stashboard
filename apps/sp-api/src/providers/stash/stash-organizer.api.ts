@@ -12,7 +12,7 @@ import {
 } from './stash-tools.shared';
 import { StashChecksApi } from './stash-checks.api';
 
-/** What Match & rename needs: scenes with their files, StashDB lookups, moving files and saving matches. */
+/** What Match scenes and Rename files need: scenes with their files, StashDB lookups, moving files and saving matches. */
 export abstract class StashOrganizerApi extends StashChecksApi {
   /** Scenes with their files and fingerprints, for matching and renaming. */
   async findOrganizerScenes(

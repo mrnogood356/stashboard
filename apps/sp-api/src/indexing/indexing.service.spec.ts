@@ -393,6 +393,20 @@ function createPrismaMock(config: {
           return next;
         },
     ),
+    updateMany: jest.fn(
+      async (args: {
+        where: Record<string, unknown>;
+        data: Partial<SceneIndexRow>;
+      }) => {
+        const rows = Array.from(sceneIndexStore.values()).filter((row) =>
+          matchesWhere(row, args.where),
+        );
+        for (const row of rows) {
+          sceneIndexStore.set(String(row.stashId), { ...row, ...args.data });
+        }
+        return { count: rows.length };
+      },
+    ),
   };
 
   const request = {
@@ -554,6 +568,23 @@ function createPrismaMock(config: {
           librarySceneIndexStore.set(stashSceneId, next);
           return next;
         },
+    ),
+    updateMany: jest.fn(
+      async (args: {
+        where: Record<string, unknown>;
+        data: Partial<LibrarySceneIndexRow>;
+      }) => {
+        const rows = Array.from(librarySceneIndexStore.values()).filter((row) =>
+          matchesWhere(row, args.where),
+        );
+        for (const row of rows) {
+          librarySceneIndexStore.set(String(row.stashSceneId), {
+            ...row,
+            ...args.data,
+          });
+        }
+        return { count: rows.length };
+      },
     ),
     deleteMany: jest.fn(async (args?: Record<string, unknown>) => {
       const matchingIds = Array.from(librarySceneIndexStore.values())
@@ -1138,6 +1169,33 @@ describe('IndexingService', () => {
         computedLifecycle: 'NOT_REQUESTED',
       }),
     );
+
+    // Again with nothing changed in Stash: nothing is rewritten.
+    const pages = (await Promise.all(
+      getLocalLibraryScenePageMock.mock.results.map((result) => result.value),
+    )) as unknown[];
+    pages.forEach((page) =>
+      getLocalLibraryScenePageMock.mockResolvedValueOnce(page),
+    );
+    const upsert = prisma.librarySceneIndex.upsert as unknown as jest.Mock;
+    upsert.mockClear();
+    const before = sceneIndexStore.get('scene-1')?.lastSyncedAt as Date;
+    const again = await service.syncStashAvailability('test');
+    expect(upsert).not.toHaveBeenCalled();
+    expect(again?.updatedCount ?? 0).toBe(0);
+    // Still in the library: only its checked-at time moves on.
+    const checked = sceneIndexStore.get('scene-1');
+    expect(checked?.stashAvailable).toBe(true);
+    expect((checked?.lastSyncedAt as Date).getTime()).toBeGreaterThanOrEqual(
+      before.getTime(),
+    );
+    expect(prisma.sceneIndex.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { stashId: { in: expect.arrayContaining(['scene-1']) } },
+        data: expect.objectContaining({ lastSyncedAt: expect.any(Date) }),
+      }),
+    );
+    expect(librarySceneIndexStore.get('local-1')).toBeDefined();
     expectInteractiveTransactionsToUseIndexWriteOptions(prisma);
   });
 
@@ -1979,6 +2037,140 @@ describe('IndexingService library change check', () => {
     await service.syncLibraryProjectionIfChanged();
 
     expect(sync).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps a held-back sync owed until one runs, when the lease is still held', async () => {
+    jest.useFakeTimers();
+    try {
+      const runWithLease = jest
+        .fn()
+        .mockResolvedValueOnce({ processedCount: 1, updatedCount: 1 })
+        .mockResolvedValueOnce(null) // the first sync still holds the lease
+        .mockResolvedValue({ processedCount: 1, updatedCount: 1 });
+      const service = new IndexingService(
+        {} as PrismaService,
+        {} as IntegrationsService,
+        {} as CatalogProviderService,
+        {} as WhisparrAdapter,
+        {} as StashAdapter,
+        {} as StashdbAdapter,
+        { runWithLease } as unknown as SyncStateService,
+      );
+
+      await service.syncLibraryProjection('organizer');
+      // A second ask within seconds waits for a follow-up.
+      await expect(
+        service.syncLibraryProjection('automation'),
+      ).resolves.toBeNull();
+      expect(runWithLease).toHaveBeenCalledTimes(1);
+
+      await jest.advanceTimersByTimeAsync(20_000);
+      expect(runWithLease).toHaveBeenCalledTimes(2);
+      // Blocked: it tries again rather than dropping the change.
+      await jest.advanceTimersByTimeAsync(20_000);
+      expect(runWithLease).toHaveBeenCalledTimes(3);
+      await jest.advanceTimersByTimeAsync(60_000);
+      expect(runWithLease).toHaveBeenCalledTimes(3);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('syncs at the next check once a held-back sync ran out of tries', async () => {
+    jest.useFakeTimers();
+    try {
+      const getLibraryChangeMarker = jest.fn().mockResolvedValue('1|a|t1');
+      const runWithLease = jest
+        .fn()
+        .mockResolvedValueOnce({ processedCount: 1, updatedCount: 1 })
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue({ processedCount: 1, updatedCount: 1 });
+      const service = new IndexingService(
+        {} as PrismaService,
+        {} as IntegrationsService,
+        {} as CatalogProviderService,
+        {} as WhisparrAdapter,
+        { getLibraryChangeMarker } as unknown as StashAdapter,
+        {} as StashdbAdapter,
+        { runWithLease } as unknown as SyncStateService,
+      );
+      jest
+        .spyOn(
+          service as unknown as { getStashConfig: () => Promise<unknown> },
+          'getStashConfig',
+        )
+        .mockResolvedValue({ baseUrl: 'http://stash.local', apiKey: null });
+
+      await service.syncLibraryProjectionIfChanged(); // records where Stash is
+      await service.syncLibraryProjection('organizer');
+      await service.syncLibraryProjection('automation'); // held back
+      await jest.advanceTimersByTimeAsync(20_000 * 6);
+      expect(runWithLease).toHaveBeenCalledTimes(6);
+
+      // Stash hasn't changed again, but the change is still owed.
+      await jest.advanceTimersByTimeAsync(60_000);
+      await service.syncLibraryProjectionIfChanged();
+      expect(runWithLease).toHaveBeenCalledTimes(7);
+      // Paid: the same marker no longer syncs.
+      await service.syncLibraryProjectionIfChanged();
+      expect(runWithLease).toHaveBeenCalledTimes(7);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('keeps the change owed when a sync that started before it finishes after', async () => {
+    jest.useFakeTimers();
+    try {
+      let finishFirst!: (value: unknown) => void;
+      const first = new Promise((resolve) => {
+        finishFirst = resolve;
+      });
+      const getLibraryChangeMarker = jest.fn().mockResolvedValue('1|a|t1');
+      const runWithLease = jest
+        .fn()
+        .mockReturnValueOnce(first) // still reading the library
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue({ processedCount: 1, updatedCount: 1 });
+      const service = new IndexingService(
+        {} as PrismaService,
+        {} as IntegrationsService,
+        {} as CatalogProviderService,
+        {} as WhisparrAdapter,
+        { getLibraryChangeMarker } as unknown as StashAdapter,
+        {} as StashdbAdapter,
+        { runWithLease } as unknown as SyncStateService,
+      );
+      jest
+        .spyOn(
+          service as unknown as { getStashConfig: () => Promise<unknown> },
+          'getStashConfig',
+        )
+        .mockResolvedValue({ baseUrl: 'http://stash.local', apiKey: null });
+
+      await service.syncLibraryProjectionIfChanged();
+      const reading = service.syncLibraryProjection('organizer');
+      await service.syncLibraryProjection('automation'); // held back
+      await jest.advanceTimersByTimeAsync(20_000 * 6);
+      expect(runWithLease).toHaveBeenCalledTimes(6);
+
+      // The first sync finishes now, but it began before the change.
+      finishFirst({ processedCount: 1, updatedCount: 1 });
+      await reading;
+      await jest.advanceTimersByTimeAsync(60_000);
+      await service.syncLibraryProjectionIfChanged();
+      expect(runWithLease).toHaveBeenCalledTimes(7);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('stays quiet when Stash can’t be reached', async () => {

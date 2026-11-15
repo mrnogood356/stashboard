@@ -94,7 +94,8 @@
     </div>
   } @else {
     <p class="muted summary">
-      {{ sets().length }} {{ noun(sets().length === 1 ? 1 : 2) }} entered more than once
+      {{ sets().length }} {{ noun(sets().length === 1 ? 1 : 2) }} that look entered more than once.
+      Check each set: only ticked ones are merged.
     </p>
     <ul class="sets">
       @for (set of sets(); track set.key) {
@@ -127,6 +128,11 @@
                 }
                 @if (item.aliases.length > 0) {
                   <small class="muted">Also {{ item.aliases.slice(0, 3).join(', ') }}</small>
+                }
+                @if (why(item); as reason) {
+                  <small class="why" [class.weak]="item.match?.reason === 'alias'">{{
+                    reason
+                  }}</small>
                 }
               </span>
             </label>

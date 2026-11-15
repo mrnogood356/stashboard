@@ -153,3 +153,15 @@
 .thumb {
   border-radius: var(--radius-sm);
 }
+
+/* The studio opens its page; it reads as text until you point at it. */
+.studio-link {
+  color: inherit;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}

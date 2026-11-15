@@ -283,3 +283,26 @@ export function joinPath(separator: '/' | '\\', ...parts: string[]): string {
     )
     .join(separator);
 }
+
+/**
+ * Whisparr's Scene Folder Format and Standard Scene Format as one pattern,
+ * "folders/file". Null pattern (with why) when Whisparr has no file format
+ * or its formats can't be used.
+ */
+export function patternFromWhisparr(naming: {
+  folderFormat: string | null;
+  fileFormat: string | null;
+}): { pattern: string | null; problem: string | null } {
+  if (!naming.fileFormat?.trim()) {
+    return {
+      pattern: null,
+      problem: 'Whisparr has no Standard Scene Format set.',
+    };
+  }
+  const pattern = [naming.folderFormat, naming.fileFormat]
+    .filter((part): part is string => !!part?.trim())
+    .map((part) => trimSeparators(part.trim()))
+    .join('/');
+  const problem = validatePattern(pattern);
+  return { pattern: problem ? null : pattern, problem };
+}

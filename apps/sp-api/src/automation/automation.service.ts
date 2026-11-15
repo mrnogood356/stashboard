@@ -643,7 +643,7 @@ export class AutomationService
         }
         if (result.proposed?.length) {
           steps.push(
-            `found ${result.proposed.length} likely ${result.proposed.length === 1 ? 'match' : 'matches'} to check in Match & rename`,
+            `found ${result.proposed.length} likely ${result.proposed.length === 1 ? 'match' : 'matches'} to check in Match scenes`,
           );
         }
         left = result.left;

@@ -504,3 +504,15 @@
   border-radius: 50%;
   background: var(--badge-import-pending-text);
 }
+
+/* The studio opens its page; it reads as text until you point at it. */
+.studio-link {
+  color: inherit;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
