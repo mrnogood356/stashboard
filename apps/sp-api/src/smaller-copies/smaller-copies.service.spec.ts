@@ -9,6 +9,7 @@ import { SmallerCopiesService } from './smaller-copies.service';
 describe('SmallerCopiesService', () => {
   let settings: Record<string, unknown>;
   let attempts: Map<string, Record<string, unknown>>;
+  let tries: Array<Record<string, unknown>>;
   let files: Array<Record<string, unknown>>;
   let linked: Record<string, string | null>;
   let prisma: Record<string, Record<string, jest.Mock>>;
@@ -68,6 +69,7 @@ describe('SmallerCopiesService', () => {
       replacedCount: 0,
     };
     attempts = new Map();
+    tries = [];
     files = [
       file('1'),
       file('2', { size: 9e9 }),
@@ -135,6 +137,59 @@ describe('SmallerCopiesService', () => {
         findUnique: jest.fn(({ where }: { where: { stashSceneId: string } }) =>
           Promise.resolve(attempts.get(where.stashSceneId) ?? null),
         ),
+        updateMany: jest.fn(
+          ({
+            where,
+            data,
+          }: {
+            where: {
+              stashSceneId?: string;
+              retryAfter?: { gt: Date };
+              outcome?: { not: string };
+            };
+            data: { retryAfter: Date };
+          }) => {
+            let count = 0;
+            for (const row of attempts.values()) {
+              if (
+                (where.stashSceneId === undefined ||
+                  row.stashSceneId === where.stashSceneId) &&
+                (!where.retryAfter ||
+                  (row.retryAfter as Date) > where.retryAfter.gt) &&
+                (!where.outcome || row.outcome !== where.outcome.not)
+              ) {
+                row.retryAfter = data.retryAfter;
+                count += 1;
+              }
+            }
+            return Promise.resolve({ count });
+          },
+        ),
+      },
+      smallerCopyTry: {
+        create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
+          tries.push({
+            id: `t${tries.length + 1}`,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            ...data,
+          });
+          return Promise.resolve();
+        }),
+        findMany: jest.fn(() => Promise.resolve([...tries].reverse())),
+        groupBy: jest.fn(() => {
+          const counts = new Map<string, number>();
+          for (const row of tries) {
+            const outcome = row.outcome as string;
+            counts.set(outcome, (counts.get(outcome) ?? 0) + 1);
+          }
+          return Promise.resolve(
+            [...counts].map(([outcome, count]) => ({
+              outcome,
+              _count: { _all: count },
+            })),
+          );
+        }),
       },
       librarySceneIndex: {
         findUnique: jest.fn(({ where }: { where: { stashSceneId: string } }) =>
@@ -419,6 +474,63 @@ describe('SmallerCopiesService', () => {
       expect.objectContaining({ guid: 'g1' }),
       expect.anything(),
       expect.anything(),
+    );
+  });
+
+  it('keeps every release it grabs in the tried list, with counts, through later searches', async () => {
+    await service.tick(true);
+    now += 31 * 24 * 3600_000;
+    downloads.searchReleases.mockResolvedValue({ releases: [] });
+    await service.tick(true);
+
+    const status = await service.status();
+    expect(status.tries).toEqual([
+      expect.objectContaining({
+        stashSceneId: '2',
+        releaseTitle: 'Studio.Scene.1080p.x265',
+        outcome: 'grabbed',
+      }),
+    ]);
+    expect(status.tryCounts).toEqual({ grabbed: 1 });
+    // The scene's own row has moved on; the tried list still has the grab.
+    expect(attempts.get('2')).toMatchObject({ outcome: 'none-found' });
+  });
+
+  it('looks at a scene again on the next search when asked, still skipping releases tried', async () => {
+    await service.tick(true);
+    downloads.searchReleases.mockResolvedValue({ releases: [] });
+    now += 31 * 24 * 3600_000;
+    await service.tick(true);
+    expect((await service.status()).due).toBe(1);
+    await service.tick(true);
+    expect((await service.status()).due).toBe(0);
+
+    await service.recheck('2');
+    expect((await service.status()).due).toBe(1);
+
+    downloads.searchReleases.mockResolvedValue({ releases: [release()] });
+    downloads.grabRelease.mockClear();
+    await service.tick(true);
+    expect(downloads.grabRelease).not.toHaveBeenCalled();
+    await expect(service.recheck('nope')).rejects.toThrow('looked at');
+  });
+
+  it('looks at every scene again when asked, leaving matches waiting for you alone', async () => {
+    settings.autoGrab = false;
+    downloads.searchReleases.mockResolvedValue({ releases: [] });
+    await service.tick(true);
+    expect(attempts.get('2')).toMatchObject({ outcome: 'none-found' });
+    downloads.searchReleases.mockResolvedValue({ releases: [release()] });
+    await service.tick(true);
+    expect(attempts.get('1')).toMatchObject({ outcome: 'found' });
+    const before = (await service.status()).due;
+
+    const status = await service.recheckAll();
+    // Scene 2 is due again; the match listed for scene 1 stays listed.
+    expect(status.due).toBe(before + 1);
+    expect(attempts.get('1')).toMatchObject({ outcome: 'found' });
+    expect((attempts.get('1')!.retryAfter as Date).getTime()).toBeGreaterThan(
+      now,
     );
   });
 

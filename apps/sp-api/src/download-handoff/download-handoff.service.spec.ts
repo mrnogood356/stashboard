@@ -148,6 +148,9 @@ describe('DownloadHandoffService', () => {
           return Promise.resolve(created);
         }),
       },
+      smallerCopyTry: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
       downloadHandoffSettings: {
         findUnique: jest.fn(() => Promise.resolve({ ...settings })),
         upsert: jest.fn(() => Promise.resolve({ ...settings })),
@@ -768,7 +771,7 @@ describe('DownloadHandoffService', () => {
       expect(await exists(path.join(folder, 'Jane.mkv'))).toBe(true);
     });
 
-    it('lets Smaller copies try a release again when its download fails in SABnzbd', async () => {
+    it('never grabs a failed release again, keeps it in Better copies’ tried list, and takes it off Downloads', async () => {
       rows.push(handoff({ id: 'h1', replacesStashSceneId: '12' }));
       const attempt = {
         stashSceneId: '12',
@@ -781,6 +784,8 @@ describe('DownloadHandoffService', () => {
         findFirst: jest.fn().mockResolvedValue(attempt),
         update,
       };
+      const tried = jest.fn().mockResolvedValue({ count: 1 });
+      prisma.smallerCopyTry = { updateMany: tried };
       sabnzbd.history.mockResolvedValue([
         historyEntry({
           status: 'Failed',
@@ -794,17 +799,39 @@ describe('DownloadHandoffService', () => {
       expect(prisma.smallerCopyAttempt.findFirst).toHaveBeenCalledWith({
         where: { handoffId: 'h1' },
       });
-      // The release is freed before the download shows as failed.
+      // Noted before the download shows as failed.
       expect(update.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.downloadHandoff.update.mock.invocationCallOrder.at(-1)!,
       );
-      expect(update).toHaveBeenCalledWith({
-        where: { stashSceneId: '12' },
+      const data = (
+        update.mock.calls[0] as [{ data: Record<string, unknown> }]
+      )[0].data;
+      expect(data).toMatchObject({ outcome: 'failed' });
+      // The release stays on the grabbed list: it isn't tried again.
+      expect(data).not.toHaveProperty('grabbedGuids');
+      expect(tried).toHaveBeenCalledWith({
+        where: { handoffId: 'h1' },
         data: expect.objectContaining({
           outcome: 'failed',
-          grabbedGuids: ['g0'],
+          detail: expect.stringContaining('won’t be grabbed again') as unknown,
         }) as unknown,
       });
+      expect(rows[0]).toMatchObject({ status: 'failed' });
+      expect(rows[0].clearedAt).toBeInstanceOf(Date);
+    });
+
+    it('leaves an ordinary failed download on the Downloads list to look at', async () => {
+      rows.push(handoff({ id: 'h1' }));
+      sabnzbd.history.mockResolvedValue([
+        historyEntry({
+          status: 'Failed',
+          storage: null,
+          failMessage: 'Out of retention',
+        }),
+      ]);
+      await service.checkOpen();
+      expect(rows[0]).toMatchObject({ status: 'failed' });
+      expect(rows[0].clearedAt ?? null).toBeNull();
     });
 
     it('keeps a smaller copy’s release skipped when the file is already in the library', async () => {
@@ -1232,6 +1259,11 @@ describe('DownloadHandoffService', () => {
       expect(row().stashSceneId).toBe('12');
       expect(outcome()).toMatchObject({ outcome: 'replaced', newSize: 2e9 });
       expect(outcome().detail).toContain('/lib/old.mkv');
+      // The tried list says the same.
+      expect(prisma.smallerCopyTry.updateMany).toHaveBeenCalledWith({
+        where: { handoffId: 'h1' },
+        data: expect.objectContaining({ outcome: 'replaced' }) as unknown,
+      });
       // Whisparr is told straight away, not left showing the scene missing.
       expect(organizer.syncReplacedScene).toHaveBeenCalledWith('12');
       expect(outcome().detail).toContain('Whisparr has the new file');
