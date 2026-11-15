@@ -224,6 +224,32 @@ describe('SmallerCopiesPageComponent', () => {
     );
   });
 
+  it('drops a refresh read while a save is on its way', async () => {
+    const { component, api, fixture } = await render();
+    const page = component(fixture) as unknown as { refresh(): void };
+    const saving = new Subject<SmallerCopies>();
+    api.save.mockReturnValueOnce(saving);
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="better-enabled"]',
+    ) as HTMLInputElement;
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change'));
+    // A refresh starts while the save is still on its way…
+    const stale = new Subject<SmallerCopies>();
+    api.status.mockReturnValueOnce(stale);
+    page.refresh();
+    // …the save lands, then the refresh with the old rules.
+    saving.next({ ...DATA, settings: { ...DATA.settings, scenesPerHour: 30 } });
+    saving.complete();
+    stale.next(DATA);
+    stale.complete();
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change'));
+    expect(api.save).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false, scenesPerHour: 30 }),
+    );
+  });
+
   it('fills the rules form from a later refresh when the first load failed', async () => {
     const { fixture, api, root, openTab } = await render(DATA, DATA, true);
     expect(root.querySelector('[data-testid="better-tab-rules"]')).toBeNull();

@@ -147,8 +147,9 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
   });
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   /**
-   * Bumped by every change made from the page: a refresh read before it
-   * would put the old state (old rules, say) back, so its answer is dropped.
+   * Bumped when a change made from the page starts and again when its answer
+   * lands: a refresh read before or during it would put the old state (old
+   * rules, say) back, so its answer is dropped.
    */
   private changes = 0;
 
@@ -217,11 +218,13 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
     this.changes += 1;
     this.api.recheck(stashSceneId).subscribe({
       next: (data) => {
+        this.changes += 1;
         done();
         this.data.set(data);
         this.notifications.success('Checked again soon', 'It’s looked at on the next search.');
       },
       error: (error: { error?: { message?: string } }) => {
+        this.changes += 1;
         done();
         this.notifications.error(
           "Couldn't do that",
@@ -241,6 +244,7 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
     this.changes += 1;
     this.api.recheckAll().subscribe({
       next: (data) => {
+        this.changes += 1;
         this.recheckingAll.set(false);
         this.data.set(data);
         this.notifications.success(
@@ -249,6 +253,7 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
         );
       },
       error: () => {
+        this.changes += 1;
         this.recheckingAll.set(false);
         this.notifications.error("Couldn't do that", 'Try again in a moment.');
       },
@@ -347,11 +352,13 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
     this.saving.set(true);
     this.api.save(settings).subscribe({
       next: (data) => {
+        this.changes += 1;
         this.saving.set(false);
         this.show(data);
         this.notifications.success('Saved', data.blocked ?? done);
       },
       error: () => {
+        this.changes += 1;
         this.saving.set(false);
         this.notifications.error("Couldn't save that", 'Check the numbers and try again.');
       },
@@ -363,6 +370,7 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
     this.searching.set(true);
     this.api.searchNow().subscribe({
       next: (data) => {
+        this.changes += 1;
         this.searching.set(false);
         this.data.set(data);
         if (data.notice) {
@@ -370,6 +378,7 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
         }
       },
       error: () => {
+        this.changes += 1;
         this.searching.set(false);
         this.notifications.error("Couldn't search", 'Try again in a moment.');
       },
@@ -394,11 +403,13 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
     this.changes += 1;
     this.api.grab(stashSceneId).subscribe({
       next: (data) => {
+        this.changes += 1;
         done();
         this.data.set(data);
         this.notifications.success('Grabbed', 'Sent to SABnzbd.');
       },
       error: (error: { error?: { message?: string } }) => {
+        this.changes += 1;
         done();
         this.notifications.error(
           "Couldn't grab it",
