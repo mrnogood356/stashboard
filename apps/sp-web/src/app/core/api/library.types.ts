@@ -7,11 +7,15 @@ export type LibraryTagMatchMode = 'OR' | 'AND';
 export interface LibraryTagOption {
   id: string;
   name: string;
+  /** How many of your scenes have it. */
+  count?: number;
 }
 
 export interface LibraryStudioOption {
   id: string;
   name: string;
+  /** How many of your scenes are from it. */
+  count?: number;
 }
 
 export interface LibrarySceneItem {

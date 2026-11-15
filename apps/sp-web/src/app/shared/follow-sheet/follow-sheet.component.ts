@@ -1,6 +1,5 @@
 import {
   Component,
-  ElementRef,
   EventEmitter,
   Input,
   OnChanges,
@@ -12,11 +11,9 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { DOCUMENT } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ButtonDirective } from 'primeng/button';
-import { Dialog } from 'primeng/dialog';
 import { Message } from 'primeng/message';
 import { MultiSelect } from 'primeng/multiselect';
 import { Select } from 'primeng/select';
@@ -31,6 +28,7 @@ import {
   of,
   switchMap,
 } from 'rxjs';
+import { SheetComponent } from '../sheet/sheet.component';
 import {
   Follow,
   FollowChanges,
@@ -63,7 +61,7 @@ interface Option<T> {
   imports: [
     FormsModule,
     RouterLink,
-    Dialog,
+    SheetComponent,
     ButtonDirective,
     Message,
     MultiSelect,
@@ -72,20 +70,9 @@ interface Option<T> {
   ],
   templateUrl: './follow-sheet.component.html',
   styleUrl: './follow-sheet.component.scss',
-  host: {
-    // The dialog's own Escape and backdrop handling only work with its close
-    // button shown, and are set once on opening, so they'd ignore a save in
-    // progress. The sheet does both itself.
-    '(document:keydown.escape)': 'onEscape()',
-    '(mousedown)': 'onBackdrop($event)',
-  },
 })
 export class FollowSheetComponent implements OnChanges, OnDestroy {
   private readonly api = inject(FollowsApiService);
-  private readonly document = inject(DOCUMENT);
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  /** What had focus when the sheet opened, to go back to when it closes. */
-  private opener: HTMLElement | null = null;
   private readonly tagQueries = new Subject<string>();
   private readonly tagSearchSub: Subscription;
 
@@ -105,8 +92,6 @@ export class FollowSheetComponent implements OnChanges, OnDestroy {
   @Output() readonly closed = new EventEmitter<void>();
   @Output() readonly saved = new EventEmitter<{ follow: Follow; changes: FollowChanges }>();
   @Output() readonly unfollowed = new EventEmitter<Follow>();
-
-  protected readonly dialogBreakpoints = { '960px': '94vw', '640px': '98vw' };
 
   protected readonly startChoice = signal<number | typeof KEEP_START>(0);
   protected readonly tags = signal<FollowTag[]>([]);
@@ -167,13 +152,6 @@ export class FollowSheetComponent implements OnChanges, OnDestroy {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    const openChange = changes['open'];
-    if (openChange && this.open && !openChange.previousValue) {
-      const active = this.document.activeElement;
-      this.opener = active instanceof HTMLElement ? active : null;
-    } else if (openChange && !this.open && openChange.previousValue) {
-      this.restoreFocus();
-    }
     // Opened, or opened for another follow: start from what's saved.
     if ((changes['open'] || changes['follow']) && this.open && this.follow) {
       const follow = this.follow;
@@ -195,29 +173,6 @@ export class FollowSheetComponent implements OnChanges, OnDestroy {
 
   protected pageRoute(follow: Follow): string[] {
     return [follow.kind === 'PERFORMER' ? '/performer' : '/studio', follow.entityId];
-  }
-
-  protected onEscape(): void {
-    if (this.open) {
-      this.close();
-    }
-  }
-
-  protected onBackdrop(event: MouseEvent): void {
-    const target = event.target;
-    if (
-      this.open &&
-      target instanceof HTMLElement &&
-      target.classList.contains('follow-dialog-mask')
-    ) {
-      this.close();
-    }
-  }
-
-  protected onVisibleChange(visible: boolean): void {
-    if (!visible && this.open) {
-      this.close();
-    }
   }
 
   protected close(): void {
@@ -299,30 +254,6 @@ export class FollowSheetComponent implements OnChanges, OnDestroy {
         this.confirmingUnfollow.set(false);
         this.error.set('Couldn’t unfollow. Try again.');
       },
-    });
-  }
-
-  /**
-   * Back to what opened the sheet, once it has gone. If that's gone too (its
-   * row was unfollowed), whoever showed the sheet moves focus instead.
-   */
-  private restoreFocus(): void {
-    const opener = this.opener;
-    this.opener = null;
-    if (!opener) {
-      return;
-    }
-    setTimeout(() => {
-      const active = this.document.activeElement;
-      // Still in the closing sheet, or nowhere: nothing else took it.
-      const lost =
-        !active ||
-        active === this.document.body ||
-        !active.isConnected ||
-        this.host.nativeElement.contains(active);
-      if (opener.isConnected && lost) {
-        opener.focus();
-      }
     });
   }
 

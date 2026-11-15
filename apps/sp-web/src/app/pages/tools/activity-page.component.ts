@@ -10,7 +10,7 @@ const KINDS: Array<{ id: string | null; label: string; icon: string }> = [
   { id: 'match', label: 'Matches', icon: 'pi pi-link' },
   { id: 'scan', label: 'Scans', icon: 'pi pi-refresh' },
   { id: 'whisparr', label: 'Whisparr', icon: 'pi pi-download' },
-  { id: 'request', label: 'Requests', icon: 'pi pi-plus-circle' },
+  { id: 'request', label: 'Wanted', icon: 'pi pi-plus-circle' },
   { id: 'download', label: 'Downloads', icon: 'pi pi-cloud-download' },
   { id: 'automation', label: 'Automation', icon: 'pi pi-bolt' },
 ];

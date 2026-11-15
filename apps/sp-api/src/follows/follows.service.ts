@@ -75,7 +75,7 @@ interface FoundScene {
  * Following performers and studios: a list of them, a check (on a schedule,
  * or Check now) for scenes they've released since you followed, and those
  * scenes listed for review or sent to Whisparr straight away, per follow.
- * Only the main catalog is followed, since only its scenes can be requested.
+ * Only the main catalog is followed, since only its scenes can be added to Whisparr.
  */
 @Injectable()
 export class FollowsService {
@@ -162,7 +162,7 @@ export class FollowsService {
   async follow(dto: CreateFollowDto): Promise<FollowDto> {
     if (await this.catalogProvider.isBrowseOnlyRequest()) {
       throw new BadRequestException(
-        'Only your main catalog can be followed, since only its scenes can be requested.',
+        'Only your main catalog can be followed, since only its scenes can be added to Whisparr.',
       );
     }
     const provider = await this.instanceProviderKey();
@@ -628,7 +628,7 @@ export class FollowsService {
           .slice(0, 20)
           .map(
             (scene) =>
-              `${scene.title} (${scene.followName})${scene.requested ? ' — requested' : ''}`,
+              `${scene.title} (${scene.followName})${scene.requested ? ' — added to Wanted' : ''}`,
           )
           .join('\n'),
         status: summary.failed > 0 ? 'partial' : 'done',
@@ -756,6 +756,29 @@ export class FollowsService {
       duration: scene.duration,
     };
 
+    // Already in Stash (under this id or one you said is the same scene):
+    // sending it to Whisparr would only download it again. Asked only when
+    // this follow would request it.
+    const owned =
+      requestsOnItsOwn &&
+      (!elsewhere || elsewhere.state === FollowedSceneState.NEW) &&
+      (await this.alreadyInLibrary(scene.id, scene.title));
+    if (owned) {
+      const dismissed = {
+        state: FollowedSceneState.DISMISSED,
+        detail: 'Already in your library',
+      };
+      // Waiting for review under another follow: it isn't any more.
+      await this.prisma.followedScene.updateMany({
+        where: { sceneId: scene.id, state: FollowedSceneState.NEW },
+        data: dismissed,
+      });
+      await this.prisma.followedScene.create({
+        data: { ...base, ...dismissed },
+      });
+      return null;
+    }
+
     if (elsewhere) {
       if (!requestsOnItsOwn || elsewhere.state !== FollowedSceneState.NEW) {
         await this.prisma.followedScene.create({
@@ -780,6 +803,25 @@ export class FollowsService {
     return { state: outcome.state };
   }
 
+  /**
+   * Whether Stash has the scene now: from a fresh index row, or Stash asked
+   * just now. When that can't be told (Stash didn't answer), nothing is
+   * decided: the check stops here and the next one tries again, rather than
+   * request a scene that may already be in the library.
+   */
+  private async alreadyInLibrary(
+    sceneId: string,
+    title: string,
+  ): Promise<boolean> {
+    const has = await this.sceneStatus.stashHasScene(sceneId).catch(() => null);
+    if (has === null) {
+      throw new Error(
+        `Couldn’t ask Stash whether you have “${title}”, so nothing was requested; the next check tries again.`,
+      );
+    }
+    return has;
+  }
+
   /** Sends a found scene to Whisparr, saying why when it couldn't. */
   private async requestScene(
     follow: Follow,
@@ -792,7 +834,7 @@ export class FollowsService {
     } catch (error) {
       const detail = errorMessage(error).slice(0, 300);
       this.logger.warn(
-        `Couldn’t request “${scene.title}” for “${follow.name}”: ${detail}`,
+        `Couldn’t add “${scene.title}” to Wanted for “${follow.name}”: ${detail}`,
       );
       return { state: FollowedSceneState.FAILED, detail };
     }

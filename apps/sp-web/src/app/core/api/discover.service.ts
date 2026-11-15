@@ -13,6 +13,7 @@ import {
   PerformerStudioOption,
   SceneDetails,
   SceneFavoritesFilter,
+  SceneFacets,
   SceneFeedSort,
   SceneRequestOptions,
   ScenesCalendarResponse,
@@ -198,6 +199,16 @@ export class DiscoverService {
       params = params.set('studioId', filters.studioId);
     }
     return this.http.get<PerformerFeedResponse>('/api/performers', { params });
+  }
+
+  /** The performer's own categories and studios, with counts. */
+  getPerformerFacets(performerId: string): Observable<SceneFacets> {
+    return this.http.get<SceneFacets>(`/api/performers/${encodeURIComponent(performerId)}/facets`);
+  }
+
+  /** The studio's own categories, with counts. */
+  getStudioFacets(studioId: string): Observable<SceneFacets> {
+    return this.http.get<SceneFacets>(`/api/studios/${encodeURIComponent(studioId)}/facets`);
   }
 
   getPerformerDetails(performerId: string): Observable<PerformerDetails> {

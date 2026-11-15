@@ -186,3 +186,57 @@ export function rankCandidates<T extends Candidate>(
   }
   return ranked.sort((left, right) => right.score - left.score);
 }
+
+/**
+ * Up to `count` entries, the strongest `keep` always and the rest drawn at
+ * random by weight from the next `pool`, so a fresh pick reaches people and
+ * studios you watch a little less too.
+ */
+export function pickSources(
+  entries: TasteEntry[],
+  keep: number,
+  extra: number,
+  pool: number,
+  random: () => number = Math.random,
+): TasteEntry[] {
+  const kept = entries.slice(0, keep);
+  const rest = entries.slice(keep, keep + pool);
+  const drawn: TasteEntry[] = [];
+  while (drawn.length < extra && rest.length > 0) {
+    const total = rest.reduce(
+      (sum, entry) => sum + Math.max(entry.weight, 0.01),
+      0,
+    );
+    let roll = random() * total;
+    let index = 0;
+    for (; index < rest.length - 1; index++) {
+      roll -= Math.max(rest[index].weight, 0.01);
+      if (roll <= 0) {
+        break;
+      }
+    }
+    drawn.push(rest.splice(index, 1)[0]);
+  }
+  return [...kept, ...drawn];
+}
+
+/**
+ * A fresh order for a shuffle: each score nudged at random, and scenes just
+ * shown pushed well down, so the next screenful is mostly new.
+ */
+export function reshuffle<T extends Candidate>(
+  ranked: Array<Ranked<T>>,
+  recentlyShown: ReadonlySet<string>,
+  random: () => number = Math.random,
+): Array<Ranked<T>> {
+  return ranked
+    .map((entry) => ({
+      entry,
+      score:
+        entry.score *
+        (0.6 + random() * 0.8) *
+        (recentlyShown.has(entry.scene.id) ? 0.25 : 1),
+    }))
+    .sort((left, right) => right.score - left.score)
+    .map(({ entry }) => entry);
+}

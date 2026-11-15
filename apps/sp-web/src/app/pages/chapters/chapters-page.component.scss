@@ -29,8 +29,8 @@
   min-height: 2.1rem;
   padding: 0 0.8rem;
   border: 0;
-  border-radius: 999px;
-  background: var(--chip-bg);
+  border-radius: var(--radius-sm);
+  background: var(--soft-fill);
   color: var(--text-primary);
   font: inherit;
   font-size: 0.85rem;

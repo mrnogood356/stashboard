@@ -34,6 +34,7 @@ import {
   LocalBulkScenesDto,
   LIBRARY_TASKS,
   FavoriteDto,
+  LocalCollectionScenesQueryDto,
   LocalScenesQueryDto,
   SceneWatchedDto,
   TagSearchQueryDto,
@@ -291,13 +292,14 @@ export class LocalLibraryController {
   @Get('performers/:performerId/scenes')
   performerScenes(
     @Param('performerId') performerId: string,
-    @Query() query: LocalScenesQueryDto,
+    @Query() query: LocalCollectionScenesQueryDto,
   ): Promise<LocalScenePageDto> {
     return this.library.performerScenes(
       performerId,
       query.page,
       query.sort,
       query.seed,
+      { tagIds: query.tagIds, studioIds: query.studioIds },
     );
   }
 
@@ -317,13 +319,14 @@ export class LocalLibraryController {
   @Get('studios/:studioId/scenes')
   studioScenes(
     @Param('studioId') studioId: string,
-    @Query() query: LocalScenesQueryDto,
+    @Query() query: LocalCollectionScenesQueryDto,
   ): Promise<LocalScenePageDto> {
     return this.library.studioScenes(
       studioId,
       query.page,
       query.sort,
       query.seed,
+      { tagIds: query.tagIds, studioIds: query.studioIds },
     );
   }
 

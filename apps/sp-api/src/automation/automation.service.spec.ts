@@ -23,6 +23,7 @@ describe('AutomationService', () => {
     findLocalScenes: jest.Mock;
     scenesWithoutPreview: jest.Mock;
     rescanForPreviews: jest.Mock;
+    getJobQueue: jest.Mock;
   };
   let indexing: {
     syncLibraryProjection: jest.Mock;
@@ -75,6 +76,7 @@ describe('AutomationService', () => {
         .fn()
         .mockResolvedValue({ missing: [], unanswered: [] }),
       rescanForPreviews: jest.fn().mockResolvedValue(null),
+      getJobQueue: jest.fn().mockResolvedValue([]),
     };
     indexing = {
       syncLibraryProjection: jest.fn().mockResolvedValue(null),
@@ -105,7 +107,7 @@ describe('AutomationService', () => {
   });
 
   it('scans, identifies and generates previews for the new scenes, then refreshes Stashboard', async () => {
-    await service.run('detected', ['stashdb-1']);
+    await service.run('manual', ['stashdb-1']);
 
     expect(
       stash.startLibraryTask.mock.calls.map((call) => [call[1], call[2]]),
@@ -139,7 +141,7 @@ describe('AutomationService', () => {
       deleteScene,
     });
 
-    await service.run('detected');
+    await service.run('manual');
 
     expect(deleteScene).toHaveBeenCalledTimes(1);
     expect(deleteScene).toHaveBeenCalledWith(expect.anything(), '41', true);
@@ -311,6 +313,7 @@ describe('AutomationService', () => {
         identifyNewScenes: jest.fn((ids: string[]) =>
           Promise.resolve({ linked: [], matched: [], left: ids }),
         ),
+        linkWaitingScenes: jest.fn().mockResolvedValue([]),
       };
       Object.assign(stash, {
         scanLibraryFolders: jest.fn().mockResolvedValue('folder-scan-job'),
@@ -421,28 +424,112 @@ describe('AutomationService', () => {
       expect((await hidden.getSettingsDto()).foldersVisible).toBeNull();
     });
 
-    it('scans everything when a folder is outside Stash’s library or unknown', async () => {
+    it('never scans the whole library on its own, even for a folder outside it or unknown', async () => {
       jest.useFakeTimers();
       const outside = withOrganizer(['/data/other']);
       outside.onWebhook('Download', '/mnt/media/scenes/Studio/Scene A');
       jest.useRealTimers();
       await outside.run('webhook');
-      expect(stash.startLibraryTask).toHaveBeenCalledWith(
+      expect(stash.startLibraryTask).not.toHaveBeenCalledWith(
         expect.anything(),
         'scan',
       );
+      expect(
+        (stash as unknown as { scanLibraryFolders: jest.Mock })
+          .scanLibraryFolders,
+      ).not.toHaveBeenCalled();
 
-      stash.startLibraryTask.mockClear();
       jest.useFakeTimers();
       const unknown = withOrganizer(['/data/scenes']);
       unknown.onWebhook('Download', '/mnt/media/scenes/Studio/Scene A');
       unknown.onWebhook('Download', null);
       jest.useRealTimers();
       await unknown.run('webhook');
-      expect(stash.startLibraryTask).toHaveBeenCalledWith(
+      expect(stash.startLibraryTask).not.toHaveBeenCalledWith(
         expect.anything(),
         'scan',
       );
+      expect(
+        (stash as unknown as { scanLibraryFolders: jest.Mock })
+          .scanLibraryFolders,
+      ).toHaveBeenCalledWith(expect.anything(), [
+        '/data/scenes/Studio/Scene A',
+      ]);
+    });
+
+    it('scans just the folders of scenes Stash hasn’t picked up, found through Whisparr', async () => {
+      const scoped = withOrganizer(['/data/scenes']);
+      Object.assign(
+        (scoped as unknown as { organizer: Record<string, unknown> }).organizer,
+        {
+          whisparrFilesFor: jest
+            .fn()
+            .mockResolvedValue(['/data/scenes/Studio/Scene B/b.mp4']),
+          checkWaitingScenes: jest.fn().mockResolvedValue({ left: [] }),
+        },
+      );
+      prisma.sceneIndex.findMany.mockResolvedValue([{ stashId: 'b' }]);
+
+      await scoped.checkForWaitingScenes();
+
+      expect(
+        (stash as unknown as { scanLibraryFolders: jest.Mock })
+          .scanLibraryFolders,
+      ).toHaveBeenCalledWith(expect.anything(), [
+        '/data/scenes/Studio/Scene B',
+      ]);
+      expect(stash.startLibraryTask).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'scan',
+      );
+      expect(settings.lastRunStatus).toBe('DONE');
+    });
+
+    it('asks Whisparr again next time when it couldn’t say where the files are', async () => {
+      const scoped = withOrganizer(['/data/scenes']);
+      const whisparrFilesFor = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('Whisparr is down'))
+        .mockResolvedValue(['/data/scenes/Studio/Scene B/b.mp4']);
+      Object.assign(
+        (scoped as unknown as { organizer: Record<string, unknown> }).organizer,
+        {
+          whisparrFilesFor,
+          checkWaitingScenes: jest.fn().mockResolvedValue({ left: [] }),
+        },
+      );
+      prisma.sceneIndex.findMany.mockResolvedValue([{ stashId: 'b' }]);
+
+      await scoped.checkForWaitingScenes();
+      await scoped.checkForWaitingScenes();
+
+      expect(whisparrFilesFor).toHaveBeenCalledTimes(2);
+      expect(
+        (stash as unknown as { scanLibraryFolders: jest.Mock })
+          .scanLibraryFolders,
+      ).toHaveBeenCalledWith(expect.anything(), [
+        '/data/scenes/Studio/Scene B',
+      ]);
+    });
+
+    it('keeps the folders for the next run when Stash’s library folders can’t be read', async () => {
+      jest.useFakeTimers();
+      const scoped = withOrganizer(['/data/scenes']);
+      const roots = (stash as unknown as { getLibraryRoots: jest.Mock })
+        .getLibraryRoots;
+      roots.mockRejectedValueOnce(new Error('Stash is down'));
+      scoped.onWebhook('Download', '/mnt/media/scenes/Studio/Scene A');
+      jest.useRealTimers();
+
+      await scoped.run('webhook');
+      const scan = (stash as unknown as { scanLibraryFolders: jest.Mock })
+        .scanLibraryFolders;
+      expect(scan).not.toHaveBeenCalled();
+
+      await scoped.run('webhook');
+      expect(scan).toHaveBeenCalledWith(expect.anything(), [
+        '/data/scenes/Studio/Scene A',
+      ]);
     });
 
     it('reads the folder from Whisparr’s webhook', () => {
@@ -720,6 +807,79 @@ describe('AutomationService', () => {
       );
       expect(settings.lastRunMessage).toBe(
         'Found 2 new scenes, previews generated, identified.',
+      );
+    });
+
+    it('waits for the job Stash makes a rescan’s previews in before checking', async () => {
+      stash.rescanForPreviews.mockResolvedValue('rescan-job');
+      const generating = {
+        id: '9',
+        status: 'RUNNING',
+        description: 'Generating for scanned files...',
+      };
+      let previewsMade = false;
+      stash.scenesWithoutPreview.mockImplementation((_config, ids: string[]) =>
+        Promise.resolve(
+          lacking(...(previewsMade ? [] : ids.filter((id) => id !== '7'))),
+        ),
+      );
+      // The previews appear once Stash's generating job has finished.
+      stash.getJobQueue.mockImplementation(() => {
+        const calls = stash.getJobQueue.mock.calls.length;
+        previewsMade = calls >= 3;
+        return Promise.resolve(
+          calls >= 3 ? [{ ...generating, status: 'FINISHED' }] : [generating],
+        );
+      });
+      await service.run('detected');
+      expect(stash.getJobQueue.mock.calls.length).toBeGreaterThanOrEqual(3);
+      expect(settings.lastRunMessage).toBe(
+        'Found 2 new scenes, previews generated, identified.',
+      );
+    });
+
+    it('keeps waiting when Stash’s job list doesn’t answer for a moment', async () => {
+      stash.rescanForPreviews.mockResolvedValue('rescan-job');
+      const running = {
+        id: '9',
+        status: 'RUNNING',
+        description: 'Generating for scanned files...',
+      };
+      let previewsMade = false;
+      stash.getJobQueue
+        .mockRejectedValueOnce(new Error('timeout'))
+        .mockResolvedValueOnce([running])
+        .mockImplementation(() => {
+          previewsMade = true;
+          return Promise.resolve([{ ...running, status: 'FINISHED' }]);
+        });
+      stash.scenesWithoutPreview.mockImplementation((_config, ids: string[]) =>
+        Promise.resolve(lacking(...(previewsMade ? [] : ids))),
+      );
+      await service.run('detected');
+      expect(stash.getJobQueue.mock.calls.length).toBeGreaterThanOrEqual(3);
+      expect(settings.lastRunMessage).toBe(
+        'Found 2 new scenes, previews generated, identified.',
+      );
+    });
+
+    it('doesn’t call previews failed when Stash’s job list never answers in time', async () => {
+      stash.rescanForPreviews.mockResolvedValue('rescan-job');
+      let clock = 0;
+      service.now = () => clock;
+      service.sleep = (ms) => {
+        clock += ms;
+        return Promise.resolve();
+      };
+      stash.getJobQueue.mockRejectedValue(new Error('timeout'));
+      stash.scenesWithoutPreview
+        .mockResolvedValueOnce(lacking())
+        .mockResolvedValue(lacking('41', '42'));
+      await service.run('detected');
+      // Asked until the deadline, every lookup failing.
+      expect(stash.getJobQueue.mock.calls.length).toBeGreaterThan(100);
+      expect(settings.lastRunMessage).toBe(
+        "Found 2 new scenes, couldn't confirm previews for 2 scenes (Stash didn't answer), identified.",
       );
     });
 

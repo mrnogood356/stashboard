@@ -74,6 +74,9 @@ interface Destination {
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
+  /** For tests: the wait before sending again. */
+  protected retryWait = (ms: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, ms));
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -134,7 +137,7 @@ export class NotificationsService {
     try {
       await this.post(destination, {
         title: 'Stashboard test notification',
-        body: 'Notifications are working. You will hear from Stashboard when requests change.',
+        body: 'Notifications are working. You will hear from Stashboard when wanted scenes change.',
         color: 0x74b8ed,
       });
     } catch (error) {
@@ -288,9 +291,16 @@ export class NotificationsService {
         };
     }
 
-    const response = await fetchWithTimeout(url, init, SEND_TIMEOUT_MS);
+    let response = await fetchWithTimeout(url, init, SEND_TIMEOUT_MS);
     // Nothing in the reply is needed; let the connection go.
     await response.body?.cancel().catch(() => undefined);
+    // Asked to slow down, or a hiccup on their side: one more try, after
+    // the wait they ask for (capped), rather than losing the message.
+    if (response.status === 429 || response.status >= 500) {
+      await this.retryWait(retryAfterMs(response.headers.get('retry-after')));
+      response = await fetchWithTimeout(url, init, SEND_TIMEOUT_MS);
+      await response.body?.cancel().catch(() => undefined);
+    }
     if (!response.ok) {
       throw new Error(`the server replied ${response.status}`);
     }
@@ -339,7 +349,7 @@ export function buildFollowedMessage(
       : `${scenes.length} new scenes from people you follow`;
   const listed = scenes.slice(0, MAX_LISTED_TITLES).map((scene) => {
     const from = names.length === 1 ? '' : ` (${scene.followName})`;
-    return `• ${scene.title}${from}${scene.requested ? ' — requested' : ''}`;
+    return `• ${scene.title}${from}${scene.requested ? ' — added to Wanted' : ''}`;
   });
   if (scenes.length > MAX_LISTED_TITLES) {
     listed.push(`…and ${scenes.length - MAX_LISTED_TITLES} more`);
@@ -348,7 +358,7 @@ export function buildFollowedMessage(
     requested === scenes.length
       ? null
       : requested > 0
-        ? `${requested} requested; the rest are waiting in Following.`
+        ? `${requested} added to Wanted; the rest are waiting in Following.`
         : 'They’re waiting in Following.';
   return {
     title,
@@ -415,4 +425,16 @@ function asciiHeader(value: string): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** Retry-After in seconds (or a date), as a wait of at most 10 s; 2 s when missing. */
+function retryAfterMs(header: string | null): number {
+  if (!header) {
+    return 2_000;
+  }
+  const seconds = Number(header);
+  const ms = Number.isFinite(seconds)
+    ? seconds * 1000
+    : Date.parse(header) - Date.now();
+  return Math.min(Math.max(Number.isFinite(ms) ? ms : 2_000, 0), 10_000);
 }

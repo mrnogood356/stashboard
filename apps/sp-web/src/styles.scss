@@ -1,6 +1,11 @@
 @import 'primeicons/primeicons.css';
 
 :root {
+  /* Secondary buttons, chips and filters: a soft tint of the text colour,
+     so they show on the page and on a card alike. */
+  --soft-fill: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  --soft-fill-hover: color-mix(in srgb, var(--text-primary) 14%, transparent);
+  --soft-fill-on: color-mix(in srgb, var(--text-primary) 18%, transparent);
   --app-font-family:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
@@ -45,9 +50,9 @@
   --chip-bg: #ebebf0;
   --chip-border: transparent;
   --chip-text: #1c1c1e;
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
   /* Settings → Appearance: corner radius, spacing and text size multipliers. */
   --radius-scale: 1;
   --density-scale: 1;
@@ -387,6 +392,12 @@
   --p-form-field-color: var(--text-primary);
   --p-overlay-modal-background: var(--surface-dialog-scrim);
   --p-mask-background: var(--surface-dialog-scrim);
+  color-scheme: light;
+  --app-control-height: 2.6rem;
+  --app-control-radius: var(--radius-sm);
+  --app-control-border: var(--border-subtle);
+  --app-control-bg: var(--surface-2);
+  --app-control-text: var(--text-primary);
 }
 
 :root[data-theme='dark'] {
@@ -570,6 +581,7 @@
   --p-form-field-color: var(--text-primary);
   --p-overlay-modal-background: var(--surface-dialog-scrim);
   --p-mask-background: var(--surface-dialog-scrim);
+  color-scheme: dark;
 }
 
 /* Settings → Appearance: corner radius, density and text size (theme-dom.ts sets these). */
@@ -599,8 +611,16 @@
   --root-font-size: 112.5%;
 }
 
+/* Quick taps are taps, not a double-tap zoom (pinch still zooms): the
+   three-tap Quick hide needs each one to arrive at once. */
+html {
+  touch-action: manipulation;
+}
+
 html {
   font-size: var(--root-font-size);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 html,
@@ -628,19 +648,6 @@ h3 {
 
 * {
   scrollbar-color: var(--scrollbar-thumb) transparent;
-}
-
-/*
- * Native form controls follow the theme. The colour scheme is also set inline
- * on <html> by theme-boot.js / theme-dom.ts; these rules cover the moment
- * before that runs and any control a page leaves unstyled.
- */
-:root {
-  color-scheme: light;
-}
-
-:root[data-theme='dark'] {
-  color-scheme: dark;
 }
 
 select,
@@ -719,8 +726,12 @@ select:disabled {
 }
 
 .app-back-link--media {
-  color: var(--accent);
-  font-weight: 600;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.app-back-link:hover {
+  color: var(--text-primary);
 }
 
 .app-back-link::before {
@@ -743,11 +754,9 @@ select:disabled {
 }
 
 .app-page-eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: color-mix(in srgb, var(--focus-ring) 68%, var(--text-primary));
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-muted);
 }
 
 .app-page-lede {
@@ -809,16 +818,17 @@ select:disabled {
   color: var(--text-muted);
 }
 
+/* Sections sit on the page itself, set apart by space rather than boxes. */
 .app-section-stack {
   display: grid;
-  gap: 0.9rem;
+  gap: 2.25rem;
 }
 
 .app-section-panel {
-  border: var(--app-section-border, 1px solid var(--border-subtle));
-  border-radius: var(--app-section-radius, var(--radius-lg));
-  padding: var(--app-section-padding, 1.1rem 1.15rem);
-  background: var(--app-section-bg, var(--surface-1));
+  border: var(--app-section-border, 0);
+  border-radius: var(--app-section-radius, 0);
+  padding: var(--app-section-padding, 0);
+  background: var(--app-section-bg, transparent);
   color: var(--text-primary);
   display: grid;
   gap: var(--app-section-gap, 0.75rem);
@@ -858,24 +868,11 @@ select:disabled {
   gap: 0.35rem;
   border: 1px solid var(--app-chip-border, var(--chip-border));
   background: var(--app-chip-bg, var(--chip-bg));
-  border-radius: 999px;
-  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  padding: 0.25rem 0.6rem;
   font-size: 0.84rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--app-chip-text, var(--chip-text));
-}
-
-/*
- * Control tokens live on :root so an .app-control-input (or a bare <select>)
- * outside an .app-control-shell still gets a themed background and border
- * instead of an invalid var() that falls back to transparent.
- */
-:root {
-  --app-control-height: 2.6rem;
-  --app-control-radius: var(--radius-sm);
-  --app-control-border: var(--border-subtle);
-  --app-control-bg: var(--surface-2);
-  --app-control-text: var(--text-primary);
 }
 
 .app-control-shell {
@@ -1152,8 +1149,7 @@ select:disabled {
 
 :root[data-images='obscured'] img,
 :root[data-images='obscured'] .hero-backdrop,
-:root[data-images='obscured'] .request-modal-art,
-:root[data-images='obscured'] .follow-sheet-art,
+:root[data-images='obscured'] .sheet-art,
 /* Preview clips don't start while obscured; this covers the swipe feed and
    any clip caught mid-play. The feed's backdrop is already blurred harder.
    The player itself isn't touched: it only plays when asked. */
@@ -1183,6 +1179,11 @@ select:disabled {
   margin-bottom: 0.9rem;
 }
 
+/* Under a page's tabs (Browse, Requests) the title is above: buttons sit right. */
+app-page-tabs + .page-head-compact {
+  justify-content: flex-end;
+}
+
 .page-head-compact__title {
   display: flex;
   flex: 1 1 14rem;
@@ -1193,6 +1194,16 @@ select:disabled {
 }
 
 .page-head-compact h1 {
+  margin: 0;
+  font-size: clamp(1.75rem, 2.6vw, 2.15rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+}
+
+/* A Settings page's own title (Privacy, Logs…) at the same size as every
+   other page's, not a smaller section heading. */
+.settings-shell > * > section > header:first-child h2 {
   margin: 0;
   font-size: clamp(1.75rem, 2.6vw, 2.15rem);
   font-weight: 700;
@@ -1215,9 +1226,9 @@ select:disabled {
   flex-shrink: 0;
   height: 2.25rem;
   padding: 0 0.9rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 0;
-  background: var(--chip-bg);
+  background: var(--soft-fill);
   color: var(--text-primary);
   font: inherit;
   font-size: 0.86rem;
@@ -1275,7 +1286,7 @@ select:disabled {
     gap: 0.5rem;
     height: 2.9rem;
     border: 0;
-    border-radius: 999px;
+    border-radius: var(--radius-sm);
     background: var(--accent);
     color: var(--accent-contrast);
     font: inherit;
@@ -1383,6 +1394,12 @@ html.app-shielded #privacy-cover {
   pointer-events: auto;
 }
 
+/* A playing video is drawn on its own layer on phones, which the cover above
+   doesn't always hide in the app switcher's picture: hide videos outright. */
+html.app-shielded video {
+  visibility: hidden !important;
+}
+
 /* A checkbox drawn as an iOS-style switch. Only the switch toggles. */
 input[type='checkbox'].app-switch {
   appearance: none;
@@ -1435,7 +1452,51 @@ input[type='checkbox'].app-switch:focus-visible {
   }
 }
 
-/* ---------- Shared page primitives (layout consistency pass) ---------- */
+/* PrimeNG's switch (in sheets and filters) drawn like the one above, so the
+   app has one switch. */
+.p-toggleswitch {
+  /* Never squeezed by a long label beside it. */
+  flex: 0 0 auto;
+  width: 3.1rem;
+  height: 1.9rem;
+}
+
+.p-toggleswitch .p-toggleswitch-slider {
+  border: 0;
+  border-radius: 999px;
+  background: var(--border-strong);
+  transition: background-color 0.2s ease;
+}
+
+.p-toggleswitch .p-toggleswitch-handle {
+  width: 1.6rem;
+  height: 1.6rem;
+  inset-inline-start: 0.15rem;
+  background: var(--switch-knob);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 25%);
+}
+
+.p-toggleswitch.p-toggleswitch-checked .p-toggleswitch-slider,
+.p-toggleswitch:not(.p-disabled):has(.p-toggleswitch-input:hover).p-toggleswitch-checked
+  .p-toggleswitch-slider {
+  background: var(--success);
+}
+
+.p-toggleswitch:not(.p-disabled):has(.p-toggleswitch-input:hover) .p-toggleswitch-slider {
+  background: var(--border-strong);
+}
+
+.p-toggleswitch .p-toggleswitch-handle,
+.p-toggleswitch:not(.p-disabled):has(.p-toggleswitch-input:hover) .p-toggleswitch-handle {
+  background: var(--switch-knob);
+}
+
+.p-toggleswitch.p-toggleswitch-checked .p-toggleswitch-handle,
+.p-toggleswitch:not(.p-disabled):has(.p-toggleswitch-input:hover).p-toggleswitch-checked
+  .p-toggleswitch-handle {
+  inset-inline-start: 1.35rem;
+  background: var(--switch-knob);
+}
 
 /* PrimeNG's select label sets its own font size; keep it in step with text inputs. */
 .app-control-shell :is(.p-select-label, .p-multiselect-label) {
@@ -1461,13 +1522,13 @@ input[type='checkbox'].app-switch:focus-visible {
   gap: 0.4rem;
   min-height: 2.25rem;
   padding: 0.42rem 0.95rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
   background: var(--button-bg);
   color: var(--button-text);
   font: inherit;
-  font-size: 0.84rem;
-  font-weight: 700;
+  font-size: 0.86rem;
+  font-weight: 600;
   line-height: 1.2;
   text-decoration: none;
   cursor: pointer;
@@ -1478,7 +1539,7 @@ input[type='checkbox'].app-switch:focus-visible {
 }
 
 .app-btn:hover {
-  transform: translateY(-1px);
+  border-color: var(--border-strong);
 }
 
 .app-btn:disabled {
@@ -1493,9 +1554,24 @@ input[type='checkbox'].app-switch:focus-visible {
 }
 
 .app-btn--primary {
-  border-color: color-mix(in srgb, var(--focus-ring) 52%, transparent);
-  background: color-mix(in srgb, var(--focus-ring) 14%, var(--surface-elevated));
-  color: color-mix(in srgb, var(--focus-ring) 82%, var(--text-primary));
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.app-btn--primary:hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+.app-btn:not(.app-btn--primary) {
+  border-color: transparent;
+  background: var(--soft-fill);
+  color: var(--text-primary);
+}
+
+.app-btn:not(.app-btn--primary):not(:disabled):hover {
+  border-color: transparent;
+  background: var(--soft-fill-hover);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1525,15 +1601,6 @@ input[type='checkbox'].app-switch:focus-visible {
 
 :root[data-density='compact'] .app-section-stack {
   gap: 0.6rem;
-}
-
-/*
- * Phone layout guards. Nothing may make a page wider than the screen: on an
- * iPhone that lets the whole view be dragged sideways or zoomed out.
- */
-html {
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
 }
 
 body {
@@ -1601,12 +1668,6 @@ body {
 // Settings panels only: scene cards and request rows also use .card, and
 // they stay solid (a blur behind every card in a grid is heavy on phones).
 $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-page, app-settings-hidden-page, app-settings-logs-page, app-settings-notifications-page, app-settings-playback-page, app-settings-privacy-page, app-indexing-settings-page) .card';
-
-/* ---------- Glass style (Settings → Appearance → Style) ----------
- * Frosted, see-through bars and panels over a soft backdrop that picks up
- * the accent (and, with Adaptive glass, the open page's artwork).
- * Scene cards and lists stay solid: easier to read and lighter on phones.
- */
 :root[data-material='glass'] {
   --glass-fill: color-mix(in srgb, var(--surface-1) 58%, transparent);
   --glass-fill-strong: color-mix(in srgb, var(--surface-1) 76%, transparent);
@@ -1711,10 +1772,8 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
     .p-popover,
     .p-toast-message,
     .quick-search-panel,
-    .content .app-section-panel:not(.section-shell),
     #{$glass-settings-cards},
     .content .actions-bar,
-    .content .hero-shell,
     .content .processing-card
   ) {
   background-color: var(--glass-fill);
@@ -1776,16 +1835,55 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
 }
 
 :root[data-material='glass'] .mobile-bottom-nav {
-  /* Labels sit over moving content here, so it frosts more than the panels. */
-  background-color: color-mix(in srgb, var(--surface-1) 84%, transparent);
+  /* Frosted like the desktop sidebar: what scrolls under it shows through,
+     blurred, with a little more fill so the labels stay readable. */
+  background-color: color-mix(in srgb, var(--surface-1) 62%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  backdrop-filter: blur(30px) saturate(180%);
   border-top-color: var(--glass-edge-soft);
   box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+
+/* Sheets on a phone (filters, Follow, More) and the filter dropdowns on a
+   desktop: the same frosted glass as the bars, a denser fill for reading. */
+:root[data-material='glass'] :is(.sheet-portal .sheet, .filter-dropdown) {
+  border-color: var(--glass-edge-soft);
+  background-color: var(--glass-fill-strong);
+  background-image: var(--glass-shine);
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    var(--glass-shadow);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+/* The phone's status bar area in the home-screen app: frosted, so pages
+   scroll under it like they do under the tab bar. */
+@media (max-width: 759px) {
+  :root[data-material='glass'] body::after {
+    content: '';
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 1000;
+    height: env(safe-area-inset-top);
+    pointer-events: none;
+    background-color: color-mix(in srgb, var(--surface-1) 62%, transparent);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    backdrop-filter: blur(30px) saturate(180%);
+  }
 }
 
 /* Reduce Transparency (iOS and macOS accessibility): solid panels instead. */
 @media (prefers-reduced-transparency: reduce) {
   :root[data-material='glass'] .glass-art {
     display: none;
+  }
+
+  /* The status-bar strip on a phone: solid, like the bars. */
+  :root[data-material='glass'] body::after {
+    background-color: var(--surface-1);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
   :root[data-material='glass']
@@ -1801,15 +1899,212 @@ $glass-settings-cards: ':is(app-settings-about-page, app-settings-appearance-pag
       .p-autocomplete-overlay,
       .p-toast-message,
       .quick-search-panel,
-      .content .app-section-panel:not(.section-shell),
       #{$glass-settings-cards},
       .content .actions-bar,
-      .content .hero-shell,
-      .content .processing-card
+      .content .processing-card,
+      .sheet-portal .sheet,
+      .filter-dropdown
     ) {
     background-color: var(--surface-1);
     background-image: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
+}
+
+/* A sheet or menu is open: the page behind it doesn't scroll. An iPhone
+   ignores overflow here, so swipes outside the sheet are also held
+   (core/navigation/page-scroll-lock.ts). The page itself never moves. */
+html.app-sheet-open,
+body.app-sheet-open {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/*
+ * Filter bar (shared/filter-bar): a row of filters along the top of a list.
+ * Each opens its choices at once; a one-tap filter is a .filter-toggle here.
+ * On a phone the row scrolls sideways instead of wrapping.
+ */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+@media (max-width: 759px) {
+  .filter-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-inline: calc(-1 * var(--filter-bar-bleed, 1rem));
+    padding-inline: var(--filter-bar-bleed, 1rem);
+  }
+
+  .filter-bar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.filter-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 2.25rem;
+  padding: 0 0.8rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.filter-toggle:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.filter-toggle[aria-pressed='true'] {
+  border-color: var(--text-primary);
+  background: var(--text-primary);
+  color: var(--app-bg);
+}
+
+.filter-toggle:focus-visible,
+.filter-bar__clear:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.filter-bar__clear {
+  flex: 0 0 auto;
+  height: 2.25rem;
+  padding: 0 0.4rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.88rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.filter-bar__clear:hover {
+  color: var(--text-primary);
+}
+
+/*
+ * Tabs (.app-tabs, role="tablist"): words in a row with a line under the
+ * current one. One look on every page that has them.
+ */
+.app-tabs {
+  display: flex;
+  gap: 1.25rem;
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.app-tabs > button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: auto;
+  min-width: 0;
+  height: 2.5rem;
+  min-height: 0;
+  margin-bottom: -1px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.app-tabs > button:hover {
+  color: var(--text-primary);
+}
+
+.app-tabs > button:is(.active, [aria-selected='true']) {
+  border-bottom-color: var(--text-primary);
+  background: none;
+  box-shadow: none;
+  color: var(--text-primary);
+}
+
+/* A count in a tab is a plain figure, not a badge. */
+.app-tabs > button :is(.count-badge, .tab-count, .count) {
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Soft, like the filter chips and cards: a quiet fill, no outline. */
+.filter-toggle {
+  border-color: transparent;
+  background: var(--surface-1);
+}
+
+.filter-toggle:not([aria-pressed='true']):hover {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--text-primary) 10%, var(--surface-1));
+}
+
+/*
+ * Blur pictures, one tap away on a phone: the eye button at the top of
+ * Home, Browse, Library and Queue. A desktop has it in the sidebar.
+ */
+.phone-eye {
+  display: none;
+}
+
+@media (max-width: 759px) {
+  .phone-eye {
+    display: inline-flex;
+  }
+}
+
+/* Read out by screen readers, never shown. */
+.sr-only,
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }

@@ -2,7 +2,7 @@
   <header class="section-head">
     <h2>Notifications</h2>
     <p class="lede">
-      A message when a requested scene starts downloading, lands in your library, or fails.
+      A message when a wanted scene starts downloading, lands in your library, or fails.
     </p>
   </header>
 
@@ -98,7 +98,7 @@
       }
 
       <fieldset class="field events">
-        <legend>Tell me when a requested scene…</legend>
+        <legend>Tell me when a wanted scene…</legend>
         <div class="switch-row">
           <span>starts downloading</span>
           <input
@@ -106,7 +106,7 @@
             class="app-switch"
             role="switch"
             name="notifyDownloading"
-            aria-label="Notify when a requested scene starts downloading"
+            aria-label="Notify when a wanted scene starts downloading"
             [ngModel]="form().notifyDownloading"
             (ngModelChange)="update('notifyDownloading', $event)"
           />
@@ -118,7 +118,7 @@
             class="app-switch"
             role="switch"
             name="notifyAvailable"
-            aria-label="Notify when a requested scene lands in my library"
+            aria-label="Notify when a wanted scene lands in my library"
             [ngModel]="form().notifyAvailable"
             (ngModelChange)="update('notifyAvailable', $event)"
           />
@@ -130,7 +130,7 @@
             class="app-switch"
             role="switch"
             name="notifyFailed"
-            aria-label="Notify when a requested scene fails to download"
+            aria-label="Notify when a wanted scene fails to download"
             [ngModel]="form().notifyFailed"
             (ngModelChange)="update('notifyFailed', $event)"
           />

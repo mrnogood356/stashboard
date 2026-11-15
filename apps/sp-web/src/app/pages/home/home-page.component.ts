@@ -1,3 +1,4 @@
+import { ImageObscurationToggleComponent } from '../../shared/image-obscuration-toggle/image-obscuration-toggle.component';
 import { Observable } from 'rxjs';
 import { GlassArtService } from '../../core/theme/glass-art.service';
 import {
@@ -136,6 +137,7 @@ type RailFavoritesOption = SceneFavoritesFilter | 'NONE';
 @Component({
   selector: 'app-home-page',
   imports: [
+    ImageObscurationToggleComponent,
     RouterLink,
     FormsModule,
     MultiSelect,
@@ -164,8 +166,8 @@ export class HomePageComponent implements OnInit, OnDestroy {
     { value: 'DATE', label: 'Release Date' },
     { value: 'TITLE', label: 'Title' },
     { value: 'TRENDING', label: 'Trending' },
-    { value: 'CREATED_AT', label: 'Created At' },
-    { value: 'UPDATED_AT', label: 'Updated At' },
+    { value: 'CREATED_AT', label: 'Date added' },
+    { value: 'UPDATED_AT', label: 'Date updated' },
   ];
   protected static readonly STASH_SORT_OPTIONS: Array<{
     value: HomeStashSceneSort;

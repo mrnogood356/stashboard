@@ -35,7 +35,6 @@ import { HideOwnedService, isOwned } from '../../core/preferences/hide-owned.ser
 import { OwnedNoteComponent } from '../../shared/owned-note/owned-note.component';
 import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
-import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
 import { OverflowXDirective } from '../../shared/overflow-x/overflow-x.directive';
 import { SectionBackComponent } from '../../shared/section-back/section-back.component';
 import { addFound, mergePerformers, mergeScenes, mergeStudios, missedNames } from './search-merge';
@@ -106,8 +105,6 @@ export class SearchPageComponent implements OnInit, OnDestroy {
   private readonly hideOwned = inject(HideOwnedService);
   private readonly library = inject(LibraryService);
   private readonly local = inject(LocalLibraryService);
-  /** Settings → Playback: off hides the swipe feed shortcut. */
-  protected readonly feedOn = inject(PlaybackSettingsService).feedEnabled;
   private readonly queries = new Subject<string>();
   private subscription: Subscription | null = null;
   private showHiddenSubscription: Subscription | null = null;

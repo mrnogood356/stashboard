@@ -77,6 +77,10 @@ describe('CalendarPageComponent', () => {
     expect(root.querySelector(`[data-testid="agenda-${first}"]`)?.textContent).toContain(
       'In library',
     );
+    // The studio opens its page.
+    expect(
+      root.querySelector(`[data-testid="agenda-${first}"] a.release-studio`)?.getAttribute('href'),
+    ).toMatch(/^\/studio\/st\?returnTo=/);
 
     (root.querySelector(`[data-testid="day-${second}"]`) as HTMLButtonElement).click();
     fixture.detectChanges();

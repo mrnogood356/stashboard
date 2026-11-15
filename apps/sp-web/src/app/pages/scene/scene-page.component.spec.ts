@@ -1,6 +1,6 @@
 import { HiddenContentService } from '../../core/api/hidden-content.service';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject, Subject, of } from 'rxjs';
 import { DiscoverService } from '../../core/api/discover.service';
 import { ReleasesApiService } from '../../core/api/releases.service';
@@ -36,7 +36,11 @@ function buildScene(overrides: Partial<SceneDetails> = {}): SceneDetails {
 }
 
 describe('ScenePageComponent', () => {
-  async function renderScene(scene: SceneDetails, prowlarrConfigured = false) {
+  async function renderScene(
+    scene: SceneDetails,
+    prowlarrConfigured = false,
+    query: Record<string, string> = {},
+  ) {
     const discoverService = {
       getSceneDetails: vi.fn().mockReturnValue(of(scene)),
     };
@@ -74,9 +78,10 @@ describe('ScenePageComponent', () => {
     };
     const activatedRoute = {
       paramMap: of(convertToParamMap({ stashId: scene.id })),
-      queryParamMap: of(convertToParamMap({})),
+      queryParamMap: of(convertToParamMap(query)),
       snapshot: {
         paramMap: convertToParamMap({ stashId: scene.id }),
+        queryParamMap: convertToParamMap(query),
       },
     };
 
@@ -241,7 +246,8 @@ describe('ScenePageComponent', () => {
     // "Pick another release" opens the release picker.
     root.querySelector<HTMLButtonElement>('[data-testid="timeline-action-pick-release"]')!.click();
     fixture.detectChanges();
-    expect(root.querySelector('app-release-picker [role="dialog"]')).not.toBeNull();
+    // An open sheet sits at the end of the page.
+    expect(document.querySelector('[data-testid="release-picker"][role="dialog"]')).not.toBeNull();
   });
 
   it('has no timeline for a scene that was never requested', async () => {
@@ -254,7 +260,7 @@ describe('ScenePageComponent', () => {
   it('keeps the normal request CTA for NOT_REQUESTED scenes', async () => {
     const { fixture } = await renderScene(buildScene());
 
-    expect(fixture.nativeElement.textContent).toContain('Request in Whisparr');
+    expect(fixture.nativeElement.textContent).toContain('Add to Wanted');
   });
 
   it('opens the studio on the catalog from its name and its logo', async () => {
@@ -292,7 +298,8 @@ describe('ScenePageComponent', () => {
       },
     });
 
-    const { fixture } = await renderScene(scene);
+    // Asked for by name: a scene you have opens as your library's otherwise.
+    const { fixture } = await renderScene(scene, false, { view: 'catalog' });
     const play = fixture.nativeElement.querySelector(
       '.scene-play-button',
     ) as HTMLAnchorElement | null;
@@ -300,6 +307,32 @@ describe('ScenePageComponent', () => {
     expect(play?.textContent).toContain('Play');
     expect(play?.getAttribute('href')).toContain('/watch/77');
     expect(fixture.nativeElement.querySelector('.request-button')).toBeNull();
+  });
+
+  it('opens a scene you have once as your library’s scene page, keeping where Back goes', async () => {
+    const scene = buildScene({
+      status: { state: 'AVAILABLE' },
+      stash: {
+        exists: true,
+        hasMultipleCopies: false,
+        copies: [
+          {
+            id: '77',
+            viewUrl: 'http://stash.local/scenes/77',
+            width: 1920,
+            height: 1080,
+            label: '1080p',
+          },
+        ],
+      },
+    });
+    const navigate = vi.spyOn(Router.prototype, 'navigate').mockResolvedValue(true);
+    await renderScene(scene, false, { returnTo: '/scenes?sort=TITLE' });
+    expect(navigate).toHaveBeenCalledWith(['/library/scene', '77'], {
+      replaceUrl: true,
+      queryParams: { returnTo: '/scenes?sort=TITLE' },
+    });
+    navigate.mockRestore();
   });
 
   it('does not offer Play for scenes that are not in Stash', async () => {

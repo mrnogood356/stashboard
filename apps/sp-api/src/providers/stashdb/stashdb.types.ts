@@ -603,3 +603,27 @@ export interface StashdbGraphqlResponse {
     path?: unknown;
   }>;
 }
+
+/** One performer's or one studio's scenes, to count their categories and studios. */
+export interface StashdbSceneFacetsConfig extends StashdbAdapterBaseConfig {
+  performerId?: string;
+  studioId?: string;
+  /** Look at this many of the newest scenes at most. */
+  maxScenes: number;
+}
+
+export interface StashdbFacet {
+  id: string;
+  name: string;
+  /** How many of the scenes looked at have it. */
+  count: number;
+}
+
+export interface StashdbSceneFacets {
+  /** All their scenes on the catalog. */
+  total: number;
+  /** How many of the newest were looked at (all of them, up to the limit). */
+  scanned: number;
+  tags: StashdbFacet[];
+  studios: StashdbFacet[];
+}

@@ -1,3 +1,4 @@
+import { PageTabsComponent, REQUESTS_TABS } from '../../shared/page-tabs/page-tabs.component';
 import { DOCUMENT } from '@angular/common';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -12,9 +13,13 @@ import {
   WhisparrImports,
 } from '../../core/api/download-handoff.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
-import { HANDOFF_STEPS, fileSize, relativeTime, stageLabel, stepIndex } from './processing.format';
-import { SectionBackComponent } from '../../shared/section-back/section-back.component';
-import { Stage, timeLeftText } from '../../shared/stage-track/stage-track';
+import { fileSize, relativeTime, stageLabel } from './processing.format';
+import {
+  Stage,
+  percentText,
+  stagesForHandoff,
+  timeLeftText,
+} from '../../shared/stage-track/stage-track';
 import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
 
 /** How often the page refreshes while it's on screen. */
@@ -34,11 +39,12 @@ const WATCH_LABELS: Record<DropInWatchStatus['state'], string> = {
  */
 @Component({
   selector: 'app-processing-page',
-  imports: [SectionBackComponent, RouterLink, StageTrackComponent],
+  imports: [PageTabsComponent, RouterLink, StageTrackComponent],
   templateUrl: './processing-page.component.html',
   styleUrls: ['../tools/tools-shared.scss', './processing-page.component.scss'],
 })
 export class ProcessingPageComponent implements OnInit, OnDestroy {
+  protected readonly pageTabs = REQUESTS_TABS;
   private readonly api = inject(DownloadHandoffApiService);
   private readonly notifications = inject(AppNotificationsService);
   private readonly document = inject(DOCUMENT);
@@ -56,7 +62,6 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
     }
   };
 
-  protected readonly steps = HANDOFF_STEPS;
   protected readonly data = signal<Processing | null>(null);
   protected readonly loadError = signal(false);
   protected readonly checking = signal(false);
@@ -71,7 +76,7 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
   protected progressText(progress: number | null, timeLeft: string | null): string {
     const parts: string[] = [];
     if (progress !== null) {
-      parts.push(`${progress}%`);
+      parts.push(`${percentText(progress)}%`);
     }
     const left = timeLeftText(timeLeft);
     if (left) {
@@ -226,27 +231,9 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
     return relativeTime(iso, this.now());
   }
 
-  /**
-   * A download's steps for the step track. A failure is shown where it
-   * stopped: at Waiting for Stash once it was moved in, else at Downloading.
-   */
+  /** A download's steps: the same four as on Wanted. */
   protected stages(entry: ProcessingHandoff): Stage[] {
-    const failed = entry.stage === 'failed';
-    const at = failed
-      ? stepIndex(entry.finalPath ? 'linking' : 'downloading')
-      : stepIndex(entry.stage);
-    const finished = entry.stage === 'done';
-    return this.steps.map((step, index) => ({
-      label: step.label,
-      state:
-        index < at || (finished && index <= at)
-          ? 'done'
-          : index === at
-            ? failed
-              ? 'failed'
-              : 'current'
-            : 'todo',
-    }));
+    return stagesForHandoff(entry.stage, !!entry.finalPath);
   }
 
   private run(

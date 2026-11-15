@@ -402,3 +402,19 @@ export interface ScenesCalendarResponse {
   /** Whisparr's part: shown, not set up, or couldn't be reached just now. */
   whisparr: 'ok' | 'off' | 'failed';
 }
+
+/** A category or studio and how many of someone's scenes have it. */
+export interface SceneFacet {
+  id: string;
+  name: string;
+  count: number;
+}
+
+/** A performer's or studio's own categories and studios, the most used first. */
+export interface SceneFacets {
+  total: number;
+  /** How many of their newest scenes were counted. */
+  scanned: number;
+  tags: SceneFacet[];
+  studios: SceneFacet[];
+}

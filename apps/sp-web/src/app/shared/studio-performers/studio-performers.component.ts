@@ -54,6 +54,8 @@ export class StudioPerformersComponent implements OnInit {
   @Input() returnTo = '';
 
   protected readonly query = signal('');
+  /** Folded at first, so the studio's scenes come first; the count shows either way. */
+  protected readonly open = signal(false);
   protected readonly performers = signal<PerformerFeedItem[]>([]);
   protected readonly total = signal(0);
   protected readonly hasMore = signal(false);

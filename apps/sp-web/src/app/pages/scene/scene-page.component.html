@@ -1,8 +1,8 @@
 <main class="app-page-shell">
   <a
     class="back-link app-back-link app-back-link--media"
-    [routerLink]="backLinkPath()"
-    [queryParams]="backLinkQueryParams()"
+    [href]="backLinkHref()"
+    (click)="goBack($event)"
   >
     {{ backLinkLabel() }}
   </a>
@@ -149,13 +149,7 @@
             </div>
           }
 
-          @if (
-            hasStashCopy(scene) ||
-            hasWhisparrLink(scene) ||
-            canRequestScene(scene) ||
-            canPickRelease(scene) ||
-            canFindDownloads(scene)
-          ) {
+          @if (hasHeroActions(scene)) {
             <div class="hero-actions app-action-row">
               @if (playbackOn() && hasStashCopy(scene) && selectedStashSceneId(scene); as playId) {
                 <a
@@ -179,7 +173,7 @@
                   (click)="openRequestPanel(scene)"
                 >
                   <i class="pi pi-download" aria-hidden="true"></i>
-                  <span>Request in Whisparr</span>
+                  <span>Add to Wanted</span>
                 </button>
               }
 
@@ -276,10 +270,14 @@
                   <i class="pi pi-external-link external-action-icon" aria-hidden="true"></i>
                 </a>
               }
+
+              @if (scene.studioId) {
+                <app-hide-toggle kind="studio" [itemId]="scene.studioId" [name]="scene.studio" />
+              }
             </div>
           }
 
-          @if (scene.studioId) {
+          @if (scene.studioId && !hasHeroActions(scene)) {
             <div class="hide-row">
               <app-hide-toggle kind="studio" [itemId]="scene.studioId" [name]="scene.studio" />
             </div>
@@ -398,7 +396,7 @@
       <div class="scene-mobile-request-bar">
         <button type="button" class="scene-mobile-request" (click)="openRequestPanel(scene)">
           <i class="pi pi-download" aria-hidden="true"></i>
-          Request this scene
+          Add to Wanted
         </button>
       </div>
     }

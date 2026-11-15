@@ -164,7 +164,10 @@ describe('OrganizerService', () => {
         update: jest.fn().mockResolvedValue({}),
       },
       sceneIndex: { findMany: jest.fn().mockResolvedValue([]) },
-      sceneStashAlias: { upsert: jest.fn().mockResolvedValue({}) },
+      sceneStashAlias: {
+        upsert: jest.fn().mockResolvedValue({}),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       matchProposal: {
         findMany: jest.fn(() =>
           Promise.resolve(
@@ -253,9 +256,12 @@ describe('OrganizerService', () => {
       requestImmediateRefresh: jest.fn().mockResolvedValue(undefined),
     };
     handoff = {
+      noteNotInStash: jest.fn(),
+      noteSharedFile: jest.fn(),
       send: jest.fn().mockResolvedValue({ sent: [], skipped: {}, failed: [] }),
       isAvailable: jest.fn().mockResolvedValue(true),
       missingInWhisparr: jest.fn().mockResolvedValue([]),
+      countMissingInWhisparr: jest.fn().mockResolvedValue(0),
       catalogEndpoint: jest
         .fn()
         .mockResolvedValue('https://stashdb.org/graphql'),
@@ -267,6 +273,7 @@ describe('OrganizerService', () => {
       rootFoldersAsStashSees: jest.fn().mockResolvedValue([]),
       repairPlan: jest.fn(),
       namingConfig: jest.fn().mockResolvedValue(null),
+      leavesCopies: jest.fn().mockResolvedValue(null),
       resetPaths: jest.fn().mockResolvedValue(undefined),
       scanWhereWhisparrPut: jest.fn().mockResolvedValue(undefined),
     };
@@ -564,7 +571,23 @@ describe('OrganizerService', () => {
 
       await service.sendMissingDaily();
 
-      expect(start).toHaveBeenCalledWith(true);
+      expect(start).toHaveBeenCalledWith(true, null);
+    });
+
+    it('with “Also add scenes Whisparr doesn’t have” on, adds the last two days’ new scenes too', async () => {
+      settings.sendToWhisparr = true;
+      settings.addToWhisparr = true;
+      handoff.missingInWhisparr.mockResolvedValue([]);
+      const start = jest
+        .spyOn(service, 'startSendAll')
+        .mockReturnValue(service.status());
+
+      await service.sendMissingDaily();
+
+      expect(start).toHaveBeenCalledWith(false, expect.any(Date));
+      const since = start.mock.calls[0][1] as Date;
+      expect(Date.now() - since.getTime()).toBeGreaterThan(47 * 3600_000);
+      expect(Date.now() - since.getTime()).toBeLessThan(49 * 3600_000);
     });
 
     it('does nothing when it is off or nothing is missing', async () => {
@@ -994,6 +1017,260 @@ describe('OrganizerService', () => {
     expect(service.status().message).toBe('Sent 1 to Whisparr.');
   });
 
+  it('sends the file of a scene you said is the same as another, to Whisparr’s entry', async () => {
+    handoff.missingInWhisparr.mockResolvedValue(['sdb-whisparr']);
+    prisma.sceneStashAlias.findMany.mockResolvedValue([
+      { stashId: 'sdb-whisparr', aliasOf: 'sdb-stash' },
+    ]);
+    const inStash = localScene({
+      id: '31',
+      stashIds: [
+        { endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-stash' },
+      ],
+    });
+    stash.findOrganizerScenes.mockImplementation(
+      (
+        _config: unknown,
+        query: { sceneFilter: { stash_id_endpoint: { stash_id: string } } },
+      ) =>
+        Promise.resolve(
+          query.sceneFilter.stash_id_endpoint.stash_id === 'sdb-stash'
+            ? { total: 1, items: [inStash] }
+            : { total: 0, items: [] },
+        ),
+    );
+    handoff.send.mockResolvedValue({ sent: [], skipped: {}, failed: [] });
+
+    service.startSendAll();
+    await waitUntilIdle(service);
+
+    const [, sent] = handoff.send.mock.calls[0] as [
+      unknown,
+      Array<{ id: string; stashIds: unknown[] }>,
+    ];
+    expect(sent).toHaveLength(1);
+    expect(sent[0].id).toBe('31');
+    expect(sent[0].stashIds).toEqual([
+      { endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-whisparr' },
+    ]);
+  });
+
+  it('keeps each scene Whisparr is missing when two are one file in Stash', async () => {
+    handoff.missingInWhisparr.mockResolvedValue(['sdb-a', 'sdb-b']);
+    prisma.sceneStashAlias.findMany.mockResolvedValue([
+      { stashId: 'sdb-b', aliasOf: 'sdb-a' },
+    ]);
+    const inStash = localScene({
+      id: '31',
+      stashIds: [{ endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-a' }],
+    });
+    stash.findOrganizerScenes.mockImplementation(
+      (
+        _config: unknown,
+        query: { sceneFilter: { stash_id_endpoint: { stash_id?: string } } },
+      ) =>
+        Promise.resolve(
+          query.sceneFilter.stash_id_endpoint.stash_id === 'sdb-a'
+            ? { total: 1, items: [inStash] }
+            : { total: 0, items: [] },
+        ),
+    );
+    const sentTo = () =>
+      (
+        handoff.send.mock.calls[0] as [
+          unknown,
+          Array<{ stashIds: Array<{ stashId: string }> }>,
+        ]
+      )[1].map((scene) => scene.stashIds[0].stashId);
+
+    // Copied: the file goes to both.
+    settings.whisparrImportMode = 'copy';
+    service.startSendAll();
+    await waitUntilIdle(service);
+    expect(sentTo()).toEqual(['sdb-a', 'sdb-b']);
+
+    // Moved: to the first, and the other says why not, by how it went.
+    handoff.send.mockClear();
+    settings.whisparrImportMode = 'move';
+    handoff.send.mockResolvedValue({
+      sent: [{ sceneId: '31', title: 'Scene' }],
+      skipped: {},
+      failed: [],
+    });
+    service.startSendAll();
+    await waitUntilIdle(service);
+    expect(sentTo()).toEqual(['sdb-a']);
+    expect(handoff.noteSharedFile).toHaveBeenCalledWith('sdb-b', 'sdb-a', true);
+
+    // The first didn't go (failed or skipped): the other doesn't say it did.
+    handoff.send.mockClear();
+    handoff.noteSharedFile.mockClear();
+    handoff.send.mockResolvedValue({
+      sent: [],
+      skipped: {},
+      failed: [{ sceneId: '31', title: 'Scene', reason: 'Whisparr said no' }],
+    });
+    service.startSendAll();
+    await waitUntilIdle(service);
+    expect(handoff.noteSharedFile).toHaveBeenCalledWith(
+      'sdb-b',
+      'sdb-a',
+      false,
+    );
+
+    // Whisparr already had a file for the first: nothing moved, so the file
+    // goes to the other one.
+    handoff.send.mockReset();
+    handoff.noteSharedFile.mockClear();
+    handoff.send
+      .mockResolvedValueOnce({
+        sent: [],
+        skipped: { 'already-has-file': 1 },
+        failed: [],
+        alreadyHad: ['sdb-a'],
+      })
+      .mockResolvedValueOnce({
+        sent: [{ sceneId: '31', title: 'Scene' }],
+        skipped: {},
+        failed: [],
+      });
+    service.startSendAll();
+    await waitUntilIdle(service);
+    const second = handoff.send.mock.calls[1] as [
+      unknown,
+      Array<{ stashIds: Array<{ stashId: string }> }>,
+    ];
+    expect(second[1].map((scene) => scene.stashIds[0].stashId)).toEqual([
+      'sdb-b',
+    ]);
+    expect(handoff.noteSharedFile).not.toHaveBeenCalled();
+  });
+
+  it('with new scenes added too, keeps a missing scene’s partner file over its own fileless scene', async () => {
+    settings.addToWhisparr = true;
+    handoff.missingInWhisparr.mockResolvedValue(['sdb-a']);
+    prisma.sceneStashAlias.findMany.mockResolvedValue([
+      { stashId: 'sdb-a', aliasOf: 'sdb-b' },
+    ]);
+    const fileless = localScene({
+      id: '30',
+      files: [],
+      stashIds: [{ endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-a' }],
+    });
+    const withFile = localScene({
+      id: '31',
+      stashIds: [{ endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-b' }],
+    });
+    stash.findOrganizerScenes.mockImplementation(
+      (
+        _config: unknown,
+        query: {
+          sceneFilter: {
+            stash_id_endpoint: { stash_id?: string; modifier: string };
+          };
+        },
+      ) => {
+        const { stash_id: id, modifier } = query.sceneFilter.stash_id_endpoint;
+        return Promise.resolve(
+          modifier === 'NOT_NULL'
+            ? { total: 1, items: [fileless] }
+            : id === 'sdb-a'
+              ? { total: 1, items: [fileless] }
+              : id === 'sdb-b'
+                ? { total: 1, items: [withFile] }
+                : { total: 0, items: [] },
+        );
+      },
+    );
+
+    service.startSendAll();
+    await waitUntilIdle(service);
+
+    const [, sent] = handoff.send.mock.calls[0] as [
+      unknown,
+      Array<{ id: string; stashIds: Array<{ stashId: string }> }>,
+    ];
+    expect(sent.map((scene) => scene.id)).toEqual(['31']);
+    expect(sent[0].stashIds[0].stashId).toBe('sdb-a');
+  });
+
+  it('with new scenes added too, keeps a scene going to the missing one it was matched to', async () => {
+    settings.addToWhisparr = true;
+    handoff.missingInWhisparr.mockResolvedValue(['sdb-whisparr']);
+    prisma.sceneStashAlias.findMany.mockResolvedValue([
+      { stashId: 'sdb-whisparr', aliasOf: 'sdb-stash' },
+    ]);
+    const inStash = localScene({
+      id: '31',
+      stashIds: [
+        { endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-stash' },
+      ],
+    });
+    stash.findOrganizerScenes.mockImplementation(
+      (
+        _config: unknown,
+        query: {
+          sceneFilter: {
+            stash_id_endpoint: { stash_id?: string; modifier: string };
+          };
+        },
+      ) =>
+        Promise.resolve(
+          query.sceneFilter.stash_id_endpoint.modifier === 'NOT_NULL' ||
+            query.sceneFilter.stash_id_endpoint.stash_id === 'sdb-stash'
+            ? { total: 1, items: [inStash] }
+            : { total: 0, items: [] },
+        ),
+    );
+
+    service.startSendAll();
+    await waitUntilIdle(service);
+
+    const [, sent] = handoff.send.mock.calls[0] as [
+      unknown,
+      Array<{ id: string; stashIds: Array<{ stashId: string }> }>,
+    ];
+    expect(sent).toHaveLength(1);
+    expect(sent[0].stashIds[0].stashId).toBe('sdb-whisparr');
+  });
+
+  it('finds the file the other way round too, when Whisparr has the main scene of the pair', async () => {
+    handoff.missingInWhisparr.mockResolvedValue(['sdb-main']);
+    prisma.sceneStashAlias.findMany.mockResolvedValue([
+      { stashId: 'sdb-other', aliasOf: 'sdb-main' },
+    ]);
+    const inStash = localScene({
+      id: '32',
+      stashIds: [
+        { endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-other' },
+      ],
+    });
+    stash.findOrganizerScenes.mockImplementation(
+      (
+        _config: unknown,
+        query: { sceneFilter: { stash_id_endpoint: { stash_id: string } } },
+      ) =>
+        Promise.resolve(
+          query.sceneFilter.stash_id_endpoint.stash_id === 'sdb-other'
+            ? { total: 1, items: [inStash] }
+            : { total: 0, items: [] },
+        ),
+    );
+    handoff.send.mockResolvedValue({ sent: [], skipped: {}, failed: [] });
+
+    service.startSendAll();
+    await waitUntilIdle(service);
+
+    const [, sent] = handoff.send.mock.calls[0] as [
+      unknown,
+      Array<{ id: string; stashIds: unknown[] }>,
+    ];
+    expect(sent.map((scene) => scene.id)).toEqual(['32']);
+    expect(sent[0].stashIds).toEqual([
+      { endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-main' },
+    ]);
+  });
+
   it('leaves scenes the rename can name out of Unmatched, so the two don’t undo each other', async () => {
     const file = (id: string, path: string) => ({
       ...localScene().files[0],
@@ -1160,6 +1437,70 @@ describe('OrganizerService', () => {
     const preview = await service.renamePreview();
     expect(preview.counts.whisparr).toBe(1);
     expect(preview.counts.ready).toBe(0);
+  });
+
+  it('renames with Whisparr’s own naming when Whisparr is set up, not your pattern', async () => {
+    settings.renamePattern = '{title}';
+    handoff.namingConfig.mockResolvedValue({
+      folderFormat: '{Studio Title}',
+      fileFormat: '{Release Date} - {Scene Title}',
+    });
+    stash.findOrganizerScenes.mockResolvedValue({
+      total: 1,
+      items: [
+        localScene({
+          title: 'T',
+          date: '2020-01-02',
+          studio: { id: 's', name: 'S' },
+          stashIds: [{ endpoint: 'e', stashId: 'y' }],
+        }),
+      ],
+    });
+
+    const preview = await service.renamePreview();
+    expect(preview.pattern).toBe(
+      '{Studio Title}/{Release Date} - {Scene Title}',
+    );
+    await expect(service.getSettingsDto()).resolves.toMatchObject({
+      naming: {
+        source: 'whisparr',
+        pattern: '{Studio Title}/{Release Date} - {Scene Title}',
+        problem: null,
+      },
+    });
+
+    // Without a usable file format, your own pattern, saying why.
+    handoff.namingConfig.mockResolvedValue({
+      folderFormat: '{Studio Title}',
+      fileFormat: null,
+    });
+    await expect(service.getSettingsDto()).resolves.toMatchObject({
+      naming: {
+        source: 'own',
+        pattern: '{title}',
+        problem: 'Whisparr has no Standard Scene Format set.',
+      },
+    });
+  });
+
+  it('always leaves Whisparr’s files alone, whatever was saved before', async () => {
+    settings.skipWhisparrFiles = false;
+    handoff.trackedStashIds.mockResolvedValue(new Set(['x']));
+    stash.findOrganizerScenes.mockResolvedValue({
+      total: 1,
+      items: [
+        localScene({
+          title: 'T',
+          studio: { id: 's', name: 'S' },
+          stashIds: [{ endpoint: 'e', stashId: 'x' }],
+        }),
+      ],
+    });
+    const preview = await service.renamePreview();
+    expect(preview.counts.whisparr).toBe(1);
+    await expect(service.getSettingsDto()).resolves.toMatchObject({
+      skipWhisparrFiles: true,
+    });
   });
 
   it('renames nothing when it can’t ask Whisparr which files are its own', async () => {
@@ -1441,7 +1782,13 @@ describe('OrganizerService', () => {
       return Promise.resolve();
     });
 
-    const result = await service.fixTaken(['7']);
+    // Agreed to a scan, but Stash has the other file now: nothing merged.
+    const changed = await service.fixTaken(['7'], 'scan');
+    expect(stash.mergeScenes).not.toHaveBeenCalled();
+    expect(stash.removeExtraFile).not.toHaveBeenCalled();
+    expect(changed.skipped[0].reason).toMatch(/changed since the preview/);
+
+    const result = await service.fixTaken(['7'], 'merge');
 
     expect(stash.mergeScenes).toHaveBeenCalledWith(
       expect.anything(),
@@ -1486,7 +1833,7 @@ describe('OrganizerService', () => {
     );
     stash.sceneIdsForPaths.mockResolvedValue(['9']);
 
-    const result = await service.fixTaken(['7']);
+    const result = await service.fixTaken(['7'], 'merge');
 
     expect(stash.mergeScenes).not.toHaveBeenCalled();
     expect(stash.removeExtraFile).not.toHaveBeenCalled();
@@ -2669,6 +3016,43 @@ describe('OrganizerService', () => {
       update: { aliasOf: 'sdb-other' },
     });
     expect(stash.applySceneMatch).not.toHaveBeenCalled();
+    expect(indexing.requestImmediateRefresh).toHaveBeenCalledWith(
+      ['sdb-mine'],
+      'waiting-link',
+    );
+  });
+
+  it('links Stash’s scene to Whisparr’s instead when Stash has it under the wrong one', async () => {
+    const scene = localScene({
+      id: '26',
+      stashIds: [
+        { endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-wrong' },
+      ],
+      files: [{ ...localScene().files[0], id: 'f26', path: '/data/d/d.mp4' }],
+    });
+    handoff.filesAsStashSees = jest
+      .fn()
+      .mockResolvedValue([
+        { stashId: 'sdb-mine', filePath: '/data/d/d.mp4', folder: null },
+      ]);
+    stash.findOrganizerScenes.mockResolvedValue({ total: 1, items: [scene] });
+    catalog.getInstanceCatalogProvider.mockResolvedValue({
+      providerKey: 'STASHDB',
+      baseUrl: 'https://stashdb.org',
+      apiKey: 'k',
+    });
+    const link = jest
+      .spyOn(service, 'linkDownloadedScene')
+      .mockResolvedValue({ title: 'Mine' });
+
+    await service.linkToWaitingScene('sdb-mine');
+
+    expect(link).toHaveBeenCalledWith('26', {
+      provider: 'STASHDB',
+      sceneId: 'sdb-mine',
+    });
+    // Not remembered as the same scene: the wrong link is replaced instead.
+    expect(prisma.sceneStashAlias.upsert).not.toHaveBeenCalled();
     expect(indexing.requestImmediateRefresh).toHaveBeenCalledWith(
       ['sdb-mine'],
       'waiting-link',

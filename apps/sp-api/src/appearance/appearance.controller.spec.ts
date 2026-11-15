@@ -100,6 +100,12 @@ describe('Appearance API', () => {
       .send({ ...VALID, accentColor: null, customCss: undefined })
       .expect(200);
     expect(response.body).toMatchObject({ accentColor: null, customCss: '' });
+
+    const artwork = await request(app.getHttpServer())
+      .put('/api/appearance')
+      .send({ ...VALID, accentColor: 'artwork' })
+      .expect(200);
+    expect(artwork.body).toMatchObject({ accentColor: 'artwork' });
   });
 
   it.each([

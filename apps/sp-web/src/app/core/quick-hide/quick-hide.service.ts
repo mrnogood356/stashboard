@@ -1,5 +1,5 @@
 import { DOCUMENT } from '@angular/common';
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, OnDestroy, inject, signal } from '@angular/core';
 import { ImageObscurationService } from '../preferences/image-obscuration.service';
 
 /** On this device only: someone else's phone shouldn't change yours. */
@@ -28,11 +28,22 @@ export const IDLE_OPTIONS = [
   { value: 30, label: 'After 30 minutes' },
 ];
 
-/** Two Escs or three taps must land within this long. */
+/** Two Escs must land within this long. */
 const GESTURE_WINDOW_MS = 600;
+/** Each of the three taps within this long of the one before. */
+const TAP_GAP_MS = 500;
 /** Taps further apart than this are separate taps, not one gesture. */
-const TAP_SLOP_PX = 60;
+const TAP_SLOP_PX = 80;
+/**
+ * The tap that hides is followed by its own click, which lands on the cover
+ * it just raised: ignore taps on the cover for this long, or it hides and
+ * comes straight back.
+ */
+const REVEAL_GUARD_MS = 500;
 const IDLE_CHECK_MS = 15_000;
+/** A tap is a touch lifted this soon, without moving further than TAP_MOVE_PX: a flick or scroll isn't one. */
+const TAP_MAX_MS = 300;
+const TAP_MOVE_PX = 12;
 
 /**
  * Quick hide: one gesture covers the screen, pauses anything playing and
@@ -40,7 +51,7 @@ const IDLE_CHECK_MS = 15_000;
  * images on open or after a while idle, if asked.
  */
 @Injectable({ providedIn: 'root' })
-export class QuickHideService {
+export class QuickHideService implements OnDestroy {
   private readonly document = inject(DOCUMENT);
   private readonly obscuration = inject(ImageObscurationService);
 
@@ -52,7 +63,13 @@ export class QuickHideService {
   private blurredBefore = false;
   private lastActivity = Date.now();
   private escAt = 0;
+  private hiddenAt = 0;
   private taps: Array<{ at: number; x: number; y: number }> = [];
+  /** The touch that's down now, to tell a tap from a scroll when it lifts. */
+  private down: { id: number; at: number; x: number; y: number } | null = null;
+  /** Takes the listeners and the idle timer away again. */
+  private readonly stopListening = new AbortController();
+  private idleTimer: number | null = null;
 
   start(): void {
     if (this.started || typeof window === 'undefined') {
@@ -63,15 +80,49 @@ export class QuickHideService {
       this.obscuration.setMode('obscured');
     }
     const win = this.document.defaultView ?? window;
-    win.addEventListener('keydown', (event) => this.onKey(event), { capture: true });
-    win.addEventListener('pointerdown', (event) => this.onPointer(event), {
+    const signal = this.stopListening.signal;
+    win.addEventListener('keydown', (event) => this.onKey(event), { capture: true, signal });
+    win.addEventListener('pointerdown', (event) => this.onPointerDown(event), {
       capture: true,
       passive: true,
+      signal,
     });
-    for (const type of ['pointermove', 'wheel', 'scroll'] as const) {
-      win.addEventListener(type, () => this.touch(), { capture: true, passive: true });
+    win.addEventListener('pointerup', (event) => this.onPointerUp(event), {
+      capture: true,
+      passive: true,
+      signal,
+    });
+    // The browser took the touch over (a scroll): it was no tap, and the
+    // taps before it don't count either.
+    win.addEventListener(
+      'pointercancel',
+      () => {
+        this.down = null;
+        this.taps = [];
+      },
+      { capture: true, passive: true, signal },
+    );
+    win.addEventListener('pointermove', (event) => this.onPointerMove(event), {
+      capture: true,
+      passive: true,
+      signal,
+    });
+    for (const type of ['wheel', 'scroll'] as const) {
+      win.addEventListener(type, () => this.touch(), { capture: true, passive: true, signal });
     }
-    win.setInterval(() => this.checkIdle(), IDLE_CHECK_MS);
+    this.idleTimer = win.setInterval(() => this.checkIdle(), IDLE_CHECK_MS);
+  }
+
+  /**
+   * The app keeps it for as long as it's open; a test's app doesn't, and a
+   * hidden one left listening would swallow the next one's keys.
+   */
+  ngOnDestroy(): void {
+    this.stopListening.abort();
+    if (this.idleTimer !== null) {
+      (this.document.defaultView ?? window).clearInterval(this.idleTimer);
+      this.idleTimer = null;
+    }
   }
 
   save(settings: QuickHideSettings): void {
@@ -93,6 +144,7 @@ export class QuickHideService {
     for (const media of Array.from(this.document.querySelectorAll('video, audio'))) {
       (media as HTMLMediaElement).pause?.();
     }
+    this.hiddenAt = Date.now();
     this.hidden.set(true);
   }
 
@@ -101,6 +153,9 @@ export class QuickHideService {
    * were clear, still blurred if they were blurred already.
    */
   reveal(): void {
+    if (Date.now() - this.hiddenAt < REVEAL_GUARD_MS) {
+      return;
+    }
     this.hidden.set(false);
     if (!this.blurredBefore) {
       this.obscuration.setMode('clear');
@@ -110,6 +165,11 @@ export class QuickHideService {
 
   /** For tests: the idle check, without waiting for its timer. */
   checkIdle(now = Date.now()): void {
+    // Watching something hands-free isn't being away.
+    if (this.somethingPlaying()) {
+      this.lastActivity = now;
+      return;
+    }
     const minutes = this.settings().idleMinutes;
     if (minutes > 0 && now - this.lastActivity >= minutes * 60_000) {
       this.obscuration.setMode('obscured');
@@ -141,17 +201,54 @@ export class QuickHideService {
     this.escAt = now;
   }
 
-  private onPointer(event: PointerEvent): void {
+  private onPointerDown(event: PointerEvent): void {
     this.touch();
-    if (!this.settings().gesture || event.pointerType !== 'touch' || this.hidden()) {
+    this.down =
+      event.pointerType === 'touch'
+        ? { id: event.pointerId, at: Date.now(), x: event.clientX, y: event.clientY }
+        : null;
+  }
+
+  /** A touch that wanders off is a drag, even if it comes back before letting go. */
+  private onPointerMove(event: PointerEvent): void {
+    this.touch();
+    const down = this.down;
+    if (
+      down &&
+      down.id === event.pointerId &&
+      Math.hypot(event.clientX - down.x, event.clientY - down.y) > TAP_MOVE_PX
+    ) {
+      this.down = null;
+      this.taps = [];
+    }
+  }
+
+  /** Three quick taps in one spot hide; scrolls and flicks never count. */
+  private onPointerUp(event: PointerEvent): void {
+    const down = this.down;
+    this.down = null;
+    if (
+      !down ||
+      down.id !== event.pointerId ||
+      !this.settings().gesture ||
+      event.pointerType !== 'touch' ||
+      this.hidden()
+    ) {
       return;
     }
     const now = Date.now();
-    const first = this.taps[0];
     if (
-      first &&
-      (now - first.at > GESTURE_WINDOW_MS ||
-        Math.hypot(event.clientX - first.x, event.clientY - first.y) > TAP_SLOP_PX)
+      now - down.at > TAP_MAX_MS ||
+      Math.hypot(event.clientX - down.x, event.clientY - down.y) > TAP_MOVE_PX
+    ) {
+      this.taps = [];
+      return;
+    }
+    const last = this.taps.at(-1);
+    if (
+      last &&
+      (now - last.at > TAP_GAP_MS ||
+        Math.hypot(event.clientX - last.x, event.clientY - last.y) > TAP_SLOP_PX)
     ) {
       this.taps = [];
     }
@@ -160,6 +257,13 @@ export class QuickHideService {
       this.taps = [];
       this.hide();
     }
+  }
+
+  private somethingPlaying(): boolean {
+    return Array.from(this.document.querySelectorAll('video, audio')).some((media) => {
+      const element = media as HTMLMediaElement;
+      return !element.paused && !element.ended;
+    });
   }
 }
 

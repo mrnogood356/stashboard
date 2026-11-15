@@ -37,8 +37,20 @@ export interface MergeCandidate {
   deathDate: string | null;
 }
 
+/** Why Merge suggests two as one, strongest first. */
+export type MergeReason = 'catalog' | 'name' | 'alias';
+
 export interface MergeCandidates {
-  groups: Array<{ keepId: string; items: MergeCandidate[] }>;
+  /** Each item says why it's in the set, and with whom. */
+  groups: Array<{
+    keepId: string;
+    items: Array<
+      MergeCandidate & {
+        /** sure: tied to the one kept by catalog entry or name, not only an alias. */
+        match?: { reason: MergeReason; with: string; sure?: boolean };
+      }
+    >;
+  }>;
   matches: MergeCandidate[];
 }
 
@@ -161,6 +173,8 @@ export interface StashJob {
   subTasks: string[];
   addTime: string | null;
   startTime: string | null;
+  /** Started by Stashboard; otherwise by Stash, a plugin or another app. */
+  byStashboard?: boolean;
 }
 
 export interface SampleScene extends DuplicateScene {
@@ -248,9 +262,10 @@ export class LocalLibraryService {
     page: number,
     sort: LocalSceneSort,
     seed = 0,
+    narrow: CollectionNarrowing = {},
   ): Observable<LocalScenePage> {
     return this.http.get<LocalScenePage>(`/api/local/performers/${enc(id)}/scenes`, {
-      params: pageParams(page, sort, seed),
+      params: narrowParams(pageParams(page, sort, seed), narrow),
     });
   }
 
@@ -267,9 +282,10 @@ export class LocalLibraryService {
     page: number,
     sort: LocalSceneSort,
     seed = 0,
+    narrow: CollectionNarrowing = {},
   ): Observable<LocalScenePage> {
     return this.http.get<LocalScenePage>(`/api/local/studios/${enc(id)}/scenes`, {
-      params: pageParams(page, sort, seed),
+      params: narrowParams(pageParams(page, sort, seed), narrow),
     });
   }
 
@@ -445,6 +461,23 @@ function clampQuery(query: string): string {
 
 function enc(value: string): string {
   return encodeURIComponent(value);
+}
+
+/** Categories (every one) and studios (any of them) to narrow a collection's scenes to. */
+export interface CollectionNarrowing {
+  tagIds?: string[];
+  studioIds?: string[];
+}
+
+function narrowParams(params: HttpParams, narrow: CollectionNarrowing): HttpParams {
+  let next = params;
+  if (narrow.tagIds?.length) {
+    next = next.set('tagIds', narrow.tagIds.join(','));
+  }
+  if (narrow.studioIds?.length) {
+    next = next.set('studioIds', narrow.studioIds.join(','));
+  }
+  return next;
 }
 
 function pageParams(page: number, sort: LocalSceneSort, seed: number): HttpParams {

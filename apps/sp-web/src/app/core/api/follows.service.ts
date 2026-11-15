@@ -164,7 +164,7 @@ export function describeFollow(follow: Follow): string {
   const parts = [
     follow.newCount > 0 ? `${follow.newCount} new` : null,
     follow.tags.length > 0 ? follow.tags.map((tag) => tag.name).join(', ') : null,
-    follow.autoRequest ? 'Requests automatically' : null,
+    follow.autoRequest ? 'Wants new scenes' : null,
   ].filter((part): part is string => part !== null);
   return parts.length > 0 ? parts.join(' · ') : 'Every new scene';
 }

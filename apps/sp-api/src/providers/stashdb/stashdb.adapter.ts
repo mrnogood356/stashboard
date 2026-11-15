@@ -15,6 +15,9 @@ import {
   type StashdbScene,
   type StashdbSceneDetails,
   type StashdbSceneFingerprints,
+  type StashdbSceneFacets,
+  type StashdbSceneFacetsConfig,
+  type StashdbFacet,
   type StashdbSceneFeedSort,
   type StashdbSceneImage,
   type StashdbSceneMetadata,
@@ -342,6 +345,77 @@ export class StashdbAdapter extends StashdbPeopleApi {
     );
 
     return { total, scenes };
+  }
+
+  /**
+   * The categories and studios of one performer's or one studio's newest
+   * scenes, the most used first, with how many scenes have each.
+   */
+  async getSceneFacets(
+    config: StashdbSceneFacetsConfig,
+  ): Promise<StashdbSceneFacets> {
+    const perPage = 100;
+    const filter = config.performerId
+      ? 'performers: { value: $ids, modifier: INCLUDES }'
+      : 'studios: { value: $ids, modifier: INCLUDES }';
+    const ids = [config.performerId ?? config.studioId ?? ''];
+    const query = `
+      query SceneFacets($ids: [ID!]!, $page: Int!, $perPage: Int!) {
+        queryScenes(input: { sort: DATE, direction: DESC, page: $page, per_page: $perPage, ${filter} }) {
+          count
+          scenes {
+            tags { id name }
+            studio { id name }
+          }
+        }
+      }
+    `;
+    const tags = new Map<string, StashdbFacet>();
+    const studios = new Map<string, StashdbFacet>();
+    const add = (
+      into: Map<string, StashdbFacet>,
+      id: unknown,
+      name: unknown,
+    ) => {
+      if (typeof id !== 'string' || typeof name !== 'string') {
+        return;
+      }
+      const facet = into.get(id) ?? { id, name, count: 0 };
+      facet.count += 1;
+      into.set(id, facet);
+    };
+
+    let total = 0;
+    let scanned = 0;
+    for (let page = 1; scanned < config.maxScenes; page++) {
+      const payload = await this.executeQuery(config, query, {
+        ids,
+        page,
+        perPage,
+      });
+      const result = payload.data?.queryScenes;
+      total = typeof result?.count === 'number' ? result.count : total;
+      const scenes = (result?.scenes ?? []) as Array<{
+        tags?: Array<{ id?: unknown; name?: unknown }> | null;
+        studio?: { id?: unknown; name?: unknown } | null;
+      }>;
+      for (const scene of scenes.slice(0, config.maxScenes - scanned)) {
+        for (const tag of scene.tags ?? []) {
+          add(tags, tag.id, tag.name);
+        }
+        add(studios, scene.studio?.id, scene.studio?.name);
+        scanned += 1;
+      }
+      if (scenes.length < perPage || scanned >= total) {
+        break;
+      }
+    }
+
+    const ranked = (facets: Map<string, StashdbFacet>) =>
+      [...facets.values()].sort(
+        (a, b) => b.count - a.count || a.name.localeCompare(b.name),
+      );
+    return { total, scanned, tags: ranked(tags), studios: ranked(studios) };
   }
 
   private async getSceneFeed(

@@ -3,7 +3,6 @@
   <header class="page-head-compact">
     <div class="page-head-compact__title">
       <h1>Library tools</h1>
-      <p>Match, rename, tidy up and run jobs on your Stash library.</p>
     </div>
   </header>
 
@@ -63,19 +62,23 @@
         }
       </span>
     </a>
-    <a class="tool" routerLink="/tools/organize">
+    <a class="tool" routerLink="/tools/match">
       <i class="pi pi-link" aria-hidden="true"></i>
-      <span class="tool-title">Match &amp; rename</span>
+      <span class="tool-title">Match scenes</span>
       <span class="tool-detail">
         @if (counts(); as counts) {
           {{
             counts.unmatched === 0 ? 'Every scene is matched' : counts.unmatched + ' not matched'
           }}
-          · tidy file names and folders
         } @else {
-          Match unorganized scenes to StashDB and tidy file names
+          Find which StashDB scene each file is
         }
       </span>
+    </a>
+    <a class="tool" routerLink="/tools/rename">
+      <i class="pi pi-folder-open" aria-hidden="true"></i>
+      <span class="tool-title">Rename files</span>
+      <span class="tool-detail">Names and folders for files you added, Whisparr in step</span>
     </a>
     <a class="tool" routerLink="/tools/stats">
       <i class="pi pi-chart-bar" aria-hidden="true"></i>
@@ -92,10 +95,12 @@
       <span class="tool-title">Broken files</span>
       <span class="tool-detail">Scenes with no file, no length, no cover or no fingerprint</span>
     </a>
-    <a class="tool" routerLink="/tools/smaller-copies">
-      <i class="pi pi-arrow-down-left-and-arrow-up-right-to-center" aria-hidden="true"></i>
-      <span class="tool-title">Smaller copies</span>
-      <span class="tool-detail">Swap big files for smaller ones, a few scenes an hour</span>
+    <a class="tool" routerLink="/tools/better-copies">
+      <i class="pi pi-arrow-right-arrow-left" aria-hidden="true"></i>
+      <span class="tool-title">Better copies</span>
+      <span class="tool-detail"
+        >Swap files that are too big, or too low quality, for a better copy</span
+      >
     </a>
     <a class="tool" routerLink="/tools/merge">
       <i class="pi pi-sitemap" aria-hidden="true"></i>

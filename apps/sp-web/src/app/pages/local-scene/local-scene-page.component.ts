@@ -460,7 +460,7 @@ function backLabelFor(path: string): string {
     ['/performers', 'Back to Performers'],
     ['/studio/', 'Back to Studio'],
     ['/studios', 'Back to Studios'],
-    ['/acquisition', 'Back to Requests'],
+    ['/acquisition', 'Back to Wanted'],
     ['/processing', 'Back to Downloads'],
   ];
   return labels.find(([prefix]) => path.startsWith(prefix))?.[1] ?? 'Back';

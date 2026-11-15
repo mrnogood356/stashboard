@@ -38,24 +38,51 @@ export class SettingsPrivacyPageComponent implements OnInit {
   protected pin = '';
   protected pinConfirm = '';
   protected currentPassword = '';
+  /** What the server has, so the password and Save only show for a change. */
+  private saved = { enabled: false, timeoutSeconds: 60, hideInSwitcher: true };
 
   protected readonly hasPin = computed(() => this.appLock.status()?.hasPin ?? false);
   protected readonly passkeys = computed(() => this.appLock.status()?.passkeys ?? []);
   protected readonly isHttps =
     typeof window !== 'undefined' && window.location.protocol === 'https:';
 
+  /** The App Lock settings couldn't be read: nothing to compare a change with. */
+  protected readonly loadFailed = signal(false);
+
   async ngOnInit(): Promise<void> {
+    await this.load();
+  }
+
+  protected async load(): Promise<void> {
+    this.loading.set(true);
     const status = await this.appLock.refresh();
+    this.loadFailed.set(!status);
     if (status) {
       this.enabled = status.enabled;
       this.timeoutSeconds = status.timeoutSeconds;
       this.hideInSwitcher = status.hideInSwitcher;
+      this.saved = {
+        enabled: status.enabled,
+        timeoutSeconds: status.timeoutSeconds,
+        hideInSwitcher: status.hideInSwitcher,
+      };
     }
     this.loading.set(false);
   }
 
   protected setQuickHide(change: Partial<QuickHideSettings>): void {
     this.quickHide.save({ ...this.quickHide.settings(), ...change });
+  }
+
+  /** Something on the App Lock card differs from what's saved. */
+  protected changed(): boolean {
+    return (
+      this.enabled !== this.saved.enabled ||
+      this.timeoutSeconds !== this.saved.timeoutSeconds ||
+      this.hideInSwitcher !== this.saved.hideInSwitcher ||
+      !!this.pin ||
+      !!this.pinConfirm
+    );
   }
 
   protected pinNeeded(): boolean {
@@ -85,20 +112,26 @@ export class SettingsPrivacyPageComponent implements OnInit {
     }
     this.saving.set(true);
     this.message.set(null);
+    // What's sent is what's saved: a switch changed while this is on its way
+    // stays a change, with Save still showing.
+    const submitted = {
+      enabled: this.enabled,
+      timeoutSeconds: this.timeoutSeconds,
+      hideInSwitcher: this.hideInSwitcher,
+    };
     try {
       await this.appLock.saveSettings({
-        enabled: this.enabled,
+        ...submitted,
         pin: this.pin || undefined,
-        timeoutSeconds: this.timeoutSeconds,
-        hideInSwitcher: this.hideInSwitcher,
         currentPassword: this.currentPassword,
       });
       this.pin = '';
       this.pinConfirm = '';
       this.currentPassword = '';
+      this.saved = submitted;
       this.message.set({
         kind: 'ok',
-        text: this.enabled ? 'App Lock is on.' : 'Saved.',
+        text: submitted.enabled ? 'App Lock is on.' : 'Saved.',
       });
     } catch (error) {
       this.message.set({ kind: 'error', text: this.appLock.describeError(error) });

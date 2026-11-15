@@ -11,7 +11,18 @@ import {
   LocalStudio,
 } from '../../core/api/local-library.service';
 import { SceneCardComponent } from '../../shared/scene-card/scene-card.component';
+import { LibraryService } from '../../core/api/library.service';
+import {
+  FilterChipComponent,
+  FilterPanelDirective,
+} from '../../shared/filter-bar/filter-chip.component';
+import {
+  FilterOption,
+  FilterOptionsComponent,
+} from '../../shared/filter-bar/filter-options.component';
+import { facetOptions, pickedLabel } from '../../shared/filter-bar/filter-values';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
+import { PerformerFact, readableCountry, readableDate } from '../performer/performer-facts';
 
 export type LocalCollectionKind = 'performer' | 'studio';
 
@@ -19,6 +30,8 @@ interface CollectionHeader {
   id: string;
   name: string;
   subtitle: string | null;
+  /** A performer's details, in the same grid as the catalog performer page. */
+  facts: PerformerFact[];
   imageUrl: string | null;
   favorite: boolean;
   sceneCount: number;
@@ -41,7 +54,13 @@ const SORTS: Array<{ value: LocalSceneSort; label: string }> = [
  */
 @Component({
   selector: 'app-local-collection-page',
-  imports: [RouterLink, SceneCardComponent],
+  imports: [
+    RouterLink,
+    SceneCardComponent,
+    FilterChipComponent,
+    FilterPanelDirective,
+    FilterOptionsComponent,
+  ],
   templateUrl: './local-collection-page.component.html',
   styleUrl: './local-collection-page.component.scss',
 })
@@ -49,13 +68,13 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly library = inject(LocalLibraryService);
+  private readonly libraryOptions = inject(LibraryService);
   /** Settings → Playback: off hides Shuffle, which plays a random scene. */
   protected readonly playbackOn = inject(PlaybackSettingsService).playbackEnabled;
   private subscription: Subscription | null = null;
   private loadToken = 0;
   private scenesToken = 0;
 
-  protected readonly sorts = SORTS;
   protected readonly kind = signal<LocalCollectionKind>('performer');
   protected readonly id = signal('');
   protected readonly header = signal<CollectionHeader | null>(null);
@@ -72,6 +91,44 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
   protected readonly detailsExpanded = signal(false);
   protected readonly backPath = signal('/library');
   protected readonly backQueryParams = signal<Params>({});
+
+  /** Their own categories and studios in your library, the most used first. */
+  private readonly tagFacets = signal<Array<{ id: string; name: string; count: number }>>([]);
+  private readonly studioFacets = signal<Array<{ id: string; name: string; count: number }>>([]);
+  protected readonly optionsLoading = signal(false);
+  protected readonly pickedTags = signal<Array<{ id: string; name: string }>>([]);
+  protected readonly pickedStudios = signal<Array<{ id: string; name: string }>>([]);
+  protected readonly categoryChoices = computed<FilterOption[]>(() =>
+    facetOptions(this.tagFacets(), this.pickedTags()),
+  );
+  protected readonly studioChoices = computed<FilterOption[]>(() =>
+    facetOptions(this.studioFacets(), this.pickedStudios()),
+  );
+  protected readonly categoryValue = computed(() =>
+    pickedLabel(this.pickedTags().map((tag) => tag.name)),
+  );
+  protected readonly studioValue = computed(() =>
+    pickedLabel(this.pickedStudios().map((studio) => studio.name)),
+  );
+  protected readonly pickedTagIds = computed(() => this.pickedTags().map((tag) => tag.id));
+  protected readonly pickedStudioIds = computed(() =>
+    this.pickedStudios().map((studio) => studio.id),
+  );
+  /** Studios to pick from on a performer's page with more than one. */
+  protected readonly offersStudios = computed(
+    () => this.kind() === 'performer' && this.studioFacets().length > 1,
+  );
+  protected readonly sortChoices: FilterOption[] = SORTS.map((sort) => ({
+    id: sort.value,
+    label: sort.label,
+  }));
+  protected readonly sortValue = computed(
+    () => SORTS.find((sort) => sort.value === this.sort())?.label ?? 'Sort',
+  );
+  protected readonly sortPicked = computed(() => [this.sort()]);
+  protected readonly narrowed = computed(
+    () => this.pickedTags().length > 0 || this.pickedStudios().length > 0,
+  );
 
   protected readonly unwatchedCount = computed(
     () => this.items().filter((item) => item.playCount === 0).length,
@@ -110,6 +167,9 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
     this.error.set(null);
     this.header.set(null);
     this.detailsExpanded.set(false);
+    this.pickedTags.set([]);
+    this.pickedStudios.set([]);
+    this.loadOptions(id);
     const request: Observable<LocalPerformer | LocalStudio> =
       this.kind() === 'studio' ? this.library.studio(id) : this.library.performer(id);
     request.subscribe({
@@ -129,6 +189,63 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
       },
     });
     this.loadScenes(1);
+  }
+
+  protected onCategoriesPicked(ids: string[]): void {
+    const names = new Map(
+      [...this.tagFacets(), ...this.pickedTags()].map((tag) => [tag.id, tag.name]),
+    );
+    this.pickedTags.set(ids.map((id) => ({ id, name: names.get(id) ?? id })));
+    this.loadScenes(1);
+  }
+
+  protected onStudiosPicked(ids: string[]): void {
+    const names = new Map(
+      [...this.studioFacets(), ...this.pickedStudios()].map((studio) => [studio.id, studio.name]),
+    );
+    this.pickedStudios.set(ids.map((id) => ({ id, name: names.get(id) ?? id })));
+    this.loadScenes(1);
+  }
+
+  protected onSortPicked(ids: string[]): void {
+    const sort = SORTS.find((option) => option.value === ids[0]);
+    if (sort) {
+      this.setSort(sort.value);
+    }
+  }
+
+  protected clearFilters(): void {
+    this.pickedTags.set([]);
+    this.pickedStudios.set([]);
+    this.loadScenes(1);
+  }
+
+  private loadOptions(id: string): void {
+    const scope = this.kind() === 'studio' ? { studioId: id } : { performerId: id };
+    this.tagFacets.set([]);
+    this.studioFacets.set([]);
+    this.optionsLoading.set(true);
+    this.libraryOptions.searchTags('', scope).subscribe({
+      next: (tags) => {
+        if (id === this.id()) {
+          this.tagFacets.set(tags.map((tag) => ({ ...tag, count: tag.count ?? 0 })));
+        }
+        this.optionsLoading.set(false);
+      },
+      error: () => this.optionsLoading.set(false),
+    });
+    if (this.kind() === 'performer') {
+      this.libraryOptions.searchStudios('', scope).subscribe({
+        next: (studios) => {
+          if (id === this.id()) {
+            this.studioFacets.set(
+              studios.map((studio) => ({ ...studio, count: studio.count ?? 0 })),
+            );
+          }
+        },
+        error: () => undefined,
+      });
+    }
   }
 
   protected setSort(sort: LocalSceneSort): void {
@@ -243,27 +360,29 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
   }
 
   private scenesRequest(page: number, sort: LocalSceneSort, seed = 0): Observable<LocalScenePage> {
+    const narrow = { tagIds: this.pickedTagIds(), studioIds: this.pickedStudioIds() };
     return this.kind() === 'studio'
-      ? this.library.studioScenes(this.id(), page, sort, seed)
-      : this.library.performerScenes(this.id(), page, sort, seed);
+      ? this.library.studioScenes(this.id(), page, sort, seed, { tagIds: narrow.tagIds })
+      : this.library.performerScenes(this.id(), page, sort, seed, narrow);
   }
 
   private toHeader(entity: LocalPerformer | LocalStudio): CollectionHeader {
     if ('gender' in entity) {
       const age = entity.deathDate ? null : ageFrom(entity.birthdate);
-      const subtitle = [
-        entity.disambiguation,
-        formatGender(entity.gender),
-        age !== null ? `${age} years old` : null,
-        entity.deathDate ? `Passed away ${entity.deathDate}` : null,
-        entity.country,
-      ]
-        .filter((part): part is string => !!part)
-        .join(' · ');
+      const born = readableDate(entity.birthdate);
+      const facts: PerformerFact[] = [
+        { label: 'Gender', value: formatGender(entity.gender) },
+        born
+          ? { label: 'Born', value: age !== null ? `${born} (${age})` : born }
+          : { label: 'Age', value: age !== null ? String(age) : null },
+        { label: 'Died', value: readableDate(entity.deathDate ?? null) },
+        { label: 'Country', value: readableCountry(entity.country) },
+      ].filter((fact): fact is PerformerFact => !!fact.value);
       return {
         id: entity.id,
         name: entity.name,
-        subtitle: subtitle || null,
+        subtitle: entity.disambiguation || null,
+        facts,
         imageUrl: entity.imageUrl,
         favorite: entity.favorite,
         sceneCount: entity.sceneCount,
@@ -276,6 +395,7 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
       id: entity.id,
       name: entity.name,
       subtitle: null,
+      facts: [],
       imageUrl: entity.imageUrl,
       favorite: entity.favorite,
       sceneCount: entity.sceneCount,

@@ -173,7 +173,7 @@ export function pickNewScenes(
   return { fresh, reachedSince };
 }
 
-/** "Found 3 new scenes; requested 2." for Schedules and the log. */
+/** "Found 3 new scenes; added 2 to Wanted." for Schedules and the log. */
 export function describeCheck(summary: FollowCheckSummary): string {
   if (summary.checked === 0) {
     return summary.errors > 0
@@ -186,10 +186,10 @@ export function describeCheck(summary: FollowCheckSummary): string {
       : `Found ${plural(summary.found, 'new scene')}`,
   ];
   if (summary.requested > 0) {
-    parts.push(`requested ${summary.requested}`);
+    parts.push(`added ${summary.requested} to Wanted`);
   }
   if (summary.failed > 0) {
-    parts.push(`${summary.failed} couldn’t be requested`);
+    parts.push(`${summary.failed} couldn’t be added`);
   }
   if (summary.errors > 0) {
     parts.push(`${plural(summary.errors, 'follow')} couldn’t be checked`);

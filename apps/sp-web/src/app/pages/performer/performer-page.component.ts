@@ -1,4 +1,18 @@
+import { GlassArtService } from '../../core/theme/glass-art.service';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
+import {
+  FilterChipComponent,
+  FilterPanelDirective,
+} from '../../shared/filter-bar/filter-chip.component';
+import { FilterOptionsComponent } from '../../shared/filter-bar/filter-options.component';
+import {
+  SortChoice,
+  facetOptions,
+  pickedLabel,
+  sortChoiceId,
+  sortChoiceLabel,
+  sortChoiceOptions,
+} from '../../shared/filter-bar/filter-values';
 import {
   AfterViewInit,
   Component,
@@ -10,7 +24,6 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import {
   combineLatest,
@@ -25,9 +38,6 @@ import {
   switchMap,
 } from 'rxjs';
 import { Message } from 'primeng/message';
-import { MultiSelect } from 'primeng/multiselect';
-import { Select } from 'primeng/select';
-import { ToggleSwitch } from 'primeng/toggleswitch';
 import { DiscoverService } from '../../core/api/discover.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import {
@@ -35,6 +45,7 @@ import {
   PerformerDetails,
   PerformerGender,
   PerformerStudioOption,
+  SceneFacets,
   SceneFeedSort,
   SceneRequestContext,
   SortDirection,
@@ -48,6 +59,16 @@ import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.com
 import { HideToggleComponent } from '../../shared/hide-toggle/hide-toggle.component';
 import { FollowButtonComponent } from '../../shared/follow-button/follow-button.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
+import {
+  PerformerFact,
+  PerformerFactGroup,
+  performerFactGroups,
+  performerFacts,
+  readableDate,
+} from './performer-facts';
+
+/** How far a finger moves sideways before it counts as a swipe. */
+const SWIPE_PX = 40;
 
 interface SelectedStudioChip {
   id: string;
@@ -71,15 +92,14 @@ interface MultiSelectGroup {
     HideToggleComponent,
     FollowButtonComponent,
     RouterLink,
-    FormsModule,
-    Select,
-    ToggleSwitch,
     Message,
-    MultiSelect,
     SceneCardComponent,
     OwnedNoteComponent,
     SceneRequestModalComponent,
     HiddenCountComponent,
+    FilterChipComponent,
+    FilterPanelDirective,
+    FilterOptionsComponent,
   ],
   templateUrl: './performer-page.component.html',
   styleUrl: './performer-page.component.scss',
@@ -97,8 +117,8 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
     { value: 'DATE', label: 'Date' },
     { value: 'TITLE', label: 'Title' },
     { value: 'TRENDING', label: 'Trending' },
-    { value: 'CREATED_AT', label: 'Created At' },
-    { value: 'UPDATED_AT', label: 'Updated At' },
+    { value: 'CREATED_AT', label: 'Date added' },
+    { value: 'UPDATED_AT', label: 'Date updated' },
   ];
 
   private readonly discoverService = inject(DiscoverService);
@@ -138,6 +158,8 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
 
   protected readonly performerId = signal<string | null>(null);
   protected readonly performer = signal<PerformerDetails | null>(null);
+  /** The photo behind adaptive glass, and the artwork accent's colour. */
+  private readonly glassArt = inject(GlassArtService).follow(() => this.performer()?.imageUrl);
   protected readonly loadingPerformer = signal(false);
   protected readonly performerError = signal<string | null>(null);
   protected readonly activeImageIndex = signal(0);
@@ -164,6 +186,46 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
   protected readonly tagSelectOptions = signal<MultiSelectOption[]>([]);
   protected readonly sceneSortOptions = PerformerPageComponent.SCENE_SORT_OPTIONS;
 
+  /** Sort and direction as one plain choice, for the filter bar. */
+  private static readonly SORT_CHOICES: SortChoice<SceneFeedSort>[] = [
+    { label: 'Newest first', sort: 'DATE', direction: 'DESC' },
+    { label: 'Oldest first', sort: 'DATE', direction: 'ASC' },
+    { label: 'Trending', sort: 'TRENDING', direction: 'DESC' },
+    { label: 'Title A to Z', sort: 'TITLE', direction: 'ASC' },
+    { label: 'Recently added', sort: 'CREATED_AT', direction: 'DESC' },
+    { label: 'Recently updated', sort: 'UPDATED_AT', direction: 'DESC' },
+  ];
+  protected readonly sortOptions = sortChoiceOptions(PerformerPageComponent.SORT_CHOICES);
+  protected readonly sortValue = computed(() =>
+    sortChoiceLabel(
+      PerformerPageComponent.SORT_CHOICES,
+      this.sceneSort(),
+      this.sceneSortDirection(),
+    ),
+  );
+  protected readonly sortPicked = computed(() => [
+    sortChoiceId(this.sceneSort(), this.sceneSortDirection()),
+  ]);
+
+  /** Their own categories and studios, the most used first, with counts. */
+  protected readonly facets = signal<SceneFacets | null>(null);
+  protected readonly facetsLoading = signal(false);
+  protected readonly categoryOptions = computed(() =>
+    facetOptions(this.facets()?.tags ?? [], this.selectedTags()),
+  );
+  protected readonly studioFilterOptions = computed(() =>
+    facetOptions(
+      this.facets()?.studios ?? [],
+      this.selectedStudios().map((studio) => ({ id: studio.id, name: studio.label })),
+    ),
+  );
+  protected readonly categoryValue = computed(() =>
+    pickedLabel(this.selectedTags().map((tag) => tag.name)),
+  );
+  protected readonly studioValue = computed(() =>
+    pickedLabel(this.selectedStudios().map((studio) => studio.label)),
+  );
+
   protected readonly loadingScenes = signal(false);
   protected readonly loadingMoreScenes = signal(false);
   protected readonly scenesError = signal<string | null>(null);
@@ -173,8 +235,6 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
   protected readonly scenesHasMore = signal(true);
   /** Show scenes Settings → Hidden content leaves out, for this list only. */
   protected readonly showHidden = signal(false);
-  /** On a phone the scene filters fold away behind one button. */
-  protected readonly filtersOpen = signal(false);
   protected readonly activeFilters = computed(
     () =>
       (this.onlyFavoriteStudios() ? 1 : 0) +
@@ -505,8 +565,9 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
     return this.selectedTags().some((tag) => tag.id === tagId);
   }
 
+  /** More than one photo to flip through: one alone needs no controls. */
   protected hasCarouselImages(): boolean {
-    return (this.performer()?.images.length ?? 0) > 0;
+    return (this.performer()?.images.length ?? 0) > 1;
   }
 
   protected activeCarouselImageUrl(): string | null {
@@ -523,6 +584,35 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
     return images[index]?.url ?? null;
   }
 
+  private photoTouch: { x: number; y: number } | null = null;
+
+  /** One photo back or on, wrapping round. */
+  protected stepPhoto(by: number): void {
+    const count = this.performer()?.images.length ?? 0;
+    if (count < 2) {
+      return;
+    }
+    this.activeImageIndex.set((this.activeImageIndex() + by + count) % count);
+  }
+
+  protected photoPointerDown(event: PointerEvent): void {
+    this.photoTouch = event.pointerType === 'touch' ? { x: event.clientX, y: event.clientY } : null;
+  }
+
+  /** A sideways swipe on the photo flips it; a tap or a scroll doesn't. */
+  protected photoPointerUp(event: PointerEvent): void {
+    const start = this.photoTouch;
+    this.photoTouch = null;
+    if (!start) {
+      return;
+    }
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      this.stepPhoto(dx < 0 ? 1 : -1);
+    }
+  }
+
   protected setActiveImage(index: number): void {
     const imageCount = this.performer()?.images.length ?? 0;
     if (imageCount === 0) {
@@ -531,24 +621,6 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
 
     const nextIndex = Math.min(Math.max(index, 0), imageCount - 1);
     this.activeImageIndex.set(nextIndex);
-  }
-
-  protected nextImage(): void {
-    const imageCount = this.performer()?.images.length ?? 0;
-    if (imageCount === 0) {
-      return;
-    }
-
-    this.activeImageIndex.set((this.activeImageIndex() + 1) % imageCount);
-  }
-
-  protected previousImage(): void {
-    const imageCount = this.performer()?.images.length ?? 0;
-    if (imageCount === 0) {
-      return;
-    }
-
-    this.activeImageIndex.set((this.activeImageIndex() - 1 + imageCount) % imageCount);
   }
 
   protected performerInitial(name: string): string {
@@ -566,35 +638,84 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
       .join(' ');
   }
 
-  protected metadataRows(performer: PerformerDetails): Array<{ label: string; value: string }> {
-    const rows: Array<{ label: string; value: string }> = [];
-    const pushIfValue = (label: string, value: string | number | null) => {
-      if (value === null || value === undefined || value === '') {
-        return;
+  protected metadataRows(performer: PerformerDetails): PerformerFact[] {
+    return performerFacts(performer);
+  }
+
+  protected factGroups(performer: PerformerDetails): PerformerFactGroup[] {
+    return performerFactGroups(performer);
+  }
+
+  protected readableDate(value: string | null): string | null {
+    return readableDate(value);
+  }
+
+  /** A pick from the Category list: its names are the counted ones. */
+  protected onCategoriesPicked(ids: string[]): void {
+    const known = new Map(this.tagOptions().map((tag) => [tag.id, tag]));
+    for (const facet of this.facets()?.tags ?? []) {
+      if (!known.has(facet.id)) {
+        known.set(facet.id, { id: facet.id, name: facet.name, description: null, aliases: [] });
       }
-      rows.push({ label, value: String(value) });
-    };
+    }
+    this.tagOptions.set([...known.values()]);
+    this.onTagSelectionChanged(ids);
+  }
 
-    pushIfValue('Gender', this.formattedGender(performer.gender));
-    pushIfValue('Age', performer.age);
-    pushIfValue('Birth Date', performer.birthDate);
-    pushIfValue('Died', performer.deathDate);
-    pushIfValue('Country', performer.country);
-    pushIfValue('Ethnicity', performer.ethnicity);
-    pushIfValue('Eye Color', performer.eyeColor);
-    pushIfValue('Hair Color', performer.hairColor);
-    pushIfValue('Height', performer.height);
-    pushIfValue('Cup Size', performer.cupSize);
-    pushIfValue('Band Size', performer.bandSize);
-    pushIfValue('Waist Size', performer.waistSize);
-    pushIfValue('Hip Size', performer.hipSize);
-    pushIfValue('Breast Type', performer.breastType);
-    pushIfValue('Career Start Year', performer.careerStartYear);
-    pushIfValue('Career End Year', performer.careerEndYear);
-    pushIfValue('Created', performer.createdAt);
-    pushIfValue('Updated', performer.updatedAt);
+  protected onStudiosPicked(ids: string[]): void {
+    const known = new Map(this.studioOptions().map((studio) => [studio.id, studio]));
+    for (const facet of this.facets()?.studios ?? []) {
+      if (!known.has(facet.id)) {
+        known.set(facet.id, { id: facet.id, name: facet.name, childStudios: [] });
+      }
+    }
+    this.studioOptions.set([...known.values()]);
+    this.onStudioSelectionChanged(ids);
+  }
 
-    return rows;
+  protected onSortPicked(ids: string[]): void {
+    const choice = PerformerPageComponent.SORT_CHOICES.find(
+      (option) => sortChoiceId(option.sort, option.direction) === ids[0],
+    );
+    if (
+      !choice ||
+      (choice.sort === this.sceneSort() && choice.direction === this.sceneSortDirection())
+    ) {
+      return;
+    }
+    this.sceneSort.set(choice.sort);
+    this.sceneSortDirection.set(choice.direction);
+    this.syncUrlWithCurrentFilters(false);
+    this.resetScenesAndReload();
+  }
+
+  protected clearFilters(): void {
+    if (this.onlyFavoriteStudios()) {
+      this.onlyFavoriteStudios.set(false);
+    }
+    this.selectedTags.set([]);
+    this.tagSelectedIds.set([]);
+    this.selectedStudios.set([]);
+    this.studioSelectedIds.set([]);
+    this.syncUrlWithCurrentFilters(false);
+    this.resetScenesAndReload();
+  }
+
+  private loadFacets(performerId: string): void {
+    this.facets.set(null);
+    this.facetsLoading.set(true);
+    this.discoverService
+      .getPerformerFacets(performerId)
+      .pipe(finalize(() => this.facetsLoading.set(false)))
+      .subscribe({
+        next: (facets) => {
+          if (this.performerId() === performerId) {
+            this.facets.set(facets);
+          }
+        },
+        // Without counts the lists still hold what's picked.
+        error: () => undefined,
+      });
   }
 
   protected currentRouteUrl(): string {
@@ -609,6 +730,7 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
 
     this.loadingPerformer.set(true);
     this.performerError.set(null);
+    this.loadFacets(currentPerformerId);
 
     this.discoverService
       .getPerformerDetails(currentPerformerId)
@@ -1042,7 +1164,7 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
       return 'Back to Scenes';
     }
     if (returnTo.startsWith('/acquisition')) {
-      return 'Back to Requests';
+      return 'Back to Wanted';
     }
     if (returnTo.startsWith('/processing')) {
       return 'Back to Downloads';

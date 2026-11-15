@@ -1,15 +1,5 @@
 import { HandoffStage } from '../../core/api/download-handoff.service';
 
-/** The steps a download goes through, in order, as shown on its card. */
-export const HANDOFF_STEPS: ReadonlyArray<{ stage: HandoffStage; label: string }> = [
-  { stage: 'queued', label: 'Queued' },
-  { stage: 'downloading', label: 'Downloading' },
-  { stage: 'unpacking', label: 'Unpacking' },
-  { stage: 'moving', label: 'Moving' },
-  { stage: 'linking', label: 'Waiting for Stash' },
-  { stage: 'done', label: 'In library' },
-];
-
 const STAGE_LABELS: Record<HandoffStage, string> = {
   queued: 'Queued',
   downloading: 'Downloading',
@@ -23,11 +13,6 @@ const STAGE_LABELS: Record<HandoffStage, string> = {
 
 export function stageLabel(stage: HandoffStage): string {
   return STAGE_LABELS[stage] ?? stage;
-}
-
-/** Index of the stage in HANDOFF_STEPS; -1 for failed and ignored. */
-export function stepIndex(stage: HandoffStage): number {
-  return HANDOFF_STEPS.findIndex((step) => step.stage === stage);
 }
 
 /** "12 s ago", "3 min ago", "in 40 s"; null when there's no time. */

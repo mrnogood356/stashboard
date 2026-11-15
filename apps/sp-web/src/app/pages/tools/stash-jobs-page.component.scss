@@ -24,7 +24,7 @@ main {
 
 /* A small dot in the section's colour, like Requests and Downloads. */
 .title-row h2::before {
-  content: '';
+  content: none;
   display: inline-block;
   width: 0.55rem;
   height: 0.55rem;
@@ -38,19 +38,18 @@ main {
   display: inline-flex;
   align-items: center;
   min-height: 1.6rem;
-  padding: 0.1rem 0.6rem;
-  border-radius: 999px;
-  background: var(--chip-bg);
+  padding: 0;
+  border-radius: 0;
+  background: none;
   font-size: 0.76rem;
-  font-weight: 700;
+  font-weight: 500;
+  color: var(--text-muted);
 }
 
 .group-title {
   margin: 0.4rem 0 0.6rem;
   font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -72,8 +71,9 @@ main {
   display: grid;
   gap: 0.55rem;
   padding: 0.85rem 1rem;
-  border-radius: 14px;
-  background: var(--surface-1);
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
 }
 
 .job-head {
@@ -146,9 +146,10 @@ main {
 
 .task-list {
   display: grid;
-  border-radius: 18px;
-  background: var(--surface-1);
+  border-radius: var(--radius-md);
+  background: transparent;
   overflow: hidden;
+  border: 1px solid var(--border-subtle);
 }
 
 .task {
@@ -186,11 +187,11 @@ main {
 .task i {
   display: grid;
   place-items: center;
-  width: 2.3rem;
-  height: 2.3rem;
-  border-radius: 10px;
+  width: 1.25rem;
+  height: auto;
+  border-radius: 0;
   background: var(--accent);
-  color: #fff;
+  color: var(--text-muted);
 }
 
 .task-copy {
@@ -214,15 +215,55 @@ main {
   align-items: center;
   min-height: 2rem;
   padding: 0 0.85rem;
-  border-radius: 999px;
-  background: var(--chip-bg);
+  border-radius: var(--radius-sm);
+  background: var(--soft-fill);
   font-size: 0.82rem;
   font-weight: 650;
   white-space: nowrap;
+  border: 1px solid var(--border-subtle);
+  border-color: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .bar.indeterminate span {
     animation: none;
   }
+}
+
+/* The page's gap already spaces the back link: without its margin as well,
+   the title sits where it does on the other Library tools pages. */
+main > .app-back-link {
+  margin-bottom: -0.25rem;
+}
+
+.running {
+  --app-section-border: 0;
+  --app-section-bg: transparent;
+  --app-section-padding: 0;
+  --app-section-radius: 0;
+}
+
+.task:hover:not(:disabled) {
+  background: var(--surface-1);
+}
+
+.task i {
+  background: none;
+}
+
+/* Who started it: a stuck job from a plugin or another app isn't Stashboard's. */
+.job-source {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--soft-fill);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.job-source.ours {
+  color: var(--text-primary);
 }

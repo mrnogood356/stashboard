@@ -48,6 +48,7 @@ function fakePrisma() {
     (b.releaseDate ?? '').localeCompare(a.releaseDate ?? '') ||
     b.foundAt.getTime() - a.foundAt.getTime();
 
+  const owned = new Set<string>();
   const prisma = {
     follow: {
       count: jest.fn(() => Promise.resolve(follows.length)),
@@ -216,7 +217,7 @@ function fakePrisma() {
       }),
     },
   };
-  return { prisma, follows, scenes };
+  return { prisma, follows, scenes, owned };
 }
 
 /** Waits until no check is running or waiting to run. */
@@ -241,7 +242,7 @@ function feedScene(id: string, releaseDate: string, state = 'NOT_REQUESTED') {
 }
 
 function setup() {
-  const { prisma, follows, scenes } = fakePrisma();
+  const { prisma, follows, scenes, owned } = fakePrisma();
   const catalog = {
     isBrowseOnlyRequest: jest.fn().mockResolvedValue(false),
     getInstanceCatalogProviderType: jest.fn().mockResolvedValue('STASHDB'),
@@ -272,6 +273,10 @@ function setup() {
   };
   const statuses = new Map<string, { state: string }>();
   const sceneStatus = {
+    // Scenes Stash already has; null when Stash can't be asked.
+    stashHasScene: jest.fn((id: string): Promise<boolean | null> =>
+      Promise.resolve(owned.has(id)),
+    ),
     resolveForScenes: jest.fn((ids: string[]) =>
       Promise.resolve(
         new Map(
@@ -318,6 +323,7 @@ function setup() {
   service.now = () => new Date('2026-11-11T12:00:00Z');
   return {
     service,
+    sceneStatus,
     follows,
     scenes,
     catalog,
@@ -328,6 +334,7 @@ function setup() {
     notifications,
     hiddenRules,
     prisma,
+    owned,
   };
 }
 
@@ -426,6 +433,30 @@ describe('FollowsService', () => {
       scenes.filter((row) => row.sceneId === 'new-1').map((row) => row.state),
     ).toEqual(['REQUESTED', 'REQUESTED']);
     expect((await service.releases('review')).items).toEqual([]);
+  });
+
+  it('doesn’t add a scene you already have, nor announce it', async () => {
+    const { service, follows, requests, scenes, owned } = setup();
+    owned.add('new-1');
+    await service.follow({
+      kind: 'STUDIO',
+      entityId: 's1',
+      name: 'Studio',
+      autoRequest: true,
+    });
+    for (const follow of follows) {
+      follow.since = '2026-11-01';
+    }
+    const summary = await service.checkAll();
+
+    expect(
+      requests.submitSceneRequest.mock.calls.map((call) => call[0]),
+    ).toEqual(['new-2']);
+    expect(summary.requested).toBe(1);
+    expect(scenes.find((row) => row.sceneId === 'new-1')).toMatchObject({
+      state: 'DISMISSED',
+      detail: 'Already in your library',
+    });
   });
 
   it('keeps a failed automatic request for review, with why', async () => {
@@ -671,6 +702,53 @@ describe('FollowsService', () => {
         scenes.filter((row) => row.sceneId === 'new-1').map((row) => row.state),
       ).toEqual(['REQUESTED', 'REQUESTED']);
       expect(summary.requested).toBe(2);
+    });
+
+    it('doesn’t request a scene you have that another follow left waiting', async () => {
+      const { service, follows, requests, scenes, owned } = setup();
+      owned.add('new-1');
+      await service.follow({ kind: 'PERFORMER', entityId: 'p1', name: 'K' });
+      await service.follow({
+        kind: 'STUDIO',
+        entityId: 's1',
+        name: 'Studio',
+        autoRequest: true,
+      });
+      for (const follow of follows) {
+        follow.since = '2026-11-01';
+      }
+      await service.checkAll();
+      expect(
+        requests.submitSceneRequest.mock.calls.map((call) => call[0]),
+      ).not.toContain('new-1');
+      // Not waiting for review under the performer any more either.
+      expect(
+        scenes.filter((row) => row.sceneId === 'new-1').map((row) => row.state),
+      ).toEqual(['DISMISSED', 'DISMISSED']);
+    });
+
+    it('requests nothing while Stash can’t say whether you have the scene, and tries again', async () => {
+      const { service, follows, requests, scenes, sceneStatus } = setup();
+      sceneStatus.stashHasScene.mockResolvedValue(null);
+      await service.follow({
+        kind: 'STUDIO',
+        entityId: 's1',
+        name: 'Studio',
+        autoRequest: true,
+      });
+      for (const follow of follows) {
+        follow.since = '2026-11-01';
+      }
+      await service.checkAll();
+      expect(requests.submitSceneRequest).not.toHaveBeenCalled();
+      expect(scenes).toEqual([]);
+      expect(follows[0].lastError).toContain('Couldn’t ask Stash');
+      expect(follows[0].fullyCheckedAt).toBeNull();
+
+      // Stash answers again: the next check requests what's missing.
+      sceneStatus.stashHasScene.mockResolvedValue(false);
+      await service.checkAll();
+      expect(requests.submitSceneRequest).toHaveBeenCalled();
     });
 
     it('leaves out what Settings → Hidden hides', async () => {

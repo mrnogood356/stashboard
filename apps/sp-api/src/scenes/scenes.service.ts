@@ -72,7 +72,8 @@ export class ScenesService {
    * Catalog lists barely change minute to minute, and Home asks for several at
    * once on every visit, so keep each page for a short while.
    */
-  private static readonly CATALOG_CACHE_TTL_MS = 60_000;
+  /** Pages of the catalog kept this long: going back and paging again is instant. */
+  private static readonly CATALOG_CACHE_TTL_MS = 5 * 60_000;
   private static readonly CATALOG_CACHE_MAX_ENTRIES = 50;
 
   /** Tag lookups per catalog address: "name:<lowercase>" or "id:<id>" to an id or null. */
@@ -146,7 +147,7 @@ export class ScenesService {
       { studioIds: normalizedStudioIds, tagIds: normalizedTagIds },
     );
     const needsTags = excludeTerms.length > 0 || needsSceneTags(hiddenRules);
-    const catalogScenes = await this.getCatalogScenes({
+    const catalogParams: StashdbAdapterSceneFeedConfig = {
       baseUrl: catalogProvider.baseUrl,
       apiKey: catalogProvider.apiKey,
       page,
@@ -165,7 +166,15 @@ export class ScenesService {
               mode: tagMode,
             }
           : undefined,
-    });
+    };
+    const catalogScenes = await this.getCatalogScenes(catalogParams);
+    // The next page, asked for now while this one is read: a catalog can take
+    // seconds on a long list of categories, and scrolling on finds it ready.
+    if (page * perPage < catalogScenes.total) {
+      this.getCatalogScenes({ ...catalogParams, page: page + 1 }).catch(
+        () => undefined,
+      );
+    }
     // The catalog can't exclude words itself, so drop matches from each page.
     // Paging still follows the catalog, so a page can come back short.
     if (tagIds.length > 0) {

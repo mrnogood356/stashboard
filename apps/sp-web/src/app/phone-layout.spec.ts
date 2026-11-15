@@ -59,6 +59,8 @@ describe('phone layout', () => {
     expect(rule(picker, '.release-title')).toContain('overflow-wrap: anywhere');
     expect(rule(picker, '.chip.faint')).toContain('white-space: normal');
     expect(rule(picker, '.body')).toContain('overflow-x: hidden');
-    expect(rule(picker, '.sheet')).toContain('max-width: 100vw');
+    // Its frame is the shared sheet's.
+    const sheet = read('app/shared/sheet/sheet.component.scss');
+    expect(rule(sheet, '.sheet')).toContain('max-width: 100vw');
   });
 });

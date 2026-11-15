@@ -142,7 +142,7 @@ describe('FollowingPageComponent', () => {
     page.onSheetSaved({ ...follow, autoRequest: true }, { autoRequest: true });
     fixture.detectChanges();
     expect(root.querySelector('[data-testid="follow-p1"]')?.textContent).toContain(
-      'Requests automatically',
+      'Wants new scenes',
     );
 
     page.onUnfollowed(follow);

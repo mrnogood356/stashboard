@@ -1,177 +1,211 @@
 <main class="app-page-shell app-page-shell--wide">
-  <app-section-back />
+  <app-page-tabs title="Browse" [tabs]="pageTabs" search searchHint="performers by name" />
   <header class="page-head-compact">
     <div class="page-head-compact__title">
-      <h1>Performers</h1>
-      @if (!loading() && !error()) {
+      @if (inLibrary()) {
+        @if (!libLoading() || libItems().length > 0) {
+          <p class="state">{{ libTotal().toLocaleString() }} in your library</p>
+        }
+      } @else if (!loading() && !error()) {
         <p class="state">
           {{ total().toLocaleString() }} {{ total() === 1 ? 'performer' : 'performers' }}
         </p>
       }
     </div>
     <div class="page-head-compact__actions">
-      <app-catalog-provider-switch />
-      <button
-        type="button"
-        class="filters-toggle"
-        [class.active]="filtersOpen()"
-        [attr.aria-expanded]="filtersOpen()"
-        (click)="filtersOpen.set(!filtersOpen())"
-      >
-        <i class="pi pi-filter" aria-hidden="true"></i>
-        <span>Filters</span>
-      </button>
+      @if (!inLibrary()) {
+        <app-catalog-provider-switch />
+      }
     </div>
   </header>
 
-  <section
-    [class.filters-collapsed]="!filtersOpen()"
-    class="controls-shell app-control-shell"
-    aria-label="Performers controls"
-  >
-    <div class="controls-row">
-      <label class="control-field">
-        <span>Filter Performer Name</span>
-        <input
-          pInputText
-          type="text"
-          [ngModel]="nameFilter()"
-          placeholder="Search performer name"
-          (ngModelChange)="onNameFilterChanged($event)"
-        />
-      </label>
-
-      <div class="control-field">
-        <span id="performers-gender-label">Gender</span>
-        <p-select
-          inputId="performers-gender"
-          ariaLabelledBy="performers-gender-label"
-          [ngModel]="selectedGender()"
-          (ngModelChange)="onGenderChanged($event)"
-          [options]="genderOptions"
-          optionLabel="label"
-          optionValue="value"
-          [appendTo]="'body'"
-          panelStyleClass="app-overlay-panel"
-        />
-      </div>
-
-      <div class="control-field">
-        <span id="performers-sort-label">Sort</span>
-        <div class="sort-with-direction">
-          <p-select
-            inputId="performers-sort"
-            ariaLabelledBy="performers-sort-label"
-            [ngModel]="selectedSort()"
-            (ngModelChange)="onSortChanged($event)"
-            [options]="sortOptions"
-            optionLabel="label"
-            optionValue="value"
-            [appendTo]="'body'"
-            panelStyleClass="app-overlay-panel"
+  <div class="filter-bar performers-filter-bar" data-testid="performers-filter-bar">
+    <button
+      type="button"
+      class="filter-toggle"
+      data-testid="performers-in-library"
+      [attr.aria-pressed]="inLibrary()"
+      (click)="toggleInLibrary()"
+    >
+      <i class="pi pi-folder-open" aria-hidden="true"></i>
+      <span>In my library</span>
+    </button>
+    @if (!inLibrary()) {
+      <app-filter-chip label="Gender" [value]="genderValue()" testId="performers-gender">
+        <ng-template appFilterPanel>
+          <app-filter-options
+            [options]="genderChoices"
+            [selected]="genderPicked()"
+            testId="performers-gender-option"
+            (changed)="onGenderPicked($event)"
           />
-          <button
-            type="button"
-            class="sort-direction-toggle app-sort-direction-toggle"
-            [attr.aria-label]="sortDirectionToggleLabel()"
-            [attr.title]="sortDirectionToggleLabel()"
-            (click)="toggleSortDirection()"
-          >
-            <i [class]="sortDirectionIconClass()" aria-hidden="true"></i>
-          </button>
-        </div>
-      </div>
-
-      <div class="control-field favorites-field">
-        <span>Favorites Only</span>
-        <div class="favorites-toggle-row app-control-switch-row">
-          <input
-            id="performers-favorites-only"
-            type="checkbox"
-            class="app-switch"
-            role="switch"
-            aria-label="Show favorites only"
-            [ngModel]="favoritesOnly()"
-            (ngModelChange)="onFavoritesOnlyChanged($event)"
+        </ng-template>
+      </app-filter-chip>
+      <button
+        type="button"
+        class="filter-toggle"
+        data-testid="performers-favorites"
+        [attr.aria-pressed]="favoritesOnly()"
+        (click)="onFavoritesOnlyChanged(!favoritesOnly())"
+      >
+        <i class="pi pi-star" aria-hidden="true"></i>
+        Favorites
+      </button>
+      <app-filter-chip label="Sort" [value]="sortValue()" neutral testId="performers-sort">
+        <ng-template appFilterPanel>
+          <app-filter-options
+            [options]="sortChoices"
+            [selected]="sortPicked()"
+            [clearable]="false"
+            testId="performers-sort-option"
+            (changed)="onSortPicked($event)"
           />
-          <span class="favorites-toggle-label">Show favorites only</span>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  @if (loading()) {
-    <app-skeleton kind="portrait" [count]="12" label="Loading performers" />
-  } @else if (error()) {
-    <p-message severity="error" styleClass="app-page-message">{{ error() }}</p-message>
-    <button pButton type="button" class="retry-button" (click)="retryInitialLoad()">Retry</button>
-  } @else if (!hasItems()) {
-    <p class="state">No performers are available for the current filters.</p>
-  } @else {
-    <section class="performer-grid">
-      @for (item of items(); track item.id) {
-        <article class="performer-card">
-          <a
-            class="performer-link-stretch"
-            [routerLink]="['/performer', item.id]"
-            [queryParams]="{ returnTo: currentRouteUrl() }"
-            [attr.aria-label]="'View performer ' + item.name"
-          ></a>
-
-          <button
-            type="button"
-            class="favorite-star"
-            [class.is-favorite]="item.isFavorite"
-            [disabled]="favoriteToggleBusy(item.id)"
-            [attr.aria-busy]="favoriteToggleBusy(item.id)"
-            [attr.aria-label]="favoriteToggleLabel(item.isFavorite)"
-            [title]="favoriteToggleLabel(item.isFavorite)"
-            (click)="togglePerformerFavorite($event, item)"
-          >
-            <i [class]="item.isFavorite ? 'pi pi-star-fill' : 'pi pi-star'" aria-hidden="true"></i>
-          </button>
-
-          @if (item.cardImageUrl || item.imageUrl) {
-            <img
-              class="performer-image"
-              [src]="item.cardImageUrl ?? item.imageUrl"
-              [alt]="item.name"
-              loading="lazy"
-            />
-          } @else {
-            <div class="performer-image placeholder" aria-hidden="true">
-              {{ performerInitial(item.name) }}
-            </div>
-          }
-
-          <div class="performer-meta">
-            <p class="performer-name">{{ item.name }}</p>
-            <div class="performer-stats">
-              @if (formattedGender(item.gender); as gender) {
-                <p class="performer-gender">{{ gender }}</p>
-              }
-              <p class="performer-scene-count">
-                {{ item.sceneCount }} {{ item.sceneCount === 1 ? 'scene' : 'scenes' }}
-              </p>
-            </div>
-          </div>
-        </article>
-      }
-    </section>
-
-    <div #loadMoreSentinel class="load-sentinel"></div>
-
-    @if (loadingMore()) {
-      <p class="state">Loading more performers...</p>
+        </ng-template>
+      </app-filter-chip>
     }
+  </div>
 
-    @if (loadMoreError()) {
-      <div class="load-more-error">
-        <p-message severity="error" styleClass="app-inline-message">{{
-          loadMoreError()
-        }}</p-message>
-        <button pButton type="button" class="retry-button" (click)="retryLoadMore()">Retry</button>
-      </div>
+  @if (inLibrary()) {
+    @if (libFailed() && libItems().length === 0) {
+      <p class="state">Couldn’t load the people in your library.</p>
+      <button
+        type="button"
+        class="app-btn retry-library"
+        data-testid="library-performers-retry"
+        (click)="retryLibrary()"
+      >
+        Try again
+      </button>
+    } @else if (!libLoading() && libItems().length === 0) {
+      <p class="state">
+        @if (libQuery) {
+          Nobody by that name in your library.
+        } @else {
+          Nobody in your library yet: performers show up here once Stash has scenes with them.
+        }
+      </p>
+    } @else {
+      <section class="performer-grid" data-testid="library-performers">
+        @for (item of libItems(); track item.id) {
+          <article class="performer-card">
+            <a
+              class="performer-link-stretch"
+              [routerLink]="['/library/performer', item.id, 'all']"
+              [queryParams]="{ returnTo: currentRouteUrl() }"
+              [attr.aria-label]="'View performer ' + item.name"
+            ></a>
+            <img class="performer-image" [src]="item.imageUrl" [alt]="item.name" loading="lazy" />
+            <div class="performer-meta">
+              <p class="performer-name">{{ item.name }}</p>
+              <div class="performer-stats">
+                <p class="performer-scene-count">
+                  {{ item.count }} {{ item.count === 1 ? 'scene' : 'scenes' }} of yours
+                </p>
+              </div>
+            </div>
+          </article>
+        }
+      </section>
+      @if (libFailed()) {
+        <p class="state">Couldn’t load more.</p>
+        <button
+          type="button"
+          class="app-btn show-more-library"
+          data-testid="library-performers-retry"
+          (click)="retryLibrary()"
+        >
+          Try again
+        </button>
+      } @else if (libHasMore()) {
+        <button
+          type="button"
+          class="app-btn show-more-library"
+          [disabled]="libLoading()"
+          (click)="showMoreLibrary()"
+        >
+          {{ libLoading() ? 'Loading…' : 'Show more' }}
+        </button>
+      }
+    }
+  } @else {
+    @if (loading()) {
+      <app-skeleton kind="portrait" [count]="12" label="Loading performers" />
+    } @else if (error()) {
+      <p-message severity="error" styleClass="app-page-message">{{ error() }}</p-message>
+      <button pButton type="button" class="retry-button" (click)="retryInitialLoad()">Retry</button>
+    } @else if (!hasItems()) {
+      <p class="state">No performers are available for the current filters.</p>
+    } @else {
+      <section class="performer-grid">
+        @for (item of items(); track item.id) {
+          <article class="performer-card">
+            <a
+              class="performer-link-stretch"
+              [routerLink]="['/performer', item.id]"
+              [queryParams]="{ returnTo: currentRouteUrl() }"
+              [attr.aria-label]="'View performer ' + item.name"
+            ></a>
+
+            <button
+              type="button"
+              class="favorite-star"
+              [class.is-favorite]="item.isFavorite"
+              [disabled]="favoriteToggleBusy(item.id)"
+              [attr.aria-busy]="favoriteToggleBusy(item.id)"
+              [attr.aria-label]="favoriteToggleLabel(item.isFavorite)"
+              [title]="favoriteToggleLabel(item.isFavorite)"
+              (click)="togglePerformerFavorite($event, item)"
+            >
+              <i
+                [class]="item.isFavorite ? 'pi pi-star-fill' : 'pi pi-star'"
+                aria-hidden="true"
+              ></i>
+            </button>
+
+            @if (item.cardImageUrl || item.imageUrl) {
+              <img
+                class="performer-image"
+                [src]="item.cardImageUrl ?? item.imageUrl"
+                [alt]="item.name"
+                loading="lazy"
+              />
+            } @else {
+              <div class="performer-image placeholder" aria-hidden="true">
+                {{ performerInitial(item.name) }}
+              </div>
+            }
+
+            <div class="performer-meta">
+              <p class="performer-name">{{ item.name }}</p>
+              <div class="performer-stats">
+                @if (formattedGender(item.gender); as gender) {
+                  <p class="performer-gender">{{ gender }}</p>
+                }
+                <p class="performer-scene-count">
+                  {{ item.sceneCount }} {{ item.sceneCount === 1 ? 'scene' : 'scenes' }}
+                </p>
+              </div>
+            </div>
+          </article>
+        }
+      </section>
+
+      <div #loadMoreSentinel class="load-sentinel"></div>
+
+      @if (loadingMore()) {
+        <p class="state">Loading more performers...</p>
+      }
+
+      @if (loadMoreError()) {
+        <div class="load-more-error">
+          <p-message severity="error" styleClass="app-inline-message">{{
+            loadMoreError()
+          }}</p-message>
+          <button pButton type="button" class="retry-button" (click)="retryLoadMore()">
+            Retry
+          </button>
+        </div>
+      }
     }
   }
 </main>

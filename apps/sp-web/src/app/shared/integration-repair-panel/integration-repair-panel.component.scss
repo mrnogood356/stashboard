@@ -39,7 +39,7 @@ p {
 }
 
 .card-head:not(.is-static):hover {
-  background: var(--chip-bg);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
 }
 
 .card-head:focus-visible {
@@ -83,7 +83,7 @@ p {
   display: grid;
   gap: 1rem;
   padding: 0.25rem 1rem 1rem;
-  border-top: 1px solid var(--border-subtle);
+  border-top: 0;
 }
 
 .card-body[hidden] {
@@ -165,4 +165,15 @@ form {
     margin-left: 0;
     flex-basis: 100%;
   }
+}
+
+/* The page groups the rows on one surface; each row is plain inside it. */
+.repair-card,
+.repair-card.is-open {
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+:host(:not(:last-child)) .repair-card {
+  border-bottom: 1px solid var(--border-subtle) !important;
 }

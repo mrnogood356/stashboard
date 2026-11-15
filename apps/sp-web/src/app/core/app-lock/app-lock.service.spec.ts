@@ -76,6 +76,42 @@ describe('AppLockService', () => {
     expect(document.documentElement.classList.contains('app-shielded')).toBe(true);
   });
 
+  it('stops playing previews while covered, and starts them again after', async () => {
+    await load(status({ enabled: false, hideInSwitcher: true }));
+    const preview = document.createElement('video');
+    preview.muted = true;
+    const player = document.createElement('video');
+    document.body.append(preview, player);
+    let previewPaused = false;
+    let playerPaused = false;
+    Object.defineProperty(preview, 'paused', { get: () => previewPaused });
+    Object.defineProperty(player, 'paused', { get: () => playerPaused });
+    preview.pause = vi.fn(() => {
+      previewPaused = true;
+    });
+    preview.play = vi.fn(() => {
+      previewPaused = false;
+      return Promise.resolve();
+    });
+    player.pause = vi.fn(() => {
+      playerPaused = true;
+    });
+
+    window.dispatchEvent(new Event('blur'));
+    expect(document.documentElement.classList.contains('app-shielded')).toBe(true);
+    expect(preview.pause).toHaveBeenCalled();
+    // The main player (sound on) is left to the phone.
+    expect(player.pause).not.toHaveBeenCalled();
+
+    setVisibility('hidden');
+    setVisibility('visible');
+    await Promise.resolve();
+    expect(document.documentElement.classList.contains('app-shielded')).toBe(false);
+    expect(preview.play).toHaveBeenCalled();
+    preview.remove();
+    player.remove();
+  });
+
   it('covers the screen when iOS takes over a touch for the home swipe', async () => {
     const userAgent = vi
       .spyOn(navigator, 'userAgent', 'get')
@@ -271,6 +307,25 @@ describe('AppLockService', () => {
     setVisibility('hidden');
 
     expect(assign).toHaveBeenCalledWith('/scenes');
+    expect(service.locked()).toBe(false);
+    expect(beacon).not.toHaveBeenCalled();
+    Object.defineProperty(window, 'location', { configurable: true, value: original });
+  });
+
+  it('doesn’t lock on pull to refresh or any other reload of the same page', async () => {
+    const reload = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...original, reload },
+    });
+    await load(status({ timeoutSeconds: 0 }));
+
+    service.reload();
+    window.dispatchEvent(new Event('pagehide'));
+    setVisibility('hidden');
+
+    expect(reload).toHaveBeenCalled();
     expect(service.locked()).toBe(false);
     expect(beacon).not.toHaveBeenCalled();
     Object.defineProperty(window, 'location', { configurable: true, value: original });

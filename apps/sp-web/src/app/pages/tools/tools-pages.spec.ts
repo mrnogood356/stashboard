@@ -68,16 +68,16 @@ describe('Library tools', () => {
 
     expect(root.textContent).toContain('Not matched');
     expect(root.querySelectorAll('.row').length).toBe(2);
-    root.querySelector<HTMLButtonElement>('.row .btn')!.click();
+    root.querySelector<HTMLButtonElement>('.row button.btn')!.click();
     expect(library.identify).toHaveBeenCalledWith(['1']);
     expect(notifications.success).toHaveBeenCalled();
 
     root.querySelector<HTMLButtonElement>('.list-head .btn')!.click();
     expect(library.identify).toHaveBeenLastCalledWith(['1', '2']);
 
-    Array.from(root.querySelectorAll<HTMLButtonElement>('.segmented button'))[2].click();
+    Array.from(root.querySelectorAll<HTMLButtonElement>('.app-tabs button'))[2].click();
     fixture.detectChanges();
-    root.querySelector<HTMLButtonElement>('.row .btn')!.click();
+    root.querySelector<HTMLButtonElement>('.row button.btn')!.click();
     fixture.detectChanges();
     expect(library.updateScene).toHaveBeenCalledWith('9', { organized: true });
     expect(root.querySelectorAll('.row').length).toBe(0);
@@ -196,7 +196,7 @@ describe('Library tools', () => {
     expect(root.querySelector('.copy.best')?.textContent).toContain('1080p');
     root.querySelector<HTMLButtonElement>('.copy:not(.best) .btn')!.click();
     fixture.detectChanges();
-    root.querySelector<HTMLButtonElement>('.sheet .btn.danger')!.click();
+    document.querySelector<HTMLButtonElement>('.sheet .btn.danger')!.click();
     // Copies go one at a time; let the delete finish.
     for (let i = 0; i < 5; i += 1) {
       await Promise.resolve();

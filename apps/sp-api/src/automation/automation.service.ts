@@ -75,6 +75,9 @@ const RECENT_SCENES_FOR_PREVIEWS = 40;
 const PREVIEW_SWEEP_MS = 30 * 60_000;
 /** Previews are asked for a scene this many times at most (per start-up). */
 const PREVIEW_TRIES = 2;
+/** How long to wait for the previews a rescan makes in a job of their own. */
+const SCAN_PREVIEWS_WAIT_MS = 15 * 60_000;
+const SCAN_PREVIEWS_POLL_MS = 5_000;
 
 /**
  * When Whisparr imports a scene: ask Stash to scan, identify the new scene on
@@ -111,6 +114,8 @@ export class AutomationService
   /** Used by tests to avoid real waiting. */
   sleep: (ms: number) => Promise<void> = (ms) =>
     new Promise((resolve) => setTimeout(resolve, ms));
+  /** Used by tests to move time along. */
+  now: () => number = () => Date.now();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -295,6 +300,24 @@ export class AutomationService
       `${waiting.length} scene(s) Whisparr has a file for aren't in Stash yet; checking them.`,
     );
     if (scanOnImport) {
+      // Just the folders Whisparr put their files in, never the whole
+      // library: a scene that never turns up would otherwise rescan
+      // everything again and again.
+      let files: string[];
+      try {
+        files =
+          (await this.organizer?.whisparrFilesFor(
+            waiting.map((row) => row.stashId),
+          )) ?? [];
+      } catch (error) {
+        // Couldn't ask Whisparr: try these again next time, not in an hour.
+        this.lastWaitingSignature = null;
+        this.logger.warn(
+          `Couldn't find where Whisparr put the waiting scenes' files: ${messageOf(error)}`,
+        );
+        return;
+      }
+      files.forEach((file) => this.pendingLocalFolders.add(parentFolder(file)));
       await this.run(
         'detected',
         waiting.map((row) => row.stashId),
@@ -423,16 +446,21 @@ export class AutomationService
       await this.record(
         reason,
         'RUNNING',
-        folders
-          ? reason === 'files'
-            ? `Scanning ${folders.length === 1 ? 'a folder' : `${folders.length} folders`} with new files in Stash…`
-            : `Scanning ${folders.length === 1 ? 'the imported folder' : `${folders.length} imported folders`} in Stash…`
-          : 'Scanning Stash for new files…',
+        folders !== null && folders.length === 0
+          ? 'Nothing new to scan; checking what Stash already has…'
+          : folders
+            ? reason === 'files'
+              ? `Scanning ${folders.length === 1 ? 'a folder' : `${folders.length} folders`} with new files in Stash…`
+              : `Scanning ${folders.length === 1 ? 'the imported folder' : `${folders.length} imported folders`} in Stash…`
+            : 'Scanning Stash for new files…',
       );
 
-      const scanJob = folders
-        ? await this.stash.scanLibraryFolders(config, folders)
-        : await this.stash.startLibraryTask(config, 'scan');
+      const scanJob =
+        folders === null
+          ? await this.stash.startLibraryTask(config, 'scan')
+          : folders.length > 0
+            ? await this.stash.scanLibraryFolders(config, folders)
+            : null;
       const scanResult = scanJob
         ? await this.stash.waitForJob(config, scanJob, { sleep: this.sleep })
         : 'FINISHED';
@@ -638,7 +666,7 @@ export class AutomationService
         }
         if (result.proposed?.length) {
           steps.push(
-            `found ${result.proposed.length} likely ${result.proposed.length === 1 ? 'match' : 'matches'} to check in Match & rename`,
+            `found ${result.proposed.length} likely ${result.proposed.length === 1 ? 'match' : 'matches'} to check in Match scenes`,
           );
         }
         left = result.left;
@@ -792,12 +820,23 @@ export class AutomationService
       // #7341, 0.32 development builds), though a rescan that makes them
       // still works: try that for the ones still without one.
       const rescanned = await this.rescanForPreviews(config, check.missing);
-      if (rescanned) {
+      if (rescanned !== 'none') {
         const again = await this.checkPreviews(config, check.missing);
-        check = {
-          missing: again.missing,
-          unanswered: [...check.unanswered, ...again.unanswered],
-        };
+        check =
+          rescanned === 'done'
+            ? {
+                missing: again.missing,
+                unanswered: [...check.unanswered, ...again.unanswered],
+              }
+            : // Stash may still be making them: not known to have failed.
+              {
+                missing: [],
+                unanswered: [
+                  ...check.unanswered,
+                  ...again.unanswered,
+                  ...again.missing,
+                ],
+              };
       }
     }
     if (check.missing.length > 0) {
@@ -826,15 +865,19 @@ export class AutomationService
       });
   }
 
-  /** Rescans with previews made by the scan; true once that scan finished. */
+  /**
+   * Rescans with previews made by the scan. 'done' once Stash has finished
+   * making them; 'unconfirmed' when the scan finished but whether Stash is
+   * still generating couldn't be told in time; 'none' when nothing was made.
+   */
   private async rescanForPreviews(
     config: StashAdapterBaseConfig,
     sceneIds: string[],
-  ): Promise<boolean> {
+  ): Promise<'done' | 'unconfirmed' | 'none'> {
     try {
       const job = await this.stash.rescanForPreviews(config, sceneIds);
       if (!job) {
-        return false;
+        return 'none';
       }
       this.logger.log(
         `Stash's Generate left ${sceneIds.length} scene(s) without a hover preview; rescanning them with previews.`,
@@ -842,13 +885,53 @@ export class AutomationService
       const result = await this.stash.waitForJob(config, job, {
         sleep: this.sleep,
       });
-      return result === 'FINISHED';
+      if (result !== 'FINISHED') {
+        return 'none';
+      }
+      // Newer Stash makes a scan's previews in a job of their own that
+      // carries on after the scan: wait for it before checking.
+      return (await this.waitForStashGenerating(config))
+        ? 'done'
+        : 'unconfirmed';
     } catch (error) {
       this.logger.warn(`Couldn't rescan for previews: ${messageOf(error)}`);
-      return false;
+      return 'none';
     }
   }
 
+  /**
+   * Until Stash has no generating job left: true then, false when long
+   * enough has passed without seeing that.
+   */
+  private async waitForStashGenerating(
+    config: StashAdapterBaseConfig,
+  ): Promise<boolean> {
+    const deadline = this.now() + SCAN_PREVIEWS_WAIT_MS;
+    while (this.now() < deadline) {
+      const queue = await this.stash.getJobQueue(config).catch(() => null);
+      if (queue === null) {
+        // Stash didn't answer: not a sign it's done. Ask again in a moment.
+        await this.sleep(SCAN_PREVIEWS_POLL_MS);
+        continue;
+      }
+      const generating = queue.some(
+        (job) =>
+          /generat/i.test(job.description) &&
+          !['FINISHED', 'FAILED', 'CANCELLED'].includes(job.status),
+      );
+      if (!generating) {
+        return true;
+      }
+      await this.sleep(SCAN_PREVIEWS_POLL_MS);
+    }
+    return false;
+  }
+
+  /**
+   * The folders to scan, as Stash sees them. Null means the whole library,
+   * which only Run now asks for: on its own, Stashboard scans just where
+   * new files are, and an empty list means there's nothing to scan.
+   */
   private async foldersToScan(
     reason: AutomationReason,
     config: StashAdapterBaseConfig,
@@ -859,12 +942,16 @@ export class AutomationService
     this.pendingFolders = new Set();
     this.pendingLocalFolders = new Set();
     this.pendingFullScan = false;
-    if (
-      !['webhook', 'files'].includes(reason) ||
-      fullScan ||
-      folders.length + local.length === 0
-    ) {
+    if (reason === 'manual') {
       return null;
+    }
+    if (fullScan) {
+      this.logger.warn(
+        'Whisparr sent an import without its folder, so it isn’t scanned on its own. Run now scans the whole library if it doesn’t show up.',
+      );
+    }
+    if (folders.length + local.length === 0) {
+      return [];
     }
     try {
       const [settings, roots] = await Promise.all([
@@ -877,18 +964,22 @@ export class AutomationService
       const inLibrary = (folder: string) =>
         roots.some((root) => isInsideFolder(folder, root));
       const all = [...new Set([...mapped, ...local])];
-      if (!all.every(inLibrary)) {
-        this.logger.debug(
-          'An imported folder is outside Stash’s library folders; scanning everything.',
+      const outside = all.filter((folder) => !inLibrary(folder));
+      if (outside.length > 0) {
+        this.logger.warn(
+          `Not scanning ${outside.join(', ')}: ${outside.length === 1 ? 'it isn’t' : 'they aren’t'} inside any of Stash’s library folders. Check the Whisparr → Stash path mapping in Settings → Automation → Rename files.`,
         );
-        return null;
       }
-      return all;
+      return all.filter(inLibrary);
     } catch (error) {
-      this.logger.debug(
-        `Couldn't work out which folders to scan, so scanning everything: ${messageOf(error)}`,
+      // Kept, so the next run scans them: the folder watcher reports a
+      // finished file only once.
+      folders.forEach((folder) => this.pendingFolders.add(folder));
+      local.forEach((folder) => this.pendingLocalFolders.add(folder));
+      this.logger.warn(
+        `Couldn't work out which folders to scan, so nothing was scanned this time: ${messageOf(error)}`,
       );
-      return null;
+      return [];
     }
   }
 

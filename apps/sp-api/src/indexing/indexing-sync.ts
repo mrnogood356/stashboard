@@ -19,6 +19,9 @@ import {
 } from './indexing.model';
 import { IndexingCore } from './indexing-core';
 
+/** Scenes marked as checked per statement, well under Postgres's parameter limit. */
+const UNCHANGED_TOUCH_CHUNK = 5000;
+
 /**
  * The sync jobs themselves: Whisparr's movies and queue, Stash availability,
  * the library projection, and StashDB metadata.
@@ -140,13 +143,32 @@ export abstract class IndexingSync extends IndexingCore {
 
     const now = new Date();
     const patches: SceneIndexPatch[] = [];
-    const aliases = new Map(
-      (
-        await this.prisma.sceneStashAlias.findMany({
-          where: { stashId: { in: normalizedIds } },
-        })
-      ).map((row) => [row.stashId, row.aliasOf]),
-    );
+    // A pair is one scene whichever way it was stored, as in the full sync;
+    // a scene's own link comes first when it has both.
+    const aliasRows = await this.prisma.sceneStashAlias.findMany({
+      where: {
+        OR: [
+          { stashId: { in: normalizedIds } },
+          { aliasOf: { in: normalizedIds } },
+        ],
+      },
+    });
+    // Every partner of a scene: several scenes can be stored as the same
+    // one, and Stash may have only one of them.
+    const aliases = new Map<string, string[]>();
+    const addPartner = (id: string, partner: string) => {
+      const partners = aliases.get(id) ?? [];
+      if (!partners.includes(partner)) {
+        partners.push(partner);
+      }
+      aliases.set(id, partners);
+    };
+    for (const row of aliasRows) {
+      addPartner(row.stashId, row.aliasOf);
+    }
+    for (const row of aliasRows) {
+      addPartner(row.aliasOf, row.stashId);
+    }
 
     for (
       let i = 0;
@@ -166,8 +188,10 @@ export abstract class IndexingSync extends IndexingCore {
               });
             let matches = await lookup(stashId);
             // Stash has it under the scene this one is the same as.
-            const alias = matches.length === 0 ? aliases.get(stashId) : null;
-            if (alias) {
+            for (const alias of aliases.get(stashId) ?? []) {
+              if (matches.length > 0) {
+                break;
+              }
               matches = await lookup(alias);
             }
             return {
@@ -235,17 +259,6 @@ export abstract class IndexingSync extends IndexingCore {
     const snapshotMovieIds = new Set<number>();
     const patches: SceneIndexPatch[] = [];
 
-    for (const movie of movies) {
-      snapshotMovieIds.add(movie.movieId);
-      patches.push({
-        stashId: movie.stashId,
-        whisparrMovieId: movie.movieId,
-        whisparrHasFile: movie.hasFile,
-        whisparrLastSyncedAt: now,
-        lastSyncedAt: now,
-      });
-    }
-
     // Find rows linked to a Whisparr movie that is no longer in Whisparr. Filtering
     // in memory avoids sending the whole Whisparr library as one huge NOT IN list,
     // which can exceed Postgres's parameter limit on large libraries.
@@ -258,8 +271,48 @@ export abstract class IndexingSync extends IndexingCore {
       select: {
         stashId: true,
         whisparrMovieId: true,
+        whisparrHasFile: true,
       },
     });
+    const linkedByStashId = new Map(
+      linkedRows.map((row) => [row.stashId, row]),
+    );
+
+    // Only scenes whose Whisparr link or file changed are rewritten; the rest
+    // just note they were checked, in a few statements, not 2,000 writes.
+    const unchanged: string[] = [];
+    for (const movie of movies) {
+      snapshotMovieIds.add(movie.movieId);
+      const known = linkedByStashId.get(movie.stashId);
+      if (
+        known &&
+        known.whisparrMovieId === movie.movieId &&
+        known.whisparrHasFile === movie.hasFile
+      ) {
+        unchanged.push(movie.stashId);
+        continue;
+      }
+      patches.push({
+        stashId: movie.stashId,
+        whisparrMovieId: movie.movieId,
+        whisparrHasFile: movie.hasFile,
+        whisparrLastSyncedAt: now,
+        lastSyncedAt: now,
+      });
+    }
+    // In turn with other writes to the index, so one that read a row before
+    // this can't put back its older sync time.
+    for (let i = 0; i < unchanged.length; i += UNCHANGED_TOUCH_CHUNK) {
+      await this.withSceneIndexWriteBarrier(() =>
+        this.prisma.sceneIndex.updateMany({
+          where: {
+            stashId: { in: unchanged.slice(i, i + UNCHANGED_TOUCH_CHUNK) },
+          },
+          data: { whisparrLastSyncedAt: now, lastSyncedAt: now },
+        }),
+      );
+    }
+
     const staleRows = linkedRows.filter(
       (row) =>
         row.whisparrMovieId === null ||
@@ -889,76 +942,96 @@ export abstract class IndexingSync extends IndexingCore {
       return 0;
     }
 
+    const fieldsOf = (item: StashLocalLibrarySceneItem) => ({
+      linkedStashId: item.activeCatalogSceneId,
+      linkedCatalogRefs: item.linkedCatalogRefs,
+      fingerprints: item.fingerprints,
+      title: item.title,
+      description: item.description,
+      imageUrl: item.imageUrl,
+      studioId: item.studioId,
+      studioName: item.studio,
+      studioImageUrl: item.studioImageUrl,
+      performerIds: item.performerIds,
+      performerNames: item.performerNames,
+      tagIds: item.tagIds,
+      tagNames: item.tagNames,
+      releaseDate: item.releaseDate,
+      productionDate: item.productionDate,
+      duration: wholeNumber(item.duration),
+      width: wholeNumber(item.width),
+      height: wholeNumber(item.height),
+      viewUrl: item.viewUrl,
+      localCreatedAt: item.createdAt,
+      localUpdatedAt: item.updatedAt,
+      hasFavoritePerformer: item.hasFavoritePerformer,
+      favoriteStudio: item.favoriteStudio,
+      hasFavoriteTag: item.hasFavoriteTag,
+    });
+    type Fields = ReturnType<typeof fieldsOf>;
+    const keys = Object.keys(fieldsOf(items[0])) as Array<keyof Fields>;
+
+    // Only scenes that changed are written; the rest are just marked as
+    // still there, in one statement, so a sync with nothing new costs little.
+    const existing = await this.prisma.librarySceneIndex.findMany({
+      where: { stashSceneId: { in: items.map((item) => item.id) } },
+      select: {
+        stashSceneId: true,
+        ...Object.fromEntries(keys.map((key) => [key, true])),
+      },
+    });
+    const byId = new Map(
+      existing.map((row) => [
+        row.stashSceneId,
+        row as unknown as Partial<Fields>,
+      ]),
+    );
+    const changed: StashLocalLibrarySceneItem[] = [];
+    const unchanged: string[] = [];
+    for (const item of items) {
+      const row = byId.get(item.id);
+      const fields = fieldsOf(item);
+      if (row && keys.every((key) => sameValue(row[key], fields[key]))) {
+        unchanged.push(item.id);
+      } else {
+        changed.push(item);
+      }
+    }
+
+    if (unchanged.length > 0) {
+      await this.prisma.librarySceneIndex.updateMany({
+        where: { stashSceneId: { in: unchanged } },
+        data: { lastSyncedAt: syncedAt },
+      });
+    }
+    if (changed.length === 0) {
+      return 0;
+    }
+
     // One batch per page: the writes go together, without an interactive
     // transaction holding a connection open across awaits (one that broke
     // mid-page kept its connection, and once they were all taken every
     // request waited).
     await this.prisma.$transaction(
-      items.map((item) =>
+      changed.map((item) =>
         this.prisma.librarySceneIndex.upsert({
           where: {
             stashSceneId: item.id,
           },
           create: {
             stashSceneId: item.id,
-            linkedStashId: item.activeCatalogSceneId,
-            linkedCatalogRefs: item.linkedCatalogRefs,
-            fingerprints: item.fingerprints,
-            title: item.title,
-            description: item.description,
-            imageUrl: item.imageUrl,
-            studioId: item.studioId,
-            studioName: item.studio,
-            studioImageUrl: item.studioImageUrl,
-            performerIds: item.performerIds,
-            performerNames: item.performerNames,
-            tagIds: item.tagIds,
-            tagNames: item.tagNames,
-            releaseDate: item.releaseDate,
-            productionDate: item.productionDate,
-            duration: item.duration,
-            width: item.width,
-            height: item.height,
-            viewUrl: item.viewUrl,
-            localCreatedAt: item.createdAt,
-            localUpdatedAt: item.updatedAt,
-            hasFavoritePerformer: item.hasFavoritePerformer,
-            favoriteStudio: item.favoriteStudio,
-            hasFavoriteTag: item.hasFavoriteTag,
+            ...fieldsOf(item),
             lastSyncedAt: syncedAt,
           },
           update: {
-            linkedStashId: item.activeCatalogSceneId,
-            linkedCatalogRefs: item.linkedCatalogRefs,
-            fingerprints: item.fingerprints,
-            title: item.title,
-            description: item.description,
-            imageUrl: item.imageUrl,
-            studioId: item.studioId,
-            studioName: item.studio,
-            studioImageUrl: item.studioImageUrl,
-            performerIds: item.performerIds,
-            performerNames: item.performerNames,
-            tagIds: item.tagIds,
-            tagNames: item.tagNames,
-            releaseDate: item.releaseDate,
-            productionDate: item.productionDate,
-            duration: item.duration,
-            width: item.width,
-            height: item.height,
-            viewUrl: item.viewUrl,
-            localCreatedAt: item.createdAt,
-            localUpdatedAt: item.updatedAt,
-            hasFavoritePerformer: item.hasFavoritePerformer,
-            favoriteStudio: item.favoriteStudio,
-            hasFavoriteTag: item.hasFavoriteTag,
+            ...fieldsOf(item),
             lastSyncedAt: syncedAt,
           },
         }),
       ),
     );
 
-    return items.length;
+    return changed.length;
   }
 
   protected async applyLibraryAvailabilitySnapshot(
@@ -968,15 +1041,6 @@ export abstract class IndexingSync extends IndexingCore {
     const availableStashIds = await this.withAliases(linkedStashIds);
     const patches: SceneIndexPatch[] = [];
 
-    for (const stashId of availableStashIds) {
-      patches.push({
-        stashId,
-        stashAvailable: true,
-        stashLastSyncedAt: syncedAt,
-        lastSyncedAt: syncedAt,
-      });
-    }
-
     const previouslyAvailableRows = await this.prisma.sceneIndex.findMany({
       where: {
         stashAvailable: true,
@@ -985,6 +1049,25 @@ export abstract class IndexingSync extends IndexingCore {
         stashId: true,
       },
     });
+    const wasAvailable = new Set(
+      previouslyAvailableRows.map((row) => row.stashId),
+    );
+
+    // Only what changed gets a patch: newly in the library, or gone from it.
+    // The rest were just confirmed, so only their checked-at times move on.
+    const confirmed: string[] = [];
+    for (const stashId of availableStashIds) {
+      if (wasAvailable.has(stashId)) {
+        confirmed.push(stashId);
+        continue;
+      }
+      patches.push({
+        stashId,
+        stashAvailable: true,
+        stashLastSyncedAt: syncedAt,
+        lastSyncedAt: syncedAt,
+      });
+    }
 
     for (const row of previouslyAvailableRows) {
       if (availableStashIds.has(row.stashId)) {
@@ -1000,6 +1083,14 @@ export abstract class IndexingSync extends IndexingCore {
     }
 
     await this.applySceneIndexPatches(patches);
+    for (let i = 0; i < confirmed.length; i += UNCHANGED_TOUCH_CHUNK) {
+      await this.prisma.sceneIndex.updateMany({
+        where: {
+          stashId: { in: confirmed.slice(i, i + UNCHANGED_TOUCH_CHUNK) },
+        },
+        data: { lastSyncedAt: syncedAt, stashLastSyncedAt: syncedAt },
+      });
+    }
     return this.mergePatchesByStashId(patches).length;
   }
 
@@ -1187,4 +1278,59 @@ export abstract class IndexingSync extends IndexingCore {
       lastSyncedAt: now,
     };
   }
+}
+
+/**
+ * Stored as whole numbers: Stash's 1820.48 seconds is 1820 here, so it's
+ * written that way and compares the same next time.
+ */
+function wholeNumber(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.round(value)
+    : null;
+}
+
+/** Whether a stored value and a fresh one are the same (dates and lists by content). */
+function sameValue(stored: unknown, fresh: unknown): boolean {
+  const plain = (value: unknown): unknown =>
+    value instanceof Date ? value.toISOString() : (value ?? null);
+  const a = plain(stored);
+  const b = plain(fresh);
+  if (a === b) {
+    return true;
+  }
+  if (typeof a === 'string' && typeof b === 'string') {
+    // A date Stash sends as text, against the stored one.
+    const left = Date.parse(a);
+    const right = Date.parse(b);
+    if (
+      /^\d{4}-\d{2}-\d{2}T/.test(a) &&
+      /^\d{4}-\d{2}-\d{2}T/.test(b) &&
+      !Number.isNaN(left) &&
+      left === right
+    ) {
+      return true;
+    }
+  }
+  return stableJson(a) === stableJson(b);
+}
+
+/**
+ * JSON with object keys in one order: the database hands stored JSON back
+ * with its keys reordered, which isn't a change.
+ */
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableJson).join(',')}]`;
+  }
+  if (value instanceof Date) {
+    return JSON.stringify(value.toISOString());
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+    return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`).join(',')}}`;
+  }
+  return JSON.stringify(value ?? null);
 }

@@ -34,16 +34,22 @@ describe('HideToggleComponent', () => {
     http.expectOne('/api/hidden-content/settings').flush(empty);
     fixture.detectChanges();
 
-    const button = root.querySelector('[data-testid="hide-studio"]') as HTMLButtonElement;
-    expect(button.textContent).toContain('Hide this studio');
-    expect(button.getAttribute('aria-pressed')).toBe('false');
+    // Waits in the ⋯ menu.
+    expect(root.querySelector('[data-testid="hide-studio"]')).toBeNull();
+    (root.querySelector('[data-testid="more-studio"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const hideItem = root.querySelector('[data-testid="hide-studio"]') as HTMLButtonElement;
+    expect(hideItem.textContent).toContain('Hide this studio');
+    expect(hideItem.getAttribute('aria-pressed')).toBe('false');
 
-    button.click();
+    hideItem.click();
     const hide = http.expectOne('/api/hidden-content/hide');
     expect(hide.request.body).toEqual({ kind: 'studio', id: 'studio-1', name: 'Some Studio' });
     hide.flush({ ...empty, studios: [{ id: 'studio-1', name: 'Some Studio' }] });
     fixture.detectChanges();
 
+    // Hidden: said in plain sight, not tucked in the menu.
+    const button = root.querySelector('[data-testid="hide-studio"]') as HTMLButtonElement;
     expect(button.textContent).toContain('Hidden');
     expect(button.getAttribute('aria-pressed')).toBe('true');
     expect(notifications.success).toHaveBeenCalledWith('Hiding Some Studio', expect.any(String));
@@ -54,7 +60,8 @@ describe('HideToggleComponent', () => {
     unhide.flush(empty);
     fixture.detectChanges();
 
-    expect(button.textContent).toContain('Hide this studio');
+    expect(root.querySelector('[data-testid="hide-studio"]')).toBeNull();
+    expect(root.querySelector('[data-testid="more-studio"]')).not.toBeNull();
     http.verify();
   });
 
@@ -63,7 +70,9 @@ describe('HideToggleComponent', () => {
     http.expectOne('/api/hidden-content/settings').flush(empty);
     fixture.detectChanges();
 
-    (root.querySelector('button') as HTMLButtonElement).click();
+    (root.querySelector('[data-testid="more-studio"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    (root.querySelector('[data-testid="hide-studio"]') as HTMLButtonElement).click();
     http
       .expectOne('/api/hidden-content/hide')
       .flush({ message: 'down' }, { status: 500, statusText: 'Server Error' });
