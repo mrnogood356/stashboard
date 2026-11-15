@@ -43,8 +43,14 @@ const FOLLOW_UP_SYNC_TRIES = 5;
 export class IndexingService extends IndexingSync {
   /** Where Stash's library was at the last change check; null until the first. */
   private libraryChangeMarker: string | null = null;
-  /** A change whose held-back sync ran out of tries: synced at the next check. */
-  private libraryChangeOwed = false;
+  /**
+   * A change whose held-back sync ran out of tries, synced at the next
+   * check: the order it was noted in, or null when nothing is owed. Only a
+   * sync that started after it pays it off.
+   */
+  private libraryChangeOwed: number | null = null;
+  /** Orders syncs' starts against owed changes. */
+  private librarySyncOrder = 0;
   /** When the last library sync started, and a follow-up one waiting. */
   private lastLibrarySyncAt = 0;
   private followUpLibrarySync: ReturnType<typeof setTimeout> | null = null;
@@ -217,6 +223,7 @@ export class IndexingService extends IndexingSync {
       return null;
     }
     this.lastLibrarySyncAt = Date.now();
+    const started = ++this.librarySyncOrder;
     const result = await this.syncStateService.runWithLease(
       {
         jobName: INDEXING_JOB_NAMES.LIBRARY_PROJECTION,
@@ -230,9 +237,14 @@ export class IndexingService extends IndexingSync {
       },
       async () => this.performLibraryProjectionSync(reason),
     );
-    // Any sync that ran covers a change owed from earlier.
-    if (result !== null) {
-      this.libraryChangeOwed = false;
+    // A sync that ran, having started after the change was owed, covers it;
+    // one already going then may have read past it.
+    if (
+      result !== null &&
+      this.libraryChangeOwed !== null &&
+      started > this.libraryChangeOwed
+    ) {
+      this.libraryChangeOwed = null;
     }
     return result;
   }
@@ -268,7 +280,7 @@ export class IndexingService extends IndexingSync {
           } else {
             // Out of tries: the next change check syncs even if Stash
             // hasn't changed again since.
-            this.libraryChangeOwed = true;
+            this.libraryChangeOwed = ++this.librarySyncOrder;
           }
         });
     }, delayMs);
@@ -297,7 +309,10 @@ export class IndexingService extends IndexingSync {
     }
     const previous = this.libraryChangeMarker;
     this.libraryChangeMarker = marker;
-    if (previous === null || (previous === marker && !this.libraryChangeOwed)) {
+    if (
+      previous === null ||
+      (previous === marker && this.libraryChangeOwed === null)
+    ) {
       return null;
     }
     try {
