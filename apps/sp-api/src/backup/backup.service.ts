@@ -76,6 +76,8 @@ interface Section<T extends object = object> {
   dto: new () => T;
   fields: readonly string[];
   secretFields?: readonly string[];
+  /** Fields where null is a setting ("no limit"), kept as such. */
+  nullableFields?: readonly string[];
   read(): Promise<Values>;
   /** Saves values the DTO's checks have passed. */
   write(values: T): Promise<unknown>;
@@ -266,6 +268,14 @@ export class BackupService {
           'activeFromHour',
           'activeToHour',
         ],
+        nullableFields: [
+          'maxGbPerHour',
+          'minGbPerHour',
+          'maxNewGbPerHour',
+          'minNewGbPerHour',
+          'activeFromHour',
+          'activeToHour',
+        ],
         read: async () => {
           const { targetResolution, ...saved } =
             await smallerCopies.getSettings();
@@ -302,6 +312,7 @@ export class BackupService {
         section.fields.filter(
           (field) => includeSecrets || !section.secretFields?.includes(field),
         ),
+        section.nullableFields,
       );
       settings[section.id] = values;
     }
@@ -352,8 +363,8 @@ export class BackupService {
       }
       // Anything the file leaves out keeps its current value.
       const values = {
-        ...pick(await section.read(), section.fields),
-        ...pick(fromFile, section.fields),
+        ...pick(await section.read(), section.fields, section.nullableFields),
+        ...pick(fromFile, section.fields, section.nullableFields),
       };
       const checked = await check(section.dto, values);
       if (typeof checked === 'string') {
@@ -522,12 +533,19 @@ function readBackup(file: unknown): SettingsBackup['settings'] {
   return file.settings as SettingsBackup['settings'];
 }
 
-/** The named fields that have a value; null and undefined are left out. */
-function pick(values: Values, fields: readonly string[]): Values {
+/**
+ * The named fields that have a value; undefined is left out, and null too
+ * except for fields where null is a setting of its own.
+ */
+function pick(
+  values: Values,
+  fields: readonly string[],
+  nullable: readonly string[] = [],
+): Values {
   const picked: Values = {};
   for (const field of fields) {
     const value = values[field];
-    if (value !== undefined && value !== null) {
+    if (value !== undefined && (value !== null || nullable.includes(field))) {
       picked[field] = value;
     }
   }

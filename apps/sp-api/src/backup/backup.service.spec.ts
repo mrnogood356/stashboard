@@ -295,6 +295,31 @@ describe('BackupService', () => {
     });
   });
 
+  it('restores Better copies’ “no limit” over limits set here', async () => {
+    const { service, smallerCopies } = setup();
+    // The file's settings have no hours or size limits …
+    const file = await service.export(false);
+    // … and this server has some.
+    smallerCopies.getSettings.mockResolvedValue({
+      ...(await smallerCopies.getSettings()),
+      maxGbPerHour: 9,
+      minGbPerHour: 2,
+      activeFromHour: 9,
+      activeToHour: 17,
+    });
+
+    await service.restore(file);
+
+    expect(smallerCopies.saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        maxGbPerHour: 6,
+        minGbPerHour: null,
+        activeFromHour: null,
+        activeToHour: null,
+      }),
+    );
+  });
+
   it('leaves keys, tokens and webhook links out when asked', async () => {
     const { service } = setup();
     const file = await service.export(false);

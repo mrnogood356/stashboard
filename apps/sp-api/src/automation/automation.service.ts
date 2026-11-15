@@ -303,10 +303,20 @@ export class AutomationService
       // Just the folders Whisparr put their files in, never the whole
       // library: a scene that never turns up would otherwise rescan
       // everything again and again.
-      const files =
-        (await this.organizer
-          ?.whisparrFilesFor(waiting.map((row) => row.stashId))
-          .catch(() => [] as string[])) ?? [];
+      let files: string[];
+      try {
+        files =
+          (await this.organizer?.whisparrFilesFor(
+            waiting.map((row) => row.stashId),
+          )) ?? [];
+      } catch (error) {
+        // Couldn't ask Whisparr: try these again next time, not in an hour.
+        this.lastWaitingSignature = null;
+        this.logger.warn(
+          `Couldn't find where Whisparr put the waiting scenes' files: ${messageOf(error)}`,
+        );
+        return;
+      }
       files.forEach((file) => this.pendingLocalFolders.add(parentFolder(file)));
       await this.run(
         'detected',
@@ -962,6 +972,10 @@ export class AutomationService
       }
       return all.filter(inLibrary);
     } catch (error) {
+      // Kept, so the next run scans them: the folder watcher reports a
+      // finished file only once.
+      folders.forEach((folder) => this.pendingFolders.add(folder));
+      local.forEach((folder) => this.pendingLocalFolders.add(folder));
       this.logger.warn(
         `Couldn't work out which folders to scan, so nothing was scanned this time: ${messageOf(error)}`,
       );

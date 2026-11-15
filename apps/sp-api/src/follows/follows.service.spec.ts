@@ -216,14 +216,6 @@ function fakePrisma() {
         );
       }),
     },
-    // Scenes Stash already has.
-    sceneIndex: {
-      findUnique: jest.fn(({ where }: { where: { stashId: string } }) =>
-        Promise.resolve(
-          owned.has(where.stashId) ? { stashAvailable: true } : null,
-        ),
-      ),
-    },
   };
   return { prisma, follows, scenes, owned };
 }
@@ -281,6 +273,14 @@ function setup() {
   };
   const statuses = new Map<string, { state: string }>();
   const sceneStatus = {
+    // Scenes Stash already has.
+    resolveForScene: jest.fn((id: string) =>
+      Promise.resolve(
+        owned.has(id)
+          ? { state: 'AVAILABLE' }
+          : (statuses.get(id) ?? { state: 'NOT_REQUESTED' }),
+      ),
+    ),
     resolveForScenes: jest.fn((ids: string[]) =>
       Promise.resolve(
         new Map(
@@ -705,6 +705,29 @@ describe('FollowsService', () => {
         scenes.filter((row) => row.sceneId === 'new-1').map((row) => row.state),
       ).toEqual(['REQUESTED', 'REQUESTED']);
       expect(summary.requested).toBe(2);
+    });
+
+    it('doesn’t request a scene you have that another follow left waiting', async () => {
+      const { service, follows, requests, scenes, owned } = setup();
+      owned.add('new-1');
+      await service.follow({ kind: 'PERFORMER', entityId: 'p1', name: 'K' });
+      await service.follow({
+        kind: 'STUDIO',
+        entityId: 's1',
+        name: 'Studio',
+        autoRequest: true,
+      });
+      for (const follow of follows) {
+        follow.since = '2026-11-01';
+      }
+      await service.checkAll();
+      expect(
+        requests.submitSceneRequest.mock.calls.map((call) => call[0]),
+      ).not.toContain('new-1');
+      // Not waiting for review under the performer any more either.
+      expect(
+        scenes.filter((row) => row.sceneId === 'new-1').map((row) => row.state),
+      ).toEqual(['DISMISSED', 'DISMISSED']);
     });
 
     it('leaves out what Settings → Hidden hides', async () => {

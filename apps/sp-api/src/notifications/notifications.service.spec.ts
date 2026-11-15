@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   buildFollowedMessage,
@@ -230,10 +230,26 @@ describe('NotificationsService', () => {
     findUniqueMock.mockResolvedValue(
       enabledSettings({ channel: 'WEBHOOK', url: 'http://hook.local' }),
     );
-    fetchMock.mockResolvedValue({ ok: false, status: 500 });
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      headers: new Headers(),
+    });
+    (
+      service as unknown as { retryWait: (ms: number) => Promise<void> }
+    ).retryWait = () => Promise.resolve();
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
     await expect(
       service.notifySceneChanges([{ event: 'AVAILABLE', title: 'X' }]),
     ).resolves.toBeUndefined();
+    // Tried again once, then said why it couldn't.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('the server replied 500'),
+    );
+    warn.mockRestore();
   });
 
   it('still sends the other messages when one fails', async () => {

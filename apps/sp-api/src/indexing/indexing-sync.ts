@@ -300,13 +300,17 @@ export abstract class IndexingSync extends IndexingCore {
         lastSyncedAt: now,
       });
     }
+    // In turn with other writes to the index, so one that read a row before
+    // this can't put back its older sync time.
     for (let i = 0; i < unchanged.length; i += UNCHANGED_TOUCH_CHUNK) {
-      await this.prisma.sceneIndex.updateMany({
-        where: {
-          stashId: { in: unchanged.slice(i, i + UNCHANGED_TOUCH_CHUNK) },
-        },
-        data: { whisparrLastSyncedAt: now, lastSyncedAt: now },
-      });
+      await this.withSceneIndexWriteBarrier(() =>
+        this.prisma.sceneIndex.updateMany({
+          where: {
+            stashId: { in: unchanged.slice(i, i + UNCHANGED_TOUCH_CHUNK) },
+          },
+          data: { whisparrLastSyncedAt: now, lastSyncedAt: now },
+        }),
+      );
     }
 
     const staleRows = linkedRows.filter(

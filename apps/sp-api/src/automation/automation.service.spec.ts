@@ -313,6 +313,7 @@ describe('AutomationService', () => {
         identifyNewScenes: jest.fn((ids: string[]) =>
           Promise.resolve({ linked: [], matched: [], left: ids }),
         ),
+        linkWaitingScenes: jest.fn().mockResolvedValue([]),
       };
       Object.assign(stash, {
         scanLibraryFolders: jest.fn().mockResolvedValue('folder-scan-job'),
@@ -481,6 +482,54 @@ describe('AutomationService', () => {
         expect.anything(),
         'scan',
       );
+      expect(settings.lastRunStatus).toBe('DONE');
+    });
+
+    it('asks Whisparr again next time when it couldn’t say where the files are', async () => {
+      const scoped = withOrganizer(['/data/scenes']);
+      const whisparrFilesFor = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('Whisparr is down'))
+        .mockResolvedValue(['/data/scenes/Studio/Scene B/b.mp4']);
+      Object.assign(
+        (scoped as unknown as { organizer: Record<string, unknown> }).organizer,
+        {
+          whisparrFilesFor,
+          checkWaitingScenes: jest.fn().mockResolvedValue({ left: [] }),
+        },
+      );
+      prisma.sceneIndex.findMany.mockResolvedValue([{ stashId: 'b' }]);
+
+      await scoped.checkForWaitingScenes();
+      await scoped.checkForWaitingScenes();
+
+      expect(whisparrFilesFor).toHaveBeenCalledTimes(2);
+      expect(
+        (stash as unknown as { scanLibraryFolders: jest.Mock })
+          .scanLibraryFolders,
+      ).toHaveBeenCalledWith(expect.anything(), [
+        '/data/scenes/Studio/Scene B',
+      ]);
+    });
+
+    it('keeps the folders for the next run when Stash’s library folders can’t be read', async () => {
+      jest.useFakeTimers();
+      const scoped = withOrganizer(['/data/scenes']);
+      const roots = (stash as unknown as { getLibraryRoots: jest.Mock })
+        .getLibraryRoots;
+      roots.mockRejectedValueOnce(new Error('Stash is down'));
+      scoped.onWebhook('Download', '/mnt/media/scenes/Studio/Scene A');
+      jest.useRealTimers();
+
+      await scoped.run('webhook');
+      const scan = (stash as unknown as { scanLibraryFolders: jest.Mock })
+        .scanLibraryFolders;
+      expect(scan).not.toHaveBeenCalled();
+
+      await scoped.run('webhook');
+      expect(scan).toHaveBeenCalledWith(expect.anything(), [
+        '/data/scenes/Studio/Scene A',
+      ]);
     });
 
     it('reads the folder from Whisparr’s webhook', () => {
