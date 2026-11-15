@@ -194,7 +194,7 @@ describe('Library tools', () => {
     const { fixture, root } = await render(DuplicatesPageComponent, library);
 
     expect(root.querySelector('.copy.best')?.textContent).toContain('1080p');
-    root.querySelector<HTMLButtonElement>('.copy:not(.best) .btn')!.click();
+    root.querySelector<HTMLButtonElement>('.copy:not(.best) .btn.danger')!.click();
     fixture.detectChanges();
     document.querySelector<HTMLButtonElement>('.sheet .btn.danger')!.click();
     // Copies go one at a time; let the delete finish.

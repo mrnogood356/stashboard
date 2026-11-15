@@ -72,7 +72,7 @@
     @for (group of groups(); track group.suggestedKeepId) {
       <section class="group panel">
         @for (scene of group.scenes; track scene.id) {
-          <article class="copy" [class.best]="scene.id === group.suggestedKeepId">
+          <article class="copy" [class.best]="scene.id === keeper(group)">
             <a
               class="thumb"
               [routerLink]="['/library/scene', scene.id]"
@@ -118,14 +118,26 @@
                 <dd>{{ scene.playCount }}</dd>
               </div>
             </dl>
-            @if (scene.id !== group.suggestedKeepId) {
-              <button type="button" class="btn small danger" (click)="askDelete(scene)">
-                <i class="pi pi-trash" aria-hidden="true"></i> Remove this copy
-              </button>
+            @if (scene.id !== keeper(group)) {
+              <div class="copy-actions">
+                <button
+                  type="button"
+                  class="btn small"
+                  data-testid="keep-instead"
+                  (click)="keepInstead(group, scene)"
+                >
+                  <i class="pi pi-check" aria-hidden="true"></i> Keep this one instead
+                </button>
+                <button type="button" class="btn small danger" (click)="askDelete(scene)">
+                  <i class="pi pi-trash" aria-hidden="true"></i> Remove this copy
+                </button>
+              </div>
             } @else {
               <p class="keep-note">
                 Keep this one
-                @if (group.keepReason) {
+                @if (scene.id !== group.suggestedKeepId) {
+                  <span class="muted keep-reason">Your pick over the best copy</span>
+                } @else if (group.keepReason) {
                   <span class="muted keep-reason">{{ group.keepReason }}</span>
                 }
               </p>
@@ -184,7 +196,7 @@
           </p>
         } @else {
           <p class="muted">
-            {{ size(pendingBytes()) }} in all. The best copy of each video is kept.
+            {{ size(pendingBytes()) }} in all. The copy marked Keep this one in each set stays.
           </p>
         }
         @if (multiFile(scenes).length > 0) {
