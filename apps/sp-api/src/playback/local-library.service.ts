@@ -586,7 +586,7 @@ export class LocalLibraryService {
       throw new BadRequestException('Pick at least one scene.');
     }
     const config = await this.playback.getStashConfig();
-    const named = await this.withNamingHash(config, sceneIds);
+    const { named, unknown } = await this.withNamingHash(config, sceneIds);
     const notes: string[] = [];
     let jobId: string | null = null;
     if (named.length > 0) {
@@ -595,7 +595,12 @@ export class LocalLibraryService {
         overwrite: true,
       });
     }
-    const left = sceneIds.length - named.length;
+    const left = sceneIds.length - named.length - unknown;
+    if (unknown > 0) {
+      notes.push(
+        `${unknown} scene${unknown === 1 ? '' : 's'} couldn’t be made again: Stash didn’t say which hash it names generated files by, or what ${unknown === 1 ? 'this file has' : 'these files have'}. Try again in a moment.`,
+      );
+    }
     if (left > 0) {
       notes.push(
         `${left} scene${left === 1 ? '' : 's'} couldn’t be made again: ${left === 1 ? 'its file has' : 'their files have'} no hash for Stash to name generated files by yet. Scan ${left === 1 ? 'it' : 'them'} again in Stash first.`,
@@ -625,31 +630,36 @@ export class LocalLibraryService {
   }
 
   /**
-   * The scenes whose main file has the hash Stash names generated files by.
-   * None when the setting or the scenes can't be read: better nothing made
-   * again than previews written under a blank name.
+   * The scenes whose main file has the hash Stash names generated files by,
+   * and how many couldn't be checked (the setting or the scene couldn't be
+   * read). Those aren't made again either: better nothing than previews
+   * written under a blank name.
    */
   private async withNamingHash(
     config: Awaited<ReturnType<PlaybackService['getStashConfig']>>,
     sceneIds: string[],
-  ): Promise<string[]> {
+  ): Promise<{ named: string[]; unknown: number }> {
     const naming = await this.stash
       .generatedFileNaming(config)
       .catch(() => null);
     if (!naming) {
-      return [];
+      return { named: [], unknown: sceneIds.length };
     }
     const want = naming === 'MD5' ? 'md5' : 'oshash';
     const scenes = await Promise.all(
       sceneIds.map((id) =>
-        this.stash.getOrganizerScene(config, id).catch(() => null),
+        this.stash.getOrganizerScene(config, id).catch(() => undefined),
       ),
     );
-    return sceneIds.filter((_, index) =>
-      (scenes[index]?.files[0]?.fingerprints ?? []).some(
-        (print) => print.type === want && !!print.value,
+    return {
+      named: sceneIds.filter((_, index) =>
+        (scenes[index]?.files[0]?.fingerprints ?? []).some(
+          (print) => print.type === want && !!print.value,
+        ),
       ),
-    );
+      // A scene Stash didn't answer for, not one it says has no hash.
+      unknown: scenes.filter((scene) => scene === undefined).length,
+    };
   }
 
   // ---------- tag cleanup ----------

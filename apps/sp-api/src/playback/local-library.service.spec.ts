@@ -265,7 +265,31 @@ describe('LocalLibraryService', () => {
       ['4'],
       { now: true },
     );
-    expect(result.warning).toContain('couldn’t be made again');
+    // Not known to lack the hash: just couldn't be checked.
+    expect(result.warning).toContain('Stash didn’t say');
+    expect(result.warning).not.toContain('Scan');
+  });
+
+  it('tells a scene Stash couldn’t look up apart from one without the hash', async () => {
+    stash.getOrganizerScene.mockImplementation((_config, id: string) =>
+      id === '6'
+        ? Promise.reject(new Error('down'))
+        : Promise.resolve(withHash(id === '5' ? null : 'o')),
+    );
+    const result = await service.generateFor(['4', '5', '6']);
+    expect(stash.startLibraryTask).toHaveBeenNthCalledWith(
+      1,
+      config,
+      'generate',
+      ['4'],
+      { now: true, overwrite: true },
+    );
+    expect(result.warning).toContain(
+      '1 scene couldn’t be made again: Stash didn’t say',
+    );
+    expect(result.warning).toContain(
+      '1 scene couldn’t be made again: its file has no hash',
+    );
   });
 
   it('says when the covers couldn’t be asked for, keeping the job that started', async () => {
