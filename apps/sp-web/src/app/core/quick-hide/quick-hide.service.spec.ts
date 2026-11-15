@@ -134,6 +134,27 @@ describe('QuickHideService', () => {
     expect(service.hidden()).toBe(false);
   });
 
+  it('doesn’t count a touch that moves away and back before letting go', () => {
+    const { service } = start();
+    tap();
+    tap();
+    pointer('pointerdown', 100, 100);
+    pointer('pointermove', 100, 40);
+    pointer('pointermove', 100, 100);
+    pointer('pointerup', 100, 100);
+    expect(service.hidden()).toBe(false);
+  });
+
+  it('starts over when the browser takes a touch for scrolling', () => {
+    const { service } = start();
+    tap();
+    tap();
+    pointer('pointerdown', 100, 100);
+    pointer('pointercancel', 100, 100);
+    tap();
+    expect(service.hidden()).toBe(false);
+  });
+
   it('counts taps at a natural pace, each within half a second of the last', () => {
     const { service } = start();
     tap();

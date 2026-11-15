@@ -62,6 +62,20 @@ describe('SettingsNotificationsPageComponent', () => {
     expect(page.hasUnsavedChanges()).toBe(false);
   });
 
+  it('still notices edits made after the settings failed to load', async () => {
+    const fixture = await render({
+      getSettings: vi.fn().mockReturnValue(throwError(() => new Error('down'))),
+    });
+    const page = fixture.componentInstance;
+    expect(page.hasUnsavedChanges()).toBe(false);
+
+    const input = fixture.nativeElement.querySelector('input[name="url"]') as HTMLInputElement;
+    input.value = 'https://ntfy.sh/other';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(page.hasUnsavedChanges()).toBe(true);
+  });
+
   it('sends a test with the current form and shows server errors', async () => {
     const sendTest = vi.fn().mockReturnValue(
       throwError(

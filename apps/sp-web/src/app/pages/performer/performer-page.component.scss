@@ -76,7 +76,8 @@ h2 {
 
 .carousel-main {
   position: relative;
-  touch-action: pan-y;
+  // Sideways swipes are the carousel's; scrolling and pinch zoom stay the browser's.
+  touch-action: pan-y pinch-zoom;
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 0;

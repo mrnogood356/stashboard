@@ -399,9 +399,13 @@ img.thumbnail.is-failed {
   opacity: 1;
 }
 
-/* Once the clip plays, the cover picture underneath can't peek out at its edges. */
+/* Once the clip plays, the cover picture underneath can't peek out at its edges:
+   hidden only when the clip has faded in, so the card never shows through. */
 .media:has(.preview-video.is-playing) img.thumbnail {
   visibility: hidden;
+  transition:
+    opacity 0.35s ease,
+    visibility 0s linear 0.25s;
 }
 
 .media.is-previewing:has(.preview-video.is-playing) .play-button {

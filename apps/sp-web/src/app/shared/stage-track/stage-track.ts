@@ -70,6 +70,9 @@ export function stagesForHandoff(stage: string, movedIn: boolean): Stage[] {
       return buildStages(2);
     case 'done':
       return buildStages(3, { finished: true });
+    case 'ignored':
+      // You stopped watching it: no step is "failed".
+      return buildStages(-1);
     default:
       return buildStages(movedIn ? 2 : 1, { failed: true });
   }

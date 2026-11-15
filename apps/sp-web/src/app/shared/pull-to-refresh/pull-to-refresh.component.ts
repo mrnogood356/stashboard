@@ -239,8 +239,11 @@ export class PullToRefreshComponent implements OnInit, OnDestroy {
     const url = this.router.url;
     const started = Date.now();
     try {
-      await this.router.navigateByUrl('/refreshing', { skipLocationChange: true });
-      await this.router.navigateByUrl(url, { replaceUrl: true });
+      const left = await this.router.navigateByUrl('/refreshing', { skipLocationChange: true });
+      // Another navigation (a tap on Home, say) took over: that one wins.
+      if (left) {
+        await this.router.navigateByUrl(url, { replaceUrl: true });
+      }
     } catch {
       // The page stays as it was; the marker still goes away.
     }

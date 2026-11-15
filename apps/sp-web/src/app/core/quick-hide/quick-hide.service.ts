@@ -92,7 +92,22 @@ export class QuickHideService implements OnDestroy {
       passive: true,
       signal,
     });
-    for (const type of ['pointermove', 'wheel', 'scroll'] as const) {
+    // The browser took the touch over (a scroll): it was no tap, and the
+    // taps before it don't count either.
+    win.addEventListener(
+      'pointercancel',
+      () => {
+        this.down = null;
+        this.taps = [];
+      },
+      { capture: true, passive: true, signal },
+    );
+    win.addEventListener('pointermove', (event) => this.onPointerMove(event), {
+      capture: true,
+      passive: true,
+      signal,
+    });
+    for (const type of ['wheel', 'scroll'] as const) {
       win.addEventListener(type, () => this.touch(), { capture: true, passive: true, signal });
     }
     this.idleTimer = win.setInterval(() => this.checkIdle(), IDLE_CHECK_MS);
@@ -192,6 +207,20 @@ export class QuickHideService implements OnDestroy {
       event.pointerType === 'touch'
         ? { id: event.pointerId, at: Date.now(), x: event.clientX, y: event.clientY }
         : null;
+  }
+
+  /** A touch that wanders off is a drag, even if it comes back before letting go. */
+  private onPointerMove(event: PointerEvent): void {
+    this.touch();
+    const down = this.down;
+    if (
+      down &&
+      down.id === event.pointerId &&
+      Math.hypot(event.clientX - down.x, event.clientY - down.y) > TAP_MOVE_PX
+    ) {
+      this.down = null;
+      this.taps = [];
+    }
   }
 
   /** Three quick taps in one spot hide; scrolls and flicks never count. */

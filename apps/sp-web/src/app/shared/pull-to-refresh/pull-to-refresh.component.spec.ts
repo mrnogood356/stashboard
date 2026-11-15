@@ -73,6 +73,22 @@ describe('PullToRefreshComponent', () => {
     vi.useRealTimers();
   });
 
+  it('leaves a newer navigation alone when it cuts the refresh short', async () => {
+    vi.useFakeTimers();
+    await render(true);
+    const router = TestBed.inject(Router);
+    // A tap on Home while the refresh was loading: Angular drops the refresh.
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(false);
+    vi.spyOn(router, 'url', 'get').mockReturnValue('/scenes?sort=new');
+
+    pull(Math.ceil(PULL_TO_RELOAD_PX / 0.55) + 10);
+    window.dispatchEvent(touch('touchend', 0, 0));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(navigate.mock.calls.map((call) => call[0])).toEqual(['/refreshing']);
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.useRealTimers();
+  });
+
   it('doesn’t reload when a second finger joins a pull', async () => {
     await render(true);
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);

@@ -76,6 +76,8 @@ interface AcquisitionTab {
 /** A failed download you started stays on Requests this long. */
 const FAILED_HANDOFF_SHOWN_MS = 24 * 3600_000;
 /** While something is downloading, the list refreshes itself this often. */
+/** A download still on its way (not done, failed or stopped watching). */
+const ACTIVE_HANDOFF_STAGES = ['queued', 'downloading', 'unpacking', 'moving', 'linking'];
 const LIVE_REFRESH_MS = 15_000;
 /** The API sends at most 50 at once: up to two pages refresh as one. */
 const LIVE_REFRESH_MAX = 48;
@@ -227,9 +229,20 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   }
 
   private handoffsActive(): boolean {
-    return this.handoffs().some((handoff) =>
-      ['queued', 'downloading', 'unpacking', 'moving', 'linking'].includes(handoff.stage),
+    return this.handoffs().some((handoff) => ACTIVE_HANDOFF_STAGES.includes(handoff.stage));
+  }
+
+  /**
+   * A card on screen whose download (hidden behind the card) is on its way:
+   * the card's own step moves with it, so it's fetched again too.
+   */
+  private cardHasActiveHandoff(): boolean {
+    const active = new Set(
+      this.handoffs()
+        .filter((handoff) => handoff.sceneId && ACTIVE_HANDOFF_STAGES.includes(handoff.stage))
+        .map((handoff) => handoff.sceneId),
     );
+    return active.size > 0 && this.items().some((item) => active.has(item.id));
   }
   private readonly notifications = inject(AppNotificationsService);
   private readonly timelineApi = inject(TimelineApiService);
@@ -1101,7 +1114,8 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       this.selecting() ||
       this.selectedLifecycle() === 'AVAILABLE' ||
       (typeof document !== 'undefined' && document.visibilityState === 'hidden') ||
-      !this.items().some((item) => item.status.state === 'DOWNLOADING')
+      (!this.items().some((item) => item.status.state === 'DOWNLOADING') &&
+        !this.cardHasActiveHandoff())
     ) {
       return;
     }

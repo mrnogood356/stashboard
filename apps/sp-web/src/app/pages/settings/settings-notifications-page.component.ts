@@ -79,6 +79,8 @@ export class SettingsNotificationsPageComponent implements OnInit, HasUnsavedCha
       },
       error: () => {
         this.status.set({ kind: 'error', text: 'Notification settings could not be loaded.' });
+        // Edits made anyway are still edits: leaving asks first.
+        this.savedSnapshot = JSON.stringify(this.form());
         this.loading.set(false);
       },
     });
