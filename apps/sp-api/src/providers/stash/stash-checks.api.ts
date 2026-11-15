@@ -388,6 +388,9 @@ export abstract class StashChecksApi extends StashFilesApi {
   }> {
     const rows = scenes ?? (await this.listScenesForChecks(config));
     const coverless = await this.sceneIdsMissing(config, 'cover');
+    // Generate names previews, thumbnails and chapter clips by this hash,
+    // and quietly skips a scene whose file doesn't have it yet.
+    const naming = await this.generatedFileNaming(config).catch(() => null);
     type Ask = {
       scene: number;
       what: 'preview' | 'sprite' | 'clip' | 'picture';
@@ -433,7 +436,18 @@ export abstract class StashChecksApi extends StashFilesApi {
     const listed = rows.flatMap((row, index) => {
       const gaps = lacking[index];
       const chapters = row.markerIds.length;
+      const unnamed =
+        naming !== null &&
+        (gaps.preview || gaps.sprite || gaps.clips > 0) &&
+        !(naming === 'MD5' ? row.files[0]?.md5 : row.files[0]?.oshash);
       const problems = [
+        ...(unnamed
+          ? [
+              naming === 'MD5'
+                ? 'Stash names generated files by MD5, and this file has no MD5, so Generate skips its preview, thumbnails and chapter clips. In Stash, turn on “Calculate MD5” (Settings → System → Hashing) and scan again, or switch the generated file naming hash to oshash.'
+                : 'This file has no oshash yet, so Generate skips its preview, thumbnails and chapter clips. Scan it again in Stash first.',
+            ]
+          : []),
         ...(coverless.has(row.id) ? ['No cover picture.'] : []),
         ...(row.files.some((file) => !file.phash)
           ? ['No fingerprint (phash), so Duplicates can’t compare it.']
@@ -580,6 +594,24 @@ export abstract class StashChecksApi extends StashFilesApi {
   }
 
   /** Ids of every scene Stash says is missing this (one query, ids only). */
+  /** The hash Stash names generated files by: MD5 or OSHASH. */
+  protected async generatedFileNaming(
+    config: StashAdapterBaseConfig,
+  ): Promise<'MD5' | 'OSHASH' | null> {
+    const payload = (await this.executeQuery(
+      config,
+      `query GeneratedNaming { configuration { general { videoFileNamingAlgorithm } } }`,
+      {},
+    )) as unknown as {
+      data?: {
+        configuration?: { general?: { videoFileNamingAlgorithm?: unknown } };
+      };
+    };
+    const value =
+      payload.data?.configuration?.general?.videoFileNamingAlgorithm;
+    return value === 'MD5' || value === 'OSHASH' ? value : null;
+  }
+
   protected async sceneIdsMissing(
     config: StashAdapterBaseConfig,
     what: string,

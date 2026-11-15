@@ -41,6 +41,8 @@ describe('StashAdapter', () => {
     scenes: unknown[],
     coverless: string[],
     asset: (url: string, method?: string) => Partial<Response>,
+    /** The hash Stash names generated files by; unset for an older Stash. */
+    naming?: 'MD5' | 'OSHASH',
   ) =>
     fetchMock.mockImplementation((url, init) => {
       const text = String(url);
@@ -57,6 +59,13 @@ describe('StashAdapter', () => {
         json: () =>
           Promise.resolve({
             data: {
+              ...(naming && body.includes('query GeneratedNaming')
+                ? {
+                    configuration: {
+                      general: { videoFileNamingAlgorithm: naming },
+                    },
+                  }
+                : {}),
               findScenes: {
                 scenes: body.includes('query Missing')
                   ? coverless.map((id) => ({ id }))
@@ -132,6 +141,37 @@ describe('StashAdapter', () => {
       id: '3',
       problems: ['No cover picture.'],
     });
+  });
+
+  it('says when Generate skips a scene because its file lacks the naming hash', async () => {
+    const withHashes = (path: string, md5: string | null) => ({
+      ...file(path),
+      fingerprints: [
+        { type: 'phash', value: 'p' },
+        { type: 'oshash', value: 'o' },
+        ...(md5 ? [{ type: 'md5', value: md5 } as const] : []),
+      ],
+    });
+    stashWith(
+      [
+        { id: '1', title: 'No MD5', files: [withHashes('/1.mp4', null)] },
+        { id: '2', title: 'Has MD5', files: [withHashes('/2.mp4', 'm')] },
+      ],
+      [],
+      (url) => {
+        const gone = url.endsWith('/preview');
+        return { ok: !gone, status: gone ? 404 : 200 };
+      },
+      'MD5',
+    );
+    const found = await adapter.findGenerateGaps({
+      baseUrl: 'http://stash.local',
+    });
+    const byId = new Map(found.scenes.map((scene) => [scene.id, scene]));
+    expect(byId.get('1')?.problems?.[0]).toContain('Calculate MD5');
+    expect(byId.get('2')?.problems).toEqual([
+      'No hover preview: nothing plays when you point at it.',
+    ]);
   });
 
   it('counts files Stash didn’t answer for apart from missing ones, with the reason', async () => {
