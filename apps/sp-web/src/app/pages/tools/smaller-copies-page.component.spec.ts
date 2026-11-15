@@ -186,9 +186,9 @@ describe('SmallerCopiesPageComponent', () => {
     (root.querySelector('[data-testid="tried-filter-failed"]') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(root.querySelector('[data-testid="try-t2"]')).toBeNull();
-    const failed = root.querySelector('[data-testid="try-t1"]')!;
-    (failed.querySelector('button') as HTMLButtonElement).click();
-    expect(api.recheck).toHaveBeenCalledWith('4');
+    // A failed one looks for another by itself: nothing to tap.
+    expect(root.querySelector('[data-testid="try-t1"] button')).toBeNull();
+    expect(api.recheck).not.toHaveBeenCalled();
   });
 
   it('shows the space given back in whole GB until it’s past 10 TB, so each swap shows', async () => {
