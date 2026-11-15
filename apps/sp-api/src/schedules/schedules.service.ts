@@ -191,8 +191,11 @@ export class SchedulesService {
           // Stash's job waits its turn behind Stash's others: noted as asked
           // now, and updated once it starts, without holding up the rest.
           if (this.library) {
-            status = 'Waiting its turn in Stash';
+            // Written before it starts, so a quick "Started" or "Failed"
+            // lands after it rather than under it.
+            await this.record(job, now, 'Waiting its turn in Stash');
             this.startInBackground(job, STASH_TASKS[job], now);
+            return;
           }
           break;
         case 'follow-check':
