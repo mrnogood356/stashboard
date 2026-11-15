@@ -475,6 +475,26 @@ describe('DownloadHandoffService', () => {
       expect(stash.forgetFolderScan).not.toHaveBeenCalled();
     });
 
+    it('keeps waiting on its own scan on a later check while Stash can’t say how it stands', async () => {
+      const file = path.join(destination, 'First.mkv');
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      stash.waitForJob.mockResolvedValue('TIMEOUT');
+      stash.getJobQueue = jest
+        .fn()
+        .mockResolvedValue([{ id: 'job-1', status: 'RUNNING' }]);
+      const config = { baseUrl: 'http://stash', apiKey: 'k' };
+      await expect(service.findInStash(config, file)).rejects.toThrow(
+        'busy with other jobs',
+      );
+
+      stash.getJobQueue.mockRejectedValue(new Error('Stash is down'));
+      stash.requestFolderScan.mockClear();
+      await expect(service.findInStash(config, file)).rejects.toThrow(
+        'busy with other jobs',
+      );
+      expect(stash.requestFolderScan).not.toHaveBeenCalled();
+    });
+
     it('doesn’t wait again for a scan another download in the folder is waiting on', async () => {
       const second = path.join(destination, 'Other.mkv');
       stash.sceneIdsForPaths.mockResolvedValue([]);

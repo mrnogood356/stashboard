@@ -1456,7 +1456,12 @@ export class DownloadHandoffService {
     const folder = path.dirname(file);
     const earlier = this.scans.get(file);
     if (earlier) {
-      const queue = await this.stash.getJobQueue(config);
+      // Stash can't say how its scan stands: it may still be running, so
+      // wait rather than count a miss.
+      const queue = await this.stash.getJobQueue(config).catch(() => null);
+      if (!queue) {
+        throw new StashBusyError(folder);
+      }
       const job = queue.find((entry) => entry.id === earlier);
       if (job && !['FINISHED', 'FAILED', 'CANCELLED'].includes(job.status)) {
         throw new StashBusyError(folder);
