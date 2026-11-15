@@ -36,6 +36,8 @@ export type TimelineActionKind =
   | 'find-downloads'
   /** Match scenes in Library Tools. */
   | 'check-matches'
+  /** Stash links the file to another catalog scene: count it as this one. */
+  | 'same-scene'
   /** Have Stash scan (Library Tools → Jobs). */
   | 'scan'
   /** Generate previews (Library Tools → Jobs). */

@@ -75,7 +75,7 @@ interface FoundScene {
  * Following performers and studios: a list of them, a check (on a schedule,
  * or Check now) for scenes they've released since you followed, and those
  * scenes listed for review or sent to Whisparr straight away, per follow.
- * Only the main catalog is followed, since only its scenes can be requested.
+ * Only the main catalog is followed, since only its scenes can be added to Whisparr.
  */
 @Injectable()
 export class FollowsService {
@@ -162,7 +162,7 @@ export class FollowsService {
   async follow(dto: CreateFollowDto): Promise<FollowDto> {
     if (await this.catalogProvider.isBrowseOnlyRequest()) {
       throw new BadRequestException(
-        'Only your main catalog can be followed, since only its scenes can be requested.',
+        'Only your main catalog can be followed, since only its scenes can be added to Whisparr.',
       );
     }
     const provider = await this.instanceProviderKey();
@@ -628,7 +628,7 @@ export class FollowsService {
           .slice(0, 20)
           .map(
             (scene) =>
-              `${scene.title} (${scene.followName})${scene.requested ? ' — requested' : ''}`,
+              `${scene.title} (${scene.followName})${scene.requested ? ' — added to Wanted' : ''}`,
           )
           .join('\n'),
         status: summary.failed > 0 ? 'partial' : 'done',
@@ -792,7 +792,7 @@ export class FollowsService {
     } catch (error) {
       const detail = errorMessage(error).slice(0, 300);
       this.logger.warn(
-        `Couldn’t request “${scene.title}” for “${follow.name}”: ${detail}`,
+        `Couldn’t add “${scene.title}” to Wanted for “${follow.name}”: ${detail}`,
       );
       return { state: FollowedSceneState.FAILED, detail };
     }

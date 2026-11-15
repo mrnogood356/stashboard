@@ -98,31 +98,37 @@ p {
   color: var(--text-muted);
 }
 
-/* The performer's details, as on the catalog performer page. */
-.metadata-grid {
+/* The performer's details: a short panel, labels beside values, as on the catalog performer page. */
+.facts-panel {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr));
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.metadata-item {
-  display: grid;
-  padding: 0.45rem 0.52rem;
-  border-radius: 0;
-  background: var(--surface-2);
+  gap: 0.3rem;
+  width: 100%;
+  max-width: 24rem;
+  box-sizing: border-box;
+  margin: 0.75rem 0 0;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-1) 82%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   text-align: left;
 }
 
-.metadata-item .label {
-  font-size: 0.8rem;
-  font-weight: 700;
+.fact {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  font-size: 0.88rem;
+}
+
+.fact dt {
   color: var(--text-muted);
 }
 
-.metadata-item .value {
-  font-size: 0.84rem;
+.fact dd {
+  margin: 0;
   color: var(--text-primary);
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
 
@@ -374,29 +380,6 @@ h1 {
     width: min(70vw, 280px);
   }
 
-  /* Details as a compact list, not a box per line. */
-  .metadata-grid {
-    width: 100%;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.15rem 1rem;
-    padding: 0;
-    border-radius: 0;
-    background: none;
-  }
-
-  .metadata-item {
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 0.4rem;
-    align-items: baseline;
-    padding: 0.2rem 0;
-    background: transparent;
-  }
-
-  .metadata-item .label {
-    font-weight: 600;
-    font-size: 0.78rem;
-  }
-
   .grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 1.3rem;
@@ -429,36 +412,10 @@ a.action {
   gap: 2rem;
 }
 
-.metadata-grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
-  gap: 0.9rem 1.5rem;
-}
-
-.metadata-item {
-  gap: 0.1rem;
-  padding: 0;
-  background: none;
-}
-
-.metadata-item .label {
-  font-weight: 400;
-}
-
-.metadata-item .value {
-  font-size: 0.92rem;
-}
-
 @media (max-width: 640px) {
   .hero-inner {
     padding: 0;
     gap: 1rem;
-  }
-}
-
-/* A phone: the details as label-and-value lines on the page, not in a box. */
-@media (max-width: 640px) {
-  .metadata-item {
-    gap: 0.4rem;
   }
 }
 

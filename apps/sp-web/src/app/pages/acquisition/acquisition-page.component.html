@@ -286,10 +286,14 @@
               }
             </div>
 
-            @if (section.lifecycle === 'IMPORT_PENDING') {
+            <!-- All tracked sorted by title or date has one ANY section, with
+                 the waiting cards' actions in it: their errors show there. -->
+            @if (section.lifecycle === 'IMPORT_PENDING' || section.lifecycle === 'ANY') {
               @if (waitingCheckError(); as checkError) {
                 <p class="waiting-check-summary" role="alert">{{ checkError }}</p>
               }
+            }
+            @if (section.lifecycle === 'IMPORT_PENDING') {
               @if (waitingCheck(); as check) {
                 <div class="waiting-check" data-testid="waiting-check" role="status">
                   <p class="waiting-check-summary">
@@ -326,6 +330,21 @@
                             >
                               It’s the same scene
                             </button>
+                            <button
+                              type="button"
+                              class="secondary-action compact"
+                              [attr.data-testid]="'link-here-' + scene.stashId"
+                              [disabled]="checkingWaiting()"
+                              (click)="linkToWaitingScene(scene.stashId)"
+                            >
+                              Link the file to this scene
+                            </button>
+                            <a
+                              class="secondary-action compact"
+                              routerLink="/tools/match"
+                              [queryParams]="pickMatchParams(scene.path)"
+                              >Pick a different match</a
+                            >
                           }
                         </li>
                       }
@@ -471,6 +490,21 @@
                             >
                               It’s the same scene
                             </button>
+                            <button
+                              type="button"
+                              class="secondary-action compact"
+                              [attr.data-testid]="'card-link-here-' + item.id"
+                              [disabled]="checkingWaiting()"
+                              (click)="linkToWaitingScene(item.id)"
+                            >
+                              Link the file to this scene
+                            </button>
+                            <a
+                              class="secondary-action compact"
+                              routerLink="/tools/match"
+                              [queryParams]="pickMatchParams(waiting.path)"
+                              >Pick a different match</a
+                            >
                           }
                           @if (waiting.kind === 'not-linked') {
                             <a class="secondary-action compact" routerLink="/tools/match"

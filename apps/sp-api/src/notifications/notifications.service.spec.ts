@@ -284,9 +284,9 @@ describe('NotificationsService', () => {
         (fetchMock.mock.calls[0] as [string, { body: string }])[1].body,
       ) as { embeds: Array<{ title: string; description: string }> };
       expect(body.embeds[0].title).toBe('2 new scenes from Kaitlyn');
-      expect(body.embeds[0].description).toContain('• One — requested');
+      expect(body.embeds[0].description).toContain('• One — added to Wanted');
       expect(body.embeds[0].description).toContain(
-        '1 requested; the rest are waiting in Following.',
+        '1 added to Wanted; the rest are waiting in Following.',
       );
     });
 

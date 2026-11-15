@@ -1,6 +1,6 @@
 <app-sheet
   [open]="open"
-  title="Request in Whisparr"
+  title="Add to Wanted"
   [subtitle]="sceneTitle"
   [busy]="requestSubmitLoading()"
   [artUrl]="sceneImageUrl"
@@ -21,7 +21,7 @@
     } @else if (showOwnedWarning()) {
       <app-owned-copies-warning
         [copies]="ownedCopies()"
-        proceedLabel="Request anyway"
+        proceedLabel="Want anyway"
         (proceed)="requestAnyway()"
         (opened)="onOwnedCopyOpened()"
       />
@@ -113,7 +113,7 @@
 
         <div class="request-actions">
           <button type="submit" [disabled]="requestSubmitLoading()" pButton>
-            {{ requestSubmitLoading() ? 'Submitting...' : 'Submit Request' }}
+            {{ requestSubmitLoading() ? 'Adding…' : 'Add to Wanted' }}
           </button>
           <button
             type="button"

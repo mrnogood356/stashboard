@@ -113,7 +113,7 @@ describe('SceneRequestModalComponent', () => {
     expect(element.querySelector('form')).toBeNull();
 
     const proceed = element.querySelector('button.proceed') as HTMLButtonElement;
-    expect(proceed.textContent).toContain('Request anyway');
+    expect(proceed.textContent).toContain('Want anyway');
     proceed.click();
     fixture.detectChanges();
 

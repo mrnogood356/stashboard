@@ -98,8 +98,8 @@ interface AcquisitionUrlState {
 
 export const ACQUISITION_SORT_OPTIONS: ReadonlyArray<{ value: AcquisitionSort; label: string }> = [
   { value: 'status', label: 'By status' },
-  { value: 'requested-desc', label: 'Newest requested' },
-  { value: 'requested-asc', label: 'Oldest requested' },
+  { value: 'requested-desc', label: 'Recently added' },
+  { value: 'requested-asc', label: 'Oldest added' },
   { value: 'released-desc', label: 'Newest release' },
   { value: 'released-asc', label: 'Oldest release' },
   { value: 'title', label: 'Title (A–Z)' },
@@ -637,6 +637,42 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       });
   }
 
+  /** Stash has the file under the wrong scene: link it to this one instead. */
+  protected linkToWaitingScene(stashId: string): void {
+    if (this.checkingWaiting()) {
+      return;
+    }
+    this.checkingWaiting.set(true);
+    this.waitingCheckError.set(null);
+    this.organizerService
+      .linkToWaitingScene(stashId)
+      .pipe(finalize(() => this.checkingWaiting.set(false)))
+      .subscribe({
+        next: (result) => {
+          this.waitingCheck.set(result);
+          this.resetFeedAndReload();
+        },
+        error: (error: { error?: { message?: unknown } }) => {
+          const message = error?.error?.message;
+          this.waitingCheckError.set(
+            typeof message === 'string' && message
+              ? message
+              : 'Couldn’t link it to this scene. Try again.',
+          );
+        },
+      });
+  }
+
+  /** Match scenes, searched for this file among all scenes (it's matched, just wrongly). */
+  protected pickMatchParams(path: string | null): Record<string, string> {
+    const name =
+      (path ?? '')
+        .split(/[\\/]/)
+        .pop()
+        ?.replace(/\.[^.]+$/, '') ?? '';
+    return { q: name, scope: 'all' };
+  }
+
   /** Counts Whisparr's scene as the one Stash has, so it stops waiting. */
   protected markSameScene(stashId: string): void {
     if (this.checkingWaiting()) {
@@ -862,7 +898,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
 
     switch (this.selectedLifecycle()) {
       case 'FAILED':
-        return 'Nothing has failed. Requests that fail show up here.';
+        return 'Nothing has failed. Wanted scenes that fail show up here.';
       case 'IMPORT_PENDING':
         return 'Downloads are not waiting on the final Stash handoff right now.';
       case 'DOWNLOADING':
@@ -870,7 +906,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       case 'REQUESTED':
         return 'Whisparr is not holding any queued requests that have not started yet.';
       case 'AVAILABLE':
-        return 'Requests show up here for two weeks once they’re in your library.';
+        return 'Wanted scenes show up here for two weeks once they’re in your library.';
       case 'ANY':
       default:
         return firstUseEmptyStateCopy('acquisition').message;
@@ -915,7 +951,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   private filterLabel(lifecycle: AcquisitionLifecycleFilter): string {
     switch (lifecycle) {
       case 'REQUESTED':
-        return 'Requested';
+        return 'Wanted';
       case 'DOWNLOADING':
         return 'Downloading';
       case 'IMPORT_PENDING':
@@ -942,7 +978,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
         return '';
       case 'REQUESTED':
       default:
-        return 'Waiting for Whisparr to start them.';
+        return 'In Whisparr, waiting for a release to grab.';
     }
   }
 
@@ -1049,7 +1085,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
           }
 
           if (isInitialPage) {
-            this.error.set('Requests couldn’t load. Try again.');
+            this.error.set('Couldn’t load what you want. Try again.');
           } else {
             this.loadMoreError.set('More requests couldn’t load. Try again.');
           }

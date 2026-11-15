@@ -134,7 +134,7 @@ export class NotificationsService {
     try {
       await this.post(destination, {
         title: 'Stashboard test notification',
-        body: 'Notifications are working. You will hear from Stashboard when requests change.',
+        body: 'Notifications are working. You will hear from Stashboard when wanted scenes change.',
         color: 0x74b8ed,
       });
     } catch (error) {
@@ -339,7 +339,7 @@ export function buildFollowedMessage(
       : `${scenes.length} new scenes from people you follow`;
   const listed = scenes.slice(0, MAX_LISTED_TITLES).map((scene) => {
     const from = names.length === 1 ? '' : ` (${scene.followName})`;
-    return `• ${scene.title}${from}${scene.requested ? ' — requested' : ''}`;
+    return `• ${scene.title}${from}${scene.requested ? ' — added to Wanted' : ''}`;
   });
   if (scenes.length > MAX_LISTED_TITLES) {
     listed.push(`…and ${scenes.length - MAX_LISTED_TITLES} more`);
@@ -348,7 +348,7 @@ export function buildFollowedMessage(
     requested === scenes.length
       ? null
       : requested > 0
-        ? `${requested} requested; the rest are waiting in Following.`
+        ? `${requested} added to Wanted; the rest are waiting in Following.`
         : 'They’re waiting in Following.';
   return {
     title,

@@ -305,7 +305,7 @@ export class ScenePageComponent implements OnInit, OnDestroy {
         return 'The download failed. Pick another release, or retry it in Whisparr.';
       case 'NOT_REQUESTED':
       default:
-        return 'Not requested yet.';
+        return 'Not added to Wanted yet.';
     }
   }
 
@@ -690,7 +690,7 @@ export class ScenePageComponent implements OnInit, OnDestroy {
       return 'Back to History';
     }
     if (returnTo.startsWith('/acquisition')) {
-      return 'Back to Requests';
+      return 'Back to Wanted';
     }
     if (returnTo.startsWith('/processing')) {
       return 'Back to Downloads';

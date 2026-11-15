@@ -360,3 +360,30 @@
 .auto-note {
   color: var(--warning-text, var(--warning));
 }
+
+.missing-list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  a {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+}
+
+.missing-reason {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+
+  &.warn {
+    color: var(--warning-text, var(--text-muted));
+  }
+}

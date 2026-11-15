@@ -225,17 +225,14 @@ export class SceneRequestModalComponent implements OnChanges, OnDestroy {
       )
       .subscribe({
         next: () => {
-          this.notifications.success(
-            'Scene request submitted to Whisparr',
-            'Track progress on Acquisition.',
-          );
+          this.notifications.success('Added to Wanted', 'Track progress on Acquisition.');
           this.submitted.emit(currentSceneId);
           this.closed.emit();
         },
         error: (error: unknown) => {
           // The API says why when it can (scene already in Whisparr, folder gone…).
           this.requestSubmitError.set(
-            describeMutationError(error, 'Failed to submit request to the API.'),
+            describeMutationError(error, "Couldn't add the scene to Whisparr."),
           );
         },
       });

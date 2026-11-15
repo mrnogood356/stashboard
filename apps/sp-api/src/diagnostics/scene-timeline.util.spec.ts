@@ -285,6 +285,32 @@ describe('buildTimeline', () => {
     });
   });
 
+  it('offers “It’s the same scene” when Stash has the file under another catalog scene', () => {
+    const timeline = buildTimeline(
+      facts({
+        row: row({
+          whisparrHasFile: true,
+          computedLifecycle: SceneLifecycle.IMPORT_PENDING,
+        }),
+        stash: { value: [], error: null },
+        waiting: {
+          stashId: 'sdb-1',
+          title: 'Summer Afternoon',
+          path: '/data/Bright/Summer Afternoon.mp4',
+          linkedTo: 'sdb-other',
+          kind: 'other-scene',
+          reason:
+            'Stash links this file to a different StashDB scene (sdb-other).',
+        },
+      }),
+      NOW,
+    );
+    expect(timeline.steps[timeline.steps.length - 1]).toMatchObject({
+      status: 'failed',
+      action: { kind: 'same-scene', label: 'It’s the same scene' },
+    });
+  });
+
   it('marks Whisparr’s steps unknown when it can’t be asked, and still tells the rest', () => {
     const down = { value: null, error: 'Whisparr is offline' };
     const timeline = buildTimeline(facts({ queue: down, history: down }), NOW);

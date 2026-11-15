@@ -98,6 +98,12 @@ export class OrganizerController {
     return this.organizer.whisparrNaming();
   }
 
+  /** Scenes Stash has that Whisparr wants, each with why it hasn't gone. */
+  @Get('whisparr/missing')
+  missingInWhisparr() {
+    return this.organizer.missingInWhisparrScenes();
+  }
+
   @Get('whisparr/repair')
   whisparrRepairCount() {
     return this.organizer.whisparrRepairCount();
@@ -132,6 +138,12 @@ export class OrganizerController {
   @HttpCode(200)
   markSameScene(@Param('stashId', ParseUUIDPipe) stashId: string) {
     return this.organizer.markSameScene(stashId);
+  }
+
+  @Post('waiting/:stashId/link-here')
+  @HttpCode(200)
+  linkToWaitingScene(@Param('stashId', ParseUUIDPipe) stashId: string) {
+    return this.organizer.linkToWaitingScene(stashId);
   }
 
   @Post('unmatched/move')

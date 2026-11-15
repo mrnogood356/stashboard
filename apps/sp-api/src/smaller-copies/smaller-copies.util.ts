@@ -177,7 +177,7 @@ export interface CandidateRelease {
   title: string;
   size: number | null;
   protocol: 'torrent' | 'usenet' | null;
-  match: { strength: 'strong' | 'partial' | 'weak' } | null;
+  match: { strength: 'strong' | 'partial' | 'weak'; matched?: string[] } | null;
 }
 
 /**
@@ -198,6 +198,12 @@ export function pickRelease(
     rules.matchStrength === 'partial' ? ['strong', 'partial'] : ['strong'];
   const fits = releases.filter((release) => {
     if (!release.match || !strengths.includes(release.match.strength)) {
+      return false;
+    }
+    // It replaces a file you have: the name must say which scene, by its
+    // studio or title, not just a performer and a day.
+    const matched = release.match.matched;
+    if (matched && !matched.includes('studio') && !matched.includes('title')) {
       return false;
     }
     if (release.protocol !== 'usenet' || !release.size) {

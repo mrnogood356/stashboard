@@ -143,13 +143,32 @@ export abstract class IndexingSync extends IndexingCore {
 
     const now = new Date();
     const patches: SceneIndexPatch[] = [];
-    const aliases = new Map(
-      (
-        await this.prisma.sceneStashAlias.findMany({
-          where: { stashId: { in: normalizedIds } },
-        })
-      ).map((row) => [row.stashId, row.aliasOf]),
-    );
+    // A pair is one scene whichever way it was stored, as in the full sync;
+    // a scene's own link comes first when it has both.
+    const aliasRows = await this.prisma.sceneStashAlias.findMany({
+      where: {
+        OR: [
+          { stashId: { in: normalizedIds } },
+          { aliasOf: { in: normalizedIds } },
+        ],
+      },
+    });
+    // Every partner of a scene: several scenes can be stored as the same
+    // one, and Stash may have only one of them.
+    const aliases = new Map<string, string[]>();
+    const addPartner = (id: string, partner: string) => {
+      const partners = aliases.get(id) ?? [];
+      if (!partners.includes(partner)) {
+        partners.push(partner);
+      }
+      aliases.set(id, partners);
+    };
+    for (const row of aliasRows) {
+      addPartner(row.stashId, row.aliasOf);
+    }
+    for (const row of aliasRows) {
+      addPartner(row.aliasOf, row.stashId);
+    }
 
     for (
       let i = 0;
@@ -169,8 +188,10 @@ export abstract class IndexingSync extends IndexingCore {
               });
             let matches = await lookup(stashId);
             // Stash has it under the scene this one is the same as.
-            const alias = matches.length === 0 ? aliases.get(stashId) : null;
-            if (alias) {
+            for (const alias of aliases.get(stashId) ?? []) {
+              if (matches.length > 0) {
+                break;
+              }
               matches = await lookup(alias);
             }
             return {
@@ -908,9 +929,9 @@ export abstract class IndexingSync extends IndexingCore {
       tagNames: item.tagNames,
       releaseDate: item.releaseDate,
       productionDate: item.productionDate,
-      duration: item.duration,
-      width: item.width,
-      height: item.height,
+      duration: wholeNumber(item.duration),
+      width: wholeNumber(item.width),
+      height: wholeNumber(item.height),
       viewUrl: item.viewUrl,
       localCreatedAt: item.createdAt,
       localUpdatedAt: item.updatedAt,
@@ -1228,6 +1249,16 @@ export abstract class IndexingSync extends IndexingCore {
   }
 }
 
+/**
+ * Stored as whole numbers: Stash's 1820.48 seconds is 1820 here, so it's
+ * written that way and compares the same next time.
+ */
+function wholeNumber(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.round(value)
+    : null;
+}
+
 /** Whether a stored value and a fresh one are the same (dates and lists by content). */
 function sameValue(stored: unknown, fresh: unknown): boolean {
   const plain = (value: unknown): unknown =>
@@ -1250,5 +1281,25 @@ function sameValue(stored: unknown, fresh: unknown): boolean {
       return true;
     }
   }
-  return JSON.stringify(a) === JSON.stringify(b);
+  return stableJson(a) === stableJson(b);
+}
+
+/**
+ * JSON with object keys in one order: the database hands stored JSON back
+ * with its keys reordered, which isn't a change.
+ */
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableJson).join(',')}]`;
+  }
+  if (value instanceof Date) {
+    return JSON.stringify(value.toISOString());
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+    return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`).join(',')}}`;
+  }
+  return JSON.stringify(value ?? null);
 }

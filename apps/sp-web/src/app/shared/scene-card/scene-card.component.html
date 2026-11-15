@@ -90,9 +90,7 @@
       @if (showActions) {
         <div class="media-action">
           @if (requestable) {
-            <button type="button" class="request-cta" (click)="requestScene($event)">
-              Request
-            </button>
+            <button type="button" class="request-cta" (click)="requestScene($event)">Want</button>
           } @else if (footerLinkText(); as label) {
             @if (footerLinkIsExternal()) {
               <a

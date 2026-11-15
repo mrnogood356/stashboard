@@ -14,6 +14,8 @@ import {
   inject,
 } from '@angular/core';
 
+import { lockPageScroll, unlockPageScroll } from '../../core/navigation/page-scroll-lock';
+
 let nextSheetId = 0;
 
 /**
@@ -77,7 +79,11 @@ let nextSheetId = 0;
               <i class="pi pi-times" aria-hidden="true"></i>
             </button>
           </header>
-          <div class="sheet-body" [class.sheet-body--own-scroll]="scroll === 'own'">
+          <div
+            class="sheet-body"
+            data-scroll-region
+            [class.sheet-body--own-scroll]="scroll === 'own'"
+          >
             <ng-content />
           </div>
           <ng-content select="[sheetFooter]" />
@@ -272,7 +278,11 @@ export class SheetComponent implements OnChanges, OnDestroy {
       return;
     }
     this.scrollLocked = lock;
-    this.document.body.classList.toggle('app-sheet-open', lock);
+    if (lock) {
+      lockPageScroll(this.document);
+    } else {
+      unlockPageScroll(this.document);
+    }
   }
 
   /** Back to what opened it, unless something else has taken focus since. */

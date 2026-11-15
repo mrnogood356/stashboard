@@ -850,9 +850,13 @@ export abstract class IndexingCore {
   protected async withAliases(stashIds: Set<string>): Promise<Set<string>> {
     const aliases = await this.prisma.sceneStashAlias.findMany();
     const result = new Set(stashIds);
+    // A pair is one scene: whichever of the two Stash has, both count.
     for (const alias of aliases) {
       if (stashIds.has(alias.aliasOf)) {
         result.add(alias.stashId);
+      }
+      if (stashIds.has(alias.stashId)) {
+        result.add(alias.aliasOf);
       }
     }
     return result;

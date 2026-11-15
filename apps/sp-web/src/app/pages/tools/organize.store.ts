@@ -69,6 +69,11 @@ export class OrganizeStore implements OnDestroy {
         this.list.listQuery.set(query);
         this.tab.set('review');
       }
+      // ?scope=all: a scene that's matched, just to the wrong one.
+      const scope = this.route.snapshot.queryParamMap.get('scope');
+      if (scope === 'all' || scope === 'unlinked') {
+        this.list.listScope.set(scope);
+      }
       this.loadWaiting();
     }
     this.api.settings().subscribe({
@@ -379,6 +384,10 @@ export class OrganizeStore implements OnDestroy {
     this.api
       .settings()
       .subscribe({ next: (settings) => this.settings.set(settings), error: () => undefined });
+    // What was just sent is no longer missing: the open list says so.
+    if (run.kind === 'whisparr' && this.isOpen('missing')) {
+      this.files.loadMissingInWhisparr();
+    }
     if (run.kind === 'match') {
       this.list.reviewKey.update((key) => key + 1);
       this.loadWaiting();

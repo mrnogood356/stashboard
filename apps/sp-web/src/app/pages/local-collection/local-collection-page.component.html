@@ -100,14 +100,14 @@
           </div>
 
           @if (header.facts.length > 0) {
-            <div class="metadata-grid" data-testid="performer-facts">
+            <dl class="facts-panel" data-testid="performer-facts">
               @for (fact of header.facts; track fact.label) {
-                <div class="metadata-item">
-                  <span class="label">{{ fact.label }}</span>
-                  <span class="value">{{ fact.value }}</span>
+                <div class="fact">
+                  <dt>{{ fact.label }}</dt>
+                  <dd>{{ fact.value }}</dd>
                 </div>
               }
-            </div>
+            </dl>
           }
         </div>
       </div>

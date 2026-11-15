@@ -198,6 +198,7 @@ describe('DownloadDropInService', () => {
       getLibraryRoots: jest.fn().mockResolvedValue([library]),
       scanLibraryFolders: jest.fn().mockResolvedValue('job-1'),
       requestFolderScan: jest.fn().mockResolvedValue('job-1'),
+      forgetFolderScan: jest.fn(),
       waitForJob: jest.fn().mockResolvedValue('FINISHED'),
       sceneIdsForPaths: jest.fn().mockResolvedValue(['88']),
       startLibraryTask: jest.fn().mockResolvedValue('job-2'),

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PerformerDetails } from '../../core/api/discover.types';
 import {
+  performerFactGroups,
   performerFacts,
   readableCountry,
   readableDate,
@@ -74,5 +75,39 @@ describe('performer facts', () => {
     expect(readableHeight('tall')).toBe('tall');
     expect(readableCountry('Atlantis')).toBe('Atlantis');
     expect(readableValue(null)).toBeNull();
+  });
+});
+
+describe('performerFactGroups', () => {
+  it('groups the details into About, Look and Body, with one line for the measurements', () => {
+    const groups = performerFactGroups({
+      gender: 'FEMALE',
+      birthDate: '1984-06-01',
+      age: 42,
+      deathDate: null,
+      country: 'PR',
+      ethnicity: 'LATIN',
+      eyeColor: 'BROWN',
+      hairColor: 'BRUNETTE',
+      height: null,
+      bandSize: 32,
+      cupSize: 'J',
+      waistSize: 27,
+      hipSize: 38,
+      breastType: 'FAKE',
+      careerStartYear: 2018,
+      careerEndYear: null,
+    } as never);
+    expect(groups.map((group) => group.title)).toEqual(['About', 'Look', 'Body']);
+    expect(groups[2].facts).toEqual([
+      { label: 'Measurements', value: '32J-27-38' },
+      { label: 'Breasts', value: 'Fake' },
+    ]);
+    expect(groups[0].facts.map((fact) => fact.label)).toEqual([
+      'Gender',
+      'Born',
+      'Country',
+      'Career',
+    ]);
   });
 });
