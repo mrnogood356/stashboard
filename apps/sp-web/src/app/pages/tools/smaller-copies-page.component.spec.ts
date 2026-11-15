@@ -57,6 +57,31 @@ const DATA: SmallerCopies = {
       searchedAt: '2026-11-05T11:00:00.000Z',
     },
   ],
+  tries: [
+    {
+      id: 't1',
+      stashSceneId: '4',
+      title: 'Lake',
+      releaseTitle: 'Jane.Lake.1080p.broken',
+      outcome: 'failed',
+      detail: 'The download failed: missing articles This release won’t be grabbed again.',
+      oldSize: 6 * 1024 ** 3,
+      newSize: 1.5 * 1024 ** 3,
+      at: '2026-11-05T10:00:00.000Z',
+    },
+    {
+      id: 't2',
+      stashSceneId: '5',
+      title: 'Garden',
+      releaseTitle: 'Jane.Garden.1080p',
+      outcome: 'replaced',
+      detail: 'Deleted the old file.',
+      oldSize: 5 * 1024 ** 3,
+      newSize: 1 * 1024 ** 3,
+      at: '2026-11-05T09:00:00.000Z',
+    },
+  ],
+  tryCounts: { failed: 1, replaced: 1 },
 };
 
 async function render(data: SmallerCopies = DATA, searched: SmallerCopies = data) {
@@ -65,6 +90,8 @@ async function render(data: SmallerCopies = DATA, searched: SmallerCopies = data
     save: vi.fn(() => of(data)),
     searchNow: vi.fn(() => of(searched)),
     grab: vi.fn(() => of(data)),
+    recheck: vi.fn(() => of(data)),
+    recheckAll: vi.fn(() => of(data)),
   };
   const notifications = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
   await TestBed.configureTestingModule({
@@ -80,7 +107,7 @@ async function render(data: SmallerCopies = DATA, searched: SmallerCopies = data
   await fixture.whenStable();
   fixture.detectChanges();
   const root = fixture.nativeElement as HTMLElement;
-  const openTab = (id: 'overview' | 'matches' | 'rules') => {
+  const openTab = (id: 'overview' | 'matches' | 'tried' | 'rules') => {
     (root.querySelector(`[data-testid="better-tab-${id}"]`) as HTMLButtonElement).click();
     fixture.detectChanges();
   };
@@ -119,7 +146,51 @@ describe('SmallerCopiesPageComponent', () => {
     expect(api.grab).toHaveBeenCalledWith('2');
     openTab('overview');
     expect(root.querySelector('[data-testid="attempt-3"]')!.textContent).toContain('Nothing yet');
-    expect(root.querySelector('[data-testid="attempt-3"] button')).toBeNull();
+    // Nothing to grab there, but it can be looked at again.
+    expect(root.querySelector('[data-testid="attempt-3"] button.primary')).toBeNull();
+    (root.querySelector('[data-testid="recheck-3"]') as HTMLButtonElement).click();
+    expect(api.recheck).toHaveBeenCalledWith('3');
+  });
+
+  it('checks every scene again only after a second tap', async () => {
+    const { root, fixture, api } = await render();
+    const button = root.querySelector('[data-testid="better-recheck-all"]') as HTMLButtonElement;
+    button.click();
+    fixture.detectChanges();
+    expect(api.recheckAll).not.toHaveBeenCalled();
+    expect(button.textContent).toContain('Tap again');
+    expect(root.querySelector('[data-testid="better-recheck-all-note"]')!.textContent).toContain(
+      'aren’t grabbed again',
+    );
+    button.click();
+    expect(api.recheckAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists every release tried, failed ones too, and narrows to one outcome', async () => {
+    const { root, fixture, api, openTab } = await render();
+    expect(root.querySelector('[data-testid="better-tab-tried"]')!.textContent).toContain(
+      '1 failed',
+    );
+    openTab('tried');
+    expect(root.querySelector('[data-testid="try-t1"]')!.textContent).toContain('Failed');
+    expect(root.querySelector('[data-testid="try-t2"]')!.textContent).toContain('Replaced');
+    expect(root.querySelector('[data-testid="tried-filter-all"]')!.textContent).toContain('2');
+    (root.querySelector('[data-testid="tried-filter-failed"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="try-t2"]')).toBeNull();
+    const failed = root.querySelector('[data-testid="try-t1"]')!;
+    (failed.querySelector('button') as HTMLButtonElement).click();
+    expect(api.recheck).toHaveBeenCalledWith('4');
+  });
+
+  it('shows the space given back in whole GB until it’s past 10 TB, so each swap shows', async () => {
+    const { root } = await render({
+      ...DATA,
+      saved: { bytes: 1.37 * 1024 ** 4, scenes: 399 },
+    });
+    expect(root.querySelector('[data-testid="smaller-saved"]')!.textContent).toContain(
+      'Given back 1,403 GB so far, across 399 scenes replaced.',
+    );
   });
 
   it('turns on and off from the overview straight away', async () => {

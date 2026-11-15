@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import {
@@ -13,12 +13,16 @@ const OUTCOMES: Record<string, string> = {
   found: 'Match waiting',
   'none-found': 'Nothing yet',
   'no-catalog-id': 'Not matched',
-  failed: 'Search failed',
+  failed: 'Failed',
   replaced: 'Replaced',
   'kept-both': 'Kept both',
 };
 
-export type BetterCopiesTab = 'overview' | 'matches' | 'rules';
+export type BetterCopiesTab = 'overview' | 'matches' | 'tried' | 'rules';
+export type TriedFilter = 'all' | 'failed' | 'replaced' | 'kept-both' | 'grabbed';
+
+/** How often the page reads the status again while it's open. */
+const REFRESH_MS = 30_000;
 export type BetterCopiesPreset = 'save-space' | 'better-quality' | 'both';
 
 type PresetRules = Pick<
@@ -93,7 +97,7 @@ export const PRESETS: Record<
   templateUrl: './smaller-copies-page.component.html',
   styleUrls: ['./tools-shared.scss', './smaller-copies-page.component.scss'],
 })
-export class SmallerCopiesPageComponent implements OnInit {
+export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
   private readonly api = inject(SmallerCopiesApiService);
   private readonly notifications = inject(AppNotificationsService);
 
@@ -122,11 +126,112 @@ export class SmallerCopiesPageComponent implements OnInit {
   protected readonly activity = computed(() =>
     (this.data()?.recent ?? []).filter((row) => !row.canGrab),
   );
+  /** Scenes with a recheck on its way. */
+  protected readonly rechecking = signal<ReadonlySet<string>>(new Set());
+  /** "Check all again" asks once more before it goes. */
+  protected readonly confirmingRecheckAll = signal(false);
+  protected readonly recheckingAll = signal(false);
+  protected readonly triedFilter = signal<TriedFilter>('all');
+  protected readonly triedFilters: Array<{ id: TriedFilter; label: string }> = [
+    { id: 'all', label: 'All' },
+    { id: 'failed', label: 'Failed' },
+    { id: 'replaced', label: 'Replaced' },
+    { id: 'kept-both', label: 'Kept both' },
+    { id: 'grabbed', label: 'On the way' },
+  ];
+  /** Releases tried, narrowed to the filter picked. */
+  protected readonly tried = computed(() => {
+    const filter = this.triedFilter();
+    const tries = this.data()?.tries ?? [];
+    return filter === 'all' ? tries : tries.filter((row) => row.outcome === filter);
+  });
+  private refreshTimer: ReturnType<typeof setInterval> | null = null;
 
   ngOnInit(): void {
     this.api.status().subscribe({
       next: (data) => this.show(data),
       error: () => this.error.set(true),
+    });
+    // The total and the lists move while the page is open: read them again,
+    // leaving the rules form as it is.
+    this.refreshTimer = setInterval(() => this.refresh(), REFRESH_MS);
+  }
+
+  ngOnDestroy(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+    }
+  }
+
+  private refresh(): void {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      return;
+    }
+    this.api.status().subscribe({
+      next: (data) => this.data.set(data),
+      error: () => undefined,
+    });
+  }
+
+  /** How many tries ended this way; every try for "all". */
+  protected triedCount(filter: TriedFilter): number {
+    const counts = this.data()?.tryCounts ?? {};
+    return filter === 'all'
+      ? Object.values(counts).reduce((sum, count) => sum + count, 0)
+      : (counts[filter] ?? 0);
+  }
+
+  protected isRechecking(stashSceneId: string): boolean {
+    return this.rechecking().has(stashSceneId);
+  }
+
+  protected recheck(stashSceneId: string): void {
+    if (this.rechecking().has(stashSceneId)) {
+      return;
+    }
+    const done = () =>
+      this.rechecking.update((set) => {
+        const next = new Set(set);
+        next.delete(stashSceneId);
+        return next;
+      });
+    this.rechecking.update((set) => new Set(set).add(stashSceneId));
+    this.api.recheck(stashSceneId).subscribe({
+      next: (data) => {
+        done();
+        this.data.set(data);
+        this.notifications.success('Checked again soon', 'It’s looked at on the next search.');
+      },
+      error: (error: { error?: { message?: string } }) => {
+        done();
+        this.notifications.error(
+          "Couldn't do that",
+          error.error?.message ?? 'Try again in a moment.',
+        );
+      },
+    });
+  }
+
+  protected recheckAll(): void {
+    if (!this.confirmingRecheckAll()) {
+      this.confirmingRecheckAll.set(true);
+      return;
+    }
+    this.confirmingRecheckAll.set(false);
+    this.recheckingAll.set(true);
+    this.api.recheckAll().subscribe({
+      next: (data) => {
+        this.recheckingAll.set(false);
+        this.data.set(data);
+        this.notifications.success(
+          'Looking at everything again',
+          `${data.due} scene${data.due === 1 ? '' : 's'} to look at, a few an hour.`,
+        );
+      },
+      error: () => {
+        this.recheckingAll.set(false);
+        this.notifications.error("Couldn't do that", 'Try again in a moment.');
+      },
     });
   }
 
@@ -176,8 +281,13 @@ export class SmallerCopiesPageComponent implements OnInit {
       return '';
     }
     const scenes = `${saved.scenes} scene${saved.scenes === 1 ? '' : 's'}`;
+    // In whole GB up to 10 TB, so each replacement shows.
     const size = (bytes: number) =>
-      bytes >= 1024 ** 4 ? `${(bytes / 1024 ** 4).toFixed(2)} TB` : this.gb(bytes) || '0 GB';
+      bytes >= 10 * 1024 ** 4
+        ? `${(bytes / 1024 ** 4).toFixed(2)} TB`
+        : bytes >= 100 * 1024 ** 3
+          ? `${Math.round(bytes / 1024 ** 3).toLocaleString('en-US')} GB`
+          : this.gb(bytes) || '0 GB';
     return saved.bytes >= 0
       ? `Given back ${size(saved.bytes)} so far, across ${scenes} replaced.`
       : `${scenes} replaced so far, using ${size(-saved.bytes)} more than before (upgrades are bigger).`;

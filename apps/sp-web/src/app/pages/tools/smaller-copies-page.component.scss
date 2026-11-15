@@ -271,3 +271,49 @@
   text-underline-offset: 2px;
   cursor: pointer;
 }
+
+.badge[data-outcome='kept-both'] {
+  color: var(--text-muted);
+}
+
+.status-actions {
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tried-lede {
+  margin: 1rem 0 0.75rem;
+}
+
+/* The same filter chips as Activity. */
+.tried-filters {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tried-filters .chip {
+  flex: 0 0 auto;
+  height: 2rem;
+  padding: 0 0.8rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--soft-fill);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.tried-filters .chip.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.tried-filters .count {
+  margin-left: 0.25rem;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
