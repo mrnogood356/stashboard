@@ -762,7 +762,7 @@ export class FollowsService {
     const owned =
       requestsOnItsOwn &&
       (!elsewhere || elsewhere.state === FollowedSceneState.NEW) &&
-      (await this.alreadyInLibrary(scene.id));
+      (await this.alreadyInLibrary(scene.id, scene.title));
     if (owned) {
       const dismissed = {
         state: FollowedSceneState.DISMISSED,
@@ -804,15 +804,22 @@ export class FollowsService {
   }
 
   /**
-   * Whether Stash has the scene now: the scene's status as every page sees
-   * it, which reads the index only while it's fresh and asks Stash otherwise.
-   * Can't tell: not in the library, so the follow does what it was set to.
+   * Whether Stash has the scene now: from a fresh index row, or Stash asked
+   * just now. When that can't be told (Stash didn't answer), nothing is
+   * decided: the check stops here and the next one tries again, rather than
+   * request a scene that may already be in the library.
    */
-  private async alreadyInLibrary(sceneId: string): Promise<boolean> {
-    const status = await this.sceneStatus
-      .resolveForScene(sceneId)
-      .catch(() => null);
-    return status?.state === 'AVAILABLE';
+  private async alreadyInLibrary(
+    sceneId: string,
+    title: string,
+  ): Promise<boolean> {
+    const has = await this.sceneStatus.stashHasScene(sceneId).catch(() => null);
+    if (has === null) {
+      throw new Error(
+        `Couldn’t ask Stash whether you have “${title}”, so nothing was requested; the next check tries again.`,
+      );
+    }
+    return has;
   }
 
   /** Sends a found scene to Whisparr, saying why when it couldn't. */

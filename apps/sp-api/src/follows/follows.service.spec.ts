@@ -273,13 +273,9 @@ function setup() {
   };
   const statuses = new Map<string, { state: string }>();
   const sceneStatus = {
-    // Scenes Stash already has.
-    resolveForScene: jest.fn((id: string) =>
-      Promise.resolve(
-        owned.has(id)
-          ? { state: 'AVAILABLE' }
-          : (statuses.get(id) ?? { state: 'NOT_REQUESTED' }),
-      ),
+    // Scenes Stash already has; null when Stash can't be asked.
+    stashHasScene: jest.fn((id: string): Promise<boolean | null> =>
+      Promise.resolve(owned.has(id)),
     ),
     resolveForScenes: jest.fn((ids: string[]) =>
       Promise.resolve(
@@ -327,6 +323,7 @@ function setup() {
   service.now = () => new Date('2026-11-11T12:00:00Z');
   return {
     service,
+    sceneStatus,
     follows,
     scenes,
     catalog,
@@ -728,6 +725,30 @@ describe('FollowsService', () => {
       expect(
         scenes.filter((row) => row.sceneId === 'new-1').map((row) => row.state),
       ).toEqual(['DISMISSED', 'DISMISSED']);
+    });
+
+    it('requests nothing while Stash can’t say whether you have the scene, and tries again', async () => {
+      const { service, follows, requests, scenes, sceneStatus } = setup();
+      sceneStatus.stashHasScene.mockResolvedValue(null);
+      await service.follow({
+        kind: 'STUDIO',
+        entityId: 's1',
+        name: 'Studio',
+        autoRequest: true,
+      });
+      for (const follow of follows) {
+        follow.since = '2026-11-01';
+      }
+      await service.checkAll();
+      expect(requests.submitSceneRequest).not.toHaveBeenCalled();
+      expect(scenes).toEqual([]);
+      expect(follows[0].lastError).toContain('Couldn’t ask Stash');
+      expect(follows[0].fullyCheckedAt).toBeNull();
+
+      // Stash answers again: the next check requests what's missing.
+      sceneStatus.stashHasScene.mockResolvedValue(false);
+      await service.checkAll();
+      expect(requests.submitSceneRequest).toHaveBeenCalled();
     });
 
     it('leaves out what Settings → Hidden hides', async () => {
