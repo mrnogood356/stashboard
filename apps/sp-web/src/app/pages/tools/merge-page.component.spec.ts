@@ -154,6 +154,31 @@ describe('MergePageComponent', () => {
     expect(rows().map(ticked)).toEqual([false, null, false]);
   });
 
+  it('unticks the sure ones when you keep one tied to them only by an alias', async () => {
+    const { fixture, root } = await render([
+      {
+        keepId: '2',
+        items: [
+          { ...item('2', 'Jane Doe', 9), match: { reason: 'name', with: 'jane doe', sure: true } },
+          { ...item('3', 'jane doe', 2), match: { reason: 'name', with: 'Jane Doe', sure: true } },
+          {
+            ...item('1', 'JD', 1),
+            aliases: ['Jane Doe'],
+            match: { reason: 'alias', with: 'Jane Doe', sure: false },
+          },
+        ],
+      },
+    ]);
+    const rows = () => Array.from(root.querySelectorAll('[data-testid="merge-set"] .row'));
+    const ticked = (row: Element) =>
+      row.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked ?? null;
+    expect(rows().map(ticked)).toEqual([null, true, false]);
+
+    rows()[2].querySelector<HTMLInputElement>('input[type="radio"]')!.click();
+    fixture.detectChanges();
+    expect(rows().map(ticked)).toEqual([false, false, null]);
+  });
+
   it('merges a suggested set into the one kept, after a second tap, leaving out unticked ones', async () => {
     const { fixture, root, library } = await render();
     const set = root.querySelector('[data-testid="merge-set"]')!;
