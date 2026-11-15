@@ -1172,12 +1172,20 @@ export class DownloadHandoffService {
       detail: string,
       newSize?: number | null,
     ) =>
-      this.prisma.smallerCopyAttempt
-        .updateMany({
-          where: { handoffId: row.id },
-          data: { outcome, detail, ...(newSize ? { newSize } : {}) },
-        })
-        .catch(() => undefined);
+      Promise.all([
+        this.prisma.smallerCopyAttempt
+          .updateMany({
+            where: { handoffId: row.id },
+            data: { outcome, detail, ...(newSize ? { newSize } : {}) },
+          })
+          .catch(() => undefined),
+        this.prisma.smallerCopyTry
+          .updateMany({
+            where: { handoffId: row.id },
+            data: { outcome, detail, ...(newSize ? { newSize } : {}) },
+          })
+          .catch(() => undefined),
+      ]);
     if (oldSceneId === newSceneId) {
       await record(
         'kept-both',
@@ -1725,6 +1733,13 @@ export class DownloadHandoffService {
       ...extra,
       error: reason,
       finishedAt: new Date(),
+      // A Better copies download that failed is kept in Better copies'
+      // history instead, so it doesn't wait on the Downloads list to be
+      // cleared by hand. A file already in the library stays listed: that
+      // one needs looking at.
+      ...(row.replacesStashSceneId && !row.finalPath
+        ? { clearedAt: new Date() }
+        : {}),
     });
     await this.activity?.record({
       kind: 'download',
@@ -1742,11 +1757,41 @@ export class DownloadHandoffService {
     row: DownloadHandoff,
     reason: string,
   ): Promise<void> {
+    const failed = /[.!?]$/.test(reason.trim())
+      ? reason.trim()
+      : `${reason.trim()}.`;
     if (row.finalPath) {
       // The file is in the library already (only Stash's part failed):
-      // grabbing the same release again would only make another copy.
+      // grabbing the same release again would only make another copy, so
+      // the scene's row is left as it is. The tried list still says so.
+      await this.prisma.smallerCopyTry
+        .updateMany({
+          where: { handoffId: row.id },
+          data: {
+            outcome: 'failed',
+            detail:
+              `The file came in but couldn’t be put on the scene: ${failed} It’s still on the Downloads list to look at.`.slice(
+                0,
+                300,
+              ),
+          },
+        })
+        .catch(() => undefined);
       return;
     }
+    // The release stays on the scene's grabbed list: one that failed once
+    // isn't grabbed again. Another release is looked for on the next search.
+    const detail =
+      `The download failed: ${failed} This release won’t be grabbed again; another is looked for next.`.slice(
+        0,
+        300,
+      );
+    await this.prisma.smallerCopyTry
+      .updateMany({
+        where: { handoffId: row.id },
+        data: { outcome: 'failed', detail },
+      })
+      .catch(() => undefined);
     const attempt = await this.prisma.smallerCopyAttempt
       .findFirst({ where: { handoffId: row.id } })
       .catch(() => null);
@@ -1758,11 +1803,9 @@ export class DownloadHandoffService {
         where: { stashSceneId: attempt.stashSceneId },
         data: {
           outcome: 'failed',
-          detail: `The download failed: ${reason}`.slice(0, 300),
-          grabbedGuids: attempt.grabbedGuids.filter(
-            (guid) => guid !== attempt.releaseGuid,
-          ),
-          retryAfter: new Date(Date.now() + 24 * 60 * 60_000),
+          detail,
+          // Due straight away: the next search picks another release.
+          retryAfter: new Date(),
         },
       })
       .catch(() => undefined);

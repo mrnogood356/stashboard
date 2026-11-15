@@ -770,6 +770,27 @@ model SmallerCopyAttempt {
   @@index([retryAfter])
 }
 
+/// Better copies: every release grabbed for a scene and how it ended, kept
+/// after later searches so failures aren't lost.
+model SmallerCopyTry {
+  id           String   @id @default(cuid())
+  stashSceneId String
+  title        String
+  releaseGuid  String?
+  releaseTitle String?
+  /// grabbed (on its way) | replaced | kept-both | failed
+  outcome      String
+  detail       String?
+  oldSize      Float?
+  newSize      Float?
+  handoffId    String?  @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([stashSceneId])
+  @@index([createdAt])
+}
+
 /// Scenes saved to watch later, in the order they'll play.
 model WatchLaterItem {
   stashSceneId String   @id

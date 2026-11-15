@@ -56,6 +56,23 @@ export interface SmallerCopies {
   /** Space given back so far (less than nothing after upgrades), and scenes replaced. */
   saved: { bytes: number; scenes: number };
   recent: SmallerCopyAttempt[];
+  /** Releases grabbed so far, newest first, and how each ended. */
+  tries: SmallerCopyTry[];
+  /** How many tries ended each way, over all of them. */
+  tryCounts: Record<string, number>;
+}
+
+/** A release grabbed for a scene: grabbed (on its way), replaced, kept-both or failed. */
+export interface SmallerCopyTry {
+  id: string;
+  stashSceneId: string;
+  title: string;
+  releaseTitle: string | null;
+  outcome: string;
+  detail: string | null;
+  oldSize: number | null;
+  newSize: number | null;
+  at: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -72,6 +89,19 @@ export class SmallerCopiesApiService {
 
   searchNow(): Observable<SmallerCopies> {
     return this.http.post<SmallerCopies>('/api/smaller-copies/next', {});
+  }
+
+  /** Look at a scene again on the next search. */
+  recheck(stashSceneId: string): Observable<SmallerCopies> {
+    return this.http.post<SmallerCopies>(
+      `/api/smaller-copies/scenes/${encodeURIComponent(stashSceneId)}/recheck`,
+      {},
+    );
+  }
+
+  /** Look at every scene again, a few an hour as usual. */
+  recheckAll(): Observable<SmallerCopies> {
+    return this.http.post<SmallerCopies>('/api/smaller-copies/recheck', {});
   }
 
   grab(stashSceneId: string): Observable<SmallerCopies> {

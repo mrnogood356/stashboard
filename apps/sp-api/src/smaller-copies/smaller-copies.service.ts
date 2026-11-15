@@ -37,6 +37,8 @@ const NONE_FOUND_WAIT = 7 * DAY;
 /** Grabbed, found, or no catalog link: not looked for again for a month. */
 const LONG_WAIT = 30 * DAY;
 const FAILED_WAIT = DAY;
+/** Tried releases shown on the page. */
+const TRIES_SHOWN = 200;
 /** The library's files are read again at most this often. */
 const FILES_TTL = HOUR;
 /** Replacements being brought in at once, at most. */
@@ -77,6 +79,21 @@ export interface SmallerCopiesDto {
     newSize: number | null;
     searchedAt: string;
   }>;
+  /** Releases grabbed so far, newest first, and how each ended. */
+  tries: Array<{
+    id: string;
+    stashSceneId: string;
+    title: string;
+    releaseTitle: string | null;
+    /** grabbed (on its way) | replaced | kept-both | failed */
+    outcome: string;
+    detail: string | null;
+    oldSize: number | null;
+    newSize: number | null;
+    at: string;
+  }>;
+  /** How many tries ended each way, over all of them. */
+  tryCounts: Record<string, number>;
 }
 
 interface Candidate {
@@ -187,6 +204,14 @@ export class SmallerCopiesService {
       orderBy: { searchedAt: 'desc' },
       take: 50,
     });
+    const [tries, counts] = await Promise.all([
+      this.prisma.smallerCopyTry
+        .findMany({ orderBy: { createdAt: 'desc' }, take: TRIES_SHOWN })
+        .catch(() => []),
+      this.prisma.smallerCopyTry
+        .groupBy({ by: ['outcome'], _count: { _all: true } })
+        .catch(() => []),
+    ]);
     return {
       settings: settingsOf(settings),
       blocked,
@@ -207,7 +232,54 @@ export class SmallerCopiesService {
         newSize: row.newSize,
         searchedAt: row.searchedAt.toISOString(),
       })),
+      tries: tries.map((row) => ({
+        id: row.id,
+        stashSceneId: row.stashSceneId,
+        title: row.title,
+        releaseTitle: row.releaseTitle,
+        outcome: row.outcome,
+        detail: row.detail,
+        oldSize: row.oldSize,
+        newSize: row.newSize,
+        at: row.updatedAt.toISOString(),
+      })),
+      tryCounts: Object.fromEntries(
+        counts.map((row) => [row.outcome, row._count._all]),
+      ),
     };
+  }
+
+  /**
+   * Looks at a scene again on the next search, whatever it found last time.
+   * Releases already grabbed for it stay skipped.
+   */
+  async recheck(stashSceneId: string): Promise<SmallerCopiesDto> {
+    const updated = await this.prisma.smallerCopyAttempt.updateMany({
+      where: { stashSceneId },
+      data: { retryAfter: new Date(this.now()) },
+    });
+    if (updated.count === 0) {
+      throw new NotFoundException('That scene hasn’t been looked at yet.');
+    }
+    return this.status();
+  }
+
+  /**
+   * Every scene looked at before is due again, a few an hour as usual.
+   * Listed matches stay listed; releases already grabbed stay skipped.
+   */
+  async recheckAll(): Promise<SmallerCopiesDto> {
+    const updated = await this.prisma.smallerCopyAttempt.updateMany({
+      where: {
+        retryAfter: { gt: new Date(this.now()) },
+        outcome: { not: 'found' },
+      },
+      data: { retryAfter: new Date(this.now()) },
+    });
+    this.logger.log(
+      `Better copies: ${updated.count} scene${updated.count === 1 ? '' : 's'} will be looked at again.`,
+    );
+    return this.status();
   }
 
   /** Grabs a match that was listed for you (when grabbing by itself is off). */
@@ -480,6 +552,25 @@ export class SmallerCopiesService {
           }),
         );
     }
+    await this.prisma.smallerCopyTry
+      .create({
+        data: {
+          stashSceneId,
+          title: grab.title,
+          releaseGuid: grab.releaseGuid,
+          releaseTitle: grab.releaseTitle,
+          outcome: 'grabbed',
+          detail: 'On its way.',
+          oldSize: grab.oldSize,
+          newSize: grab.newSize,
+          handoffId: grab.handoffId,
+        },
+      })
+      .catch((error: unknown) =>
+        this.logger.warn(
+          `Couldn't keep track of the release grabbed for Stash scene ${stashSceneId}: ${messageOf(error)}`,
+        ),
+      );
     await this.note(stashSceneId, {
       ...grab,
       outcome: 'grabbed',
