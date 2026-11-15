@@ -160,8 +160,16 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   protected readonly handoffs = signal<ProcessingHandoff[]>([]);
   /** Downloads whose scene isn't already a card below, so nothing shows twice. */
   protected readonly extraHandoffs = computed(() => {
+    if (!this.showsHandoffs()) {
+      return [];
+    }
     const shown = new Set(this.items().map((item) => item.id));
-    return this.handoffs().filter((handoff) => !handoff.sceneId || !shown.has(handoff.sceneId));
+    const downloading = this.selectedLifecycle() === 'DOWNLOADING';
+    return this.handoffs().filter(
+      (handoff) =>
+        (!handoff.sceneId || !shown.has(handoff.sceneId)) &&
+        (!downloading || ['queued', 'downloading', 'unpacking'].includes(handoff.stage)),
+    );
   });
   private handoffsRequest: Subscription | null = null;
 
@@ -186,28 +194,23 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     // A newer view wins over a request still in flight.
     this.handoffsRequest?.unsubscribe();
     this.handoffsRequest = null;
-    if (!this.showsHandoffs()) {
-      this.handoffs.set([]);
-      return;
-    }
-    const lifecycle = this.selectedLifecycle();
+    // Read in every view: the cards show where their downloads are, even
+    // where the downloads aren't listed on their own (Wanted, a search).
     this.handoffsRequest = this.downloadsApi.processing().subscribe({
       next: (processing) => {
-        if (this.selectedLifecycle() !== lifecycle || !this.showsHandoffs()) {
-          return;
-        }
         const since = Date.now() - FAILED_HANDOFF_SHOWN_MS;
         const active = processing.handoffs.filter((handoff) => handoff.stage !== 'ignored');
         const failed = processing.recentHandoffs.filter(
           (handoff) => handoff.stage === 'failed' && Date.parse(handoff.updatedAt) >= since,
         );
-        this.handoffs.set(
-          lifecycle === 'DOWNLOADING'
-            ? active.filter((handoff) =>
-                ['queued', 'downloading', 'unpacking'].includes(handoff.stage),
-              )
-            : [...active, ...failed],
-        );
+        const before = this.activeCardHandoffs();
+        this.handoffs.set([...active, ...failed]);
+        // A card's download just finished: fetch the cards once more, so the
+        // card shows where the scene is now rather than its last step.
+        const after = this.activeCardHandoffs();
+        if ([...before].some((sceneId) => !after.has(sceneId))) {
+          this.handoffFinishes += 1;
+        }
       },
       // Keep what is shown; the next refresh tries again.
       error: () => undefined,
@@ -237,12 +240,21 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
    * the card's own step moves with it, so it's fetched again too.
    */
   private cardHasActiveHandoff(): boolean {
+    return this.activeCardHandoffs().size > 0;
+  }
+
+  /** Scenes on screen whose download is on its way. */
+  private activeCardHandoffs(): Set<string> {
     const active = new Set(
       this.handoffs()
         .filter((handoff) => handoff.sceneId && ACTIVE_HANDOFF_STAGES.includes(handoff.stage))
-        .map((handoff) => handoff.sceneId),
+        .map((handoff) => handoff.sceneId as string),
     );
-    return active.size > 0 && this.items().some((item) => active.has(item.id));
+    return new Set(
+      this.items()
+        .map((item) => item.id)
+        .filter((id) => active.has(id)),
+    );
   }
   private readonly notifications = inject(AppNotificationsService);
   private readonly timelineApi = inject(TimelineApiService);
@@ -405,6 +417,13 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
   private liveTimer: ReturnType<typeof setInterval> | null = null;
   private liveRefreshing = false;
+  /**
+   * Card downloads that finished, and how many of them a fetch of the cards
+   * has caught up with. A finish while a fetch is on its way isn't counted
+   * as caught up: that fetch may hold the card's earlier step.
+   */
+  private handoffFinishes = 0;
+  private handoffFinishesFetched = 0;
 
   @ViewChild('loadMoreSentinel')
   set loadMoreSentinel(elementRef: ElementRef<HTMLDivElement> | undefined) {
@@ -1140,7 +1159,8 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       this.selectedLifecycle() === 'AVAILABLE' ||
       (typeof document !== 'undefined' && document.visibilityState === 'hidden') ||
       (!this.items().some((item) => item.status.state === 'DOWNLOADING') &&
-        !this.cardHasActiveHandoff())
+        !this.cardHasActiveHandoff() &&
+        this.handoffFinishes === this.handoffFinishesFetched)
     ) {
       return;
     }
@@ -1149,6 +1169,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     const loaded = pageAtStart * AcquisitionPageComponent.PAGE_SIZE;
     const replace = loaded <= LIVE_REFRESH_MAX;
     const version = this.feedVersion;
+    const finishes = this.handoffFinishes;
     this.liveRefreshing = true;
     this.acquisitionService
       .getScenesFeed(
@@ -1160,11 +1181,19 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       .pipe(finalize(() => (this.liveRefreshing = false)))
       .subscribe({
         next: (response) => {
-          // A filter, search, reload or another page loaded since then wins:
-          // replacing the list now would drop the newer cards.
-          if (version !== this.feedVersion || this.inFlight() || this.page() !== pageAtStart) {
+          // A reload since then fetched every card afresh anyway.
+          if (version !== this.feedVersion) {
+            this.handoffFinishesFetched = Math.max(this.handoffFinishesFetched, finishes);
             return;
           }
+          // Another page loaded since then wins: replacing the list now would
+          // drop the newer cards. A finished download is tried next time.
+          if (this.inFlight() || this.page() !== pageAtStart) {
+            return;
+          }
+          // Caught up only once the cards are fetched: after a failed request
+          // the next tick tries again.
+          this.handoffFinishesFetched = Math.max(this.handoffFinishesFetched, finishes);
           this.countsByLifecycle.set(response.countsByLifecycle);
           if (replace) {
             this.total.set(response.total);

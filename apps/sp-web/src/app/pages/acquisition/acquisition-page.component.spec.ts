@@ -612,6 +612,127 @@ describe('AcquisitionPageComponent', () => {
     expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
   });
 
+  it('fetches the cards once more after a card’s hidden download finishes', async () => {
+    const queued = buildItem({
+      id: 'scene-queued',
+      status: { state: 'REQUESTED' },
+      queueState: null,
+    });
+    const { component, acquisitionService, downloadsApi } = await renderPage({
+      responses: { ANY: buildResponse([queued]) },
+      handoffs: [handoff({ id: 'h-q', sceneId: 'scene-queued', stage: 'linking' })],
+    });
+    const live = component as unknown as { liveRefresh(): void };
+
+    // The download finishes: the handoff leaves the active list.
+    downloadsApi.processing.mockReturnValue(
+      of({
+        handoff: {
+          enabled: true,
+          sabnzbdReady: true,
+          category: 'stashboard',
+          sabnzbdUnreachable: false,
+        },
+        handoffs: [],
+        recentHandoffs: [],
+        dropIns: { watch: {}, active: [], recent: [] },
+        activeCount: 0,
+        problemCount: 0,
+      } as unknown as Processing),
+    );
+    acquisitionService.getScenesFeed.mockClear();
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
+
+    // Once only: nothing is moving any more.
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
+  });
+
+  it('fetches the cards again when a download finishes while a fetch is on its way', async () => {
+    const queued = buildItem({
+      id: 'scene-queued',
+      status: { state: 'REQUESTED' },
+      queueState: null,
+    });
+    const { component, acquisitionService, downloadsApi } = await renderPage({
+      responses: { ANY: buildResponse([queued]) },
+      handoffs: [handoff({ id: 'h-q', sceneId: 'scene-queued', stage: 'linking' })],
+    });
+    const live = component as unknown as { liveRefresh(): void };
+    const done = {
+      handoff: {
+        enabled: true,
+        sabnzbdReady: true,
+        category: 'stashboard',
+        sabnzbdUnreachable: false,
+      },
+      handoffs: [],
+      recentHandoffs: [],
+      dropIns: { watch: {}, active: [], recent: [] },
+      activeCount: 0,
+      problemCount: 0,
+    } as unknown as Processing;
+    const processing = new Subject<Processing>();
+    downloadsApi.processing.mockReturnValue(processing);
+    const feedReply = new Subject<AcquisitionScenesResponse>();
+    acquisitionService.getScenesFeed.mockClear();
+    acquisitionService.getScenesFeed.mockReturnValueOnce(feedReply);
+
+    // The cards are fetched while the download is still moving…
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
+    // …it finishes before they arrive, and they hold the earlier step.
+    processing.next(done);
+    feedReply.next(buildResponse([queued]));
+    feedReply.complete();
+
+    downloadsApi.processing.mockReturnValue(of(done));
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(2);
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(2);
+  });
+
+  it('tries the cards again when the refresh after a finished download fails', async () => {
+    const queued = buildItem({
+      id: 'scene-queued',
+      status: { state: 'REQUESTED' },
+      queueState: null,
+    });
+    const { component, acquisitionService, downloadsApi } = await renderPage({
+      responses: { ANY: buildResponse([queued]) },
+      handoffs: [handoff({ id: 'h-q', sceneId: 'scene-queued', stage: 'linking' })],
+    });
+    const live = component as unknown as { liveRefresh(): void };
+    downloadsApi.processing.mockReturnValue(
+      of({
+        handoff: {
+          enabled: true,
+          sabnzbdReady: true,
+          category: 'stashboard',
+          sabnzbdUnreachable: false,
+        },
+        handoffs: [],
+        recentHandoffs: [],
+        dropIns: { watch: {}, active: [], recent: [] },
+        activeCount: 0,
+        problemCount: 0,
+      } as unknown as Processing),
+    );
+    const feed = acquisitionService.getScenesFeed.getMockImplementation();
+    acquisitionService.getScenesFeed.mockClear();
+    acquisitionService.getScenesFeed.mockReturnValueOnce(throwError(() => new Error('offline')));
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
+
+    if (feed) acquisitionService.getScenesFeed.mockImplementation(feed);
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(2);
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(2);
+  });
+
   it('doesn’t list a download again when its scene already has a card below', async () => {
     const { fixture } = await renderPage({
       handoffs: [handoff(), handoff({ id: 'h-dup', sceneId: 'scene-downloading' })],
@@ -625,13 +746,20 @@ describe('AcquisitionPageComponent', () => {
     );
   });
 
-  it('leaves downloads you started off the other tabs and searches', async () => {
-    const { fixture, downloadsApi } = await renderPage({
-      handoffs: [handoff()],
+  it('leaves downloads you started off the other tabs and searches, but their cards still show them', async () => {
+    const queued = buildItem({
+      id: 'scene-queued',
+      status: { state: 'REQUESTED' },
+      queueState: null,
+    });
+    const { fixture } = await renderPage({
+      responses: { REQUESTED: buildResponse([queued]) },
+      handoffs: [handoff(), handoff({ id: 'h-q', sceneId: 'scene-queued', stage: 'downloading' })],
       queryParams: { lifecycle: 'REQUESTED' },
     });
-    expect(downloadsApi.processing).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.querySelector('[data-testid="handoff-section"]')).toBeNull();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="handoff-section"]')).toBeNull();
+    expect(stageStates(root, 'scene-queued')[1]).toBe('Downloading:current');
   });
 
   it('says where each card is now from one batched request, and opens the whole story on tap', async () => {

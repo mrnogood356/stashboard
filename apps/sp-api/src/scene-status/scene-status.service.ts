@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   IntegrationStatus,
   IntegrationType,
   RequestStatus,
 } from '@prisma/client';
+import { INDEXING_LIMITS } from '../indexing/indexing.model';
 import { IndexingService } from '../indexing/indexing.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -186,25 +187,54 @@ export class SceneStatusService {
     if ((await this.secondaryLocalSceneIds([normalized])).has(normalized)) {
       return true;
     }
+    // Only what Stash itself said lately: other syncs touch the row too.
     const row = (
       await this.indexingService.getFreshSceneIndexRows([normalized])
     ).get(normalized);
-    if (row && typeof row.stashAvailable === 'boolean') {
+    const seenAt = row?.stashLastSyncedAt?.getTime() ?? 0;
+    if (
+      row &&
+      typeof row.stashAvailable === 'boolean' &&
+      Date.now() - seenAt <= INDEXING_LIMITS.INDEX_STATUS_MAX_AGE_MS
+    ) {
       return row.stashAvailable;
     }
-    const [stashConfig, provider] = await Promise.all([
-      this.getStashConfig(),
-      this.getActiveCatalogProviderKey(),
-    ]);
+    let stashConfig: { baseUrl: string; apiKey: string | null } | null;
+    let provider: CatalogProviderKey | null;
+    try {
+      [stashConfig, provider] = await Promise.all([
+        this.readStashConfig(),
+        this.catalogProviderService.readInstanceCatalogProviderKey(),
+      ]);
+    } catch (error) {
+      // Couldn't read the settings: that says nothing about the library.
+      this.logger.debug(
+        `stashHasScene couldn't read the Stash settings. error=${this.safeJson(
+          this.serializeError(error),
+        )}`,
+      );
+      return null;
+    }
     if (!stashConfig || !provider) {
       return false;
     }
     try {
-      return await this.lookupStashAvailability(
+      // Stash may have it under a scene you said is the same one.
+      const pairs = await this.prisma.sceneStashAlias.findMany({
+        where: { OR: [{ stashId: normalized }, { aliasOf: normalized }] },
+      });
+      const ids = [
         normalized,
-        stashConfig,
-        provider,
-      );
+        ...pairs.map((pair) =>
+          pair.stashId === normalized ? pair.aliasOf : pair.stashId,
+        ),
+      ];
+      for (const id of new Set(ids)) {
+        if (await this.lookupStashAvailability(id, stashConfig, provider)) {
+          return true;
+        }
+      }
+      return false;
     } catch (error) {
       this.logger.debug(
         `stashHasScene couldn't ask Stash about stashId=${normalized}. error=${this.safeJson(
@@ -969,32 +999,7 @@ export class SceneStatusService {
     apiKey: string | null;
   } | null> {
     try {
-      const integration = await this.integrationsService.findOne(
-        IntegrationType.STASH,
-      );
-
-      if (!integration.enabled) {
-        this.logger.debug('Stash integration found but disabled.');
-        return null;
-      }
-
-      if (integration.status !== IntegrationStatus.CONFIGURED) {
-        this.logger.debug(
-          `Stash integration status is not CONFIGURED: ${integration.status}`,
-        );
-        return null;
-      }
-
-      const baseUrl = integration.baseUrl?.trim();
-      if (!baseUrl) {
-        this.logger.debug('Stash integration has no baseUrl.');
-        return null;
-      }
-
-      return {
-        baseUrl,
-        apiKey: integration.apiKey,
-      };
+      return await this.readStashConfig();
     } catch (error) {
       this.logger.debug(
         `Failed to resolve Stash integration config. error=${this.safeJson(
@@ -1003,6 +1008,35 @@ export class SceneStatusService {
       );
       return null;
     }
+  }
+
+  /**
+   * Stash's settings, or null when Stash isn't set up (none saved, off, or
+   * incomplete). Throws when they couldn't be read at all.
+   */
+  private async readStashConfig(): Promise<{
+    baseUrl: string;
+    apiKey: string | null;
+  } | null> {
+    const integration = await this.integrationsService
+      .findOne(IntegrationType.STASH)
+      .catch((error: unknown) => {
+        if (error instanceof NotFoundException) {
+          return null;
+        }
+        throw error;
+      });
+    if (!integration?.enabled) {
+      return null;
+    }
+    if (integration.status !== IntegrationStatus.CONFIGURED) {
+      this.logger.debug(
+        `Stash integration status is not CONFIGURED: ${integration.status}`,
+      );
+      return null;
+    }
+    const baseUrl = integration.baseUrl?.trim();
+    return baseUrl ? { baseUrl, apiKey: integration.apiKey } : null;
   }
 
   private async getActiveCatalogProviderKey(): Promise<CatalogProviderKey | null> {
