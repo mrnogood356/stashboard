@@ -802,6 +802,21 @@ describe('StashAdapter', () => {
       expect(sent()).toHaveLength(1);
     });
 
+    it('gives a waiting batch the job that took all of it meanwhile', async () => {
+      const first = await adapter.startLibraryTask(config, 'generate', ['1']);
+      queue = [{ id: first!, status: 'READY' }];
+      // Stash didn't answer the first look, so the ask waits as a batch of its own.
+      fetchMock.mockImplementationOnce(() =>
+        Promise.reject(new Error('Stash is busy')),
+      );
+      const again = adapter.startLibraryTask(config, 'generate', ['1']);
+      await settle();
+      queue = [{ id: first!, status: 'RUNNING' }];
+      wake();
+      await expect(again).resolves.toBe(first);
+      expect(sent()).toHaveLength(1);
+    });
+
     it('starts what you asked for straight away, busy or not', async () => {
       queue = [{ id: '9', status: 'READY' }];
       await expect(

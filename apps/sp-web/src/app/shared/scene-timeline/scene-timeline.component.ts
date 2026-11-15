@@ -64,6 +64,8 @@ export class SceneTimelineComponent implements OnChanges, AfterViewInit, OnDestr
   private readonly organizer = inject(OrganizerApiService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private request: Subscription | null = null;
+  /** A link asked for on this scene; dropped when it changes. */
+  private linkRequest: Subscription | null = null;
   private observer: IntersectionObserver | null = null;
   private visible = false;
 
@@ -88,6 +90,10 @@ export class SceneTimelineComponent implements OnChanges, AfterViewInit, OnDestr
   ngOnChanges(changes: SimpleChanges): void {
     const change = changes['stashId'];
     if (change && !change.firstChange) {
+      // A link still on its way was for the last scene: it says nothing here.
+      this.linkRequest?.unsubscribe();
+      this.linkRequest = null;
+      this.linking.set(false);
       this.timeline.set(null);
       if (this.visible) {
         this.load();
@@ -113,6 +119,7 @@ export class SceneTimelineComponent implements OnChanges, AfterViewInit, OnDestr
 
   ngOnDestroy(): void {
     this.request?.unsubscribe();
+    this.linkRequest?.unsubscribe();
     this.observer?.disconnect();
   }
 
@@ -152,7 +159,7 @@ export class SceneTimelineComponent implements OnChanges, AfterViewInit, OnDestr
     }
     this.linking.set(true);
     this.error.set(null);
-    request.subscribe({
+    this.linkRequest = request.subscribe({
       next: () => {
         this.linking.set(false);
         this.load();

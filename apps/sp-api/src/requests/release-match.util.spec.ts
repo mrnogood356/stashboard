@@ -102,6 +102,17 @@ describe('matchRelease', () => {
     ).toBeNull();
   });
 
+  it('doesn’t take a short title in front of the date for another studio', () => {
+    expect(
+      matchRelease('Sunset.Rendezvous.24.03.15.Jane.Doe.1080p', {
+        title: 'Sunset Rendezvous',
+        studio: 'Brazzers',
+        releaseDate: '2024-03-15',
+        performers: ['Jane Doe'],
+      })?.strength,
+    ).toBe('strong');
+  });
+
   it('calls another studio’s scene with the same performer on the same day weak', () => {
     const scene = {
       title: 'Maddie Wren’s Red-Lingerie Anal Escapade',
@@ -123,6 +134,15 @@ describe('matchRelease', () => {
     expect(
       matchRelease('BangSurprise.26.10.21.Maddie.Wren.XXX.1080p', scene)
         ?.strength,
+    ).toBe('strong');
+    // Day first, the same as year first.
+    expect(
+      matchRelease('TrueAnal.21.10.2026.Maddie.Wren.XXX.1080p', scene)
+        ?.strength,
+    ).toBe('weak');
+    // The performer in front of the date isn't another studio.
+    expect(
+      matchRelease('Maddie.Wren.26.10.21.XXX.1080p', scene)?.strength,
     ).toBe('strong');
     // No studio in front of the date: nothing to go on either way.
     expect(

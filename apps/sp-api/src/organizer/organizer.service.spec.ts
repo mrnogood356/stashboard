@@ -257,6 +257,7 @@ describe('OrganizerService', () => {
     };
     handoff = {
       noteNotInStash: jest.fn(),
+      noteSharedFile: jest.fn(),
       send: jest.fn().mockResolvedValue({ sent: [], skipped: {}, failed: [] }),
       isAvailable: jest.fn().mockResolvedValue(true),
       missingInWhisparr: jest.fn().mockResolvedValue([]),
@@ -1051,6 +1052,89 @@ describe('OrganizerService', () => {
     expect(sent[0].stashIds).toEqual([
       { endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-whisparr' },
     ]);
+  });
+
+  it('keeps each scene Whisparr is missing when two are one file in Stash', async () => {
+    handoff.missingInWhisparr.mockResolvedValue(['sdb-a', 'sdb-b']);
+    prisma.sceneStashAlias.findMany.mockResolvedValue([
+      { stashId: 'sdb-b', aliasOf: 'sdb-a' },
+    ]);
+    const inStash = localScene({
+      id: '31',
+      stashIds: [{ endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-a' }],
+    });
+    stash.findOrganizerScenes.mockImplementation(
+      (
+        _config: unknown,
+        query: { sceneFilter: { stash_id_endpoint: { stash_id?: string } } },
+      ) =>
+        Promise.resolve(
+          query.sceneFilter.stash_id_endpoint.stash_id === 'sdb-a'
+            ? { total: 1, items: [inStash] }
+            : { total: 0, items: [] },
+        ),
+    );
+    const sentTo = () =>
+      (
+        handoff.send.mock.calls[0] as [
+          unknown,
+          Array<{ stashIds: Array<{ stashId: string }> }>,
+        ]
+      )[1].map((scene) => scene.stashIds[0].stashId);
+
+    // Copied: the file goes to both.
+    settings.whisparrImportMode = 'copy';
+    service.startSendAll();
+    await waitUntilIdle(service);
+    expect(sentTo()).toEqual(['sdb-a', 'sdb-b']);
+
+    // Moved: to the first, and the other says why not.
+    handoff.send.mockClear();
+    settings.whisparrImportMode = 'move';
+    service.startSendAll();
+    await waitUntilIdle(service);
+    expect(sentTo()).toEqual(['sdb-a']);
+    expect(handoff.noteSharedFile).toHaveBeenCalledWith('sdb-b', 'sdb-a');
+  });
+
+  it('with new scenes added too, keeps a scene going to the missing one it was matched to', async () => {
+    settings.addToWhisparr = true;
+    handoff.missingInWhisparr.mockResolvedValue(['sdb-whisparr']);
+    prisma.sceneStashAlias.findMany.mockResolvedValue([
+      { stashId: 'sdb-whisparr', aliasOf: 'sdb-stash' },
+    ]);
+    const inStash = localScene({
+      id: '31',
+      stashIds: [
+        { endpoint: 'https://stashdb.org/graphql', stashId: 'sdb-stash' },
+      ],
+    });
+    stash.findOrganizerScenes.mockImplementation(
+      (
+        _config: unknown,
+        query: {
+          sceneFilter: {
+            stash_id_endpoint: { stash_id?: string; modifier: string };
+          };
+        },
+      ) =>
+        Promise.resolve(
+          query.sceneFilter.stash_id_endpoint.modifier === 'NOT_NULL' ||
+            query.sceneFilter.stash_id_endpoint.stash_id === 'sdb-stash'
+            ? { total: 1, items: [inStash] }
+            : { total: 0, items: [] },
+        ),
+    );
+
+    service.startSendAll();
+    await waitUntilIdle(service);
+
+    const [, sent] = handoff.send.mock.calls[0] as [
+      unknown,
+      Array<{ id: string; stashIds: Array<{ stashId: string }> }>,
+    ];
+    expect(sent).toHaveLength(1);
+    expect(sent[0].stashIds[0].stashId).toBe('sdb-whisparr');
   });
 
   it('finds the file the other way round too, when Whisparr has the main scene of the pair', async () => {

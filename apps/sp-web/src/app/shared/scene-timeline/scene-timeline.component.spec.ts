@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OrganizerApiService } from '../../core/api/organizer.service';
 import {
@@ -129,6 +129,35 @@ describe('SceneTimelineComponent', () => {
     fixture.detectChanges();
     expect(organizer.markSameScene).toHaveBeenCalledWith('sdb-1');
     expect(scene).toHaveBeenCalledTimes(2);
+  });
+
+  it('drops a link still on its way when the scene changes', async () => {
+    const stuck = timeline({
+      steps: [
+        {
+          step: 'matched',
+          label: 'Matched',
+          at: null,
+          status: 'failed',
+          detail: 'Stash links this file to a different StashDB scene (sdb-other).',
+          progress: null,
+          action: { kind: 'same-scene', label: 'It’s the same scene' },
+        },
+      ],
+    });
+    const answer = new Subject<unknown>();
+    const organizer = { markSameScene: vi.fn().mockReturnValue(answer) };
+    const scene = vi.fn().mockReturnValueOnce(of(stuck)).mockReturnValue(of(timeline()));
+    const { root, fixture } = await render({ scene, organizer });
+
+    (root.querySelector('[data-testid="timeline-action-same-scene"]') as HTMLButtonElement).click();
+    fixture.componentRef.setInput('stashId', 'sdb-2');
+    fixture.detectChanges();
+    answer.error({ error: { message: 'Scene sdb-1 has no file.' } });
+    fixture.detectChanges();
+
+    expect(root.querySelector('[role="alert"]')).toBeNull();
+    expect(root.querySelectorAll('.timeline-step')).toHaveLength(3);
   });
 
   it('tells the story step by step, with the stuck step’s reason and what to do', async () => {

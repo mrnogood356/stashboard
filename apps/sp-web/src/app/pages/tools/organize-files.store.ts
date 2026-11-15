@@ -34,11 +34,17 @@ export class OrganizeFilesStore implements OnDestroy {
 
   /** In Stash, not in Whisparr: each scene and why it hasn't gone. */
   readonly missingInWhisparr = signal<MissingInWhisparrScene[] | null>(null);
+  /** The list couldn't be read: not the same as nothing missing. */
+  readonly missingInWhisparrFailed = signal(false);
 
   loadMissingInWhisparr(): void {
+    this.missingInWhisparrFailed.set(false);
     this.api.missingInWhisparr?.().subscribe({
       next: (scenes) => this.missingInWhisparr.set(scenes),
-      error: () => this.missingInWhisparr.set([]),
+      error: () => {
+        this.missingInWhisparr.set(null);
+        this.missingInWhisparrFailed.set(true);
+      },
     });
   }
 

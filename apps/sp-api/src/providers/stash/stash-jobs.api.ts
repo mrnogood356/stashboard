@@ -171,13 +171,29 @@ export abstract class StashJobsApi extends StashGraphqlClient {
         // From here on, new asks start a batch of their own; ones for the
         // same items wait for this job's id.
         this.batches.delete(batchKey);
-        const handing = start([...batch.items]);
+        // A batch ahead of this one may have taken all of it meanwhile (asked
+        // again while that one was being started): that job does it. Looked
+        // up inside the hand-off, so asks arriving meanwhile wait on it too.
+        let covered = false;
+        const handing = (async () => {
+          const covering = await this.activeJobFor(config, group, [
+            ...batch.items,
+          ]);
+          if (covering) {
+            covered = true;
+            return covering;
+          }
+          return start([...batch.items]);
+        })();
         this.starting.set(batchKey, { items: batch.items, promise: handing });
         const job = await handing.finally(() => {
           if (this.starting.get(batchKey)?.promise === handing) {
             this.starting.delete(batchKey);
           }
         });
+        if (covered) {
+          return job;
+        }
         this.logger.log(
           `Started Stash's ${KIND_NAMES[kind]} for ${batch.items.size} ${kind.endsWith('scan') ? 'folder(s)' : kind === 'task' ? 'library task' : 'scene(s)'}${job ? ` (job ${job})` : ''}.`,
         );

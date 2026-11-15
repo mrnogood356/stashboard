@@ -1032,7 +1032,12 @@ export class DownloadHandoffService {
     // say). If Stash already has the catalog scene, that's it: looking for
     // the old path would only scan the folder again and again.
     const moved = row.sceneId
-      ? await this.movedInStash(config, row.sceneId, finalPath)
+      ? await this.movedInStash(
+          config,
+          row.sceneId,
+          finalPath,
+          row.replacesStashSceneId,
+        )
       : null;
     if (moved) {
       sceneId = moved.sceneId;
@@ -1463,11 +1468,26 @@ export class DownloadHandoffService {
       this.logger.debug(`Scan of ${folder} waits its turn in Stash.`);
       throw new StashBusyError(folder);
     }
-    // The same scan another file is already waiting on: it's still running,
-    // so no need to wait on it twice.
+    // The same scan another file is already waiting on: while it still runs
+    // there's no need to wait on it twice. Once it has finished it's used up
+    // for every file that waited on it, and this one looks for itself.
     if ([...this.scans.values()].includes(job)) {
-      this.scans.set(file, job);
-      throw new StashBusyError(folder);
+      const queue = await this.stash.getJobQueue(config).catch(() => []);
+      const entry = queue.find((candidate) => candidate.id === job);
+      if (
+        entry &&
+        !['FINISHED', 'FAILED', 'CANCELLED'].includes(entry.status)
+      ) {
+        this.scans.set(file, job);
+        throw new StashBusyError(folder);
+      }
+      for (const [other, otherJob] of [...this.scans]) {
+        if (otherJob === job) {
+          this.scans.delete(other);
+        }
+      }
+      this.stash.forgetFolderScan(config, folder);
+      return this.sceneFor(config, file);
     }
     if (job) {
       const result = await this.stash.waitForJob(config, job, {
@@ -1494,6 +1514,7 @@ export class DownloadHandoffService {
     config: StashAdapterBaseConfig,
     catalogSceneId: string,
     file: string,
+    replacing: string | null = null,
   ): Promise<{ sceneId: string; path: string | null } | null> {
     const stillThere = await fs
       .stat(file)
@@ -1508,29 +1529,38 @@ export class DownloadHandoffService {
     if (matches.length === 0) {
       return null;
     }
-    // More than one (an older copy beside this download, say): only the one
-    // whose file still has this download's name is it; otherwise look by path.
+    // Which scene is this download: one of the scene's files has its name,
+    // or, renamed into its own folder (by Match & rename, say), it's the
+    // only scene for that catalog entry. Not for a Better copies download:
+    // its catalog scene already has the older copy, which must never be
+    // taken for it, so only the name counts there. Unclear (two by name, or
+    // none): look by path instead, and retry until it is.
+    const candidates = matches.filter((match) => match.id !== replacing);
     const name = path.basename(file);
-    for (const match of matches) {
+    const byName: Array<{ sceneId: string; path: string }> = [];
+    let lone: { sceneId: string; path: string | null } | null = null;
+    for (const match of candidates) {
       const scene = await this.stash
         .getOrganizerScene(config, match.id)
         .catch(() => null);
-      const own =
-        scene?.files.find(
-          (candidate) => path.basename(candidate.path) === name,
-        ) ?? null;
-      if (matches.length > 1 && !own) {
-        continue;
+      for (const candidate of scene?.files ?? []) {
+        if (path.basename(candidate.path) === name) {
+          byName.push({ sceneId: match.id, path: candidate.path });
+        }
       }
-      this.logger.log(
-        `${file} was moved since it came in; Stash has its scene as ${match.id}.`,
-      );
-      return {
-        sceneId: match.id,
-        path: own?.path ?? scene?.files[0]?.path ?? null,
-      };
+      if (matches.length === 1 && !replacing) {
+        lone = { sceneId: match.id, path: scene?.files[0]?.path ?? null };
+      }
     }
-    return null;
+    const found =
+      byName.length === 1 ? byName[0] : byName.length === 0 ? lone : null;
+    if (!found) {
+      return null;
+    }
+    this.logger.log(
+      `${file} was moved since it came in; Stash has its scene as ${found.sceneId}.`,
+    );
+    return found;
   }
 
   private async sceneFor(
