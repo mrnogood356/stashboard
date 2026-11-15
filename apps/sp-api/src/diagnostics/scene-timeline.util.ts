@@ -33,18 +33,23 @@ export interface TimelineFacts {
   /** Stashboard's own request record (Whisparr requests). */
   /** updatedAt moves on every re-request, so it's when it was last asked for. */
   request: { createdAt: Date; updatedAt: Date } | null;
-  row: Pick<
-    SceneIndex,
-    | 'title'
-    | 'requestUpdatedAt'
-    | 'whisparrMovieId'
-    | 'whisparrHasFile'
-    | 'whisparrQueueStatus'
-    | 'whisparrQueueState'
-    | 'whisparrErrorMessage'
-    | 'stashAvailable'
-    | 'computedLifecycle'
-  > | null;
+  row:
+    | (Pick<
+        SceneIndex,
+        | 'title'
+        | 'requestUpdatedAt'
+        | 'whisparrMovieId'
+        | 'whisparrHasFile'
+        | 'whisparrQueueStatus'
+        | 'whisparrQueueState'
+        | 'whisparrErrorMessage'
+        | 'stashAvailable'
+        | 'computedLifecycle'
+      > & {
+        /** When Whisparr last told Stashboard whether it has the file. */
+        whisparrLastSyncedAt?: Date | null;
+      })
+    | null;
   /** Downloads sent to SABnzbd for it, newest first. */
   handoffs: Array<
     Pick<
@@ -239,9 +244,44 @@ function routeOf(facts: TimelineFacts): TimelineRoute | null {
   return inStash(facts) === true ? 'library' : null;
 }
 
+/**
+ * The part of Whisparr's history (newest first) about the copy it's after
+ * now. A file that was deleted, or that came in once and is gone again
+ * (Whisparr wants it and Stash hasn't got it), ends a round; what happened
+ * before then is an older story, not this one.
+ */
+export function currentRound(
+  history: WhisparrHistoryEvent[],
+  /** When Whisparr last said it has no file and Stash hasn't it; else null. */
+  goneSince: Date | null,
+): WhisparrHistoryEvent[] {
+  const deleted = history.findIndex(
+    (event) => event.eventType === 'movieFileDeleted',
+  );
+  const sinceDeleted = deleted === -1 ? history : history.slice(0, deleted);
+  if (!goneSince) {
+    return sinceDeleted;
+  }
+  // Only an import Whisparr had already done when it said there's no file:
+  // one since then is news the index hasn't caught up with.
+  const imported = sinceDeleted.findIndex(
+    (event) =>
+      (event.eventType === 'downloadFolderImported' ||
+        event.eventType === 'movieFolderImported') &&
+      Date.parse(event.date) < goneSince.getTime(),
+  );
+  return imported === -1 ? sinceDeleted : sinceDeleted.slice(0, imported);
+}
+
 function whisparrSteps(facts: TimelineFacts, now: Date): Drafts {
   const row = facts.row;
-  const history = facts.history?.value ?? [];
+  const stashHas = inStash(facts) === true;
+  const history = currentRound(
+    facts.history?.value ?? [],
+    row?.whisparrHasFile === false && !stashHas
+      ? (row.whisparrLastSyncedAt ?? null)
+      : null,
+  );
   const historyKnown = !!facts.history && !facts.history.error;
   const queueKnown = !!facts.queue && !facts.queue.error;
   const whisparrDown =
@@ -265,7 +305,6 @@ function whisparrSteps(facts: TimelineFacts, now: Date): Drafts {
     !!failure &&
     (!grab || failure.date >= grab.date) &&
     (!imported || imported.date < failure.date);
-  const stashHas = inStash(facts) === true;
   const hasFile = row?.whisparrHasFile === true || !!imported || stashHas;
   const importStep = [
     'importpending',

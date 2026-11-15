@@ -204,6 +204,35 @@ export class CatalogProviderService {
     }
   }
 
+  /**
+   * The main catalog's key, or null when none is set up. Unlike the
+   * OrNull lookups, a failure to read the settings throws: callers that must
+   * not take "couldn't tell" for "no catalog" can say so.
+   */
+  async readInstanceCatalogProviderKey(): Promise<CatalogProviderKey | null> {
+    const type = await this.getInstanceCatalogProviderType();
+    if (!type) {
+      return null;
+    }
+    const integration = await this.integrationsService
+      .findOne(type)
+      .catch((error: unknown) => {
+        if (error instanceof NotFoundException) {
+          return null;
+        }
+        throw error;
+      });
+    if (
+      !integration ||
+      !isCatalogProviderReady(integration) ||
+      integration.status !== IntegrationStatus.CONFIGURED ||
+      !integration.baseUrl?.trim()
+    ) {
+      return null;
+    }
+    return catalogProviderKeyFromIntegrationType(type);
+  }
+
   async getConfiguredCatalogProviderOrNull(): Promise<ConfiguredCatalogProvider | null> {
     const selectedType = await this.getConfiguredCatalogProviderType();
     if (!selectedType) {

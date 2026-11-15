@@ -1,5 +1,6 @@
 import {
   namesTheScene,
+  sceneTitleCount,
   tokensOnlyWhisparrKnows,
   unknownWhisparrTokens,
   whisparrQuality,
@@ -297,6 +298,15 @@ export function patternFromWhisparr(naming: {
     return {
       pattern: null,
       problem: 'Whisparr has no Standard Scene Format set.',
+    };
+  }
+  // A format that spells the title out twice names every file twice over;
+  // renaming by it would only spread that.
+  if (sceneTitleCount(naming.fileFormat) > 1) {
+    return {
+      pattern: null,
+      problem:
+        'Whisparr’s Standard Scene Format has the scene’s title in it more than once, so file names come out with the title doubled. Fix it in Whisparr (Settings → Media Management), then rename here to put the names right.',
     };
   }
   const pattern = [naming.folderFormat, naming.fileFormat]

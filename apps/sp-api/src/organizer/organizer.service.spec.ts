@@ -1481,6 +1481,19 @@ describe('OrganizerService', () => {
         problem: 'Whisparr has no Standard Scene Format set.',
       },
     });
+
+    // A format that has the title in it twice isn't copied.
+    handoff.namingConfig.mockResolvedValue({
+      folderFormat: '{Scene Title} - {Release Date}',
+      fileFormat:
+        '{Scene Title} - {Release Date} {Quality Title}{Scene Title}{Performers}- {Scene Title} - {Release Date} - {Performers} [{Quality Full}]',
+    });
+    await expect(service.getSettingsDto()).resolves.toMatchObject({
+      naming: {
+        source: 'own',
+        problem: expect.stringContaining('title in it more than once'),
+      },
+    });
   });
 
   it('always leaves Whisparr’s files alone, whatever was saved before', async () => {
