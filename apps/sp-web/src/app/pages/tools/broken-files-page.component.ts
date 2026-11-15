@@ -196,13 +196,17 @@ export class BrokenFilesPageComponent implements OnInit {
     // Every affected scene listed: Generate for just them. More: for the library
     // (Stash skips what it has already made).
     const everyScene = (list.count ?? 0) <= GENERATE_FOR_LISTED;
-    const run: Observable<{ jobId: string | null }> =
+    const run: Observable<{ jobId: string | null; warning?: string }> =
       fix.action === 'generate' && everyScene
         ? this.library.generateFor(list.scenes.map((scene) => scene.id))
         : this.library.startJob(fix.action === 'scan' ? 'scan' : 'generate');
     run.subscribe({
-      next: () => {
+      next: (result) => {
         this.started.update((set) => new Set(set).add(key));
+        if (result.warning) {
+          this.notifications.info('Started in Stash, with a note', result.warning);
+          return;
+        }
         this.notifications.success(
           'Started in Stash',
           'Follow it in Library tools → Stash jobs, then Look again.',

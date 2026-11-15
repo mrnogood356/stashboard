@@ -24,7 +24,14 @@ async function render(lists: ProblemList[], library: Record<string, unknown> = {
   }).compileComponents();
   const fixture = TestBed.createComponent(BrokenFilesPageComponent);
   fixture.detectChanges();
-  return { fixture, root: fixture.nativeElement as HTMLElement };
+  return {
+    fixture,
+    root: fixture.nativeElement as HTMLElement,
+    notifications: TestBed.inject(AppNotificationsService) as unknown as Record<
+      'success' | 'info',
+      ReturnType<typeof vi.fn>
+    >,
+  };
 }
 
 const settle = async () => {
@@ -73,6 +80,22 @@ describe('BrokenFilesPageComponent', () => {
       .click();
     fixture.detectChanges();
     expect(button('fix-generate-generate').disabled).toBe(false);
+  });
+
+  it('says what was left out when Generate started with a note', async () => {
+    const generateFor = vi
+      .fn()
+      .mockReturnValue(of({ jobId: '2', warning: '1 scene couldn’t be made again.' }));
+    const { root, notifications } = await render(
+      [{ kind: 'generate', count: 1, scenes: scenes(1) }],
+      { generateFor },
+    );
+    root.querySelector<HTMLButtonElement>('[data-testid="fix-generate-generate"]')!.click();
+    expect(notifications.info).toHaveBeenCalledWith(
+      'Started in Stash, with a note',
+      '1 scene couldn’t be made again.',
+    );
+    expect(notifications.success).not.toHaveBeenCalled();
   });
 
   it('removes scenes with no file from Stash after a second tap, and deletes broken files but never a scene with more files', async () => {
