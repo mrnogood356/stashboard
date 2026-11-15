@@ -295,8 +295,9 @@ export class SmallerCopiesService {
         const recorded =
           attempt &&
           (attempt.outcome === 'replaced' || attempt.outcome === 'kept-both');
-        await this.prisma.smallerCopyTry.update({
-          where: { id: row.id },
+        // Only while still on its way: another call may have settled it.
+        await this.prisma.smallerCopyTry.updateMany({
+          where: { id: row.id, outcome: 'grabbed' },
           data: recorded
             ? { outcome: attempt.outcome, detail: attempt.detail }
             : {
@@ -318,23 +319,27 @@ export class SmallerCopiesService {
           0,
           300,
         );
-      await this.prisma.smallerCopyTry.update({
-        where: { id: row.id },
-        data: { outcome: 'failed', detail },
-      });
-      // The scene's own row, if it's still on this grab: due again now.
-      await this.prisma.smallerCopyAttempt.updateMany({
-        where: {
-          stashSceneId: row.stashSceneId,
-          outcome: 'grabbed',
-          ...(row.handoffId ? { handoffId: row.handoffId } : {}),
-        },
-        data: {
-          outcome: 'failed',
-          detail,
-          retryAfter: new Date(this.now()),
-        },
-      });
+      // Both or neither: a try marked failed whose scene wasn't made due
+      // would never be looked at again until its old wait ran out.
+      await this.prisma.$transaction([
+        this.prisma.smallerCopyTry.updateMany({
+          where: { id: row.id, outcome: 'grabbed' },
+          data: { outcome: 'failed', detail },
+        }),
+        // The scene's own row, if it's still on this grab: due again now.
+        this.prisma.smallerCopyAttempt.updateMany({
+          where: {
+            stashSceneId: row.stashSceneId,
+            outcome: 'grabbed',
+            ...(row.handoffId ? { handoffId: row.handoffId } : {}),
+          },
+          data: {
+            outcome: 'failed',
+            detail,
+            retryAfter: new Date(this.now()),
+          },
+        }),
+      ]);
     }
   }
 

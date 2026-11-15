@@ -10,7 +10,12 @@ describe('SmallerCopiesService', () => {
   let settings: Record<string, unknown>;
   let attempts: Map<string, Record<string, unknown>>;
   let tries: Array<Record<string, unknown>>;
-  let handoffRows: Array<{ id: string; status: string; error: string | null }>;
+  let handoffRows: Array<{
+    id: string;
+    status: string;
+    error: string | null;
+    replacesStashSceneId?: string;
+  }>;
   let files: Array<Record<string, unknown>>;
   let linked: Record<string, string | null>;
   let prisma: Record<string, Record<string, jest.Mock>>;
@@ -79,6 +84,10 @@ describe('SmallerCopiesService', () => {
     ];
     linked = { '1': 'cat-1', '2': 'cat-2' };
     prisma = {
+      // Runs each write in turn; a real one would undo both on a failure.
+      $transaction: jest.fn((writes: Array<Promise<unknown>>) =>
+        Promise.all(writes),
+      ),
       smallerCopySettings: {
         upsert: jest.fn(({ update }: { update: Record<string, unknown> }) => {
           Object.assign(settings, update);
@@ -201,19 +210,23 @@ describe('SmallerCopiesService', () => {
               ),
           ),
         ),
-        update: jest.fn(
+        updateMany: jest.fn(
           ({
             where,
             data,
           }: {
-            where: { id: string };
+            where: { id: string; outcome?: string };
             data: Record<string, unknown>;
           }) => {
-            Object.assign(
-              tries.find((row) => row.id === where.id)!,
-              data,
+            const row = tries.find(
+              (entry) =>
+                entry.id === where.id &&
+                (!where.outcome || entry.outcome === where.outcome),
             );
-            return Promise.resolve();
+            if (row) {
+              Object.assign(row, data);
+            }
+            return Promise.resolve({ count: row ? 1 : 0 });
           },
         ),
         groupBy: jest.fn(() => {
@@ -239,12 +252,21 @@ describe('SmallerCopiesService', () => {
       },
       downloadHandoff: {
         // Open replacements for dueOf; by id for settling the tried list.
-        findMany: jest.fn(({ where }: { where: { id?: { in: string[] } } }) =>
-          Promise.resolve(
-            where.id
-              ? handoffRows.filter((row) => where.id!.in.includes(row.id))
-              : [],
-          ),
+        findMany: jest.fn(
+          ({
+            where,
+          }: {
+            where: { id?: { in: string[] }; status?: { in: string[] } };
+          }) =>
+            Promise.resolve(
+              where.id
+                ? handoffRows.filter((row) => where.id!.in.includes(row.id))
+                : handoffRows.filter(
+                    (row) =>
+                      row.replacesStashSceneId &&
+                      (!where.status || where.status.in.includes(row.status)),
+                  ),
+            ),
         ),
         findFirst: jest.fn().mockResolvedValue({ id: 'h9' }),
         count: jest.fn().mockResolvedValue(0),
@@ -526,7 +548,12 @@ describe('SmallerCopiesService', () => {
   it('keeps every release it grabs in the tried list, with counts, through later searches', async () => {
     await service.tick(true);
     // Its download is still going a month on.
-    handoffRows.push({ id: 'h9', status: 'downloading', error: null });
+    handoffRows.push({
+      id: 'h9',
+      status: 'downloading',
+      error: null,
+      replacesStashSceneId: '2',
+    });
     now += 31 * 24 * 3600_000;
     downloads.searchReleases.mockResolvedValue({ releases: [] });
     await service.tick(true);
@@ -540,8 +567,10 @@ describe('SmallerCopiesService', () => {
       }),
     ]);
     expect(status.tryCounts).toEqual({ grabbed: 1 });
-    // The scene's own row has moved on; the tried list still has the grab.
-    expect(attempts.get('2')).toMatchObject({ outcome: 'none-found' });
+    // Its scene isn't searched again while the download is on its way;
+    // the later search went to another scene.
+    expect(attempts.get('2')).toMatchObject({ outcome: 'grabbed' });
+    expect(attempts.get('1')).toMatchObject({ outcome: 'none-found' });
   });
 
   it('settles a grab whose download was dropped: failed, release kept skipped, scene due again', async () => {
@@ -579,9 +608,35 @@ describe('SmallerCopiesService', () => {
     });
   });
 
+  it('settles a dropped grab and its scene together, in one transaction', async () => {
+    await service.tick(true);
+    handoffRows.push({ id: 'h9', status: 'failed', error: 'Out of retention' });
+    await service.status();
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(tries[0]).toMatchObject({ outcome: 'failed' });
+    expect(attempts.get('2')).toMatchObject({ outcome: 'failed' });
+  });
+
+  it('doesn’t overwrite a try another call settled in the meantime', async () => {
+    await service.tick(true);
+    handoffRows.push({ id: 'h9', status: 'imported', error: null });
+    // While this one reads the scene's row, the swap is recorded elsewhere.
+    prisma.smallerCopyAttempt.findFirst.mockImplementationOnce(() => {
+      tries[0].outcome = 'replaced';
+      return Promise.resolve(null);
+    });
+    await service.status();
+    expect(tries[0]).toMatchObject({ outcome: 'replaced' });
+  });
+
   it('leaves a grab whose download is still on its way', async () => {
     await service.tick(true);
-    handoffRows.push({ id: 'h9', status: 'downloading', error: null });
+    handoffRows.push({
+      id: 'h9',
+      status: 'downloading',
+      error: null,
+      replacesStashSceneId: '2',
+    });
     expect((await service.status()).tries[0]).toMatchObject({
       outcome: 'grabbed',
     });
