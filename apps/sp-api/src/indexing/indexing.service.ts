@@ -43,6 +43,8 @@ const FOLLOW_UP_SYNC_TRIES = 5;
 export class IndexingService extends IndexingSync {
   /** Where Stash's library was at the last change check; null until the first. */
   private libraryChangeMarker: string | null = null;
+  /** A change whose held-back sync ran out of tries: synced at the next check. */
+  private libraryChangeOwed = false;
   /** When the last library sync started, and a follow-up one waiting. */
   private lastLibrarySyncAt = 0;
   private followUpLibrarySync: ReturnType<typeof setTimeout> | null = null;
@@ -215,7 +217,7 @@ export class IndexingService extends IndexingSync {
       return null;
     }
     this.lastLibrarySyncAt = Date.now();
-    return this.syncStateService.runWithLease(
+    const result = await this.syncStateService.runWithLease(
       {
         jobName: INDEXING_JOB_NAMES.LIBRARY_PROJECTION,
         leaseMs: INDEXING_LIMITS.LIBRARY_LEASE_MS,
@@ -228,6 +230,11 @@ export class IndexingService extends IndexingSync {
       },
       async () => this.performLibraryProjectionSync(reason),
     );
+    // Any sync that ran covers a change owed from earlier.
+    if (result !== null) {
+      this.libraryChangeOwed = false;
+    }
+    return result;
   }
 
   /**
@@ -253,8 +260,15 @@ export class IndexingService extends IndexingSync {
           return false;
         })
         .then((done) => {
-          if (!done && attempt < FOLLOW_UP_SYNC_TRIES) {
+          if (done) {
+            return;
+          }
+          if (attempt < FOLLOW_UP_SYNC_TRIES) {
             this.scheduleFollowUpSync(reason, LIBRARY_SYNC_GAP_MS, attempt + 1);
+          } else {
+            // Out of tries: the next change check syncs even if Stash
+            // hasn't changed again since.
+            this.libraryChangeOwed = true;
           }
         });
     }, delayMs);
@@ -283,7 +297,7 @@ export class IndexingService extends IndexingSync {
     }
     const previous = this.libraryChangeMarker;
     this.libraryChangeMarker = marker;
-    if (previous === null || previous === marker) {
+    if (previous === null || (previous === marker && !this.libraryChangeOwed)) {
       return null;
     }
     try {

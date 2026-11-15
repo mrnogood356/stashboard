@@ -413,6 +413,14 @@ export abstract class StashJobsApi extends StashGraphqlClient {
     folder: string,
   ): Promise<string> {
     const path = trimTrailingSeparators(folder);
+    // The scan asked for last time didn't start: say so once, so it counts
+    // as a try rather than "waiting" for ever.
+    const failureKey = `${config.baseUrl}|${path}`;
+    const failed = this.folderScanFailures.get(failureKey);
+    if (failed) {
+      this.folderScanFailures.delete(failureKey);
+      throw new BadGatewayException(failed);
+    }
     const status = this.backgroundStatus(config, 'scan', path);
     if (status === 'waiting') {
       return status;
@@ -429,9 +437,26 @@ export abstract class StashJobsApi extends StashGraphqlClient {
       this.forgetBackground(config, 'scan', path);
       return 'scanned';
     }
-    void this.scanLibraryFolders(config, [path]).catch(() => undefined);
+    void this.scanLibraryFolders(config, [path])
+      .then((job) => {
+        if (!job) {
+          this.folderScanFailures.set(
+            failureKey,
+            'Stash didn’t start the scan.',
+          );
+        }
+      })
+      .catch((error: unknown) =>
+        this.folderScanFailures.set(
+          failureKey,
+          `Stash couldn’t start the scan: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
     return 'waiting';
   }
+
+  /** Folder scans that didn't start, by Stash and folder, until asked about. */
+  private readonly folderScanFailures = new Map<string, string>();
 
   private async startFolderScan(
     config: StashAdapterBaseConfig,

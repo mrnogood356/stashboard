@@ -1557,7 +1557,7 @@ describe('OrganizerService', () => {
     );
     stash.sceneIdsForPaths.mockResolvedValue(['9']);
 
-    const result = await service.fixTaken(['7']);
+    const result = await service.fixTaken(['7'], 'merge');
 
     expect(stash.mergeScenes).not.toHaveBeenCalled();
     expect(stash.removeExtraFile).not.toHaveBeenCalled();

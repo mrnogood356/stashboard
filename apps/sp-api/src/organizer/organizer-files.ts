@@ -1161,7 +1161,7 @@ export abstract class OrganizerFiles extends OrganizerCore {
    */
   async fixTaken(
     sceneIds: string[],
-    agreed?: 'scan' | 'merge',
+    agreed: 'scan' | 'merge',
   ): Promise<{
     scanned: number;
     merged: number;
@@ -1190,7 +1190,11 @@ export abstract class OrganizerFiles extends OrganizerCore {
       const taken = plan.taken;
       // Stash may have found the other file since the preview, turning a
       // scan into a merge that deletes: back to the preview, never past it.
-      if (agreed && taken?.fix !== agreed) {
+      // (One with no safe fix at all says why below.)
+      if (
+        (taken?.fix === 'scan' || taken?.fix === 'merge') &&
+        taken.fix !== agreed
+      ) {
         skipped.push({
           sceneId: plan.sceneId,
           reason:
