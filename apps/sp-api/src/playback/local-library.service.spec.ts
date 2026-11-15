@@ -53,6 +53,7 @@ describe('LocalLibraryService', () => {
     mergeStudios: jest.fn().mockResolvedValue(undefined),
     startLibraryTask: jest.fn().mockResolvedValue('7'),
     generatedFileNaming: jest.fn().mockResolvedValue('OSHASH'),
+    rescanForPreviews: jest.fn().mockResolvedValue('8'),
     findProblemScenes: jest.fn(),
     findGenerateGaps: jest.fn().mockResolvedValue({
       missing: 3,
@@ -225,6 +226,9 @@ describe('LocalLibraryService', () => {
       ['4', '5'],
       { now: true },
     );
+    // …then a rescan for hover previews, which some Stash builds' Generate
+    // never makes.
+    expect(stash.rescanForPreviews).toHaveBeenCalledWith(config, ['4', '5']);
     await expect(service.generateFor([])).rejects.toThrow(
       'Pick at least one scene',
     );
@@ -293,6 +297,23 @@ describe('LocalLibraryService', () => {
     expect(result.warning).toContain(
       '1 scene couldn’t be made again: its file has no hash',
     );
+  });
+
+  it('rescans only scenes with the naming hash, and says when the rescan couldn’t be asked for', async () => {
+    stash.getOrganizerScene.mockImplementation((_config, id: string) =>
+      Promise.resolve(withHash(id === '5' ? null : 'o')),
+    );
+    stash.rescanForPreviews.mockRejectedValueOnce(new Error('Stash is busy'));
+    const result = await service.generateFor(['4', '5']);
+    expect(stash.rescanForPreviews).toHaveBeenCalledWith(config, ['4']);
+    expect(result.jobId).toBe('7');
+    expect(result.warning).toContain('hover previews wasn’t asked for');
+  });
+
+  it('asks for no rescan when no scene can be made again', async () => {
+    stash.getOrganizerScene.mockResolvedValue(withHash(null));
+    await service.generateFor(['4']);
+    expect(stash.rescanForPreviews).not.toHaveBeenCalled();
   });
 
   it('says when the covers couldn’t be asked for, keeping the job that started', async () => {
