@@ -154,6 +154,22 @@ export class SmallerCopiesController {
     return this.smaller.grabListed(stashSceneId);
   }
 
+  /** Look at a scene again on the next search. */
+  @Post('scenes/:stashSceneId/recheck')
+  @HttpCode(200)
+  recheck(
+    @Param('stashSceneId') stashSceneId: string,
+  ): Promise<SmallerCopiesDto> {
+    return this.smaller.recheck(stashSceneId);
+  }
+
+  /** Look at every scene again, a few an hour as usual. */
+  @Post('recheck')
+  @HttpCode(200)
+  recheckAll(): Promise<SmallerCopiesDto> {
+    return this.smaller.recheckAll();
+  }
+
   /** Look for the next scene now, without waiting for the hourly spacing. */
   @Post('next')
   @HttpCode(200)

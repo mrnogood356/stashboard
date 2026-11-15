@@ -38,6 +38,19 @@
       <button
         type="button"
         role="tab"
+        [class.active]="tab() === 'tried'"
+        [attr.aria-selected]="tab() === 'tried'"
+        data-testid="better-tab-tried"
+        (click)="tab.set('tried')"
+      >
+        Tried
+        @if (triedCount('failed') > 0) {
+          <span class="count">{{ triedCount('failed') }} failed</span>
+        }
+      </button>
+      <button
+        type="button"
+        role="tab"
         [class.active]="tab() === 'rules'"
         [attr.aria-selected]="tab() === 'rules'"
         data-testid="better-tab-rules"
@@ -106,7 +119,30 @@
             >
               {{ searching() ? 'Searching…' : 'Search one now' }}
             </button>
+            <button
+              type="button"
+              class="btn small"
+              data-testid="better-recheck-all"
+              [class.danger]="confirmingRecheckAll()"
+              [disabled]="recheckingAll()"
+              (click)="recheckAll()"
+              (blur)="confirmingRecheckAll.set(false)"
+            >
+              {{
+                recheckingAll()
+                  ? 'Working…'
+                  : confirmingRecheckAll()
+                    ? 'Tap again to check all'
+                    : 'Check all again'
+              }}
+            </button>
           </div>
+          @if (confirmingRecheckAll()) {
+            <p class="muted small" data-testid="better-recheck-all-note">
+              Every scene already looked at is due again, a few an hour as usual. Releases already
+              tried, failed ones too, aren’t grabbed again.
+            </p>
+          }
         </section>
 
         <h2 class="recent-title">Recent</h2>
@@ -148,10 +184,88 @@
                   >
                     {{ isGrabbing(row.stashSceneId) ? 'Grabbing…' : 'Grab' }}
                   </button>
+                } @else if (row.outcome !== 'grabbed' && row.outcome !== 'replaced') {
+                  <button
+                    type="button"
+                    class="btn small"
+                    [attr.data-testid]="'recheck-' + row.stashSceneId"
+                    [disabled]="isRechecking(row.stashSceneId)"
+                    (click)="recheck(row.stashSceneId)"
+                  >
+                    {{ isRechecking(row.stashSceneId) ? 'Working…' : 'Check again' }}
+                  </button>
                 }
               </li>
             }
           </ul>
+        }
+      }
+
+      @case ('tried') {
+        <p class="muted tried-lede">
+          Every release grabbed for a scene and how it ended. One that failed is never grabbed again
+          for that scene: it’s taken off the Downloads list by itself, and another release is looked
+          for on the next search.
+        </p>
+        <div class="tried-filters" role="group" aria-label="Show">
+          @for (filter of triedFilters; track filter.id) {
+            <button
+              type="button"
+              class="chip"
+              [class.active]="triedFilter() === filter.id"
+              [attr.aria-pressed]="triedFilter() === filter.id"
+              [attr.data-testid]="'tried-filter-' + filter.id"
+              (click)="triedFilter.set(filter.id)"
+            >
+              {{ filter.label }} <span class="count">{{ triedCount(filter.id) }}</span>
+            </button>
+          }
+        </div>
+        @if (tried().length === 0) {
+          <p class="muted">Nothing here yet.</p>
+        } @else {
+          <ul class="recent">
+            @for (row of tried(); track row.id) {
+              <li class="panel attempt" [attr.data-testid]="'try-' + row.id">
+                <div class="attempt-head">
+                  <a class="attempt-title" [routerLink]="['/library/scene', row.stashSceneId]">{{
+                    row.title
+                  }}</a>
+                  <span class="badge" [attr.data-outcome]="row.outcome">{{
+                    row.outcome === 'grabbed' ? 'On the way' : outcomeLabel(row.outcome)
+                  }}</span>
+                </div>
+                @if (row.releaseTitle) {
+                  <p class="release">{{ row.releaseTitle }}</p>
+                }
+                @if (row.detail) {
+                  <p class="muted small">{{ row.detail }}</p>
+                }
+                <p class="muted small">
+                  {{ when(row.at) }}
+                  @if (row.oldSize) {
+                    · {{ gb(row.oldSize) }}
+                    @if (row.newSize) {
+                      → {{ gb(row.newSize) }}
+                    }
+                  }
+                </p>
+                @if (row.outcome === 'failed' || row.outcome === 'kept-both') {
+                  <button
+                    type="button"
+                    class="btn small"
+                    [disabled]="isRechecking(row.stashSceneId)"
+                    (click)="recheck(row.stashSceneId)"
+                  >
+                    {{ isRechecking(row.stashSceneId) ? 'Working…' : 'Look for another' }}
+                  </button>
+                }
+              </li>
+            }
+          </ul>
+          @if (triedCount(triedFilter()) > tried().length) {
+            <p class="muted small">The newest {{ tried().length }} are shown.</p>
+          }
         }
       }
 
