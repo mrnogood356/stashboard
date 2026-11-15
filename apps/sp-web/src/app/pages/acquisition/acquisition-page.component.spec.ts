@@ -649,6 +649,51 @@ describe('AcquisitionPageComponent', () => {
     expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
   });
 
+  it('fetches the cards again when a download finishes while a fetch is on its way', async () => {
+    const queued = buildItem({
+      id: 'scene-queued',
+      status: { state: 'REQUESTED' },
+      queueState: null,
+    });
+    const { component, acquisitionService, downloadsApi } = await renderPage({
+      responses: { ANY: buildResponse([queued]) },
+      handoffs: [handoff({ id: 'h-q', sceneId: 'scene-queued', stage: 'linking' })],
+    });
+    const live = component as unknown as { liveRefresh(): void };
+    const done = {
+      handoff: {
+        enabled: true,
+        sabnzbdReady: true,
+        category: 'stashboard',
+        sabnzbdUnreachable: false,
+      },
+      handoffs: [],
+      recentHandoffs: [],
+      dropIns: { watch: {}, active: [], recent: [] },
+      activeCount: 0,
+      problemCount: 0,
+    } as unknown as Processing;
+    const processing = new Subject<Processing>();
+    downloadsApi.processing.mockReturnValue(processing);
+    const feedReply = new Subject<AcquisitionScenesResponse>();
+    acquisitionService.getScenesFeed.mockClear();
+    acquisitionService.getScenesFeed.mockReturnValueOnce(feedReply);
+
+    // The cards are fetched while the download is still moving…
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
+    // …it finishes before they arrive, and they hold the earlier step.
+    processing.next(done);
+    feedReply.next(buildResponse([queued]));
+    feedReply.complete();
+
+    downloadsApi.processing.mockReturnValue(of(done));
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(2);
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(2);
+  });
+
   it('tries the cards again when the refresh after a finished download fails', async () => {
     const queued = buildItem({
       id: 'scene-queued',

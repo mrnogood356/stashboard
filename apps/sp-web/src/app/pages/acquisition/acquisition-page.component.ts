@@ -209,7 +209,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
         // card shows where the scene is now rather than its last step.
         const after = this.activeCardHandoffs();
         if ([...before].some((sceneId) => !after.has(sceneId))) {
-          this.cardHandoffFinished = true;
+          this.handoffFinishes += 1;
         }
       },
       // Keep what is shown; the next refresh tries again.
@@ -417,8 +417,13 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
   private liveTimer: ReturnType<typeof setInterval> | null = null;
   private liveRefreshing = false;
-  /** A card's download finished since the cards were last fetched. */
-  private cardHandoffFinished = false;
+  /**
+   * Card downloads that finished, and how many of them a fetch of the cards
+   * has caught up with. A finish while a fetch is on its way isn't counted
+   * as caught up: that fetch may hold the card's earlier step.
+   */
+  private handoffFinishes = 0;
+  private handoffFinishesFetched = 0;
 
   @ViewChild('loadMoreSentinel')
   set loadMoreSentinel(elementRef: ElementRef<HTMLDivElement> | undefined) {
@@ -1155,7 +1160,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       (typeof document !== 'undefined' && document.visibilityState === 'hidden') ||
       (!this.items().some((item) => item.status.state === 'DOWNLOADING') &&
         !this.cardHasActiveHandoff() &&
-        !this.cardHandoffFinished)
+        this.handoffFinishes === this.handoffFinishesFetched)
     ) {
       return;
     }
@@ -1164,6 +1169,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     const loaded = pageAtStart * AcquisitionPageComponent.PAGE_SIZE;
     const replace = loaded <= LIVE_REFRESH_MAX;
     const version = this.feedVersion;
+    const finishes = this.handoffFinishes;
     this.liveRefreshing = true;
     this.acquisitionService
       .getScenesFeed(
@@ -1177,7 +1183,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
         next: (response) => {
           // A reload since then fetched every card afresh anyway.
           if (version !== this.feedVersion) {
-            this.cardHandoffFinished = false;
+            this.handoffFinishesFetched = Math.max(this.handoffFinishesFetched, finishes);
             return;
           }
           // Another page loaded since then wins: replacing the list now would
@@ -1185,9 +1191,9 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
           if (this.inFlight() || this.page() !== pageAtStart) {
             return;
           }
-          // Cleared only once the cards are fetched: a failed request leaves
-          // it set, so the next tick tries again.
-          this.cardHandoffFinished = false;
+          // Caught up only once the cards are fetched: after a failed request
+          // the next tick tries again.
+          this.handoffFinishesFetched = Math.max(this.handoffFinishesFetched, finishes);
           this.countsByLifecycle.set(response.countsByLifecycle);
           if (replace) {
             this.total.set(response.total);
