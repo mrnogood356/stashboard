@@ -657,8 +657,9 @@ export class LocalLibraryService {
           (print) => print.type === want && !!print.value,
         ),
       ),
-      // A scene Stash didn't answer for, not one it says has no hash.
-      unknown: scenes.filter((scene) => scene === undefined).length,
+      // A scene Stash didn't answer for or didn't find, not one it says
+      // has no hash.
+      unknown: scenes.filter((scene) => !scene).length,
     };
   }
 

@@ -274,9 +274,12 @@ describe('LocalLibraryService', () => {
     stash.getOrganizerScene.mockImplementation((_config, id: string) =>
       id === '6'
         ? Promise.reject(new Error('down'))
-        : Promise.resolve(withHash(id === '5' ? null : 'o')),
+        : // Stash finds no scene 7 at all.
+          Promise.resolve(
+            id === '7' ? null : withHash(id === '5' ? null : 'o'),
+          ),
     );
-    const result = await service.generateFor(['4', '5', '6']);
+    const result = await service.generateFor(['4', '5', '6', '7']);
     expect(stash.startLibraryTask).toHaveBeenNthCalledWith(
       1,
       config,
@@ -285,7 +288,7 @@ describe('LocalLibraryService', () => {
       { now: true, overwrite: true },
     );
     expect(result.warning).toContain(
-      '1 scene couldn’t be made again: Stash didn’t say',
+      '2 scenes couldn’t be made again: Stash didn’t say',
     );
     expect(result.warning).toContain(
       '1 scene couldn’t be made again: its file has no hash',
