@@ -118,14 +118,19 @@ export class MergePageComponent implements OnInit {
   }
 
   protected setKeep(set: MergeSet, id: string): void {
-    // What you left unticked stays unticked. The one kept before is ticked in
-    // only when both are surely the same as the suggested keeper (and so as
-    // each other); tied only through an alias, that's for you to tick.
+    // Two are surely one only when both surely are the suggested keeper. So
+    // with a sure keeper, the one kept before joins if it's sure too; with
+    // one tied only through an alias, no sure tick holds and they're left for
+    // you. What you left unticked stays unticked either way.
     const merge = new Set(set.merge);
     const before = set.items.find((item) => item.id === set.keepId);
     const after = set.items.find((item) => item.id === id);
-    if (before && after && isSure(before) && isSure(after)) {
-      merge.add(set.keepId);
+    if (after && isSure(after)) {
+      if (before && isSure(before)) {
+        merge.add(set.keepId);
+      }
+    } else {
+      set.items.filter(isSure).forEach((item) => merge.delete(item.id));
     }
     merge.delete(id);
     this.update(set, { keepId: id, merge });
