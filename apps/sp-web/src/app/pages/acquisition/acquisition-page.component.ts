@@ -203,7 +203,14 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
         const failed = processing.recentHandoffs.filter(
           (handoff) => handoff.stage === 'failed' && Date.parse(handoff.updatedAt) >= since,
         );
+        const before = this.activeCardHandoffs();
         this.handoffs.set([...active, ...failed]);
+        // A card's download just finished: fetch the cards once more, so the
+        // card shows where the scene is now rather than its last step.
+        const after = this.activeCardHandoffs();
+        if ([...before].some((sceneId) => !after.has(sceneId))) {
+          this.cardHandoffFinished = true;
+        }
       },
       // Keep what is shown; the next refresh tries again.
       error: () => undefined,
@@ -233,12 +240,21 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
    * the card's own step moves with it, so it's fetched again too.
    */
   private cardHasActiveHandoff(): boolean {
+    return this.activeCardHandoffs().size > 0;
+  }
+
+  /** Scenes on screen whose download is on its way. */
+  private activeCardHandoffs(): Set<string> {
     const active = new Set(
       this.handoffs()
         .filter((handoff) => handoff.sceneId && ACTIVE_HANDOFF_STAGES.includes(handoff.stage))
-        .map((handoff) => handoff.sceneId),
+        .map((handoff) => handoff.sceneId as string),
     );
-    return active.size > 0 && this.items().some((item) => active.has(item.id));
+    return new Set(
+      this.items()
+        .map((item) => item.id)
+        .filter((id) => active.has(id)),
+    );
   }
   private readonly notifications = inject(AppNotificationsService);
   private readonly timelineApi = inject(TimelineApiService);
@@ -401,6 +417,8 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
   private liveTimer: ReturnType<typeof setInterval> | null = null;
   private liveRefreshing = false;
+  /** A card's download finished since the cards were last fetched. */
+  private cardHandoffFinished = false;
 
   @ViewChild('loadMoreSentinel')
   set loadMoreSentinel(elementRef: ElementRef<HTMLDivElement> | undefined) {
@@ -1136,7 +1154,8 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
       this.selectedLifecycle() === 'AVAILABLE' ||
       (typeof document !== 'undefined' && document.visibilityState === 'hidden') ||
       (!this.items().some((item) => item.status.state === 'DOWNLOADING') &&
-        !this.cardHasActiveHandoff())
+        !this.cardHasActiveHandoff() &&
+        !this.cardHandoffFinished)
     ) {
       return;
     }
@@ -1145,6 +1164,7 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
     const loaded = pageAtStart * AcquisitionPageComponent.PAGE_SIZE;
     const replace = loaded <= LIVE_REFRESH_MAX;
     const version = this.feedVersion;
+    this.cardHandoffFinished = false;
     this.liveRefreshing = true;
     this.acquisitionService
       .getScenesFeed(

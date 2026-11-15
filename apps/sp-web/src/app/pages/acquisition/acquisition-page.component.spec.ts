@@ -612,6 +612,43 @@ describe('AcquisitionPageComponent', () => {
     expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
   });
 
+  it('fetches the cards once more after a card’s hidden download finishes', async () => {
+    const queued = buildItem({
+      id: 'scene-queued',
+      status: { state: 'REQUESTED' },
+      queueState: null,
+    });
+    const { component, acquisitionService, downloadsApi } = await renderPage({
+      responses: { ANY: buildResponse([queued]) },
+      handoffs: [handoff({ id: 'h-q', sceneId: 'scene-queued', stage: 'linking' })],
+    });
+    const live = component as unknown as { liveRefresh(): void };
+
+    // The download finishes: the handoff leaves the active list.
+    downloadsApi.processing.mockReturnValue(
+      of({
+        handoff: {
+          enabled: true,
+          sabnzbdReady: true,
+          category: 'stashboard',
+          sabnzbdUnreachable: false,
+        },
+        handoffs: [],
+        recentHandoffs: [],
+        dropIns: { watch: {}, active: [], recent: [] },
+        activeCount: 0,
+        problemCount: 0,
+      } as unknown as Processing),
+    );
+    acquisitionService.getScenesFeed.mockClear();
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
+
+    // Once only: nothing is moving any more.
+    live.liveRefresh();
+    expect(acquisitionService.getScenesFeed).toHaveBeenCalledTimes(1);
+  });
+
   it('doesn’t list a download again when its scene already has a card below', async () => {
     const { fixture } = await renderPage({
       handoffs: [handoff(), handoff({ id: 'h-dup', sceneId: 'scene-downloading' })],
