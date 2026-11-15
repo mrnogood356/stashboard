@@ -118,9 +118,15 @@ export class MergePageComponent implements OnInit {
   }
 
   protected setKeep(set: MergeSet, id: string): void {
-    // What you left unticked stays unticked; the one kept before is ticked in.
+    // What you left unticked stays unticked. The one kept before is ticked in
+    // only when both are surely the same as the suggested keeper (and so as
+    // each other); tied only through an alias, that's for you to tick.
     const merge = new Set(set.merge);
-    merge.add(set.keepId);
+    const before = set.items.find((item) => item.id === set.keepId);
+    const after = set.items.find((item) => item.id === id);
+    if (before && after && isSure(before) && isSure(after)) {
+      merge.add(set.keepId);
+    }
     merge.delete(id);
     this.update(set, { keepId: id, merge });
   }
@@ -238,11 +244,7 @@ export class MergePageComponent implements OnInit {
             // for you, even when it matches another entry by name.
             merge: new Set(
               group.items
-                .filter(
-                  (item) =>
-                    item.id !== group.keepId &&
-                    (item.match?.sure ?? item.match?.reason !== 'alias'),
-                )
+                .filter((item) => item.id !== group.keepId && isSure(item))
                 .map((item) => item.id),
             ),
           })),
@@ -283,4 +285,9 @@ function nameKey(name: string): string {
     .toLowerCase()
     .replace(/&/g, 'and')
     .replace(/[^\p{L}\p{N}\p{M}]+/gu, '');
+}
+
+/** Tied to the suggested keeper by catalog entry or name, not only an alias. */
+function isSure(item: SetItem): boolean {
+  return item.match?.sure ?? item.match?.reason !== 'alias';
 }
