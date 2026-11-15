@@ -1475,11 +1475,13 @@ export class DownloadHandoffService {
     // there's no need to wait on it twice. Once it has finished it's used up
     // for every file that waited on it, and this one looks for itself.
     if ([...this.scans.values()].includes(job)) {
-      const queue = await this.stash.getJobQueue(config).catch(() => []);
-      const entry = queue.find((candidate) => candidate.id === job);
+      // Stash can't say how it stands: it may still be running, so wait on
+      // it rather than count a miss.
+      const queue = await this.stash.getJobQueue(config).catch(() => null);
+      const entry = queue?.find((candidate) => candidate.id === job);
       if (
-        entry &&
-        !['FINISHED', 'FAILED', 'CANCELLED'].includes(entry.status)
+        !queue ||
+        (entry && !['FINISHED', 'FAILED', 'CANCELLED'].includes(entry.status))
       ) {
         this.scans.set(file, job);
         throw new StashBusyError(folder);
