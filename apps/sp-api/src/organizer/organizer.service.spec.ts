@@ -1117,6 +1117,33 @@ describe('OrganizerService', () => {
       'sdb-a',
       false,
     );
+
+    // Whisparr already had a file for the first: nothing moved, so the file
+    // goes to the other one.
+    handoff.send.mockReset();
+    handoff.noteSharedFile.mockClear();
+    handoff.send
+      .mockResolvedValueOnce({
+        sent: [],
+        skipped: { 'already-has-file': 1 },
+        failed: [],
+        alreadyHad: ['sdb-a'],
+      })
+      .mockResolvedValueOnce({
+        sent: [{ sceneId: '31', title: 'Scene' }],
+        skipped: {},
+        failed: [],
+      });
+    service.startSendAll();
+    await waitUntilIdle(service);
+    const second = handoff.send.mock.calls[1] as [
+      unknown,
+      Array<{ stashIds: Array<{ stashId: string }> }>,
+    ];
+    expect(second[1].map((scene) => scene.stashIds[0].stashId)).toEqual([
+      'sdb-b',
+    ]);
+    expect(handoff.noteSharedFile).not.toHaveBeenCalled();
   });
 
   it('with new scenes added too, keeps a missing scene’s partner file over its own fileless scene', async () => {
