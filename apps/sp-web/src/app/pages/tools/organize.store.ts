@@ -384,6 +384,10 @@ export class OrganizeStore implements OnDestroy {
     this.api
       .settings()
       .subscribe({ next: (settings) => this.settings.set(settings), error: () => undefined });
+    // What was just sent is no longer missing: the open list says so.
+    if (run.kind === 'whisparr' && this.isOpen('missing')) {
+      this.files.loadMissingInWhisparr();
+    }
     if (run.kind === 'match') {
       this.list.reviewKey.update((key) => key + 1);
       this.loadWaiting();

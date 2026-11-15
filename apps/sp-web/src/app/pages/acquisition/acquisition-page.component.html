@@ -286,10 +286,14 @@
               }
             </div>
 
-            @if (section.lifecycle === 'IMPORT_PENDING') {
+            <!-- All tracked sorted by title or date has one ANY section, with
+                 the waiting cards' actions in it: their errors show there. -->
+            @if (section.lifecycle === 'IMPORT_PENDING' || section.lifecycle === 'ANY') {
               @if (waitingCheckError(); as checkError) {
                 <p class="waiting-check-summary" role="alert">{{ checkError }}</p>
               }
+            }
+            @if (section.lifecycle === 'IMPORT_PENDING') {
               @if (waitingCheck(); as check) {
                 <div class="waiting-check" data-testid="waiting-check" role="status">
                   <p class="waiting-check-summary">

@@ -30,7 +30,14 @@
         </button>
         @if (store.isOpen('missing')) {
           <div class="todo-detail">
-            @if (files.missingInWhisparr(); as scenes) {
+            @if (files.missingInWhisparrFailed()) {
+              <p class="muted small" role="alert" data-testid="missing-in-whisparr-failed">
+                Couldn’t read the list.
+                <button type="button" class="link" (click)="files.loadMissingInWhisparr()">
+                  Try again
+                </button>
+              </p>
+            } @else if (files.missingInWhisparr(); as scenes) {
               <ul class="missing-list" data-testid="missing-in-whisparr">
                 @for (scene of scenes; track scene.stashId) {
                   <li>
@@ -46,6 +53,13 @@
                   </li>
                 }
               </ul>
+              @if (settings.missingInWhisparr > scenes.length) {
+                <p class="muted small" data-testid="missing-in-whisparr-more">
+                  Showing the first {{ scenes.length }};
+                  {{ settings.missingInWhisparr - scenes.length }}
+                  more aren’t listed.
+                </p>
+              }
             } @else {
               <p class="muted small" role="status">Looking…</p>
             }

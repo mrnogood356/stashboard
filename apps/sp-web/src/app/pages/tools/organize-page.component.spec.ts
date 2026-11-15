@@ -1234,6 +1234,36 @@ describe('OrganizePageComponent', () => {
     expect(list).toContain('Not tried yet');
   });
 
+  it('says when the missing list is cut short, and offers a retry when it can’t be read', async () => {
+    const missingInWhisparr = vi
+      .fn()
+      .mockReturnValueOnce(throwError(() => new Error('down')))
+      .mockReturnValue(
+        of([{ stashId: 'sdb-1', title: 'Angel', studio: null, reason: null, triedAt: null }]),
+      );
+    const api = renameApi({
+      settings: vi
+        .fn()
+        .mockReturnValue(of({ ...settings, whisparrAvailable: true, missingInWhisparr: 201 })),
+      missingInWhisparr,
+    });
+    const { fixture, root } = await render(api, 'overview', 'rename');
+    (root.querySelector('[data-testid="missing-in-whisparr-why"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const failed = root.querySelector('[data-testid="missing-in-whisparr-failed"]');
+    expect(failed?.textContent).toContain('Couldn’t read the list');
+    expect(root.querySelector('[data-testid="missing-in-whisparr"]')).toBeNull();
+
+    (failed?.querySelector('button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="missing-in-whisparr"]')?.textContent).toContain(
+      'Angel',
+    );
+    expect(root.querySelector('[data-testid="missing-in-whisparr-more"]')?.textContent).toContain(
+      '200 more',
+    );
+  });
+
   it('is two tools: Match scenes (Review, Settings) and Rename files (To do, Settings)', async () => {
     const api = renameApi();
     const match = await render(api, undefined, 'match');
