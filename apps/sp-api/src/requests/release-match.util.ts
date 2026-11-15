@@ -114,7 +114,11 @@ export function matchRelease(
   const studioConflict =
     studio.length >= 3 &&
     !studioMatch &&
-    otherStudioFirst(releaseWords, studio);
+    otherStudioFirst(
+      releaseWords,
+      studio,
+      new Set([...titleWords, ...performers.flat()]),
+    );
 
   const signals = [studioMatch, dateMatch, performerHits > 0, titleMatch];
   const count = signals.filter(Boolean).length;
@@ -211,19 +215,33 @@ function sameDate(left: DateParts, right: DateParts): boolean {
  * before its date ("TrueAnal" in "TrueAnal.26.10.21.Maddie.Wren"). Names
  * without a date up front say nothing either way.
  */
-function otherStudioFirst(releaseWords: string[], studio: string): boolean {
-  const dateAt = releaseWords.findIndex(
-    (word, index) =>
+function otherStudioFirst(
+  releaseWords: string[],
+  studio: string,
+  /** The scene's title and performer words: those in front aren't a studio. */
+  known: Set<string>,
+): boolean {
+  // The same shapes datesIn reads: YYYYMMDD, YY.MM.DD, YYYY.MM.DD, DD.MM.YYYY.
+  const dateAt = releaseWords.findIndex((word, index) => {
+    const [month, last] = releaseWords.slice(index + 1, index + 3);
+    return (
       /^\d{8}$/.test(word) ||
-      (/^(\d{2}|\d{4})$/.test(word) &&
-        /^\d{2}$/.test(releaseWords[index + 1] ?? '') &&
-        /^\d{2}$/.test(releaseWords[index + 2] ?? '')),
-  );
+      (/^\d{2}$/.test(month ?? '') &&
+        ((/^(\d{2}|\d{4})$/.test(word) && /^\d{2}$/.test(last ?? '')) ||
+          (/^\d{2}$/.test(word) && /^\d{4}$/.test(last ?? ''))))
+    );
+  });
   // A studio is a word or three in front; a longer run is a title.
   if (dateAt <= 0 || dateAt > 3) {
     return false;
   }
-  const prefix = releaseWords.slice(0, dateAt).join('');
+  const front = releaseWords.slice(0, dateAt);
+  // "Sunset.Rendezvous.24.03.15…" or "Maddie.Wren.26.10.21…": the scene's
+  // own title or performer in front, not another studio.
+  if (front.every((word) => known.has(word))) {
+    return false;
+  }
+  const prefix = front.join('');
   if (prefix.length < 3) {
     return false;
   }
