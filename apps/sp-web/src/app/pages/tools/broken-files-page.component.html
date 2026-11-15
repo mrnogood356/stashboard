@@ -72,6 +72,15 @@
                         }
                       </ul>
                     }
+                    <button
+                      type="button"
+                      class="link-button skip"
+                      [attr.data-testid]="'skip-' + list.kind + '-' + scene.id"
+                      [disabled]="skipping().has(list.kind + ':' + scene.id) || busy() !== null"
+                      (click)="skip(list, scene)"
+                    >
+                      Skip
+                    </button>
                   </li>
                 }
               </ul>
@@ -105,5 +114,11 @@
         }
       }
     </ul>
+  }
+  @if (skippedCount() > 0 && !loading()) {
+    <p class="muted skipped-note" data-testid="skipped-note">
+      {{ skippedCount() }} {{ skippedCount() === 1 ? 'scene' : 'scenes' }} skipped.
+      <button type="button" class="link-button" (click)="showSkipped()">Show them again</button>
+    </p>
   }
 </main>

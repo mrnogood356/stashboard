@@ -112,10 +112,17 @@
   font-variant-numeric: tabular-nums;
 }
 
-.copy > .btn,
+.copy-actions,
 .keep-note {
   grid-area: action;
   justify-self: end;
+}
+
+.copy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
 }
 
 .keep-note {
@@ -163,10 +170,14 @@
     row-gap: 0.3rem;
   }
 
-  .copy > .btn,
+  .copy-actions,
   .keep-note {
     justify-self: start;
     margin-top: 0.3rem;
+  }
+
+  .copy-actions {
+    justify-content: flex-start;
   }
 }
 

@@ -155,6 +155,44 @@ describe('DuplicatesPageComponent', () => {
     ]);
   });
 
+  it('lets you keep another copy, so the best one can be removed', async () => {
+    const groups: DuplicateGroup[] = [
+      {
+        suggestedKeepId: 'a',
+        keepReason: 'Highest resolution.',
+        scenes: [scene('a', 2160), scene('b', 1080), scene('c', 720)],
+      },
+    ];
+    const library = {
+      duplicates: vi.fn().mockReturnValue(of(groups)),
+      deleteScene: vi.fn().mockReturnValue(of(undefined)),
+    };
+    const { fixture, root } = await render(library);
+
+    root
+      .querySelectorAll<HTMLButtonElement>('.copy')[1]
+      .querySelector<HTMLButtonElement>('[data-testid="keep-instead"]')!
+      .click();
+    fixture.detectChanges();
+    const [best, picked] = Array.from(root.querySelectorAll('.copy'));
+    // Still marked the best, but no longer kept: it can be removed now.
+    expect(best.textContent).toContain('Best copy');
+    expect(best.textContent).toContain('Remove this copy');
+    expect(picked.classList).toContain('best');
+    expect(picked.textContent).toContain('Your pick over the best copy');
+    expect(picked.querySelector('button')).toBeNull();
+
+    // Removing the rest keeps your pick, and carries details over to it.
+    root.querySelector<HTMLButtonElement>('[data-testid="remove-extras"]')!.click();
+    fixture.detectChanges();
+    button(root, 'Remove from Stash only').click();
+    await settle(fixture);
+    expect(library.deleteScene.mock.calls).toEqual([
+      ['a', false, false, 'b'],
+      ['c', false, false, 'b'],
+    ]);
+  });
+
   it('cancel closes the sheet without removing anything', async () => {
     const groups: DuplicateGroup[] = [
       { suggestedKeepId: 'a', scenes: [scene('a', 1080), scene('b', 720)] },
