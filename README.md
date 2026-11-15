@@ -182,7 +182,9 @@ docker compose up -d
 
 If you pin releases, change the image tag in `compose.yaml` to the target `vX.Y.Z` first, then run the same commands. Stashboard applies Prisma migrations automatically when the app container starts.
 
-Stashboard no longer runs as root: it runs as `PUID`/`PGID` (default `99`/`100`) and takes ownership of its data volume on the first start. If your media isn't owned by `99`/`100`, set `PUID` and `PGID` to its owner, or folder cleanup won't be able to remove anything.
+Stashboard runs as `PUID`/`PGID` (default `99`/`100`) and takes ownership of its data volume on the first start. It can only move, rename or delete media its user is allowed to change, so set `PUID` and `PGID` to whoever owns your media. Otherwise downloads can't be placed, renames and folder cleanup fail, and deletes from Broken files and Duplicates don't go through.
+
+Using the official Stash image, which runs as root? Its files are usually owned by root, so set `PUID=0` and `PGID=0` to run Stashboard as root too.
 
 ## Rollback
 
