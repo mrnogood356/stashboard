@@ -807,6 +807,10 @@ describe('DownloadHandoffService', () => {
         update.mock.calls[0] as [{ data: Record<string, unknown> }]
       )[0].data;
       expect(data).toMatchObject({ outcome: 'failed' });
+      // Due again straight away, so another release is looked for next.
+      expect((data.retryAfter as Date).getTime()).toBeLessThanOrEqual(
+        Date.now(),
+      );
       // The release stays on the grabbed list: it isn't tried again.
       expect(data).not.toHaveProperty('grabbedGuids');
       expect(tried).toHaveBeenCalledWith({

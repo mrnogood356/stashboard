@@ -1780,9 +1780,9 @@ export class DownloadHandoffService {
       return;
     }
     // The release stays on the scene's grabbed list: one that failed once
-    // isn't grabbed again. Another release can be looked for in a day.
+    // isn't grabbed again. Another release is looked for on the next search.
     const detail =
-      `The download failed: ${failed} This release won’t be grabbed again.`.slice(
+      `The download failed: ${failed} This release won’t be grabbed again; another is looked for next.`.slice(
         0,
         300,
       );
@@ -1804,7 +1804,8 @@ export class DownloadHandoffService {
         data: {
           outcome: 'failed',
           detail,
-          retryAfter: new Date(Date.now() + 24 * 60 * 60_000),
+          // Due straight away: the next search picks another release.
+          retryAfter: new Date(),
         },
       })
       .catch(() => undefined);
