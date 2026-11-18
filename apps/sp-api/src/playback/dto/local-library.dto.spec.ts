@@ -23,5 +23,8 @@ describe('UpdateLocalSceneDto', () => {
     expect(isCalendarDate('1900-02-29')).toBe(false);
     expect(isCalendarDate('2025-12-31')).toBe(true);
     expect(isCalendarDate('2025-13-01')).toBe(false);
+    // Early years are years too, not 1900–1999.
+    expect(isCalendarDate('0096-02-29')).toBe(true);
+    expect(isCalendarDate('0097-02-29')).toBe(false);
   });
 });

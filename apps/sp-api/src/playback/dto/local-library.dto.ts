@@ -344,7 +344,9 @@ export function isCalendarDate(value: string): boolean {
     return false;
   }
   const [year, month, day] = match.slice(1).map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
+  const date = new Date(0);
+  // setUTCFullYear, not Date.UTC: that reads years 0–99 as 1900–1999.
+  date.setUTCFullYear(year, month - 1, day);
   return (
     date.getUTCFullYear() === year &&
     date.getUTCMonth() === month - 1 &&
