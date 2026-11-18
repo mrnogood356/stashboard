@@ -1,3 +1,5 @@
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { LibraryChangesInterceptor } from './library-changes/library-changes';
 import { FollowsModule } from './follows/follows.module';
 import { SuggestionsModule } from './suggestions/suggestions.module';
 import { PlaybackModule } from './playback/playback.module';
@@ -73,6 +75,10 @@ import { StudiosModule } from './studios/studios.module';
     LogsModule,
     AppearanceModule,
     BackupModule,
+  ],
+  providers: [
+    // Home's kept rows are built again after a change to the library.
+    { provide: APP_INTERCEPTOR, useClass: LibraryChangesInterceptor },
   ],
 })
 export class AppModule {}
