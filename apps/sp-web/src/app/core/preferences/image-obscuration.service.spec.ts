@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClient } from '@angular/common/http';
 import { signal } from '@angular/core';
-import { of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppLockService, type AppLockStatus } from '../app-lock/app-lock.service';
 import { ImageObscurationService } from './image-obscuration.service';
@@ -41,6 +41,7 @@ function setup(options: { phoneApp?: boolean; stored?: string | null } = {}) {
 describe('ImageObscurationService', () => {
   afterEach(() => {
     localStorage.removeItem('sp-images');
+    localStorage.removeItem('sp-images-unsent');
     document.documentElement.removeAttribute('data-images');
     TestBed.resetTestingModule();
   });
@@ -72,6 +73,38 @@ describe('ImageObscurationService', () => {
     answer(false);
     expect(eye.isObscured()).toBe(true);
     expect(put).toHaveBeenCalledWith('/api/app-lock/images', { obscured: true });
+  });
+
+  it('sends saves one at a time, so the last choice is the one kept', () => {
+    const { eye, put, answer } = setup();
+    answer(false);
+    const first = new Subject<void>();
+    put.mockReturnValueOnce(first).mockReturnValue(of(undefined));
+    eye.setMode('obscured');
+    eye.setMode('clear');
+    // The second waits for the first to be answered.
+    expect(put).toHaveBeenCalledTimes(1);
+    first.next();
+    first.complete();
+    expect(put).toHaveBeenCalledTimes(2);
+    expect(put).toHaveBeenLastCalledWith('/api/app-lock/images', { obscured: false });
+    expect(localStorage.getItem('sp-images-unsent')).toBeNull();
+  });
+
+  it('sends a change the server never got again, instead of taking the server’s older copy', () => {
+    const first = setup();
+    first.answer(false);
+    first.put.mockReturnValue(throwError(() => new Error('offline')));
+    first.eye.setMode('obscured');
+    expect(localStorage.getItem('sp-images-unsent')).toBe('1');
+    TestBed.resetTestingModule();
+
+    // Next time the app opens, the server still says clear.
+    const again = setup();
+    again.answer(false);
+    expect(again.eye.isObscured()).toBe(true);
+    expect(again.put).toHaveBeenCalledWith('/api/app-lock/images', { obscured: true });
+    expect(localStorage.getItem('sp-images-unsent')).toBeNull();
   });
 
   it('leaves a browser on a computer to its own setting', () => {

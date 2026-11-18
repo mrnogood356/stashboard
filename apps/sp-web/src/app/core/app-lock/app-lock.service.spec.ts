@@ -141,22 +141,37 @@ describe('AppLockService', () => {
     service.start();
     await load(status({ enabled: false, hideInSwitcher: true }));
     const shielded = () => document.documentElement.classList.contains('app-shielded');
-    const touch = (type: string, clientY: number) => {
+    const touch = (type: string, identifier: number, clientY: number) => {
       const event = new Event(type);
-      Object.defineProperty(event, 'touches', {
-        value: type === 'touchend' ? [] : [{ clientY }],
-      });
+      Object.defineProperty(event, 'changedTouches', { value: [{ identifier, clientY }] });
       document.dispatchEvent(event);
     };
 
-    touch('touchstart', window.innerHeight - 5);
+    touch('touchstart', 1, window.innerHeight - 5);
     expect(shielded()).toBe(true);
     // Only a tap there after all: the cover comes down again.
-    touch('touchend', window.innerHeight - 5);
+    touch('touchend', 1, window.innerHeight - 5);
     expect(shielded()).toBe(false);
 
     // A touch higher up never raises it.
-    touch('touchstart', window.innerHeight / 2);
+    touch('touchstart', 2, window.innerHeight / 2);
+    expect(shielded()).toBe(false);
+
+    // Another finger touching and lifting while the strip's finger is still
+    // down doesn't take the cover down; only that finger lifting does.
+    touch('touchstart', 3, window.innerHeight - 5);
+    touch('touchstart', 4, window.innerHeight / 2);
+    touch('touchend', 4, window.innerHeight / 2);
+    expect(shielded()).toBe(true);
+    touch('touchend', 3, window.innerHeight - 5);
+    expect(shielded()).toBe(false);
+
+    // iOS takes the strip's finger over (it never lifts): the next ordinary
+    // touch, the app having stayed, still takes the cover down.
+    touch('touchstart', 5, window.innerHeight - 5);
+    document.dispatchEvent(new Event('touchcancel'));
+    expect(shielded()).toBe(true);
+    touch('touchstart', 6, window.innerHeight / 2);
     expect(shielded()).toBe(false);
     userAgent.mockRestore();
   });

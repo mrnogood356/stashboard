@@ -113,31 +113,46 @@ export class AppLockService implements OnDestroy {
       // Only iPhones with the home bar (a safe area at the bottom): on one
       // with a Home button that strip is the tab bar's labels.
       const hasHomeBar = this.bottomSafeArea() > 0;
-      const homeSwipe = { started: false };
+      // The finger that started on the strip, while it's down.
+      const homeSwipe: { touch: number | null } = { touch: null };
       const startTouch = (event: Event) => {
         if (document.visibilityState !== 'visible') {
           return;
         }
-        const touch = (event as TouchEvent).touches?.[0];
-        homeSwipe.started =
-          hasHomeBar && !!touch && touch.clientY >= window.innerHeight - HOME_SWIPE_STRIP_PX;
-        if (homeSwipe.started) {
+        // The touches that started now, not every finger already down.
+        const started = Array.from((event as TouchEvent).changedTouches ?? []);
+        const onStrip = hasHomeBar
+          ? started.find((touch) => touch.clientY >= window.innerHeight - HOME_SWIPE_STRIP_PX)
+          : undefined;
+        if (onStrip) {
+          homeSwipe.touch = onStrip.identifier;
           this.raiseShield();
-        } else {
+        } else if (homeSwipe.touch === null) {
           // Any other touch means the app never left: the cover comes down.
           this.lowerShield();
         }
       };
       document.addEventListener('touchstart', startTouch, { passive: true });
       this.disposers.push(() => document.removeEventListener('touchstart', startTouch));
-      const endTouch = () => {
-        if (homeSwipe.started && document.visibilityState === 'visible') {
-          homeSwipe.started = false;
+      // Only that finger lifting as a tap takes the cover down again.
+      const endTouch = (event: Event) => {
+        const ended = Array.from((event as TouchEvent).changedTouches ?? []);
+        if (
+          homeSwipe.touch !== null &&
+          ended.some((touch) => touch.identifier === homeSwipe.touch) &&
+          document.visibilityState === 'visible'
+        ) {
+          homeSwipe.touch = null;
           this.lowerShield();
         }
       };
       document.addEventListener('touchend', endTouch, { passive: true });
       this.disposers.push(() => document.removeEventListener('touchend', endTouch));
+      // iOS took the finger over (the swipe went on): it never lifts, so
+      // forget it; the cover stays up until the app is really back.
+      const cancelTouch = () => (homeSwipe.touch = null);
+      document.addEventListener('touchcancel', cancelTouch, { passive: true });
+      this.disposers.push(() => document.removeEventListener('touchcancel', cancelTouch));
     }
   }
 

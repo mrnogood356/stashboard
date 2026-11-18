@@ -44,6 +44,11 @@ export class AppLockService {
     string,
     { value: LockSettings; at: number }
   >();
+  /**
+   * Bumped whenever a user's settings are saved: a read that started before
+   * the save doesn't put the old settings back in the cache.
+   */
+  private readonly settingsGeneration = new Map<string, number>();
 
   /** Sessions already marked as the phone app, to skip the write. */
   private readonly phoneAppSessions = new Set<string>();
@@ -172,7 +177,7 @@ export class AppLockService {
       create: { userId, imagesObscured: obscured },
       update: { imagesObscured: obscured },
     });
-    this.settingsCache.delete(userId);
+    this.forgetSettings(userId);
   }
 
   /** Locks this device now (sent by the app when it goes to the background). */
@@ -287,7 +292,7 @@ export class AppLockService {
       create: { userId, ...data },
       update: data,
     });
-    this.settingsCache.delete(userId);
+    this.forgetSettings(userId);
     this.logger.log(
       `App Lock settings saved: ${dto.enabled ? 'on' : 'off'}, locks after ${dto.timeoutSeconds}s${dto.pin ? ', new PIN' : ''}.`,
     );
@@ -303,6 +308,7 @@ export class AppLockService {
       return cached.value;
     }
 
+    const generation = this.settingsGeneration.get(userId) ?? 0;
     const row = await this.prisma.appLock.findUnique({ where: { userId } });
     const value: LockSettings = {
       enabled: row?.enabled ?? false,
@@ -311,7 +317,17 @@ export class AppLockService {
       hideInSwitcher: row?.hideInSwitcher ?? true,
       imagesObscured: row?.imagesObscured ?? null,
     };
-    this.settingsCache.set(userId, { value, at: Date.now() });
+    if ((this.settingsGeneration.get(userId) ?? 0) === generation) {
+      this.settingsCache.set(userId, { value, at: Date.now() });
+    }
     return value;
+  }
+
+  private forgetSettings(userId: string): void {
+    this.settingsCache.delete(userId);
+    this.settingsGeneration.set(
+      userId,
+      (this.settingsGeneration.get(userId) ?? 0) + 1,
+    );
   }
 }

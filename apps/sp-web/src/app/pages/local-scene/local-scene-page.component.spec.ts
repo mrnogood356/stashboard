@@ -173,6 +173,14 @@ describe('LocalScenePageComponent', () => {
     expect(root.querySelector('h1')?.textContent).toContain('Sunset Scene');
   });
 
+  it('shows an early year as itself, not as the 1900s', async () => {
+    const { root } = await render(
+      vi.fn().mockReturnValue(of(sceneDetails({ date: '0096-02-29' }))),
+    );
+    expect(root.querySelector('.meta-row')?.textContent).toContain('96');
+    expect(root.querySelector('.meta-row')?.textContent).not.toContain('1996');
+  });
+
   it('has a collapsed “Status details” panel for the Stash scene', async () => {
     diagnosticsApi.localScene.mockReset().mockReturnValue(of(null));
     const { root } = await render(vi.fn().mockReturnValue(of(sceneDetails())));

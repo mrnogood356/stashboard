@@ -374,7 +374,9 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
     if (!match) {
       return value;
     }
-    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    // setFullYear, not the constructor: that reads years 0–99 as 1900–1999.
+    const date = new Date(2000, 0, 1);
+    date.setFullYear(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
     return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   }
 

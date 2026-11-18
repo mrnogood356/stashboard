@@ -1,6 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { Injectable, Signal, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Subject, catchError, concatMap, of } from 'rxjs';
 import { AppLockService } from '../app-lock/app-lock.service';
 
 export type ImageObscurationMode = 'clear' | 'obscured';
@@ -10,6 +11,8 @@ export type ImageObscurationMode = 'clear' | 'obscured';
 })
 export class ImageObscurationService {
   private static readonly STORAGE_KEY = 'sp-images';
+  /** A change the server hasn't confirmed yet: sent again before its copy is believed. */
+  private static readonly UNSENT_KEY = 'sp-images-unsent';
 
   private readonly document = inject(DOCUMENT);
   private readonly http = inject(HttpClient);
@@ -19,12 +22,29 @@ export class ImageObscurationService {
   private synced = false;
   /** Changed on this device since it opened: that wins over the server's copy. */
   private changedHere = false;
+  /** Saves go one at a time, so the last choice is the one the server keeps. */
+  private readonly saves = new Subject<ImageObscurationMode>();
 
   readonly mode: Signal<ImageObscurationMode> = this.modeState.asReadonly();
   readonly isObscured = computed(() => this.modeState() === 'obscured');
 
   constructor() {
     this.initializeMode();
+    this.saves
+      .pipe(
+        concatMap((mode) =>
+          this.http
+            .put<void>('/api/app-lock/images', { obscured: mode === 'obscured' })
+            .pipe(catchError(() => of('failed' as const))),
+        ),
+      )
+      .subscribe((result) => {
+        this.queued = Math.max(0, this.queued - 1);
+        // Only once nothing newer is on its way does the change count as sent.
+        if (result !== 'failed' && this.queued === 0) {
+          this.removeStored(ImageObscurationService.UNSENT_KEY);
+        }
+      });
     // The installed phone app: iOS can clear the app's own storage (and the
     // eye with it), so the server keeps a copy, read once the app's status
     // comes in.
@@ -52,9 +72,13 @@ export class ImageObscurationService {
 
   private syncWithServer(stored: boolean | null): void {
     this.synced = true;
-    // Never sent yet, or changed here before the server answered: this
-    // device's setting goes up.
-    if (stored === null || this.changedHere) {
+    // Never sent yet, changed here before the server answered, or a change
+    // the server never got: this device's setting goes up.
+    if (
+      stored === null ||
+      this.changedHere ||
+      this.readStored(ImageObscurationService.UNSENT_KEY)
+    ) {
       this.saveToServer(this.modeState());
       return;
     }
@@ -70,9 +94,38 @@ export class ImageObscurationService {
     if (!this.appLock.isPhoneApp()) {
       return;
     }
-    this.http
-      .put<void>('/api/app-lock/images', { obscured: mode === 'obscured' })
-      .subscribe({ error: () => undefined });
+    // Marked unsent until the server confirms, so a save that fails is sent
+    // again next time instead of the server's older copy winning.
+    this.writeStored(ImageObscurationService.UNSENT_KEY, '1');
+    this.queued += 1;
+    this.saves.next(mode);
+  }
+
+  /** Saves sent and not yet answered. */
+  private queued = 0;
+
+  private readStored(key: string): string | null {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  private writeStored(key: string, value: string): void {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      // Nowhere to keep it: it's sent again only while the app stays open.
+    }
+  }
+
+  private removeStored(key: string): void {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Nothing to remove.
+    }
   }
 
   private initializeMode(): void {

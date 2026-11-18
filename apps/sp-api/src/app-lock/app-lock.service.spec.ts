@@ -71,6 +71,22 @@ describe('AppLockService', () => {
     expect((await service.getStatus('u1', 's1')).imagesObscured).toBe(true);
   });
 
+  it('doesn’t let a read from before a save put the old settings back in the cache', async () => {
+    let finishOldRead: (row: unknown) => void = () => undefined;
+    appLockFindUnique.mockImplementationOnce(
+      () => new Promise((resolve) => (finishOldRead = resolve)),
+    );
+    const oldRead = service.getSettings('u1');
+    appLockUpsert.mockResolvedValue({});
+    await service.setImagesObscured('u1', true);
+    finishOldRead({ userId: 'u1', imagesObscured: false });
+    expect((await oldRead).imagesObscured).toBe(false);
+
+    // The next read asks the database again and gets the saved value.
+    appLockFindUnique.mockResolvedValue({ userId: 'u1', imagesObscured: true });
+    expect((await service.getSettings('u1')).imagesObscured).toBe(true);
+  });
+
   it('never locks when App Lock is off', async () => {
     appLockFindUnique.mockResolvedValue(null);
     await expect(service.assertUnlocked('u1', 's1')).resolves.toBeUndefined();
