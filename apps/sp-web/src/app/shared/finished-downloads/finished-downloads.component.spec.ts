@@ -7,6 +7,7 @@ import {
   DownloadHandoffSettings,
 } from '../../core/api/download-handoff.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
+import { OrganizerApiService } from '../../core/api/organizer.service';
 import { FinishedDownloadsComponent } from './finished-downloads.component';
 
 function settings(overrides: Partial<DownloadHandoffSettings> = {}): DownloadHandoffSettings {
@@ -38,8 +39,10 @@ describe('FinishedDownloadsComponent', () => {
     options: {
       loaded?: DownloadHandoffSettings;
       ready?: boolean;
+      filingExample?: ReturnType<typeof vi.fn>;
     } = {},
   ) {
+    const organizer = { filingExample: options.filingExample ?? vi.fn().mockReturnValue(of(null)) };
     const api = {
       settings: vi.fn().mockReturnValue(of(options.loaded ?? settings())),
       update: vi.fn(),
@@ -51,6 +54,7 @@ describe('FinishedDownloadsComponent', () => {
         provideRouter([]),
         { provide: DownloadHandoffApiService, useValue: api },
         { provide: AppNotificationsService, useValue: notifications },
+        { provide: OrganizerApiService, useValue: organizer },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(FinishedDownloadsComponent);
@@ -61,7 +65,7 @@ describe('FinishedDownloadsComponent', () => {
     const root = fixture.nativeElement as HTMLElement;
     const input = (name: string) =>
       root.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement;
-    return { fixture, root, api, notifications, input };
+    return { fixture, root, api, notifications, input, organizer };
   }
 
   it('fills the form from the saved settings and lists Stash’s library folders', async () => {
@@ -75,6 +79,84 @@ describe('FinishedDownloadsComponent', () => {
     expect(input('importMode').value).toBe('move');
     expect(text(root)).toContain('A folder inside one of Stash’s library folders (/data)');
     expect(text(root)).not.toContain('Save & Test SABnzbd above first.');
+  });
+
+  it('shows where a finished download would be filed, for the folder typed in', async () => {
+    const filingExample = vi.fn((destination: string) =>
+      of(
+        destination === '/elsewhere'
+          ? {
+              title: 'Summer Afternoon',
+              landsAt: '/elsewhere/summer.mp4',
+              filedAt: null,
+              state: 'outside',
+              pattern: '{studio}/{title}',
+            }
+          : {
+              title: 'Summer Afternoon',
+              landsAt: '/data/downloads/summer.mp4',
+              filedAt: '/data/Bright Studio/Summer Afternoon.mp4',
+              state: 'ready',
+              pattern: '{studio}/{title}',
+            },
+      ),
+    );
+    const wait = () => new Promise((resolve) => setTimeout(resolve, 450));
+    const { fixture, root, input } = await render({ filingExample });
+    await wait();
+    fixture.detectChanges();
+    const example = () => text(root.querySelector('[data-testid="filing-example"]'));
+    expect(filingExample).toHaveBeenCalledWith('/data/downloads');
+    expect(example()).toContain(
+      '“Summer Afternoon” lands as /data/downloads/summer.mp4 and is filed at /data/Bright Studio/Summer Afternoon.mp4.',
+    );
+
+    const destination = input('destination') as HTMLInputElement;
+    destination.value = '/elsewhere';
+    destination.dispatchEvent(new Event('input'));
+    // The old folder's example goes at once, not when the new one comes.
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="filing-example"]')).toBeNull();
+    await wait();
+    fixture.detectChanges();
+    expect(example()).toContain(
+      'isn’t filed: that folder isn’t inside one of Stash’s library folders',
+    );
+
+    // Cleared: no example.
+    destination.value = '';
+    destination.dispatchEvent(new Event('input'));
+    await wait();
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="filing-example"]')).toBeNull();
+    expect(filingExample).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows the saved folder’s example after saving', async () => {
+    const filingExample = vi.fn((destination: string) =>
+      of({
+        title: 'T',
+        landsAt: `${destination}/t.mp4`,
+        filedAt: `${destination}/S/T/T.mp4`,
+        state: 'ready' as const,
+        pattern: '{studio}/{title}',
+      }),
+    );
+    const wait = () => new Promise((resolve) => setTimeout(resolve, 450));
+    const { fixture, root, api, input } = await render({ filingExample });
+    // The server keeps a tidied folder: its example is the one shown.
+    api.update.mockReturnValue(of(settings({ destination: '/data/saved' })));
+    const destination = input('destination') as HTMLInputElement;
+    destination.value = '/data/typed/';
+    destination.dispatchEvent(new Event('input'));
+    root.querySelector('form')!.dispatchEvent(new Event('submit'));
+    await wait();
+    fixture.detectChanges();
+    expect(destination.value).toBe('/data/saved');
+    expect(filingExample).toHaveBeenLastCalledWith('/data/saved');
+    expect(text(root.querySelector('[data-testid="filing-example"]'))).toContain(
+      'is filed at /data/saved/S/T/T.mp4',
+    );
   });
 
   it('asks for SABnzbd first when it isn’t ready', async () => {

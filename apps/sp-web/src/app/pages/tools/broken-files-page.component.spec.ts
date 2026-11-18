@@ -114,7 +114,83 @@ describe('BrokenFilesPageComponent', () => {
     reply.next({ jobId: '2' });
     fixture.detectChanges();
     expect(button().textContent).toContain('Started');
-    expect(notifications.success).toHaveBeenCalled();
+    // Followed on the page rather than "go and check Stash jobs".
+    expect(notifications.success).not.toHaveBeenCalled();
+    expect(root.querySelector('[data-testid="following"]')?.textContent).toContain(
+      'Generating in Stash',
+    );
+  });
+
+  it('follows the job it started and reads the list again once Stash is done', async () => {
+    vi.useFakeTimers();
+    try {
+      const problems = vi
+        .fn()
+        .mockReturnValueOnce(of([{ kind: 'generate', count: 1, scenes: scenes(1) }]))
+        .mockReturnValueOnce(of([{ kind: 'generate', count: 0, scenes: [] }]));
+      // Generate still running, then the rescan Stashboard asked for, then nothing.
+      const jobs = vi
+        .fn()
+        .mockReturnValue(of([]))
+        .mockReturnValueOnce(of([{ id: '2', status: 'RUNNING' }]))
+        .mockReturnValueOnce(of([{ id: '3', status: 'READY', byStashboard: true }]))
+        .mockReturnValueOnce(of([{ id: '9', status: 'RUNNING', byStashboard: false }]));
+      const generateFor = vi.fn().mockReturnValue(of({ jobId: '2' }));
+      const { fixture, root, notifications } = await render([], { problems, jobs, generateFor });
+      root.querySelector<HTMLButtonElement>('[data-testid="fix-generate-generate"]')!.click();
+      fixture.detectChanges();
+      expect(root.querySelector('[data-testid="following"]')).not.toBeNull();
+
+      vi.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(5000);
+      expect(problems).toHaveBeenCalledTimes(1);
+      // Someone else's job doesn't hold it up, but the rescan Generate asks
+      // for can still be on its way to Stash: clear three checks in a row.
+      vi.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(5000);
+      expect(problems).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(5000);
+      fixture.detectChanges();
+      expect(jobs).toHaveBeenCalledTimes(5);
+      expect(problems).toHaveBeenCalledTimes(2);
+      expect(problems).toHaveBeenLastCalledWith(true);
+      expect(notifications.success).toHaveBeenCalledWith(
+        'Generate is done',
+        'The list is up to date.',
+      );
+      expect(root.querySelector('[data-testid="following"]')).toBeNull();
+      expect(root.querySelector('[data-testid="problem-generate"]')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reads the lists afresh once a scan is done, and stops if the page is left first', async () => {
+    vi.useFakeTimers();
+    try {
+      const problems = vi
+        .fn()
+        .mockReturnValue(of([{ kind: 'file-check', count: 1, scenes: scenes(1) }]));
+      const jobs = vi.fn().mockReturnValue(of([]));
+      const startJob = vi.fn().mockReturnValue(of({ jobId: '4' }));
+      const { fixture, root } = await render([], { problems, jobs, startJob });
+      root.querySelector<HTMLButtonElement>('[data-testid="fix-file-check-scan"]')!.click();
+      vi.advanceTimersByTime(5000);
+      // A scan is done at the first clear check, and the background lists are checked again.
+      expect(problems).toHaveBeenLastCalledWith(true);
+
+      // Left while Stash was still being asked: the late answer starts nothing.
+      const reply = new Subject<{ jobId: string }>();
+      startJob.mockReturnValue(reply);
+      jobs.mockClear();
+      root.querySelector<HTMLButtonElement>('[data-testid="fix-file-check-scan"]')!.click();
+      fixture.destroy();
+      reply.next({ jobId: '5' });
+      vi.advanceTimersByTime(20_000);
+      expect(jobs).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('skips a scene on its list, and shows skipped scenes again', async () => {

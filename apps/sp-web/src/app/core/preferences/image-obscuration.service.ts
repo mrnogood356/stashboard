@@ -26,6 +26,11 @@ export class ImageObscurationService {
   private readonly saves = new Subject<ImageObscurationMode>();
 
   readonly mode: Signal<ImageObscurationMode> = this.modeState.asReadonly();
+  /**
+   * The server's copy (installed phone app only): not read yet, a save on
+   * its way, saved, or the last save failed (sent again on the next open).
+   */
+  readonly serverCopy = signal<'unknown' | 'saving' | 'saved' | 'failed'>('unknown');
   readonly isObscured = computed(() => this.modeState() === 'obscured');
 
   constructor() {
@@ -41,8 +46,11 @@ export class ImageObscurationService {
       .subscribe((result) => {
         this.queued = Math.max(0, this.queued - 1);
         // Only once nothing newer is on its way does the change count as sent.
-        if (result !== 'failed' && this.queued === 0) {
-          this.removeStored(ImageObscurationService.UNSENT_KEY);
+        if (this.queued === 0) {
+          if (result !== 'failed') {
+            this.removeStored(ImageObscurationService.UNSENT_KEY);
+          }
+          this.serverCopy.set(result === 'failed' ? 'failed' : 'saved');
         }
       });
     // The installed phone app: iOS can clear the app's own storage (and the
@@ -83,6 +91,7 @@ export class ImageObscurationService {
       return;
     }
     const mode: ImageObscurationMode = stored ? 'obscured' : 'clear';
+    this.serverCopy.set('saved');
     if (mode !== this.modeState()) {
       this.modeState.set(mode);
       this.persistMode(mode);
@@ -97,6 +106,7 @@ export class ImageObscurationService {
     // Marked unsent until the server confirms, so a save that fails is sent
     // again next time instead of the server's older copy winning.
     this.writeStored(ImageObscurationService.UNSENT_KEY, '1');
+    this.serverCopy.set('saving');
     this.queued += 1;
     this.saves.next(mode);
   }

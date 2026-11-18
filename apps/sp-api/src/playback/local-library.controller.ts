@@ -30,6 +30,8 @@ import {
   MergeEntitiesDto,
   IgnoreDuplicatesDto,
   PeopleSearchQueryDto,
+  CreatePersonDto,
+  LocalBulkEditDto,
   SkipProblemDto,
   ChaptersQueryDto,
   MergeQueryDto,
@@ -92,6 +94,13 @@ export class LocalLibraryController {
   @HttpCode(200)
   bulkScenes(@Body() body: LocalBulkScenesDto): Promise<LocalBulkResultDto> {
     return this.library.bulkScenes(body.action, body.sceneIds);
+  }
+
+  /** A studio, performers or tags on many scenes at once. */
+  @Post('scenes/bulk-edit')
+  @HttpCode(200)
+  bulkEditScenes(@Body() body: LocalBulkEditDto): Promise<{ edited: number }> {
+    return this.library.bulkEditScenes(body);
   }
 
   @Post('scenes/:sceneId/watched')
@@ -371,6 +380,14 @@ export class LocalLibraryController {
     studios: Array<{ id: string; name: string }>;
   }> {
     return this.library.searchPeople(query.query ?? '');
+  }
+
+  /** A performer or studio by name, made in Stash if it isn't there yet. */
+  @Post('people')
+  createPerson(
+    @Body() body: CreatePersonDto,
+  ): Promise<{ id: string; name: string; created: boolean }> {
+    return this.library.createPerson(body.kind, body.name);
   }
 
   @Get('tags')

@@ -94,6 +94,16 @@
               @if ((list.count ?? 0) > list.scenes.length) {
                 <p class="muted more">And {{ (list.count ?? 0) - list.scenes.length }} more.</p>
               }
+              @if (isFollowing(list)) {
+                <p class="muted following" role="status" data-testid="following">
+                  <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+                  {{
+                    following()?.action === 'generate'
+                      ? 'Generating in Stash. Previews and covers show up as they’re made; this list updates by itself when it’s done.'
+                      : 'Scanning in Stash. This list updates by itself when it’s done.'
+                  }}
+                </p>
+              }
               <div class="problem-actions">
                 @for (fix of info[list.kind].fixes; track fix.action) {
                   <button

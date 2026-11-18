@@ -103,7 +103,7 @@ describe('PerformersPageComponent', () => {
 
   it('lists only people in your own scenes with In my library, searched by name', async () => {
     const { root, library } = await render({ query: { lib: '1', q: 'lena' } });
-    expect(library.listPerformers).toHaveBeenCalledWith('lena', 1);
+    expect(library.listPerformers).toHaveBeenCalledWith('lena', 1, undefined, undefined);
     const grid = root.querySelector('[data-testid="library-performers"]');
     expect(grid?.textContent).toContain('Lena Moss');
     expect(grid?.textContent).toContain('12 scenes of yours');
@@ -158,6 +158,7 @@ describe('PerformersPageComponent', () => {
         page: n,
         perPage: 1,
         hasMore: n === 1,
+        snapshot: 'ranking-1',
         items: [{ id, name: `Person ${id}`, count: 3, imageUrl: `/img/${id}` }],
       });
     const listPerformers = vi
@@ -173,7 +174,8 @@ describe('PerformersPageComponent', () => {
     expect(grid()).toContain('Person 1');
     (root.querySelector('[data-testid="library-performers-retry"]') as HTMLButtonElement).click();
     fixture.detectChanges();
-    expect(listPerformers).toHaveBeenLastCalledWith('', 2);
+    // The next page comes from the same ranking as the first.
+    expect(listPerformers).toHaveBeenLastCalledWith('', 2, undefined, 'ranking-1');
     expect(grid()).toContain('Person 1');
     expect(grid()).toContain('Person 2');
   });

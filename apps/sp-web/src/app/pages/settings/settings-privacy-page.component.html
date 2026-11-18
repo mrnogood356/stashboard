@@ -17,6 +17,27 @@
         </div>
       </section>
     } @else {
+      <section class="card privacy-check" data-testid="privacy-check" aria-label="On this device">
+        <h3>On this device</h3>
+        <ul>
+          @for (check of checks(); track check.id) {
+            <li [attr.data-testid]="'privacy-check-' + check.id">
+              <i
+                class="pi"
+                [class.pi-check-circle]="check.on"
+                [class.pi-circle]="!check.on"
+                [class.on]="check.on"
+                aria-hidden="true"
+              ></i>
+              <span>
+                <strong>{{ check.label }}</strong>
+                <small>{{ check.detail }}</small>
+              </span>
+            </li>
+          }
+        </ul>
+      </section>
+
       <form class="card" (ngSubmit)="save()">
         <div class="switch-row">
           <span>

@@ -1051,6 +1051,73 @@ export abstract class OrganizerFiles extends OrganizerCore {
   }
 
   /**
+   * Where a finished download would end up: one of your matched scenes, as
+   * if its file had just landed in this folder, run through the rename
+   * pattern and folder settings. Null when there's no matched scene to show.
+   */
+  async downloadFilingExample(destination: string): Promise<{
+    title: string;
+    landsAt: string;
+    filedAt: string | null;
+    state: RenameState;
+    pattern: string;
+  } | null> {
+    const folder = trimTrailingSeparators(destination.trim());
+    if (!folder) {
+      return null;
+    }
+    const settings = await this.getSettings();
+    const { pattern } = await this.renamingPattern(settings);
+    const config = await this.stashConfig();
+    const endpoint = await this.handoff.catalogEndpoint(config);
+    // A few, as one without a file (a scene whose file went) can't show it.
+    const sample = await this.stash
+      .findOrganizerScenes(config, {
+        page: 1,
+        perPage: 10,
+        sceneFilter: {
+          ...(endpoint
+            ? { stash_id_endpoint: { endpoint, modifier: 'NOT_NULL' } }
+            : MATCHED_FILTER),
+          studios: { modifier: 'NOT_NULL' },
+          file_count: { modifier: 'GREATER_THAN', value: 0 },
+        },
+      })
+      .catch(() => ({ total: 0, items: [] as StashOrganizerScene[] }));
+    const scene = sample.items.find((item) => item.files.length > 0);
+    const file = scene?.files[0];
+    if (!scene || !file) {
+      return null;
+    }
+    const separator =
+      folder.includes('\\') && !folder.includes('/') ? '\\' : '/';
+    const landsAt = `${folder}${separator}${file.basename}`;
+    const roots = await this.stash.getLibraryRoots(config);
+    // As placeInSceneFolder files a finished download: the pattern's
+    // folders inside the downloads folder, and the scene in a folder of
+    // its own.
+    const plan = planRename(
+      { ...scene, files: [{ ...file, path: landsAt }] },
+      roots,
+      pattern,
+      new Set<string>(),
+      folder,
+      [],
+      await this.whisparrNamingOptions(),
+    );
+    return {
+      title: plan.title,
+      landsAt,
+      filedAt:
+        plan.to && (plan.state === 'ready' || plan.state === 'same')
+          ? inSceneFolder(plan.to, pattern)
+          : null,
+      state: plan.state,
+      pattern,
+    };
+  }
+
+  /**
    * What the rename preview plans for just these scenes, with the same
    * "taken" and "renamed before" details. Only looks: no rescans.
    */

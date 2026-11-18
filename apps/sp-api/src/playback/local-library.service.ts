@@ -137,6 +137,62 @@ export class LocalLibraryService {
     }
     return { action, done, failed };
   }
+
+  /**
+   * One change on many scenes: a studio set, performers and tags added or
+   * taken off. Adding and taking off go to Stash as two bulk edits, as
+   * Stash takes one way per list at a time.
+   */
+  async bulkEditScenes(edit: {
+    sceneIds: string[];
+    studioId?: string;
+    addPerformerIds?: string[];
+    removePerformerIds?: string[];
+    addTagIds?: string[];
+    removeTagIds?: string[];
+  }): Promise<{ edited: number }> {
+    const ids = [
+      ...new Set(edit.sceneIds.map((id) => id.trim()).filter(Boolean)),
+    ];
+    const list = (values?: string[]) => [
+      ...new Set((values ?? []).map((value) => value.trim()).filter(Boolean)),
+    ];
+    const addPerformers = list(edit.addPerformerIds);
+    const removePerformers = list(edit.removePerformerIds);
+    const addTags = list(edit.addTagIds);
+    const removeTags = list(edit.removeTagIds);
+    const studioId = edit.studioId?.trim() || undefined;
+    if (
+      !studioId &&
+      addPerformers.length +
+        removePerformers.length +
+        addTags.length +
+        removeTags.length ===
+        0
+    ) {
+      throw new BadRequestException('Pick a change to make to these scenes.');
+    }
+    if (ids.length === 0) {
+      throw new BadRequestException('Pick the scenes to change.');
+    }
+    const config = await this.playback.getStashConfig();
+    if (studioId || addPerformers.length || addTags.length) {
+      await this.stash.bulkUpdateLocalScenes(config, ids, {
+        studioId,
+        performers: { ids: addPerformers, mode: 'ADD' },
+        tags: { ids: addTags, mode: 'ADD' },
+      });
+    }
+    if (removePerformers.length || removeTags.length) {
+      await this.stash.bulkUpdateLocalScenes(config, ids, {
+        performers: { ids: removePerformers, mode: 'REMOVE' },
+        tags: { ids: removeTags, mode: 'REMOVE' },
+      });
+    }
+    this.logger.log(`Bulk edit in Stash: ${ids.length} scene(s) changed.`);
+    return { edited: ids.length };
+  }
+
   @Optional()
   @Inject(ActivityService)
   private readonly activity?: ActivityService;
@@ -1417,6 +1473,15 @@ export class LocalLibraryService {
       performers: found.performers.map(({ id, name }) => ({ id, name })),
       studios: found.studios.map(({ id, name }) => ({ id, name })),
     };
+  }
+
+  /** A performer or studio by this name: Stash's own, or a new one. */
+  async createPerson(
+    kind: 'performer' | 'studio',
+    name: string,
+  ): Promise<{ id: string; name: string; created: boolean }> {
+    const config = await this.playback.getStashConfig();
+    return this.stash.createNamed(config, kind, name);
   }
 
   async searchTags(

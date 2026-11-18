@@ -61,6 +61,10 @@ export interface MatchCandidate {
   imageUrl: string | null;
   duration: number | null;
   code: string | null;
+  /** The text a match would fill in. */
+  details?: string | null;
+  director?: string | null;
+  urls?: string[];
   source: string;
   score: number;
   confidence: MatchConfidence;
@@ -173,6 +177,16 @@ export interface RenamePreview {
   counts: Record<RenameState, number>;
   changes: RenamePlan[];
   skipped: RenamePlan[];
+}
+
+/** One of your scenes, as if its file had just landed in the downloads folder. */
+export interface FilingExample {
+  title: string;
+  landsAt: string;
+  /** Where Rename files would put it; null when it wouldn't be moved. */
+  filedAt: string | null;
+  state: RenameState;
+  pattern: string;
 }
 
 export interface ApplyResult {
@@ -445,6 +459,13 @@ export class OrganizerApiService {
       merged: number;
       skipped: Array<{ sceneId: string; reason: string }>;
     }>('/api/organizer/rename/taken/fix', { sceneIds, fix });
+  }
+
+  /** Where a finished download in this folder would be filed; null with nothing matched yet. */
+  filingExample(destination: string): Observable<FilingExample | null> {
+    return this.http.get<FilingExample | null>('/api/organizer/filing-example', {
+      params: { destination },
+    });
   }
 
   preview(pattern?: string): Observable<RenamePreview> {

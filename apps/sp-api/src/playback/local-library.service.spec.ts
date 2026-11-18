@@ -36,6 +36,8 @@ describe('LocalLibraryService', () => {
     getLocalSceneDetails: jest.fn(),
     findLocalScenes: jest.fn(),
     updateLocalScene: jest.fn().mockResolvedValue(undefined),
+    bulkUpdateLocalScenes: jest.fn().mockResolvedValue(undefined),
+    createNamed: jest.fn(),
     searchLocalPeople: jest.fn(),
     setSceneWatched: jest.fn().mockResolvedValue(undefined),
     getLocalPerformer: jest.fn(),
@@ -649,6 +651,63 @@ describe('LocalLibraryService', () => {
       done: ['1', '3'],
       failed: [{ id: '2', reason: 'Stash said no' }],
     });
+  });
+
+  it('edits many scenes at once: adding and taking off as two bulk edits', async () => {
+    await expect(
+      service.bulkEditScenes({
+        sceneIds: ['1', ' 2 ', '1'],
+        studioId: 's9',
+        addPerformerIds: ['p1'],
+        removeTagIds: ['t4'],
+      }),
+    ).resolves.toEqual({ edited: 2 });
+    expect(stash.bulkUpdateLocalScenes).toHaveBeenCalledTimes(2);
+    expect(stash.bulkUpdateLocalScenes).toHaveBeenNthCalledWith(
+      1,
+      config,
+      ['1', '2'],
+      {
+        studioId: 's9',
+        performers: { ids: ['p1'], mode: 'ADD' },
+        tags: { ids: [], mode: 'ADD' },
+      },
+    );
+    expect(stash.bulkUpdateLocalScenes).toHaveBeenNthCalledWith(
+      2,
+      config,
+      ['1', '2'],
+      {
+        performers: { ids: [], mode: 'REMOVE' },
+        tags: { ids: ['t4'], mode: 'REMOVE' },
+      },
+    );
+
+    // Only adding: one edit.
+    stash.bulkUpdateLocalScenes.mockClear();
+    await service.bulkEditScenes({ sceneIds: ['3'], addTagIds: ['t1'] });
+    expect(stash.bulkUpdateLocalScenes).toHaveBeenCalledTimes(1);
+
+    // Nothing to change: refused before Stash is asked.
+    stash.bulkUpdateLocalScenes.mockClear();
+    await expect(
+      service.bulkEditScenes({ sceneIds: ['3'], addTagIds: [' '] }),
+    ).rejects.toThrow('Pick a change');
+    expect(stash.bulkUpdateLocalScenes).not.toHaveBeenCalled();
+  });
+
+  it('adds a performer or studio to Stash by name', async () => {
+    stash.createNamed.mockResolvedValueOnce({
+      id: '5',
+      name: 'Cleo',
+      created: true,
+    });
+    await expect(service.createPerson('performer', 'Cleo')).resolves.toEqual({
+      id: '5',
+      name: 'Cleo',
+      created: true,
+    });
+    expect(stash.createNamed).toHaveBeenCalledWith(config, 'performer', 'Cleo');
   });
 
   it('carries on a fix list right after the scenes already shown', async () => {

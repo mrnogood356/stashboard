@@ -144,3 +144,8 @@ h4 {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.filing-example code {
+  overflow-wrap: anywhere;
+  font-size: 0.85em;
+}

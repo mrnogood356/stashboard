@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AppLockService } from '../../core/app-lock/app-lock.service';
+import { ImageObscurationService } from '../../core/preferences/image-obscuration.service';
 import {
   IDLE_OPTIONS,
   QuickHideService,
@@ -45,6 +46,62 @@ export class SettingsPrivacyPageComponent implements OnInit {
   protected readonly passkeys = computed(() => this.appLock.status()?.passkeys ?? []);
   protected readonly isHttps =
     typeof window !== 'undefined' && window.location.protocol === 'https:';
+
+  private readonly images = inject(ImageObscurationService);
+
+  /**
+   * What's actually in force on this device, at a glance: the lock, the
+   * app-switcher cover and the eye, as saved (not as being edited below).
+   */
+  protected readonly checks = computed(() => {
+    const status = this.appLock.status();
+    const phoneApp = this.appLock.isPhoneApp();
+    const timeout =
+      LOCK_TIMEOUT_OPTIONS.find((option) => option.value === status?.timeoutSeconds)?.label ??
+      `After ${Math.round((status?.timeoutSeconds ?? 0) / 60)} minutes`;
+    // As App Lock decides it: the lock covers the app in the switcher too.
+    const covered = !!status?.hideInSwitcher || !!status?.enabled;
+    const blurred = this.images.mode() === 'obscured';
+    const copy = this.images.serverCopy();
+    return [
+      {
+        id: 'lock',
+        label: 'App Lock',
+        on: phoneApp && !!status?.enabled,
+        detail: !phoneApp
+          ? 'Only in the home-screen app; browsers are never locked'
+          : status?.enabled
+            ? `On, ${timeout.toLowerCase()}`
+            : 'Off',
+      },
+      {
+        id: 'switcher',
+        label: 'App-switcher cover',
+        on: phoneApp && covered,
+        detail: !phoneApp
+          ? 'Only in the home-screen app'
+          : covered
+            ? status?.hideInSwitcher
+              ? 'On: the app is covered in the app switcher'
+              : 'On, as App Lock is on'
+            : 'Off',
+      },
+      {
+        id: 'eye',
+        label: 'Images blurred (the eye)',
+        on: blurred,
+        detail: `${blurred ? 'On' : 'Off'}, ${
+          !phoneApp
+            ? 'remembered in this browser only'
+            : copy === 'saved'
+              ? 'saved to the server too'
+              : copy === 'failed'
+                ? 'not saved to the server yet; it’s sent again next time the app opens'
+                : 'saving to the server…'
+        }`,
+      },
+    ];
+  });
 
   /** The App Lock settings couldn't be read: nothing to compare a change with. */
   protected readonly loadFailed = signal(false);

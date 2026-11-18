@@ -1,0 +1,155 @@
+<app-sheet
+  [open]="open"
+  [title]="heading()"
+  subtitle="Saved straight to Stash. Anything you leave empty stays as it is on each scene."
+  size="wide"
+  [busy]="saving()"
+  testId="bulk-edit-sheet"
+  (closed)="close()"
+>
+  <form class="edit-form" (ngSubmit)="save()">
+    <div class="field">
+      <span class="field-label">Studio</span>
+      @if (picking() === 'studio') {
+        <ng-container [ngTemplateOutlet]="picker" />
+      } @else {
+        <div class="picked-row">
+          @if (studio(); as current) {
+            <span class="app-chip" data-testid="bulk-studio">{{ current.name }}</span>
+            <button type="button" class="link-button" (click)="studio.set(null)">
+              Leave as it is
+            </button>
+          } @else {
+            <span class="muted">Left as it is</span>
+          }
+          <button
+            type="button"
+            class="link-button"
+            data-testid="bulk-pick-studio"
+            (click)="startPicking('studio')"
+          >
+            {{ studio() ? 'Change' : 'Set one' }}
+          </button>
+        </div>
+      }
+    </div>
+
+    @for (
+      section of [
+        {
+          kind: 'add-performer',
+          label: 'Add performers',
+          list: addPerformers(),
+          action: 'Add someone',
+        },
+        {
+          kind: 'remove-performer',
+          label: 'Take performers off',
+          list: removePerformers(),
+          action: 'Pick someone',
+        },
+        { kind: 'add-tag', label: 'Add tags', list: addTags(), action: 'Add a tag' },
+        { kind: 'remove-tag', label: 'Take tags off', list: removeTags(), action: 'Pick a tag' },
+      ];
+      track section.kind
+    ) {
+      <div class="field">
+        <span class="field-label">{{ section.label }}</span>
+        <div class="picked-row">
+          @for (item of section.list; track item.id) {
+            <span class="app-chip" [attr.data-testid]="'bulk-' + section.kind">
+              {{ item.name }}
+              <button
+                type="button"
+                class="chip-remove"
+                [attr.aria-label]="'Don’t change ' + item.name"
+                (click)="drop($any(section.kind), item.id)"
+              >
+                <i class="pi pi-times" aria-hidden="true"></i>
+              </button>
+            </span>
+          }
+          @if (picking() !== section.kind) {
+            <button
+              type="button"
+              class="link-button"
+              [attr.data-testid]="'bulk-pick-' + section.kind"
+              (click)="startPicking($any(section.kind))"
+            >
+              {{ section.action }}
+            </button>
+          }
+        </div>
+        @if (picking() === section.kind) {
+          <ng-container [ngTemplateOutlet]="picker" />
+        }
+      </div>
+    }
+
+    @if (error(); as message) {
+      <p class="form-error" role="alert">{{ message }}</p>
+    }
+
+    <div class="form-actions">
+      <button type="button" class="app-btn" [disabled]="saving()" (click)="close()">Cancel</button>
+      <button
+        type="submit"
+        class="app-btn app-btn--primary"
+        data-testid="bulk-save"
+        [disabled]="saving() || creating() || !hasChanges()"
+      >
+        {{ saving() ? 'Saving…' : 'Save' }}
+      </button>
+    </div>
+  </form>
+</app-sheet>
+
+<ng-template #picker>
+  @if (picking(); as kind) {
+    <div class="people-picker">
+      <div class="people-search">
+        <i class="pi pi-search" aria-hidden="true"></i>
+        <input
+          type="search"
+          name="bulkQuery"
+          autocomplete="off"
+          data-testid="bulk-search"
+          [placeholder]="placeholder(kind)"
+          [ngModel]="query()"
+          (ngModelChange)="onQuery($event)"
+        />
+        <button type="button" class="link-button" (click)="stopPicking()">Done</button>
+      </div>
+      @if (searching()) {
+        <p class="muted small" role="status">Looking in Stash…</p>
+      }
+      <ul class="people-results">
+        @for (option of results(); track option.id) {
+          <li>
+            <button type="button" (click)="choose(option)">{{ option.name }}</button>
+          </li>
+        }
+        @if (canCreate()) {
+          <li>
+            <button
+              type="button"
+              class="create-option"
+              data-testid="bulk-create"
+              [disabled]="creating()"
+              (click)="create()"
+            >
+              <i class="pi pi-plus" aria-hidden="true"></i>
+              {{ creating() ? 'Adding…' : 'Add “' + query().trim() + '” to Stash' }}
+            </button>
+          </li>
+        }
+      </ul>
+      @if (createError()) {
+        <p class="form-error small" role="alert">{{ createError() }}</p>
+      }
+      @if (limitNote(); as note) {
+        <p class="form-note small" role="status" data-testid="bulk-limit">{{ note }}</p>
+      }
+    </div>
+  }
+</ng-template>

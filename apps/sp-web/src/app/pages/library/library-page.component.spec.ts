@@ -160,6 +160,9 @@ describe('LibraryPageComponent', () => {
     };
     const localLibrary = {
       bulkScenes: vi.fn().mockReturnValue(of({ action: 'delete', done: ['411'], failed: [] })),
+      bulkEditScenes: vi.fn().mockReturnValue(of({ edited: 1 })),
+      searchPeople: vi.fn().mockReturnValue(of({ performers: [], studios: [] })),
+      searchTags: vi.fn().mockReturnValue(of([])),
     };
     const activatedRoute = {
       queryParamMap: queryParamMap$.asObservable(),
@@ -240,6 +243,39 @@ describe('LibraryPageComponent', () => {
 
     expect(localLibrary.bulkScenes).toHaveBeenCalledWith('delete', [buildScene().id]);
     expect(root.querySelectorAll('app-scene-card')).toHaveLength(0);
+  });
+
+  it('edits the picked scenes together from the selection bar', async () => {
+    const { fixture } = await renderPage();
+    const root = fixture.nativeElement as HTMLElement;
+    Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.trim() === 'Select')!
+      .click();
+    fixture.detectChanges();
+    const edit = root.querySelector<HTMLButtonElement>('[data-testid="bulk-edit"]')!;
+    expect(edit.disabled).toBe(true);
+    root.querySelector<HTMLButtonElement>('.pick-overlay')!.click();
+    fixture.detectChanges();
+    edit.click();
+    fixture.detectChanges();
+
+    const sheet = document.querySelector('[data-testid="bulk-edit-sheet"]');
+    expect(sheet?.textContent).toContain('Edit 1 scene');
+    const component = fixture.componentInstance as unknown as {
+      onBulkEdited(edited: number): void;
+      selecting(): boolean;
+    };
+    component.onBulkEdited(1);
+    fixture.detectChanges();
+    expect(document.querySelector('[data-testid="bulk-edit-sheet"]')).toBeNull();
+    expect(component.selecting()).toBe(false);
+    const notifications = TestBed.inject(AppNotificationsService) as unknown as {
+      success: ReturnType<typeof vi.fn>;
+    };
+    expect(notifications.success).toHaveBeenCalledWith(
+      'Changed 1 scene',
+      'Saved to Stash. The library catches up in a minute.',
+    );
   });
 
   it('shows one scene a row on phones when picked, and remembers it on this device', async () => {

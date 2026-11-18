@@ -159,3 +159,68 @@
     flex: 1 1 0;
   }
 }
+
+.people-results .create-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--accent);
+}
+
+.find-button {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.finder {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}
+
+.finds button {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.chosen {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.chosen-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.copy-fields {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.copy-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  min-width: 0;
+  font-size: 0.9rem;
+}
+
+.copy-field > span {
+  display: grid;
+  min-width: 0;
+}
+
+.copy-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chosen .form-actions {
+  flex-wrap: wrap;
+}

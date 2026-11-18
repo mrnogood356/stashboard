@@ -1,8 +1,10 @@
-import { Component, Input, OnInit, inject, signal } from '@angular/core';
+import { Component, DestroyRef, Input, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ButtonDirective } from 'primeng/button';
 import { Message } from 'primeng/message';
+import { Subject, catchError, of, switchMap, timer } from 'rxjs';
 import { DownloadHandoffApiService } from '../../core/api/download-handoff.service';
+import { FilingExample, OrganizerApiService } from '../../core/api/organizer.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 
 /**
@@ -19,6 +21,11 @@ import { AppNotificationsService } from '../../core/notifications/app-notificati
 export class FinishedDownloadsComponent implements OnInit {
   private readonly api = inject(DownloadHandoffApiService);
   private readonly notifications = inject(AppNotificationsService);
+  private readonly organizer = inject(OrganizerApiService);
+  private readonly destroyRef = inject(DestroyRef);
+  /** One of your scenes, as if it had just finished downloading into the folder above. */
+  protected readonly example = signal<FilingExample | null>(null);
+  private readonly destinations = new Subject<string>();
 
   /** SABnzbd has passed its test. */
   @Input() sabnzbdReady = false;
@@ -42,11 +49,28 @@ export class FinishedDownloadsComponent implements OnInit {
   protected readonly dropInFolder = signal<string | null>(null);
 
   ngOnInit(): void {
+    // Each change drops the last folder's example (and its lookup) at once;
+    // the new one is asked for once typing has paused.
+    const examples = this.destinations
+      .pipe(
+        switchMap((folder) => {
+          this.example.set(null);
+          return folder.trim()
+            ? timer(400).pipe(
+                switchMap(() => this.organizer.filingExample(folder.trim())),
+                catchError(() => of(null)),
+              )
+            : of(null);
+        }),
+      )
+      .subscribe((example) => this.example.set(example));
+    this.destroyRef.onDestroy(() => examples.unsubscribe());
     this.api.settings().subscribe({
       next: (settings) => {
         this.enabled.set(settings.enabled);
         this.category.set(settings.category);
         this.destination.set(settings.destination ?? '');
+        this.destinations.next(settings.destination ?? '');
         this.sabPathFrom.set(settings.sabPathFrom ?? '');
         this.sabPathTo.set(settings.sabPathTo ?? '');
         this.importMode.set(settings.importMode);
@@ -58,6 +82,11 @@ export class FinishedDownloadsComponent implements OnInit {
       },
       error: () => this.loadError.set(true),
     });
+  }
+
+  protected onDestination(value: string): void {
+    this.destination.set(value);
+    this.destinations.next(value);
   }
 
   protected save(): void {
@@ -80,7 +109,8 @@ export class FinishedDownloadsComponent implements OnInit {
       .subscribe({
         next: (saved) => {
           this.saving.set(false);
-          this.destination.set(saved.destination ?? '');
+          // What was saved may differ from what's typed now: show its example.
+          this.onDestination(saved.destination ?? '');
           this.sabPathFrom.set(saved.sabPathFrom ?? '');
           this.sabPathTo.set(saved.sabPathTo ?? '');
           this.dropInFolder.set(saved.dropInFolder);

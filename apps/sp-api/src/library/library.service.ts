@@ -1,5 +1,6 @@
 import type { LibraryPerformersDto } from './dto/library-performers.dto';
 import { stashMediaUrl } from '../media/media-url.util';
+import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,6 +19,9 @@ import { LibrarySceneQueryService } from './library-scene-query.service';
 
 @Injectable()
 export class LibraryService {
+  /** Rankings being paged through, by snapshot id, oldest first. */
+  private readonly rankings = new Map<string, KeptRanking>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly librarySceneQueryService: LibrarySceneQueryService,
@@ -128,95 +132,106 @@ export class LibraryService {
     query?: string,
     page = 1,
     perPage = 48,
+    snapshot?: string,
   ): Promise<LibraryPerformersDto> {
     const name = query?.trim() ?? '';
-    const nameFilter = name
-      ? Prisma.sql`WHERE p.name ILIKE ${`%${name}%`}`
-      : Prisma.empty;
-    const people = Prisma.sql`
-      SELECT p.id, MIN(p.name) AS name, COUNT(*)::int AS count
-      FROM "LibrarySceneIndex" s,
-        unnest(s."performerIds", s."performerNames") AS p(id, name)
-      ${nameFilter}
-      GROUP BY p.id`;
-    const [rows, totals] = await Promise.all([
-      this.prisma.$queryRaw<Array<{ id: string; name: string; count: number }>>(
-        Prisma.sql`${people}
-          ORDER BY count DESC, name ASC
-          LIMIT ${perPage} OFFSET ${(page - 1) * perPage}`,
-      ),
-      this.prisma.$queryRaw<Array<{ total: number }>>(
-        Prisma.sql`SELECT COUNT(*)::int AS total FROM (${people}) AS people`,
-      ),
-    ]);
-    const total = totals[0]?.total ?? 0;
-    return {
-      total,
+    return this.pageOfRanking(
+      `performers\u0000${name}`,
       page,
       perPage,
-      hasMore: page * perPage < total,
-      items: rows.map((row) => ({
-        ...row,
-        imageUrl: stashMediaUrl(
-          `performers/${encodeURIComponent(row.id)}/image`,
-          null,
-          480,
-        ),
-      })),
-    };
+      snapshot,
+      () => {
+        // The name is plain text: % and _ in it mean themselves.
+        const nameFilter = name
+          ? Prisma.sql`WHERE p.name ILIKE ${`%${likeLiteral(name)}%`} ESCAPE '\\'`
+          : Prisma.empty;
+        return this.prisma.$queryRaw<RankedRow[]>(Prisma.sql`
+          SELECT p.id, MIN(p.name) AS name, COUNT(*)::int AS count
+          FROM "LibrarySceneIndex" s,
+            unnest(s."performerIds", s."performerNames") AS p(id, name)
+          ${nameFilter}
+          GROUP BY p.id
+          ORDER BY count DESC, name ASC, id ASC`);
+      },
+      (id) =>
+        stashMediaUrl(`performers/${encodeURIComponent(id)}/image`, null, 480),
+    );
   }
 
-  /**
-   * Every studio with a scene of yours, most scenes first, a page at a time.
-   * The page and the total come from one statement, so they always agree.
-   */
+  /** Every studio with a scene of yours, most scenes first, a page at a time. */
   async listStudios(
     query?: string,
     page = 1,
     perPage = 48,
+    snapshot?: string,
   ): Promise<LibraryPerformersDto> {
     const name = query?.trim() ?? '';
-    // The name is plain text: % and _ in it mean themselves.
-    const nameFilter = name
-      ? Prisma.sql`AND "studioName" ILIKE ${`%${likeLiteral(name)}%`} ESCAPE '\\'`
-      : Prisma.empty;
-    const rows = await this.prisma.$queryRaw<
-      Array<{ id: string; name: string; count: number; total: number }>
-    >(Prisma.sql`
-      SELECT id, name, count, COUNT(*) OVER ()::int AS total
-      FROM (
-        SELECT "studioId" AS id, MIN("studioName") AS name, COUNT(*)::int AS count
-        FROM "LibrarySceneIndex"
-        WHERE "studioId" IS NOT NULL AND "studioName" IS NOT NULL ${nameFilter}
-        GROUP BY "studioId"
-      ) AS studios
-      ORDER BY count DESC, name ASC, id ASC
-      LIMIT ${perPage} OFFSET ${(page - 1) * perPage}`);
-    // Past the end there are no rows to carry the total: count it alone.
-    const total =
-      rows[0]?.total ??
-      (page > 1
-        ? ((
-            await this.prisma.$queryRaw<Array<{ total: number }>>(Prisma.sql`
-              SELECT COUNT(DISTINCT "studioId")::int AS total
-              FROM "LibrarySceneIndex"
-              WHERE "studioId" IS NOT NULL AND "studioName" IS NOT NULL ${nameFilter}`)
-          )[0]?.total ?? 0)
-        : 0);
+    return this.pageOfRanking(
+      `studios\u0000${name}`,
+      page,
+      perPage,
+      snapshot,
+      () => {
+        // The name is plain text: % and _ in it mean themselves.
+        const nameFilter = name
+          ? Prisma.sql`AND "studioName" ILIKE ${`%${likeLiteral(name)}%`} ESCAPE '\\'`
+          : Prisma.empty;
+        return this.prisma.$queryRaw<RankedRow[]>(Prisma.sql`
+          SELECT "studioId" AS id, MIN("studioName") AS name, COUNT(*)::int AS count
+          FROM "LibrarySceneIndex"
+          WHERE "studioId" IS NOT NULL AND "studioName" IS NOT NULL ${nameFilter}
+          GROUP BY "studioId"
+          ORDER BY count DESC, name ASC, id ASC`);
+      },
+      (id) =>
+        stashMediaUrl(`studios/${encodeURIComponent(id)}/logo`, null, 480),
+    );
+  }
+
+  /**
+   * One page of a ranking. The first page ranks everyone and keeps that
+   * order under a snapshot id; later pages with that id are cut from the
+   * same order, so someone moving up while you page (a download landing)
+   * can't fall into a page you've already seen and be missed.
+   */
+  private async pageOfRanking(
+    key: string,
+    page: number,
+    perPage: number,
+    snapshot: string | undefined,
+    rank: () => Promise<RankedRow[]>,
+    imageUrl: (id: string) => string,
+  ): Promise<LibraryPerformersDto> {
+    const now = Date.now();
+    for (const [id, kept] of this.rankings) {
+      if (now - kept.at > RANKING_TTL_MS) {
+        this.rankings.delete(id);
+      }
+    }
+    let id = snapshot;
+    let kept = id ? this.rankings.get(id) : undefined;
+    if (!kept || kept.key !== key) {
+      // A new search, or one kept too long: rank again.
+      id = randomUUID();
+      kept = { key, rows: await rank(), at: now };
+      this.rankings.set(id, kept);
+      while (this.rankings.size > RANKINGS_KEPT) {
+        this.rankings.delete(this.rankings.keys().next().value as string);
+      }
+    }
+    const total = kept.rows.length;
+    const rows = kept.rows.slice((page - 1) * perPage, page * perPage);
     return {
       total,
       page,
       perPage,
       hasMore: page * perPage < total,
-      items: rows.map(({ id, name, count }) => ({
-        id,
-        name,
-        count,
-        imageUrl: stashMediaUrl(
-          `studios/${encodeURIComponent(id)}/logo`,
-          null,
-          480,
-        ),
+      snapshot: id!,
+      items: rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        count: row.count,
+        imageUrl: imageUrl(row.id),
       })),
     };
   }
@@ -237,6 +252,24 @@ export interface LibraryOptionScope {
   performerId?: string;
   studioId?: string;
 }
+
+interface RankedRow {
+  id: string;
+  name: string;
+  count: number;
+}
+
+interface KeptRanking {
+  /** What was ranked: the list and the name searched for. */
+  key: string;
+  rows: RankedRow[];
+  at: number;
+}
+
+/** How long a ranking is kept for paging through it. */
+const RANKING_TTL_MS = 15 * 60_000;
+/** Rankings kept at once; the oldest goes first. */
+const RANKINGS_KEPT = 50;
 
 /** Enough for a performer's whole list; for the whole library, the most used. */
 const OPTION_LIMIT = 200;

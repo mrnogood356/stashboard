@@ -110,6 +110,8 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly libLoading = signal(false);
   protected readonly libFailed = signal(false);
   private libPage = 1;
+  /** The ranking the pages so far came from. */
+  private libSnapshot: string | undefined;
   protected libQuery: string | null = null;
   private libRequest: Subscription | null = null;
   private libraryParamSubscription: Subscription | null = null;
@@ -219,17 +221,25 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
   private loadLibrary(reset: boolean): void {
     if (reset) {
       this.libPage = 1;
+      this.libSnapshot = undefined;
       this.libItems.set([]);
       this.libAnswered.set(false);
     }
     this.libRequest?.unsubscribe();
     this.libLoading.set(true);
     this.libFailed.set(false);
+    const sentSnapshot = this.libSnapshot;
     this.libRequest = this.libraryApi
-      .listStudios(this.libQuery ?? '', this.libPage)
+      .listStudios(this.libQuery ?? '', this.libPage, undefined, this.libSnapshot)
       .pipe(finalize(() => this.libLoading.set(false)))
       .subscribe({
         next: (result) => {
+          // The order the earlier pages came from was gone (kept too long),
+          // so this page is from a new one: start the list again from the top.
+          if (!reset && sentSnapshot && result.snapshot !== sentSnapshot) {
+            this.loadLibrary(true);
+            return;
+          }
           // A studio already listed isn't listed twice if the ranking moved.
           this.libItems.update((items) => {
             if (reset) {
@@ -242,6 +252,7 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
           this.libTotal.set(result.total);
           this.libHasMore.set(result.hasMore);
           this.libPage = result.page + 1;
+          this.libSnapshot = result.snapshot;
         },
         error: () => this.libFailed.set(true),
       });

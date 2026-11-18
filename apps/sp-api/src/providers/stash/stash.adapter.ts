@@ -711,6 +711,44 @@ export class StashAdapter extends StashLibraryToolsApi {
     );
   }
 
+  /**
+   * The same change on many scenes in one go, as Stash's own bulk edit: a
+   * studio set, or performers and tags added or taken off.
+   */
+  async bulkUpdateLocalScenes(
+    config: StashAdapterBaseConfig,
+    sceneIds: string[],
+    change: {
+      studioId?: string;
+      performers?: { ids: string[]; mode: 'ADD' | 'REMOVE' };
+      tags?: { ids: string[]; mode: 'ADD' | 'REMOVE' };
+    },
+  ): Promise<void> {
+    const ids = sceneIds.flatMap((id) => this.normalizeEntityId(id) ?? []);
+    if (ids.length === 0) {
+      return;
+    }
+    const input: Record<string, unknown> = { ids };
+    if (change.studioId) {
+      input['studio_id'] = change.studioId;
+    }
+    if (change.performers?.ids.length) {
+      input['performer_ids'] = change.performers;
+    }
+    if (change.tags?.ids.length) {
+      input['tag_ids'] = change.tags;
+    }
+    if (Object.keys(input).length === 1) {
+      return;
+    }
+    await this.executeQuery(
+      config,
+      `mutation BulkUpdateScenes($input: BulkSceneUpdateInput!) { bulkSceneUpdate(input: $input) { id } }`,
+      { input },
+      false,
+    );
+  }
+
   /** Watched adds a play; unwatched clears the play count. Both clear the resume point. */
   async setSceneWatched(
     config: StashAdapterBaseConfig,

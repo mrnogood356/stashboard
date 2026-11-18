@@ -109,6 +109,19 @@ export class PeopleSearchQueryDto {
   query?: string;
 }
 
+export class CreatePersonDto {
+  @IsIn(['performer', 'studio'])
+  kind!: 'performer' | 'studio';
+
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  name!: string;
+}
+
 export class SceneWatchedDto {
   @IsBoolean()
   watched!: boolean;
@@ -199,6 +212,50 @@ export class LocalBulkScenesDto {
   @IsString({ each: true })
   @MaxLength(64, { each: true })
   sceneIds!: string[];
+}
+
+/** The same change on many library scenes: a studio, people or tags added or taken off. */
+export class LocalBulkEditDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  sceneIds!: string[];
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(64)
+  studioId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  addPerformerIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  removePerformerIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  addTagIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  removeTagIds?: string[];
 }
 
 export class TagSearchQueryDto {

@@ -52,6 +52,7 @@ export class LibraryController {
       query.query,
       query.page,
       query.perPage,
+      query.snapshot,
     );
   }
 
@@ -64,6 +65,7 @@ export class LibraryController {
       query.query,
       query.page,
       query.perPage,
+      query.snapshot,
     );
   }
 

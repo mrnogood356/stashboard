@@ -16,6 +16,7 @@ import {
   OrganizerPageQueryDto,
   PickedScenesDto,
   RenamePreviewDto,
+  FilingExampleQueryDto,
   RenameScenesDto,
   ScrapeSceneDto,
   UpdateOrganizerSettingsDto,
@@ -203,6 +204,12 @@ export class OrganizerController {
   @HttpCode(200)
   fixTaken(@Body() body: FixTakenDto) {
     return this.organizer.fixTaken(body.sceneIds, body.fix);
+  }
+
+  /** Where a finished download in this folder would be filed. */
+  @Get('filing-example')
+  filingExample(@Query() query: FilingExampleQueryDto) {
+    return this.organizer.downloadFilingExample(query.destination);
   }
 
   @Post('rename/preview')

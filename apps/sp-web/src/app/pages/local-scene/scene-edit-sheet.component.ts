@@ -2,16 +2,38 @@ import { Component, EventEmitter, Input, OnDestroy, Output, inject, signal } fro
 import { HttpErrorResponse } from '@angular/common/http';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subject, Subscription, catchError, debounceTime, of, switchMap } from 'rxjs';
+import {
+  Observable,
+  Subject,
+  Subscription,
+  catchError,
+  debounceTime,
+  of,
+  switchMap,
+  tap,
+} from 'rxjs';
 import {
   LocalLibraryService,
   LocalSceneUpdate,
   PeopleResults,
 } from '../../core/api/local-library.service';
-import type { LocalSceneDetails } from '../../core/api/playback.service';
+import { MatchCandidate, OrganizerApiService } from '../../core/api/organizer.service';
+import { PlaybackService, type LocalSceneDetails } from '../../core/api/playback.service';
 import { SheetComponent } from '../../shared/sheet/sheet.component';
 
 type Named = { id: string; name: string };
+
+/** The text fields a StashDB match can fill in on its own. */
+type CopyField = 'title' | 'date' | 'code' | 'director' | 'details' | 'urls';
+
+const COPY_FIELDS: ReadonlyArray<{ key: CopyField; label: string }> = [
+  { key: 'title', label: 'Title' },
+  { key: 'date', label: 'Release date' },
+  { key: 'code', label: 'Studio code' },
+  { key: 'director', label: 'Director' },
+  { key: 'details', label: 'Description' },
+  { key: 'urls', label: 'Links' },
+];
 
 /**
  * A library scene's details, as in Stash's Edit tab: title, date, studio,
@@ -26,6 +48,8 @@ type Named = { id: string; name: string };
 })
 export class SceneEditSheetComponent implements OnDestroy {
   private readonly library = inject(LocalLibraryService);
+  private readonly organizer = inject(OrganizerApiService);
+  private readonly playback = inject(PlaybackService);
 
   @Input() open = false;
   @Input() set scene(value: LocalSceneDetails | null) {
@@ -56,6 +80,9 @@ export class SceneEditSheetComponent implements OnDestroy {
   protected readonly peopleQuery = signal('');
   protected readonly peopleResults = signal<PeopleResults>({ performers: [], studios: [] });
   protected readonly peopleSearching = signal(false);
+  /** Adding a new performer or studio to Stash from the search. */
+  protected readonly creating = signal(false);
+  protected readonly createError = signal<string | null>(null);
   private readonly queries = new Subject<string>();
   private readonly searchSubscription: Subscription = this.queries
     .pipe(
@@ -78,8 +105,185 @@ export class SceneEditSheetComponent implements OnDestroy {
       this.peopleSearching.set(false);
     });
 
+  // ---------- filling in from StashDB ----------
+
+  protected readonly copyFields = COPY_FIELDS;
+  /** The StashDB finder is open. */
+  protected readonly finding = signal(false);
+  protected readonly findQuery = signal('');
+  protected readonly finds = signal<MatchCandidate[]>([]);
+  protected readonly findLoading = signal(false);
+  protected readonly findError = signal<string | null>(null);
+  /** What was searched for, when the fingerprints found nothing. */
+  protected readonly searchedFor = signal<string | null>(null);
+  protected readonly chosen = signal<MatchCandidate | null>(null);
+  protected readonly copying = signal<ReadonlySet<CopyField>>(new Set());
+  protected readonly matching = signal(false);
+  private findRequest: Subscription | null = null;
+  /** The match saved for "scene:candidate", when the scene then failed to load. */
+  private appliedMatch: string | null = null;
+  /**
+   * Bumped each time a people picker opens or closes: someone added to
+   * Stash from a picker that has since closed isn't put on the scene.
+   */
+  private pickSession = 0;
+
+  /** Saving the form or a whole match: either keeps the sheet busy. */
+  protected busy(): boolean {
+    return this.saving() || this.matching();
+  }
+
+  protected startFinding(): void {
+    this.finding.set(true);
+    this.findQuery.set('');
+    this.chosen.set(null);
+    this.lookUp();
+  }
+
+  protected stopFinding(): void {
+    this.findRequest?.unsubscribe();
+    this.finding.set(false);
+    this.finds.set([]);
+    this.chosen.set(null);
+    this.findError.set(null);
+    this.findLoading.set(false);
+  }
+
+  /** Fingerprints and the file name first; your own words when given. */
+  protected lookUp(): void {
+    const scene = this.original;
+    if (!scene) {
+      return;
+    }
+    this.findRequest?.unsubscribe();
+    this.findLoading.set(true);
+    this.findError.set(null);
+    this.chosen.set(null);
+    this.findRequest = this.organizer
+      .lookup([scene.id], this.findQuery().trim() || undefined)
+      .subscribe({
+        next: ([result]) => {
+          this.findLoading.set(false);
+          this.finds.set(result?.candidates ?? []);
+          this.searchedFor.set(result?.searchedFor ?? null);
+        },
+        error: () => {
+          this.findLoading.set(false);
+          this.finds.set([]);
+          this.findError.set('Couldn’t search StashDB. Check its settings and try again.');
+        },
+      });
+  }
+
+  /** What a match would put in a field, or null when it has nothing. */
+  protected matchValue(candidate: MatchCandidate, field: CopyField): string | null {
+    switch (field) {
+      case 'title':
+        return candidate.title?.trim() || null;
+      case 'date':
+        // Only a whole date: the form takes YYYY-MM-DD.
+        return candidate.date && /^\d{4}-\d{2}-\d{2}$/.test(candidate.date) ? candidate.date : null;
+      case 'code':
+        return candidate.code?.trim() || null;
+      case 'director':
+        return candidate.director?.trim() || null;
+      case 'details':
+        return candidate.details?.trim() || null;
+      case 'urls':
+        return candidate.urls?.length ? candidate.urls.join('\n') : null;
+    }
+  }
+
+  protected choose(candidate: MatchCandidate): void {
+    this.chosen.set(candidate);
+    this.copying.set(
+      new Set(COPY_FIELDS.map(({ key }) => key).filter((key) => this.matchValue(candidate, key))),
+    );
+  }
+
+  protected toggleCopy(field: CopyField): void {
+    const next = new Set(this.copying());
+    if (next.has(field)) {
+      next.delete(field);
+    } else {
+      next.add(field);
+    }
+    this.copying.set(next);
+  }
+
+  /** Puts the ticked fields into the form, to check and save as usual. */
+  protected copyChosen(): void {
+    const candidate = this.chosen();
+    if (!candidate) {
+      return;
+    }
+    const targets: Record<CopyField, (value: string) => void> = {
+      title: (value) => this.title.set(value),
+      date: (value) => this.date.set(value),
+      code: (value) => this.code.set(value),
+      director: (value) => this.director.set(value),
+      details: (value) => this.details.set(value),
+      urls: (value) => this.urls.set(value),
+    };
+    for (const field of this.copying()) {
+      const value = this.matchValue(candidate, field);
+      if (value) {
+        targets[field](value);
+      }
+    }
+    this.stopFinding();
+  }
+
+  /**
+   * Saves the whole match now, as Match scenes does: the text, studio,
+   * performers, tags, cover and the link to the StashDB scene.
+   */
+  protected matchChosen(): void {
+    const scene = this.original;
+    const candidate = this.chosen();
+    // Not while the form is saving: one would overwrite the other.
+    if (!scene || !candidate || this.matching() || this.saving()) {
+      return;
+    }
+    this.matching.set(true);
+    this.findError.set(null);
+    const key = `${scene.id}:${candidate.id}`;
+    // Saved already, only the scene didn't load again after: just load it.
+    // The match can't be saved twice (the server lets it go once used).
+    const applied: Observable<unknown> =
+      this.appliedMatch === key
+        ? of(null)
+        : this.organizer.apply(scene.id, candidate.id).pipe(
+            tap(() => {
+              this.appliedMatch = key;
+            }),
+          );
+    applied.pipe(switchMap(() => this.playback.getSceneDetails(scene.id))).subscribe({
+      next: (details) => {
+        this.matching.set(false);
+        this.appliedMatch = null;
+        this.stopFinding();
+        this.saved.emit(details);
+      },
+      error: (error: unknown) => {
+        this.matching.set(false);
+        if (this.appliedMatch === key) {
+          this.findError.set('It’s matched, but the scene didn’t load again. Try again.');
+          return;
+        }
+        const message =
+          error instanceof HttpErrorResponse &&
+          typeof (error.error as { message?: unknown } | null)?.message === 'string'
+            ? (error.error as { message: string }).message
+            : 'Try again.';
+        this.findError.set(`Couldn’t match it. ${message}`);
+      },
+    });
+  }
+
   ngOnDestroy(): void {
     this.searchSubscription.unsubscribe();
+    this.findRequest?.unsubscribe();
   }
 
   private reset(scene: LocalSceneDetails): void {
@@ -92,10 +296,13 @@ export class SceneEditSheetComponent implements OnDestroy {
     this.studio.set(scene.studio ? { id: scene.studio.id, name: scene.studio.name } : null);
     this.performers.set(scene.performers.map(({ id, name }) => ({ id, name })));
     this.error.set(null);
+    this.appliedMatch = null;
     this.stopPicking();
+    this.stopFinding();
   }
 
   protected startPicking(kind: 'studio' | 'performer'): void {
+    this.pickSession += 1;
     this.picking.set(kind);
     this.peopleQuery.set('');
     this.peopleResults.set({ performers: [], studios: [] });
@@ -103,8 +310,10 @@ export class SceneEditSheetComponent implements OnDestroy {
   }
 
   protected stopPicking(): void {
+    this.pickSession += 1;
     this.picking.set(null);
     this.peopleQuery.set('');
+    this.createError.set(null);
   }
 
   protected onPeopleQuery(value: string): void {
@@ -123,6 +332,50 @@ export class SceneEditSheetComponent implements OnDestroy {
     }
     this.peopleQuery.set('');
     this.peopleResults.set({ performers: [], studios: [] });
+  }
+
+  /**
+   * Offer to add the name searched for when Stash has no one by exactly that
+   * name: after the search has answered, so it isn't offered for a name
+   * that's only still loading.
+   */
+  protected canCreate(kind: 'studio' | 'performer'): boolean {
+    const name = this.peopleQuery().trim();
+    if (name.length < 2 || this.peopleSearching()) {
+      return false;
+    }
+    const found =
+      kind === 'studio' ? this.peopleResults().studios : this.peopleResults().performers;
+    return !found.some((option) => option.name.toLowerCase() === name.toLowerCase());
+  }
+
+  protected createPerson(kind: 'studio' | 'performer'): void {
+    const name = this.peopleQuery().trim();
+    if (!name || this.creating()) {
+      return;
+    }
+    this.creating.set(true);
+    this.createError.set(null);
+    const session = this.pickSession;
+    this.library.createPerson(kind, name).subscribe({
+      next: (person) => {
+        this.creating.set(false);
+        // That picker closed, or another opened: it's in Stash, not chosen.
+        if (session !== this.pickSession) {
+          return;
+        }
+        const named = { id: person.id, name: person.name };
+        if (kind === 'studio') {
+          this.pickStudio(named);
+        } else {
+          this.addPerformer(named);
+        }
+      },
+      error: () => {
+        this.creating.set(false);
+        this.createError.set(`Couldn’t add “${name}” to Stash. Check that Stash is running.`);
+      },
+    });
   }
 
   protected removePerformer(id: string): void {
@@ -186,7 +439,8 @@ export class SceneEditSheetComponent implements OnDestroy {
 
   protected save(): void {
     const scene = this.original;
-    if (!scene || this.saving() || this.problem()) {
+    // Not while a whole match is saving, or while someone is being added.
+    if (!scene || this.busy() || this.creating() || this.problem()) {
       return;
     }
     const update = this.changes();
@@ -219,7 +473,7 @@ export class SceneEditSheetComponent implements OnDestroy {
   }
 
   protected close(): void {
-    if (!this.saving()) {
+    if (!this.busy()) {
       if (this.original) {
         this.reset(this.original);
       }

@@ -99,6 +99,8 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
   protected readonly libLoading = signal(false);
   protected readonly libFailed = signal(false);
   private libPage = 1;
+  /** The ranking the pages so far came from. */
+  private libSnapshot: string | undefined;
   protected libQuery: string | null = null;
   private libRequest: Subscription | null = null;
   private queryParamSubscription: Subscription | null = null;
@@ -246,20 +248,36 @@ export class PerformersPageComponent implements OnInit, AfterViewInit, OnDestroy
   private loadLibrary(reset: boolean): void {
     if (reset) {
       this.libPage = 1;
+      this.libSnapshot = undefined;
       this.libItems.set([]);
     }
     this.libRequest?.unsubscribe();
     this.libLoading.set(true);
     this.libFailed.set(false);
+    const sentSnapshot = this.libSnapshot;
     this.libRequest = this.libraryApi
-      .listPerformers(this.libQuery ?? '', this.libPage)
+      .listPerformers(this.libQuery ?? '', this.libPage, undefined, this.libSnapshot)
       .pipe(finalize(() => this.libLoading.set(false)))
       .subscribe({
         next: (result) => {
-          this.libItems.update((items) => (reset ? result.items : [...items, ...result.items]));
+          // The order the earlier pages came from was gone (kept too long),
+          // so this page is from a new one: start the list again from the top.
+          if (!reset && sentSnapshot && result.snapshot !== sentSnapshot) {
+            this.loadLibrary(true);
+            return;
+          }
+          // A performer already listed isn't listed twice.
+          this.libItems.update((items) => {
+            if (reset) {
+              return result.items;
+            }
+            const listed = new Set(items.map((item) => item.id));
+            return [...items, ...result.items.filter((item) => !listed.has(item.id))];
+          });
           this.libTotal.set(result.total);
           this.libHasMore.set(result.hasMore);
           this.libPage = result.page + 1;
+          this.libSnapshot = result.snapshot;
         },
         error: () => this.libFailed.set(true),
       });

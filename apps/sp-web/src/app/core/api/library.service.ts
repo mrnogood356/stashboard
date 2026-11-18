@@ -82,19 +82,35 @@ export class LibraryService {
   }
 
   /** Every studio with a scene of yours, most scenes first. */
-  listStudios(query: string, page = 1, perPage = 48): Observable<LibraryPerformers> {
+  listStudios(
+    query: string,
+    page = 1,
+    perPage = 48,
+    snapshot?: string,
+  ): Observable<LibraryPerformers> {
     let params = new HttpParams().set('page', page).set('perPage', perPage);
     if (query.trim()) {
       params = params.set('query', query.trim());
+    }
+    if (snapshot) {
+      params = params.set('snapshot', snapshot);
     }
     return this.http.get<LibraryPerformers>('/api/library/studios/list', { params });
   }
 
   /** Everyone in your own scenes, most scenes first. */
-  listPerformers(query: string, page = 1, perPage = 48): Observable<LibraryPerformers> {
+  listPerformers(
+    query: string,
+    page = 1,
+    perPage = 48,
+    snapshot?: string,
+  ): Observable<LibraryPerformers> {
     let params = new HttpParams().set('page', page).set('perPage', perPage);
     if (query.trim()) {
       params = params.set('query', query.trim());
+    }
+    if (snapshot) {
+      params = params.set('snapshot', snapshot);
     }
     return this.http.get<LibraryPerformers>('/api/library/performers', { params });
   }
@@ -114,6 +130,8 @@ export interface LibraryPerformers {
   page: number;
   perPage: number;
   hasMore: boolean;
+  /** Pass back with the next page to keep the same order. */
+  snapshot?: string;
   items: LibraryPerformer[];
 }
 

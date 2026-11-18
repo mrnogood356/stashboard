@@ -159,6 +159,13 @@ export class RenamePreviewDto {
   pattern?: string;
 }
 
+export class FilingExampleQueryDto {
+  /** The finished-downloads folder being typed in. */
+  @IsString()
+  @MaxLength(1000)
+  destination!: string;
+}
+
 export class RenameScenesDto {
   @IsArray()
   @ArrayMinSize(1)

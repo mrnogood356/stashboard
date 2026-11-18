@@ -618,6 +618,10 @@ describe('OrganizerService', () => {
       id: 's0-remote-1',
       source: 'StashDB',
       confidence: 'exact',
+      // The text it would fill in, for copying only some of it by hand.
+      details: 'About',
+      director: null,
+      urls: ['https://example.com/scene'],
     });
   });
 
@@ -1420,6 +1424,50 @@ describe('OrganizerService', () => {
         toPath: '/data/inbox/2020-01-02 - T.mp4',
       }),
     });
+  });
+
+  it('shows where a finished download in a folder would be filed', async () => {
+    stash.findOrganizerScenes.mockResolvedValue({
+      total: 2,
+      items: [
+        // Its file went: the next one shows the example.
+        localScene({ id: '6', title: 'Gone', files: [] }),
+        localScene({
+          title: 'Summer Afternoon',
+          date: '2023-08-14',
+          studio: { id: 's', name: 'Bright Studio' },
+          stashIds: [{ endpoint: 'e', stashId: 'x' }],
+        }),
+      ],
+    });
+    // Whisparr tracking that scene doesn't matter: the download is a new file.
+    handoff.trackedStashIds.mockResolvedValue(new Set(['x']));
+
+    await expect(
+      service.downloadFilingExample('/data/downloads/'),
+    ).resolves.toEqual({
+      title: 'Summer Afternoon',
+      landsAt: '/data/downloads/BrightStudio.23.08.14.Summer.Afternoon.mp4',
+      // Inside the downloads folder, the scene in a folder of its own.
+      filedAt:
+        '/data/downloads/Bright Studio/2023-08-14 - Summer Afternoon/2023-08-14 - Summer Afternoon.mp4',
+      state: 'ready',
+      pattern: '{studio}/{date} - {title}',
+    });
+    const [[, options]] = stash.findOrganizerScenes.mock.calls as Array<
+      [unknown, { sceneFilter: Record<string, unknown> }]
+    >;
+    expect(options.sceneFilter).toMatchObject({
+      studios: { modifier: 'NOT_NULL' },
+      file_count: { modifier: 'GREATER_THAN', value: 0 },
+    });
+
+    // Nothing matched yet: nothing to show.
+    stash.findOrganizerScenes.mockResolvedValue({ total: 0, items: [] });
+    await expect(
+      service.downloadFilingExample('/data/downloads'),
+    ).resolves.toBeNull();
+    await expect(service.downloadFilingExample('  ')).resolves.toBeNull();
   });
 
   it('never renames a scene Whisparr tracks, even if Stashboard’s own index is out of date', async () => {
@@ -3362,6 +3410,9 @@ describe('pickSure', () => {
     imageUrl: null,
     duration: null,
     code: null,
+    details: null,
+    director: null,
+    urls: [],
     source: 'StashDB',
     score: 1,
     confidence: 'exact',
