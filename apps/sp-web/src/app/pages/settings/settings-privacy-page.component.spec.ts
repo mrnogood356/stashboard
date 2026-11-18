@@ -31,7 +31,10 @@ describe('SettingsPrivacyPageComponent', () => {
       describeError: () => 'Error',
       isPhoneApp: () => device.phoneApp ?? false,
     };
-    const images = { mode: signal(device.blurred ? 'obscured' : 'clear') };
+    const images = {
+      mode: signal(device.blurred ? 'obscured' : 'clear'),
+      serverCopy: signal<'unknown' | 'saving' | 'saved' | 'failed'>('saved'),
+    };
     await TestBed.configureTestingModule({
       imports: [SettingsPrivacyPageComponent],
       providers: [
@@ -64,10 +67,21 @@ describe('SettingsPrivacyPageComponent', () => {
     expect(check(root, 'switcher')).toContain('On: the app is covered in the app switcher');
     expect(check(root, 'eye')).toContain('On, saved to the server too');
     expect(root.querySelectorAll('.privacy-check .pi.on')).toHaveLength(3);
-    // Not yet on the server: says so.
+    // Changed: saving, then saved or failed, as the save says.
     phone.images.mode.set('clear');
+    phone.images.serverCopy.set('saving');
     phone.fixture.detectChanges();
     expect(check(root, 'eye')).toContain('Off, saving to the server…');
+    phone.images.serverCopy.set('saved');
+    phone.fixture.detectChanges();
+    expect(check(root, 'eye')).toContain('Off, saved to the server too');
+    phone.images.serverCopy.set('failed');
+    phone.fixture.detectChanges();
+    expect(check(root, 'eye')).toContain('not saved to the server yet');
+    // App Lock on covers the app in the switcher even with the cover off.
+    phone.appLock.status.set({ ...phone.appLock.status()!, hideInSwitcher: false });
+    phone.fixture.detectChanges();
+    expect(check(root, 'switcher')).toContain('On, as App Lock is on');
     TestBed.resetTestingModule();
 
     const browser = await render({ enabled: true }, false, { phoneApp: false });

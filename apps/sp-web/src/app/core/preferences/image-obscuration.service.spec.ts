@@ -84,8 +84,10 @@ describe('ImageObscurationService', () => {
     eye.setMode('clear');
     // The second waits for the first to be answered.
     expect(put).toHaveBeenCalledTimes(1);
+    expect(eye.serverCopy()).toBe('saving');
     first.next();
     first.complete();
+    expect(eye.serverCopy()).toBe('saved');
     expect(put).toHaveBeenCalledTimes(2);
     expect(put).toHaveBeenLastCalledWith('/api/app-lock/images', { obscured: false });
     expect(localStorage.getItem('sp-images-unsent')).toBeNull();
@@ -97,6 +99,7 @@ describe('ImageObscurationService', () => {
     first.put.mockReturnValue(throwError(() => new Error('offline')));
     first.eye.setMode('obscured');
     expect(localStorage.getItem('sp-images-unsent')).toBe('1');
+    expect(first.eye.serverCopy()).toBe('failed');
     TestBed.resetTestingModule();
 
     // Next time the app opens, the server still says clear.

@@ -1428,8 +1428,10 @@ describe('OrganizerService', () => {
 
   it('shows where a finished download in a folder would be filed', async () => {
     stash.findOrganizerScenes.mockResolvedValue({
-      total: 1,
+      total: 2,
       items: [
+        // Its file went: the next one shows the example.
+        localScene({ id: '6', title: 'Gone', files: [] }),
         localScene({
           title: 'Summer Afternoon',
           date: '2023-08-14',
@@ -1446,7 +1448,9 @@ describe('OrganizerService', () => {
     ).resolves.toEqual({
       title: 'Summer Afternoon',
       landsAt: '/data/downloads/BrightStudio.23.08.14.Summer.Afternoon.mp4',
-      filedAt: '/data/Bright Studio/2023-08-14 - Summer Afternoon.mp4',
+      // Inside the downloads folder, the scene in a folder of its own.
+      filedAt:
+        '/data/downloads/Bright Studio/2023-08-14 - Summer Afternoon/2023-08-14 - Summer Afternoon.mp4',
       state: 'ready',
       pattern: '{studio}/{date} - {title}',
     });
@@ -1455,6 +1459,7 @@ describe('OrganizerService', () => {
     >;
     expect(options.sceneFilter).toMatchObject({
       studios: { modifier: 'NOT_NULL' },
+      file_count: { modifier: 'GREATER_THAN', value: 0 },
     });
 
     // Nothing matched yet: nothing to show.

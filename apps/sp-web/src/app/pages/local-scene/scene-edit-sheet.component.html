@@ -3,7 +3,7 @@
   title="Edit scene"
   subtitle="Saved straight to Stash."
   size="wide"
-  [busy]="saving()"
+  [busy]="busy()"
   testId="scene-edit-sheet"
   (closed)="close()"
 >
@@ -80,7 +80,7 @@
                 type="button"
                 class="app-btn app-btn--primary"
                 data-testid="edit-match"
-                [disabled]="matching()"
+                [disabled]="busy()"
                 (click)="matchChosen()"
               >
                 {{ matching() ? 'Matching…' : 'Match fully' }}
@@ -279,7 +279,7 @@
         type="submit"
         class="app-btn app-btn--primary"
         data-testid="edit-save"
-        [disabled]="saving() || !!problem()"
+        [disabled]="busy() || creating() || !!problem()"
       >
         {{ saving() ? 'Saving…' : 'Save' }}
       </button>

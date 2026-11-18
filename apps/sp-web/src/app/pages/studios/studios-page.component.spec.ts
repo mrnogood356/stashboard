@@ -172,6 +172,34 @@ describe('StudiosPageComponent', () => {
     expect(names.some((name) => name.includes('Studio 3'))).toBe(true);
   });
 
+  it('starts the library list again when the ranking it was paging through is gone', async () => {
+    const page = (n: number, ids: string[], snapshot: string) =>
+      of({
+        total: 4,
+        page: n,
+        perPage: 2,
+        hasMore: n === 1,
+        snapshot,
+        items: ids.map((id) => ({ id, name: `Studio ${id}`, count: 3, imageUrl: `/logo/${id}` })),
+      });
+    const listStudios = vi
+      .fn()
+      .mockReturnValueOnce(page(1, ['a', 'b'], 'old'))
+      // Kept too long: ranked again, so page 2 is from another order.
+      .mockReturnValueOnce(page(2, ['b', 'c'], 'new'))
+      .mockReturnValueOnce(page(1, ['d', 'a'], 'newer'));
+    const { root, fixture } = await render({ query: { lib: '1' }, listStudios });
+
+    (root.querySelector('.show-more-library') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(listStudios).toHaveBeenLastCalledWith('', 1, undefined, undefined);
+    const names = Array.from(
+      root.querySelectorAll('[data-testid="library-studios"] .studio-name'),
+      (name) => name.textContent?.trim(),
+    );
+    expect(names).toEqual(['Studio d', 'Studio a']);
+  });
+
   it('loads the catalog on the way back from In my library, and shows a logo that fails as its initial', async () => {
     const queryParamMap = new BehaviorSubject(convertToParamMap({ lib: '1' }));
     const { fixture, root, discover } = await render({ queryParamMap });

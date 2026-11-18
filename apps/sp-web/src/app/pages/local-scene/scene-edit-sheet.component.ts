@@ -2,7 +2,16 @@ import { Component, EventEmitter, Input, OnDestroy, Output, inject, signal } fro
 import { HttpErrorResponse } from '@angular/common/http';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subject, Subscription, catchError, debounceTime, of, switchMap } from 'rxjs';
+import {
+  Observable,
+  Subject,
+  Subscription,
+  catchError,
+  debounceTime,
+  of,
+  switchMap,
+  tap,
+} from 'rxjs';
 import {
   LocalLibraryService,
   LocalSceneUpdate,
@@ -111,6 +120,18 @@ export class SceneEditSheetComponent implements OnDestroy {
   protected readonly copying = signal<ReadonlySet<CopyField>>(new Set());
   protected readonly matching = signal(false);
   private findRequest: Subscription | null = null;
+  /** The match saved for "scene:candidate", when the scene then failed to load. */
+  private appliedMatch: string | null = null;
+  /**
+   * Bumped each time a people picker opens or closes: someone added to
+   * Stash from a picker that has since closed isn't put on the scene.
+   */
+  private pickSession = 0;
+
+  /** Saving the form or a whole match: either keeps the sheet busy. */
+  protected busy(): boolean {
+    return this.saving() || this.matching();
+  }
 
   protected startFinding(): void {
     this.finding.set(true);
@@ -220,30 +241,44 @@ export class SceneEditSheetComponent implements OnDestroy {
   protected matchChosen(): void {
     const scene = this.original;
     const candidate = this.chosen();
-    if (!scene || !candidate || this.matching()) {
+    // Not while the form is saving: one would overwrite the other.
+    if (!scene || !candidate || this.matching() || this.saving()) {
       return;
     }
     this.matching.set(true);
     this.findError.set(null);
-    this.organizer
-      .apply(scene.id, candidate.id)
-      .pipe(switchMap(() => this.playback.getSceneDetails(scene.id)))
-      .subscribe({
-        next: (details) => {
-          this.matching.set(false);
-          this.stopFinding();
-          this.saved.emit(details);
-        },
-        error: (error: unknown) => {
-          this.matching.set(false);
-          const message =
-            error instanceof HttpErrorResponse &&
-            typeof (error.error as { message?: unknown } | null)?.message === 'string'
-              ? (error.error as { message: string }).message
-              : 'Try again.';
-          this.findError.set(`Couldn’t match it. ${message}`);
-        },
-      });
+    const key = `${scene.id}:${candidate.id}`;
+    // Saved already, only the scene didn't load again after: just load it.
+    // The match can't be saved twice (the server lets it go once used).
+    const applied: Observable<unknown> =
+      this.appliedMatch === key
+        ? of(null)
+        : this.organizer.apply(scene.id, candidate.id).pipe(
+            tap(() => {
+              this.appliedMatch = key;
+            }),
+          );
+    applied.pipe(switchMap(() => this.playback.getSceneDetails(scene.id))).subscribe({
+      next: (details) => {
+        this.matching.set(false);
+        this.appliedMatch = null;
+        this.stopFinding();
+        this.saved.emit(details);
+      },
+      error: (error: unknown) => {
+        this.matching.set(false);
+        if (this.appliedMatch === key) {
+          this.findError.set('It’s matched, but the scene didn’t load again. Try again.');
+          return;
+        }
+        const message =
+          error instanceof HttpErrorResponse &&
+          typeof (error.error as { message?: unknown } | null)?.message === 'string'
+            ? (error.error as { message: string }).message
+            : 'Try again.';
+        this.findError.set(`Couldn’t match it. ${message}`);
+      },
+    });
   }
 
   ngOnDestroy(): void {
@@ -261,11 +296,13 @@ export class SceneEditSheetComponent implements OnDestroy {
     this.studio.set(scene.studio ? { id: scene.studio.id, name: scene.studio.name } : null);
     this.performers.set(scene.performers.map(({ id, name }) => ({ id, name })));
     this.error.set(null);
+    this.appliedMatch = null;
     this.stopPicking();
     this.stopFinding();
   }
 
   protected startPicking(kind: 'studio' | 'performer'): void {
+    this.pickSession += 1;
     this.picking.set(kind);
     this.peopleQuery.set('');
     this.peopleResults.set({ performers: [], studios: [] });
@@ -273,6 +310,7 @@ export class SceneEditSheetComponent implements OnDestroy {
   }
 
   protected stopPicking(): void {
+    this.pickSession += 1;
     this.picking.set(null);
     this.peopleQuery.set('');
     this.createError.set(null);
@@ -318,9 +356,14 @@ export class SceneEditSheetComponent implements OnDestroy {
     }
     this.creating.set(true);
     this.createError.set(null);
+    const session = this.pickSession;
     this.library.createPerson(kind, name).subscribe({
       next: (person) => {
         this.creating.set(false);
+        // That picker closed, or another opened: it's in Stash, not chosen.
+        if (session !== this.pickSession) {
+          return;
+        }
         const named = { id: person.id, name: person.name };
         if (kind === 'studio') {
           this.pickStudio(named);
@@ -396,7 +439,8 @@ export class SceneEditSheetComponent implements OnDestroy {
 
   protected save(): void {
     const scene = this.original;
-    if (!scene || this.saving() || this.problem()) {
+    // Not while a whole match is saving, or while someone is being added.
+    if (!scene || this.busy() || this.creating() || this.problem()) {
       return;
     }
     const update = this.changes();
@@ -429,7 +473,7 @@ export class SceneEditSheetComponent implements OnDestroy {
   }
 
   protected close(): void {
-    if (!this.saving()) {
+    if (!this.busy()) {
       if (this.original) {
         this.reset(this.original);
       }

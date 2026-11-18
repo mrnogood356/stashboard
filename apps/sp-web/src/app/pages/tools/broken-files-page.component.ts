@@ -71,6 +71,8 @@ export const PROBLEMS: Record<ProblemKind, ProblemInfo> = {
 /** How often, and how many times, a started job is checked on (half an hour). */
 const FOLLOW_EVERY_MS = 5000;
 const FOLLOW_CHECKS = 360;
+/** Clear checks in a row before Generate counts as done (15s, past the rescan's 12s wait). */
+const GENERATE_QUIET_CHECKS = 3;
 
 /** Up to this many listed scenes get Generate for themselves; more runs it for the library. */
 const GENERATE_FOR_LISTED = 50;
@@ -113,6 +115,8 @@ export class BrokenFilesPageComponent implements OnInit {
   protected readonly following = signal<{ kind: ProblemKind; action: FixAction } | null>(null);
   private followTimer: ReturnType<typeof setTimeout> | null = null;
   private followRequest: Subscription | null = null;
+  /** Left the page: a start answered afterwards doesn't start following. */
+  private destroyed = false;
 
   /** Scenes skipped across the lists. */
   protected readonly skippedCount = computed(() =>
@@ -121,6 +125,7 @@ export class BrokenFilesPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.destroyRef.onDestroy(() => {
+      this.destroyed = true;
       this.stopPolling();
       this.stopFollowing();
     });
@@ -189,18 +194,25 @@ export class BrokenFilesPageComponent implements OnInit {
     this.stopFollowing();
     this.following.set({ kind, action });
     let checks = 0;
+    // Generate's preview rescan can wait a few seconds in Stashboard before
+    // it reaches Stash's queue (when Stash's queue had a job waiting): the
+    // queue has to stay clear for a few checks in a row before it's done.
+    const quietNeeded = action === 'generate' ? GENERATE_QUIET_CHECKS : 1;
+    let quiet = 0;
     const check = () => {
       checks += 1;
       this.followRequest = this.library.jobs().subscribe({
         next: (jobs) => {
           const busy = jobs.some((job) => job.id === jobId || job.byStashboard === true);
-          if (!busy) {
+          quiet = busy ? 0 : quiet + 1;
+          if (quiet >= quietNeeded) {
             this.stopFollowing();
             this.notifications.success(
               action === 'generate' ? 'Generate is done' : 'The scan is done',
               'The list is up to date.',
             );
-            this.load(action === 'generate');
+            // A fresh check either way: the background lists keep a result.
+            this.load(true);
           } else if (checks < FOLLOW_CHECKS) {
             this.followTimer = setTimeout(check, FOLLOW_EVERY_MS);
           } else {
@@ -277,8 +289,12 @@ export class BrokenFilesPageComponent implements OnInit {
         : this.library.startJob(fix.action === 'scan' ? 'scan' : 'generate');
     // Stash can take a while to answer: say it's under way meanwhile.
     this.busy.set(key);
+    // The job keeps going in Stash if the page is left; only the answer is dropped.
     run.subscribe({
       next: (result) => {
+        if (this.destroyed) {
+          return;
+        }
         this.busy.set(null);
         this.started.update((set) => new Set(set).add(key));
         if (result.warning) {

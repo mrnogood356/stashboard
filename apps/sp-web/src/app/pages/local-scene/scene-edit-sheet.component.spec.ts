@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LocalLibraryService } from '../../core/api/local-library.service';
 import { PlaybackService, type LocalSceneDetails } from '../../core/api/playback.service';
@@ -288,6 +288,111 @@ describe('SceneEditSheetComponent', () => {
     expect(playback.getSceneDetails).toHaveBeenCalledWith('4');
     expect(saved).toHaveBeenCalledWith(matched);
     expect(library.updateScene).not.toHaveBeenCalled();
+  });
+
+  it('after a match is saved but the scene fails to load, only loads it again', async () => {
+    const candidate = {
+      id: 's0-remote-1',
+      title: 'Summer Afternoon',
+      date: null,
+      studio: null,
+      performers: [],
+      imageUrl: null,
+      duration: null,
+      code: null,
+      source: 'StashDB',
+      score: 1,
+      confidence: 'exact',
+      reasons: [],
+    } as MatchCandidate;
+    const matched = scene({ title: 'Summer Afternoon' });
+    const organizer = {
+      lookup: vi
+        .fn()
+        .mockReturnValue(of([{ sceneId: '4', searchedFor: null, candidates: [candidate] }])),
+      apply: vi.fn().mockReturnValue(of({ sceneId: '4', renamedTo: null })),
+    };
+    const playback = {
+      getSceneDetails: vi
+        .fn()
+        .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 502 })))
+        .mockReturnValueOnce(of(matched)),
+    };
+    const library = { updateScene: vi.fn(), searchPeople: vi.fn() };
+    const { fixture, root, click } = await render(library, { organizer, playback });
+    const saved = vi.fn();
+    fixture.componentInstance.saved.subscribe(saved);
+
+    click('edit-find-stashdb');
+    click('edit-find-result');
+    click('edit-match');
+    expect(root().textContent).toContain('It’s matched, but the scene didn’t load again.');
+    // Save waits while a match is out; the match waits while the form saves.
+    click('edit-match');
+    expect(organizer.apply).toHaveBeenCalledTimes(1);
+    expect(playback.getSceneDetails).toHaveBeenCalledTimes(2);
+    expect(saved).toHaveBeenCalledWith(matched);
+  });
+
+  it('doesn’t save while a whole match is being saved, nor match while saving', async () => {
+    const candidate = {
+      id: 'c1',
+      title: 'T',
+      date: null,
+      studio: null,
+      performers: [],
+      imageUrl: null,
+      duration: null,
+      code: null,
+      source: 'StashDB',
+      score: 1,
+      confidence: 'exact',
+      reasons: [],
+    } as MatchCandidate;
+    const applying = new Subject<{ sceneId: string; renamedTo: null }>();
+    const organizer = {
+      lookup: vi
+        .fn()
+        .mockReturnValue(of([{ sceneId: '4', searchedFor: null, candidates: [candidate] }])),
+      apply: vi.fn().mockReturnValue(applying),
+    };
+    const library = { updateScene: vi.fn(), searchPeople: vi.fn() };
+    const { root, type, click } = await render(library, {
+      organizer,
+      playback: { getSceneDetails: vi.fn() },
+    });
+    click('edit-find-stashdb');
+    click('edit-find-result');
+    click('edit-match');
+    type('edit-title', 'Mine');
+    const saveButton = root().querySelector<HTMLButtonElement>('[data-testid="edit-save"]')!;
+    expect(saveButton.disabled).toBe(true);
+    root().querySelector('form')!.dispatchEvent(new Event('submit'));
+    expect(library.updateScene).not.toHaveBeenCalled();
+  });
+
+  it('leaves out a studio added to Stash after its picker was closed', async () => {
+    vi.useFakeTimers();
+    const created = new Subject<{ id: string; name: string; created: boolean }>();
+    const library = {
+      updateScene: vi.fn(),
+      searchPeople: vi.fn().mockReturnValue(of({ performers: [], studios: [] })),
+      createPerson: vi.fn().mockReturnValue(created),
+    };
+    const { fixture, root, type, click } = await render(library);
+    click('edit-pick-studio');
+    type('edit-people-search', 'Brand New');
+    vi.advanceTimersByTime(300);
+    fixture.detectChanges();
+    click('edit-people-create');
+    // Done, then Archive kept: the new studio mustn't replace it.
+    Array.from(root().querySelectorAll<HTMLButtonElement>('.link-button'))
+      .find((button) => button.textContent?.trim() === 'Done')!
+      .click();
+    fixture.detectChanges();
+    created.next({ id: 's9', name: 'Brand New', created: true });
+    fixture.detectChanges();
+    expect(root().querySelector('[data-testid="edit-studio"]')?.textContent).toContain('Archive');
   });
 
   it('won’t save without a title, a YYYY-MM-DD date or real links, and says why', async () => {

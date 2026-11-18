@@ -59,9 +59,10 @@ export class SettingsPrivacyPageComponent implements OnInit {
     const timeout =
       LOCK_TIMEOUT_OPTIONS.find((option) => option.value === status?.timeoutSeconds)?.label ??
       `After ${Math.round((status?.timeoutSeconds ?? 0) / 60)} minutes`;
+    // As App Lock decides it: the lock covers the app in the switcher too.
+    const covered = !!status?.hideInSwitcher || !!status?.enabled;
     const blurred = this.images.mode() === 'obscured';
-    const remembered =
-      phoneApp && (status?.imagesObscured ?? null) !== null && status?.imagesObscured === blurred;
+    const copy = this.images.serverCopy();
     return [
       {
         id: 'lock',
@@ -76,11 +77,13 @@ export class SettingsPrivacyPageComponent implements OnInit {
       {
         id: 'switcher',
         label: 'App-switcher cover',
-        on: phoneApp && !!status?.hideInSwitcher,
+        on: phoneApp && covered,
         detail: !phoneApp
           ? 'Only in the home-screen app'
-          : status?.hideInSwitcher
-            ? 'On: the app is covered in the app switcher'
+          : covered
+            ? status?.hideInSwitcher
+              ? 'On: the app is covered in the app switcher'
+              : 'On, as App Lock is on'
             : 'Off',
       },
       {
@@ -90,9 +93,11 @@ export class SettingsPrivacyPageComponent implements OnInit {
         detail: `${blurred ? 'On' : 'Off'}, ${
           !phoneApp
             ? 'remembered in this browser only'
-            : remembered
+            : copy === 'saved'
               ? 'saved to the server too'
-              : 'saving to the server…'
+              : copy === 'failed'
+                ? 'not saved to the server yet; it’s sent again next time the app opens'
+                : 'saving to the server…'
         }`,
       },
     ];

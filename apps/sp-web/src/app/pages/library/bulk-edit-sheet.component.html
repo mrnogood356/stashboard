@@ -96,7 +96,7 @@
         type="submit"
         class="app-btn app-btn--primary"
         data-testid="bulk-save"
-        [disabled]="saving() || !hasChanges()"
+        [disabled]="saving() || creating() || !hasChanges()"
       >
         {{ saving() ? 'Saving…' : 'Save' }}
       </button>
@@ -146,6 +146,9 @@
       </ul>
       @if (createError()) {
         <p class="form-error small" role="alert">{{ createError() }}</p>
+      }
+      @if (limitNote(); as note) {
+        <p class="form-note small" role="status" data-testid="bulk-limit">{{ note }}</p>
       }
     </div>
   }

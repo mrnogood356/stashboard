@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LocalLibraryService } from '../../core/api/local-library.service';
 import { BulkEditSheetComponent } from './bulk-edit-sheet.component';
@@ -133,5 +133,67 @@ describe('BulkEditSheetComponent', () => {
 
     click('bulk-save');
     expect(root().textContent).toContain('Couldn’t save that to Stash. Stash is down.');
+  });
+
+  it('keeps a slow search or a new studio in the picker that asked for it', async () => {
+    vi.useFakeTimers();
+    const studios = new Subject<{
+      performers: never[];
+      studios: Array<{ id: string; name: string }>;
+    }>();
+    const created = new Subject<{ id: string; name: string; created: boolean }>();
+    const library = {
+      searchPeople: vi.fn().mockReturnValue(studios),
+      searchTags: vi.fn().mockReturnValue(of([])),
+      createPerson: vi.fn().mockReturnValue(created),
+      bulkEditScenes: vi.fn(),
+    };
+    const { root, click, search, fixture } = await render(library);
+    const component = fixture.componentInstance as unknown as {
+      studio(): { id: string } | null;
+      addPerformers(): Array<{ id: string }>;
+    };
+
+    // A studio search still out when the tag picker opens: never a tag.
+    click('bulk-pick-studio');
+    search('har');
+    click('bulk-pick-add-tag');
+    studios.next({ performers: [], studios: [{ id: 's1', name: 'Harbor' }] });
+    fixture.detectChanges();
+    expect(root().querySelectorAll('.people-results button')).toHaveLength(0);
+
+    // Adding a performer, then the studio picker opens before Stash answers:
+    // the new performer is in Stash, but not chosen as the studio.
+    click('bulk-pick-add-performer');
+    search('Cleo');
+    studios.next({ performers: [], studios: [] });
+    fixture.detectChanges();
+    click('bulk-create');
+    expect(root().querySelector<HTMLButtonElement>('[data-testid="bulk-save"]')!.disabled).toBe(
+      true,
+    );
+    click('bulk-pick-studio');
+    created.next({ id: 'p9', name: 'Cleo', created: true });
+    fixture.detectChanges();
+    expect(component.studio()).toBeNull();
+    expect(component.addPerformers()).toEqual([]);
+  });
+
+  it('takes up to 50 in a list and says so, keeping what’s picked', async () => {
+    const library = { searchPeople: vi.fn(), searchTags: vi.fn(), bulkEditScenes: vi.fn() };
+    const { root, fixture, click } = await render(library);
+    click('bulk-pick-add-tag');
+    const component = fixture.componentInstance as unknown as {
+      choose(option: { id: string; name: string }): void;
+      addTags(): unknown[];
+    };
+    for (let n = 1; n <= 51; n += 1) {
+      component.choose({ id: `t${n}`, name: `Tag ${n}` });
+    }
+    fixture.detectChanges();
+    expect(component.addTags()).toHaveLength(50);
+    expect(root().querySelector('[data-testid="bulk-limit"]')?.textContent).toContain(
+      'Up to 50 in one edit',
+    );
   });
 });

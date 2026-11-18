@@ -22,6 +22,9 @@ type Picking = 'studio' | 'add-performer' | 'remove-performer' | 'add-tag' | 're
 
 const NONE: Named[] = [];
 
+/** The most a list takes in one edit, as the API allows. */
+const LIST_LIMIT = 50;
+
 /**
  * The same change on many library scenes, as Stash's own bulk edit: set the
  * studio, add or take off performers, add or take off tags. Anything left
@@ -63,20 +66,33 @@ export class BulkEditSheetComponent implements OnDestroy {
   protected readonly searching = signal(false);
   protected readonly creating = signal(false);
   protected readonly createError = signal<string | null>(null);
-  private readonly queries = new Subject<{ kind: Picking; query: string }>();
+  /** A list is full: what to say. */
+  protected readonly limitNote = signal<string | null>(null);
+  /**
+   * Bumped each time a picker opens or closes: a search or an addition to
+   * Stash that started under another picker never lands in this one.
+   */
+  private session = 0;
+  private readonly queries = new Subject<{ kind: Picking; query: string; session: number }>();
   private readonly searchSubscription: Subscription = this.queries
     .pipe(
       debounceTime(250),
-      switchMap(({ kind, query }) => {
+      switchMap(({ kind, query, session }) => {
         if (query.trim().length < 2) {
           this.searching.set(false);
-          return of(NONE);
+          return of({ session, results: NONE });
         }
         this.searching.set(true);
-        return this.search(kind, query.trim()).pipe(catchError(() => of(NONE)));
+        return this.search(kind, query.trim()).pipe(
+          catchError(() => of(NONE)),
+          map((results) => ({ session, results })),
+        );
       }),
     )
-    .subscribe((results) => {
+    .subscribe(({ session, results }) => {
+      if (session !== this.session) {
+        return;
+      }
       this.results.set(results);
       this.searching.set(false);
     });
@@ -109,25 +125,31 @@ export class BulkEditSheetComponent implements OnDestroy {
   }
 
   protected startPicking(kind: Picking): void {
+    this.session += 1;
     this.picking.set(kind);
     this.query.set('');
     this.results.set([]);
+    this.searching.set(false);
     this.createError.set(null);
-    this.queries.next({ kind, query: '' });
+    this.limitNote.set(null);
+    this.queries.next({ kind, query: '', session: this.session });
   }
 
   protected stopPicking(): void {
+    this.session += 1;
     this.picking.set(null);
     this.query.set('');
     this.results.set([]);
+    this.searching.set(false);
     this.createError.set(null);
+    this.limitNote.set(null);
   }
 
   protected onQuery(value: string): void {
     const kind = this.picking();
     this.query.set(value);
     if (kind) {
-      this.queries.next({ kind, query: value });
+      this.queries.next({ kind, query: value, session: this.session });
     }
   }
 
@@ -170,8 +192,7 @@ export class BulkEditSheetComponent implements OnDestroy {
     }
   }
 
-  protected choose(option: Named): void {
-    const kind = this.picking();
+  protected choose(option: Named, kind: Picking | null = this.picking()): void {
     if (!kind) {
       return;
     }
@@ -182,6 +203,12 @@ export class BulkEditSheetComponent implements OnDestroy {
     }
     const list = this.listFor(kind);
     if (!list().some((existing) => existing.id === option.id)) {
+      if (list().length >= LIST_LIMIT) {
+        this.limitNote.set(
+          `Up to ${LIST_LIMIT} in one edit. Save these, then edit again for more.`,
+        );
+        return;
+      }
       list.update((items) => [...items, option]);
     }
     this.oppositeOf(kind).update((items) => items.filter((item) => item.id !== option.id));
@@ -211,10 +238,15 @@ export class BulkEditSheetComponent implements OnDestroy {
     }
     this.creating.set(true);
     this.createError.set(null);
+    const session = this.session;
     this.library.createPerson(kind === 'studio' ? 'studio' : 'performer', name).subscribe({
       next: (person) => {
         this.creating.set(false);
-        this.choose({ id: person.id, name: person.name });
+        // Picked only where it was asked for: if that picker has closed, or
+        // another opened, it's in Stash but not chosen here.
+        if (session === this.session) {
+          this.choose({ id: person.id, name: person.name }, kind);
+        }
       },
       error: () => {
         this.creating.set(false);
@@ -235,7 +267,8 @@ export class BulkEditSheetComponent implements OnDestroy {
   }
 
   protected save(): void {
-    if (this.saving() || !this.hasChanges() || this.ids.length === 0) {
+    // Not while a new performer or studio is still being added: it'd be left out.
+    if (this.saving() || this.creating() || !this.hasChanges() || this.ids.length === 0) {
       return;
     }
     const ids = (list: Named[]) => list.map((item) => item.id);

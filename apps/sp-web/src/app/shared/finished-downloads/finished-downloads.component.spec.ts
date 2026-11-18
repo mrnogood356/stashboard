@@ -114,6 +114,9 @@ describe('FinishedDownloadsComponent', () => {
     const destination = input('destination') as HTMLInputElement;
     destination.value = '/elsewhere';
     destination.dispatchEvent(new Event('input'));
+    // The old folder's example goes at once, not when the new one comes.
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="filing-example"]')).toBeNull();
     await wait();
     fixture.detectChanges();
     expect(example()).toContain(
@@ -127,6 +130,33 @@ describe('FinishedDownloadsComponent', () => {
     fixture.detectChanges();
     expect(root.querySelector('[data-testid="filing-example"]')).toBeNull();
     expect(filingExample).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows the saved folder’s example after saving', async () => {
+    const filingExample = vi.fn((destination: string) =>
+      of({
+        title: 'T',
+        landsAt: `${destination}/t.mp4`,
+        filedAt: `${destination}/S/T/T.mp4`,
+        state: 'ready' as const,
+        pattern: '{studio}/{title}',
+      }),
+    );
+    const wait = () => new Promise((resolve) => setTimeout(resolve, 450));
+    const { fixture, root, api, input } = await render({ filingExample });
+    // The server keeps a tidied folder: its example is the one shown.
+    api.update.mockReturnValue(of(settings({ destination: '/data/saved' })));
+    const destination = input('destination') as HTMLInputElement;
+    destination.value = '/data/typed/';
+    destination.dispatchEvent(new Event('input'));
+    root.querySelector('form')!.dispatchEvent(new Event('submit'));
+    await wait();
+    fixture.detectChanges();
+    expect(destination.value).toBe('/data/saved');
+    expect(filingExample).toHaveBeenLastCalledWith('/data/saved');
+    expect(text(root.querySelector('[data-testid="filing-example"]'))).toContain(
+      'is filed at /data/saved/S/T/T.mp4',
+    );
   });
 
   it('asks for SABnzbd first when it isn’t ready', async () => {

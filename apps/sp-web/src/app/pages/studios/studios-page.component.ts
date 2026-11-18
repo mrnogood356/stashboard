@@ -228,11 +228,18 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.libRequest?.unsubscribe();
     this.libLoading.set(true);
     this.libFailed.set(false);
+    const sentSnapshot = this.libSnapshot;
     this.libRequest = this.libraryApi
       .listStudios(this.libQuery ?? '', this.libPage, undefined, this.libSnapshot)
       .pipe(finalize(() => this.libLoading.set(false)))
       .subscribe({
         next: (result) => {
+          // The order the earlier pages came from was gone (kept too long),
+          // so this page is from a new one: start the list again from the top.
+          if (!reset && sentSnapshot && result.snapshot !== sentSnapshot) {
+            this.loadLibrary(true);
+            return;
+          }
           // A studio already listed isn't listed twice if the ranking moved.
           this.libItems.update((items) => {
             if (reset) {

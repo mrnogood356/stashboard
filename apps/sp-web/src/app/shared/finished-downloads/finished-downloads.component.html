@@ -78,19 +78,20 @@
           <span class="hint filing-example" data-testid="filing-example">
             For example, “{{ shown.title }}” lands as
             <code>{{ shown.landsAt }}</code>
-            @switch (shown.state) {
-              @case ('ready') {
-                and is filed at <code>{{ shown.filedAt }}</code
-                >.
-              }
-              @case ('same') {
-                and stays there: that’s already where your pattern puts it.
-              }
-              @case ('outside') {
-                and isn’t filed: that folder isn’t inside one of Stash’s library folders.
-              }
-              @default {
-                and is left where it is.
+            @if (shown.filedAt) {
+              and is filed at <code>{{ shown.filedAt }}</code
+              >.
+            } @else {
+              @switch (shown.state) {
+                @case ('missing') {
+                  and stays there: your rename pattern needs details it doesn’t have.
+                }
+                @case ('outside') {
+                  and isn’t filed: that folder isn’t inside one of Stash’s library folders.
+                }
+                @default {
+                  and is left where it is.
+                }
               }
             }
           </span>

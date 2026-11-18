@@ -2,7 +2,7 @@ import { Component, DestroyRef, Input, OnInit, inject, signal } from '@angular/c
 import { RouterLink } from '@angular/router';
 import { ButtonDirective } from 'primeng/button';
 import { Message } from 'primeng/message';
-import { Subject, catchError, debounceTime, of, switchMap } from 'rxjs';
+import { Subject, catchError, of, switchMap, timer } from 'rxjs';
 import { DownloadHandoffApiService } from '../../core/api/download-handoff.service';
 import { FilingExample, OrganizerApiService } from '../../core/api/organizer.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
@@ -49,14 +49,19 @@ export class FinishedDownloadsComponent implements OnInit {
   protected readonly dropInFolder = signal<string | null>(null);
 
   ngOnInit(): void {
+    // Each change drops the last folder's example (and its lookup) at once;
+    // the new one is asked for once typing has paused.
     const examples = this.destinations
       .pipe(
-        debounceTime(400),
-        switchMap((folder) =>
-          folder.trim()
-            ? this.organizer.filingExample(folder.trim()).pipe(catchError(() => of(null)))
-            : of(null),
-        ),
+        switchMap((folder) => {
+          this.example.set(null);
+          return folder.trim()
+            ? timer(400).pipe(
+                switchMap(() => this.organizer.filingExample(folder.trim())),
+                catchError(() => of(null)),
+              )
+            : of(null);
+        }),
       )
       .subscribe((example) => this.example.set(example));
     this.destroyRef.onDestroy(() => examples.unsubscribe());
@@ -104,7 +109,8 @@ export class FinishedDownloadsComponent implements OnInit {
       .subscribe({
         next: (saved) => {
           this.saving.set(false);
-          this.destination.set(saved.destination ?? '');
+          // What was saved may differ from what's typed now: show its example.
+          this.onDestination(saved.destination ?? '');
           this.sabPathFrom.set(saved.sabPathFrom ?? '');
           this.sabPathTo.set(saved.sabPathTo ?? '');
           this.dropInFolder.set(saved.dropInFolder);
