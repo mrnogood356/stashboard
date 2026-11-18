@@ -142,6 +142,48 @@ describe('SceneEditSheetComponent', () => {
     expect(library.updateScene).not.toHaveBeenCalled();
   });
 
+  it('searches again for the same words after a pick cleared the list', async () => {
+    vi.useFakeTimers();
+    const library = {
+      updateScene: vi.fn(),
+      searchPeople: vi
+        .fn()
+        .mockReturnValue(of({ performers: [{ id: 'p2', name: 'Bea' }], studios: [] })),
+    };
+    const { fixture, root, type, click } = await render(library);
+    click('edit-add-performer');
+    type('edit-people-search', 'bea');
+    vi.advanceTimersByTime(300);
+    fixture.detectChanges();
+    root().querySelector<HTMLButtonElement>('.people-results button')!.click();
+    fixture.detectChanges();
+
+    type('edit-people-search', 'bea');
+    vi.advanceTimersByTime(300);
+    expect(library.searchPeople).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows the API’s own reasons when it turns a save down', async () => {
+    const library = {
+      updateScene: vi.fn().mockReturnValue(
+        throwError(
+          () =>
+            new HttpErrorResponse({
+              status: 400,
+              error: { message: ['title must be shorter than or equal to 500 characters'] },
+            }),
+        ),
+      ),
+      searchPeople: vi.fn(),
+    };
+    const { root, type, click } = await render(library);
+    type('edit-title', 'Changed');
+    click('edit-save');
+    expect(root().querySelector('[role="alert"]')?.textContent).toContain(
+      'title must be shorter than or equal to 500 characters',
+    );
+  });
+
   it('says what Stash said when saving fails, and keeps the edits', async () => {
     const library = {
       updateScene: vi

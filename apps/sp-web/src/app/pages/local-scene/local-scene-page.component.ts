@@ -216,6 +216,10 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
 
   /** Saved from the Edit sheet: Stash's answer is what's shown now. */
   protected onEdited(saved: LocalSceneDetails): void {
+    // A save for a scene you've since left isn't shown on this one.
+    if (saved.id !== this.sceneId) {
+      return;
+    }
     this.scene.set(saved);
     this.editing.set(false);
   }

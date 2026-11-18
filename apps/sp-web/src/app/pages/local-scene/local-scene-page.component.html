@@ -207,6 +207,7 @@
               type="button"
               class="action secondary"
               data-testid="edit-scene"
+              [disabled]="saving()"
               (click)="editing.set(true)"
             >
               <i class="pi pi-pencil" aria-hidden="true"></i>

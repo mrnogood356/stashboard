@@ -14,6 +14,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  ValidateBy,
   ValidateIf,
 } from 'class-validator';
 
@@ -65,6 +66,14 @@ export class UpdateLocalSceneDto {
   @IsOptional()
   @ValidateIf((_, value) => value !== null)
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Write the date as YYYY-MM-DD.' })
+  @ValidateBy({
+    name: 'isCalendarDate',
+    validator: {
+      validate: (value: unknown) =>
+        typeof value === 'string' && isCalendarDate(value),
+      defaultMessage: () => 'That date doesn’t exist.',
+    },
+  })
   date?: string | null;
 
   @IsOptional()
@@ -326,4 +335,19 @@ export class MergeTagsDto {
   @IsString({ each: true })
   @MaxLength(64, { each: true })
   sourceIds!: string[];
+}
+
+/** A YYYY-MM-DD that's a real day: not 2025-02-30, and 2024-02-29 is fine. */
+export function isCalendarDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return false;
+  }
+  const [year, month, day] = match.slice(1).map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
 }

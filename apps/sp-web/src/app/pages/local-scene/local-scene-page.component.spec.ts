@@ -148,6 +148,31 @@ describe('LocalScenePageComponent', () => {
     expect(document.querySelector('[data-testid="scene-edit-sheet"]')).toBeNull();
   });
 
+  it('can’t open Edit while another change is saving, and ignores a save for a scene you left', async () => {
+    const { fixture, root } = await render(vi.fn().mockReturnValue(of(sceneDetails())));
+    const pending = new Subject<ReturnType<typeof sceneDetails>>();
+    library['updateScene'].mockReturnValue(pending);
+    root.querySelector<HTMLButtonElement>('.star')!.click();
+    fixture.detectChanges();
+    expect(root.querySelector<HTMLButtonElement>('[data-testid="edit-scene"]')!.disabled).toBe(
+      true,
+    );
+    pending.next(sceneDetails());
+    pending.complete();
+    fixture.detectChanges();
+    expect(root.querySelector<HTMLButtonElement>('[data-testid="edit-scene"]')!.disabled).toBe(
+      false,
+    );
+
+    // A save that answers for another scene leaves this one as it is.
+    const page = fixture.componentInstance as unknown as {
+      onEdited: (saved: ReturnType<typeof sceneDetails>) => void;
+    };
+    page.onEdited(sceneDetails({ id: '99', title: 'Another scene' }));
+    fixture.detectChanges();
+    expect(root.querySelector('h1')?.textContent).toContain('Sunset Scene');
+  });
+
   it('has a collapsed “Status details” panel for the Stash scene', async () => {
     diagnosticsApi.localScene.mockReset().mockReturnValue(of(null));
     const { root } = await render(vi.fn().mockReturnValue(of(sceneDetails())));

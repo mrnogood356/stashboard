@@ -2,15 +2,7 @@ import { Component, EventEmitter, Input, OnDestroy, Output, inject, signal } fro
 import { HttpErrorResponse } from '@angular/common/http';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import {
-  Subject,
-  Subscription,
-  catchError,
-  debounceTime,
-  distinctUntilChanged,
-  of,
-  switchMap,
-} from 'rxjs';
+import { Subject, Subscription, catchError, debounceTime, of, switchMap } from 'rxjs';
 import {
   LocalLibraryService,
   LocalSceneUpdate,
@@ -67,8 +59,9 @@ export class SceneEditSheetComponent implements OnDestroy {
   private readonly queries = new Subject<string>();
   private readonly searchSubscription: Subscription = this.queries
     .pipe(
+      // No distinctUntilChanged: the same words asked again after a pick
+      // (the list cleared) must search again.
       debounceTime(250),
-      distinctUntilChanged(),
       switchMap((query) => {
         if (query.trim().length < 2) {
           this.peopleSearching.set(false);
@@ -210,11 +203,16 @@ export class SceneEditSheetComponent implements OnDestroy {
       },
       error: (error: unknown) => {
         this.saving.set(false);
+        // The API's checks answer with a list of messages; Stash with one.
+        const body =
+          error instanceof HttpErrorResponse ? (error.error as { message?: unknown } | null) : null;
         const message =
-          error instanceof HttpErrorResponse &&
-          typeof (error.error as { message?: unknown } | null)?.message === 'string'
-            ? (error.error as { message: string }).message
-            : 'Check that Stash is running and try again.';
+          typeof body?.message === 'string'
+            ? body.message
+            : Array.isArray(body?.message) &&
+                body.message.every((entry) => typeof entry === 'string')
+              ? (body.message as string[]).join(' ')
+              : 'Check that Stash is running and try again.';
         this.error.set(`Couldn’t save that to Stash. ${message}`);
       },
     });
