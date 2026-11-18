@@ -24,6 +24,7 @@ describe('SettingsPrivacyPageComponent', () => {
       refresh: vi.fn().mockImplementation(() => Promise.resolve(status())),
       saveSettings: vi.fn().mockResolvedValue(status()),
       describeError: () => 'Error',
+      isPhoneApp: () => false,
     };
     await TestBed.configureTestingModule({
       imports: [SettingsPrivacyPageComponent],

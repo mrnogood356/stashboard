@@ -126,6 +126,8 @@ describe('WatchPageComponent', () => {
           useValue: {
             locked: options.locked ?? signal(false),
             refresh: vi.fn().mockResolvedValue(null),
+            status: signal(null),
+            isPhoneApp: () => false,
           },
         },
         {

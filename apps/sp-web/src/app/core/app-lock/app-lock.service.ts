@@ -7,6 +7,8 @@ export interface AppLockStatus {
   locked: boolean;
   timeoutSeconds: number;
   hideInSwitcher: boolean;
+  /** The installed phone app's eye, kept on the server; null until first sent. */
+  imagesObscured?: boolean | null;
   hasPin: boolean;
   passkeys: Array<{ id: string; label: string; createdAt: string; lastUsedAt: string | null }>;
 }
@@ -25,6 +27,8 @@ const ACTIVE_EVERY_MS = 10_000;
 /** Remembered on the device so the app-switcher cover works before the first request. */
 const SHIELD_PREF_KEY = 'stashboard.hideInSwitcher';
 const SHIELD_CLASS = 'app-shielded';
+/** The strip at the bottom of the screen where iOS's home swipe starts. */
+const HOME_SWIPE_STRIP_PX = 24;
 /** How long an unlock waits for the server before saying so. */
 const UNLOCK_TIMEOUT_MS = 15_000;
 
@@ -102,11 +106,38 @@ export class AppLockService implements OnDestroy {
     this.disposers.push(() => clearInterval(active));
     if (ios) {
       listen(document, 'touchcancel', () => this.raiseShield());
-      listen(document, 'touchstart', () => {
-        if (document.visibilityState === 'visible') {
+      // The home swipe starts on the strip at the very bottom of the screen.
+      // Waiting for its touch to be cancelled is sometimes too late for the
+      // switcher's picture, so a touch there covers the screen at once; one
+      // that ends as a plain tap takes the cover down again.
+      // Only iPhones with the home bar (a safe area at the bottom): on one
+      // with a Home button that strip is the tab bar's labels.
+      const hasHomeBar = this.bottomSafeArea() > 0;
+      const homeSwipe = { started: false };
+      const startTouch = (event: Event) => {
+        if (document.visibilityState !== 'visible') {
+          return;
+        }
+        const touch = (event as TouchEvent).touches?.[0];
+        homeSwipe.started =
+          hasHomeBar && !!touch && touch.clientY >= window.innerHeight - HOME_SWIPE_STRIP_PX;
+        if (homeSwipe.started) {
+          this.raiseShield();
+        } else {
+          // Any other touch means the app never left: the cover comes down.
           this.lowerShield();
         }
-      });
+      };
+      document.addEventListener('touchstart', startTouch, { passive: true });
+      this.disposers.push(() => document.removeEventListener('touchstart', startTouch));
+      const endTouch = () => {
+        if (homeSwipe.started && document.visibilityState === 'visible') {
+          homeSwipe.started = false;
+          this.lowerShield();
+        }
+      };
+      document.addEventListener('touchend', endTouch, { passive: true });
+      this.disposers.push(() => document.removeEventListener('touchend', endTouch));
     }
   }
 
@@ -381,6 +412,21 @@ export class AppLockService implements OnDestroy {
       }
     }
     this.pausedPreviews.clear();
+  }
+
+  /** The screen's safe area at the bottom, in pixels (the home bar's room). */
+  private bottomSafeArea(): number {
+    try {
+      const probe = document.createElement('div');
+      probe.style.cssText =
+        'position:fixed;bottom:0;visibility:hidden;pointer-events:none;padding-bottom:env(safe-area-inset-bottom)';
+      document.body.appendChild(probe);
+      const inset = parseFloat(getComputedStyle(probe).paddingBottom) || 0;
+      probe.remove();
+      return inset;
+    } catch {
+      return 0;
+    }
   }
 
   private isIos(): boolean {

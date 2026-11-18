@@ -22,6 +22,7 @@ interface LockSettings {
   pinHash: string | null;
   timeoutSeconds: number;
   hideInSwitcher: boolean;
+  imagesObscured: boolean | null;
 }
 
 /** Don't write "last active" more often than this, to keep requests cheap. */
@@ -153,6 +154,7 @@ export class AppLockService {
       locked: await this.isLocked(userId, sessionId),
       timeoutSeconds: settings.timeoutSeconds,
       hideInSwitcher: settings.hideInSwitcher,
+      imagesObscured: settings.imagesObscured,
       hasPin: !!settings.pinHash,
       passkeys: passkeys.map((passkey) => ({
         id: passkey.id,
@@ -161,6 +163,16 @@ export class AppLockService {
         lastUsedAt: passkey.lastUsedAt?.toISOString() ?? null,
       })),
     };
+  }
+
+  /** The phone app's eye, remembered here as iOS can clear the app's storage. */
+  async setImagesObscured(userId: string, obscured: boolean): Promise<void> {
+    await this.prisma.appLock.upsert({
+      where: { userId },
+      create: { userId, imagesObscured: obscured },
+      update: { imagesObscured: obscured },
+    });
+    this.settingsCache.delete(userId);
   }
 
   /** Locks this device now (sent by the app when it goes to the background). */
@@ -297,6 +309,7 @@ export class AppLockService {
       pinHash: row?.pinHash ?? null,
       timeoutSeconds: row?.timeoutSeconds ?? 60,
       hideInSwitcher: row?.hideInSwitcher ?? true,
+      imagesObscured: row?.imagesObscured ?? null,
     };
     this.settingsCache.set(userId, { value, at: Date.now() });
     return value;
