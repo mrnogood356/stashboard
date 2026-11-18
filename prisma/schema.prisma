@@ -664,6 +664,9 @@ model AppVersionState {
   key             String   @id @default("GLOBAL")
   lastVersion     String
   previousVersion String?
+  /// The newest release whose "What's new" was closed in any browser: shown
+  /// once per update, even when a browser forgets (Safari clears its storage).
+  notesSeenVersion String?
   updatedAt       DateTime @updatedAt
 }
 

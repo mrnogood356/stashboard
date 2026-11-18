@@ -13,7 +13,7 @@ describe('AboutController', () => {
       check: jest.fn().mockResolvedValue({ status: 'unknown' }),
     };
     const releaseNotes = {
-      since: jest.fn().mockReturnValue({ current: '1.3.0', releases: [] }),
+      since: jest.fn().mockResolvedValue({ current: '1.3.0', releases: [] }),
       latest: jest.fn().mockReturnValue({ current: '1.3.0', releases: [{}] }),
     };
     const controller = new AboutController(
@@ -25,12 +25,14 @@ describe('AboutController', () => {
     expect(controller.get()).toEqual({ build: {}, recentErrors: [] });
     await expect(controller.health()).resolves.toEqual({ jobs: [] });
     await expect(controller.update()).resolves.toEqual({ status: 'unknown' });
-    expect(controller.changes({ since: '1.2.0' })).toEqual({
+    await expect(controller.changes({ since: '1.2.0' })).resolves.toEqual({
       current: '1.3.0',
       releases: [],
     });
     expect(releaseNotes.since).toHaveBeenCalledWith('1.2.0');
-    expect(controller.changes({ latest: '1' }).releases).toHaveLength(1);
+    expect((await controller.changes({ latest: '1' })).releases).toHaveLength(
+      1,
+    );
     expect(releaseNotes.latest).toHaveBeenCalled();
   });
 });

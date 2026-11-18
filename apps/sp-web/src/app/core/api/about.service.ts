@@ -28,6 +28,8 @@ export interface AboutResponse {
 export interface UpdateCheckResponse {
   status: 'up-to-date' | 'behind' | 'unknown';
   behindBy: number | null;
+  /** Set for a release build: the newest release, like "1.8.0". */
+  latestRelease?: string | null;
   reason: string | null;
   checkedAt: string;
 }
@@ -132,6 +134,11 @@ export class AboutApiService {
     return this.http.get<ReleaseNotesResponse>('/api/about/changes', {
       params: since ? { since } : {},
     });
+  }
+
+  /** "What's new" for this version was closed: not shown again in any browser. */
+  markNotesSeen(version: string): Observable<void> {
+    return this.http.post<void>('/api/about/changes/seen', { version });
   }
 
   /** The running release's own notes, for "What's new" in About. */

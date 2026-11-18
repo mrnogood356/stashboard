@@ -1,5 +1,11 @@
-import { Controller, Get, Query } from '@nestjs/common';
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 import { AboutService } from './about.service';
 import { HealthHistoryService } from './health-history.service';
 import { ReleaseNotesService } from './release-notes.service';
@@ -16,6 +22,13 @@ export class ReleaseNotesQueryDto {
   @IsOptional()
   @IsIn(['1'])
   latest?: string;
+}
+
+export class NotesSeenDto {
+  /** The release whose "What's new" was closed. */
+  @IsString()
+  @Matches(/^\d{1,4}\.\d{1,4}\.\d{1,6}$/)
+  version!: string;
 }
 
 /**
@@ -60,5 +73,12 @@ export class AboutController {
     return query.latest === '1'
       ? this.releaseNotes.latest()
       : this.releaseNotes.since(query.since);
+  }
+
+  /** "What's new" was closed: it isn't shown again in any browser. */
+  @Post('changes/seen')
+  @HttpCode(204)
+  async seen(@Body() body: NotesSeenDto): Promise<void> {
+    await this.releaseNotes.markSeen(body.version);
   }
 }

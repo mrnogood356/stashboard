@@ -27,21 +27,24 @@ describe('WhatsNewComponent', () => {
   async function render(response: ReleaseNotesResponse, latest: ReleaseNotesResponse = NOTES) {
     const changes = vi.fn().mockReturnValue(of(response));
     const latestChanges = vi.fn().mockReturnValue(of(latest));
+    const markNotesSeen = vi.fn().mockReturnValue(of(undefined));
     await TestBed.configureTestingModule({
       imports: [WhatsNewComponent],
-      providers: [{ provide: AboutApiService, useValue: { changes, latestChanges } }],
+      providers: [
+        { provide: AboutApiService, useValue: { changes, latestChanges, markNotesSeen } },
+      ],
     }).compileComponents();
     const fixture = TestBed.createComponent(WhatsNewComponent);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
     await fixture.whenStable();
-    return { fixture, changes };
+    return { fixture, changes, markNotesSeen };
   }
 
   it('shows what changed since the version this browser last saw, once', async () => {
     localStorage.setItem(SEEN_VERSION_KEY, '1.3.0');
-    const { fixture, changes } = await render(NOTES);
+    const { fixture, changes, markNotesSeen } = await render(NOTES);
     const root = fixture.nativeElement as HTMLElement;
 
     expect(changes).toHaveBeenCalledWith('1.3.0');
@@ -56,6 +59,8 @@ describe('WhatsNewComponent', () => {
 
     expect(dialog.hasAttribute('open')).toBe(false);
     expect(localStorage.getItem(SEEN_VERSION_KEY)).toBe('1.4.0');
+    // The server remembers too, for a browser that forgets.
+    expect(markNotesSeen).toHaveBeenCalledWith('1.4.0');
   });
 
   it('shows the notes the server has for a browser that remembers no version', async () => {
@@ -86,7 +91,7 @@ describe('WhatsNewComponent', () => {
 
   it('titles reopened notes by their release, and leaves the seen version alone', async () => {
     localStorage.setItem(SEEN_VERSION_KEY, '1.9.0');
-    const { fixture } = await render(
+    const { fixture, markNotesSeen } = await render(
       { current: '1.9.0', releases: [] },
       { ...NOTES, current: '1.9.0' },
     );
@@ -99,6 +104,7 @@ describe('WhatsNewComponent', () => {
     (root.querySelector('[data-testid="whats-new-close"]') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(localStorage.getItem(SEEN_VERSION_KEY)).toBe('1.9.0');
+    expect(markNotesSeen).not.toHaveBeenCalled();
   });
 
   it('only remembers the version on a first visit', async () => {
