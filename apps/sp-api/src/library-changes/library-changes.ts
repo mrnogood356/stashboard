@@ -43,7 +43,10 @@ export class LibraryChangesInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<Request | undefined>();
     const method = request?.method?.toUpperCase();
-    const path = (request?.originalUrl ?? request?.url ?? '').split('?')[0];
+    // Express matches routes regardless of case: so does this.
+    const path = (request?.originalUrl ?? request?.url ?? '')
+      .split('?')[0]
+      .toLowerCase();
     const changes =
       !!method &&
       method !== 'GET' &&

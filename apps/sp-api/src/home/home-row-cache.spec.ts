@@ -109,6 +109,26 @@ describe('HomeRowCache', () => {
     expect(load).toHaveBeenCalledTimes(1);
   });
 
+  it('doesn’t hand a build from before a change to an ask after it', async () => {
+    const rows = cache();
+    let finishOld: (value: unknown) => void = () => undefined;
+    const old = jest.fn(
+      () => new Promise((resolve) => (finishOld = resolve)) as never,
+    );
+    const fresh = jest.fn().mockResolvedValue(content('after'));
+
+    const before = rows.get(rail(), old, undefined, 'v1');
+    const after = rows.get(rail(), fresh, undefined, 'v2');
+    expect((await after).items[0]).toEqual({ title: 'after' });
+    finishOld(content('before'));
+    expect((await before).items[0]).toEqual({ title: 'before' });
+    // The older build finished last but didn't replace the newer row.
+    expect((await rows.get(rail(), fresh, undefined, 'v2')).items[0]).toEqual({
+      title: 'after',
+    });
+    expect(fresh).toHaveBeenCalledTimes(1);
+  });
+
   it('stamps the hidden rules so a changed hidden studio or word builds the rows again', () => {
     const one = rulesStamp({ studioIds: new Set(['a']), terms: [/foo/i] });
     expect(one).not.toBe(

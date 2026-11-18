@@ -1,3 +1,4 @@
+import { libraryChanges } from '../library-changes/library-changes';
 import { MetadataHydrationState, Prisma, SceneIndex } from '@prisma/client';
 import { type StashLocalLibrarySceneItem } from '../providers/stash/stash.adapter';
 import { StashdbSceneMetadata } from '../providers/stashdb/stashdb.adapter';
@@ -589,6 +590,9 @@ export abstract class IndexingSync extends IndexingCore {
       ),
     ]);
 
+    if (deletedRows.count > 0) {
+      libraryChanges.bump();
+    }
     this.logger.debug(
       `Library projection sync completed: ${this.safeJson({
         reason,
@@ -1007,6 +1011,8 @@ export abstract class IndexingSync extends IndexingCore {
     if (changed.length === 0) {
       return 0;
     }
+    // Scenes added or changed: Home's kept library rows are built again.
+    libraryChanges.bump();
 
     // One batch per page: the writes go together, without an interactive
     // transaction holding a connection open across awaits (one that broke

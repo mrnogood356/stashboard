@@ -378,16 +378,16 @@ describe('LibraryService', () => {
     expect(list.values).toEqual(['%alex%', 24, 0]);
   });
 
-  it('lists every studio with a scene of yours, most scenes first, a page at a time', async () => {
-    queryRawMock
-      .mockResolvedValueOnce([{ id: '3', name: 'Archive', count: 9 }])
-      .mockResolvedValueOnce([{ total: 2 }]);
-
-    await expect(service.listStudios('arch', 1, 48)).resolves.toEqual({
+  it('lists every studio with a scene of yours, a page at a time, in a steady order', async () => {
+    // Two studios with the same name and count, one a page.
+    queryRawMock.mockResolvedValueOnce([
+      { id: '3', name: 'Archive', count: 9, total: 2 },
+    ]);
+    await expect(service.listStudios('arch', 1, 1)).resolves.toEqual({
       total: 2,
       page: 1,
-      perPage: 48,
-      hasMore: false,
+      perPage: 1,
+      hasMore: true,
       items: [
         {
           id: '3',
@@ -397,11 +397,34 @@ describe('LibraryService', () => {
         },
       ],
     });
-    const [list] = queryRawMock.mock.calls.map(
-      (call) => call[0] as { strings: string[]; values: unknown[] },
-    );
-    expect(list.strings.join(' ')).toContain('GROUP BY "studioId"');
-    expect(list.values).toEqual(['%arch%', 48, 0]);
+    const list = queryRawMock.mock.calls[0][0] as {
+      strings: string[];
+      values: unknown[];
+    };
+    const sql = list.strings.join(' ');
+    // The page and the total from one statement, ties broken by id.
+    expect(sql).toContain('COUNT(*) OVER ()');
+    expect(sql).toContain('ORDER BY count DESC, name ASC, id ASC');
+    expect(list.values).toEqual(['%arch%', 1, 0]);
+
+    queryRawMock.mockResolvedValueOnce([
+      { id: '4', name: 'Archive', count: 9, total: 2 },
+    ]);
+    const second = await service.listStudios('arch', 2, 1);
+    expect(second.hasMore).toBe(false);
+    expect(
+      (queryRawMock.mock.calls[1][0] as { values: unknown[] }).values,
+    ).toEqual(['%arch%', 1, 1]);
+  });
+
+  it('searches studio names as plain text, and still counts past the last page', async () => {
+    queryRawMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: 3 }]);
+    const result = await service.listStudios('A_B 50%', 9, 48);
+    expect(result).toMatchObject({ total: 3, hasMore: false, items: [] });
+    const list = queryRawMock.mock.calls[0][0] as { values: unknown[] };
+    expect(list.values[0]).toBe('%A\\_B 50\\%%');
   });
 
   it('returns indexed studio options from the local-library projection', async () => {

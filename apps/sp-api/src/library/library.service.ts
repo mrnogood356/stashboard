@@ -166,41 +166,54 @@ export class LibraryService {
     };
   }
 
-  /** Every studio with a scene of yours, most scenes first, a page at a time. */
+  /**
+   * Every studio with a scene of yours, most scenes first, a page at a time.
+   * The page and the total come from one statement, so they always agree.
+   */
   async listStudios(
     query?: string,
     page = 1,
     perPage = 48,
   ): Promise<LibraryPerformersDto> {
     const name = query?.trim() ?? '';
+    // The name is plain text: % and _ in it mean themselves.
     const nameFilter = name
-      ? Prisma.sql`AND "studioName" ILIKE ${`%${name}%`}`
+      ? Prisma.sql`AND "studioName" ILIKE ${`%${likeLiteral(name)}%`} ESCAPE '\\'`
       : Prisma.empty;
-    const studios = Prisma.sql`
-      SELECT "studioId" AS id, MIN("studioName") AS name, COUNT(*)::int AS count
-      FROM "LibrarySceneIndex"
-      WHERE "studioId" IS NOT NULL AND "studioName" IS NOT NULL ${nameFilter}
-      GROUP BY "studioId"`;
-    const [rows, totals] = await Promise.all([
-      this.prisma.$queryRaw<Array<{ id: string; name: string; count: number }>>(
-        Prisma.sql`${studios}
-          ORDER BY count DESC, name ASC
-          LIMIT ${perPage} OFFSET ${(page - 1) * perPage}`,
-      ),
-      this.prisma.$queryRaw<Array<{ total: number }>>(
-        Prisma.sql`SELECT COUNT(*)::int AS total FROM (${studios}) AS studios`,
-      ),
-    ]);
-    const total = totals[0]?.total ?? 0;
+    const rows = await this.prisma.$queryRaw<
+      Array<{ id: string; name: string; count: number; total: number }>
+    >(Prisma.sql`
+      SELECT id, name, count, COUNT(*) OVER ()::int AS total
+      FROM (
+        SELECT "studioId" AS id, MIN("studioName") AS name, COUNT(*)::int AS count
+        FROM "LibrarySceneIndex"
+        WHERE "studioId" IS NOT NULL AND "studioName" IS NOT NULL ${nameFilter}
+        GROUP BY "studioId"
+      ) AS studios
+      ORDER BY count DESC, name ASC, id ASC
+      LIMIT ${perPage} OFFSET ${(page - 1) * perPage}`);
+    // Past the end there are no rows to carry the total: count it alone.
+    const total =
+      rows[0]?.total ??
+      (page > 1
+        ? ((
+            await this.prisma.$queryRaw<Array<{ total: number }>>(Prisma.sql`
+              SELECT COUNT(DISTINCT "studioId")::int AS total
+              FROM "LibrarySceneIndex"
+              WHERE "studioId" IS NOT NULL AND "studioName" IS NOT NULL ${nameFilter}`)
+          )[0]?.total ?? 0)
+        : 0);
     return {
       total,
       page,
       perPage,
       hasMore: page * perPage < total,
-      items: rows.map((row) => ({
-        ...row,
+      items: rows.map(({ id, name, count }) => ({
+        id,
+        name,
+        count,
         imageUrl: stashMediaUrl(
-          `studios/${encodeURIComponent(row.id)}/logo`,
+          `studios/${encodeURIComponent(id)}/logo`,
           null,
           480,
         ),
@@ -227,3 +240,8 @@ export interface LibraryOptionScope {
 
 /** Enough for a performer's whole list; for the whole library, the most used. */
 const OPTION_LIMIT = 200;
+
+/** Text for ILIKE that matches itself: %, _ and \\ escaped. */
+function likeLiteral(text: string): string {
+  return text.replace(/[\\%_]/g, (character) => `\\${character}`);
+}

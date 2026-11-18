@@ -156,6 +156,44 @@ describe('ReleaseNotesService', () => {
     expect(upsert).toHaveBeenCalledTimes(1);
   });
 
+  it('says nothing when it can’t tell whether notes were closed, and stores only releases it runs', async () => {
+    const failing = service('1.4.0', {
+      appVersionState: {
+        findUnique: jest.fn().mockRejectedValue(new Error('db down')),
+        upsert: jest.fn(),
+      },
+    });
+    expect((await failing.since('1.2.0')).releases).toEqual([]);
+    // A close that can't be checked fails, so the browser tries again.
+    await expect(failing.markSeen('1.4.0')).rejects.toThrow('db down');
+
+    const upsert = jest.fn();
+    const edge = service('edge-abc1234', {
+      appVersionState: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert,
+      },
+    });
+    await edge.markSeen('1.4.0');
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it('never lets an older close replace a newer one that arrived together', async () => {
+    let state: Record<string, unknown> = { notesSeenVersion: '1.2.0' };
+    const findUnique = jest.fn(
+      () => new Promise((resolve) => setTimeout(() => resolve(state), 5)),
+    );
+    const upsert = jest.fn((args: { update: Record<string, unknown> }) => {
+      state = { ...state, ...args.update };
+      return Promise.resolve(state);
+    });
+    const notes = service('1.4.0', {
+      appVersionState: { findUnique, upsert },
+    });
+    await Promise.all([notes.markSeen('1.4.0'), notes.markSeen('1.3.0')]);
+    expect(state['notesSeenVersion']).toBe('1.4.0');
+  });
+
   it('does not stop the app when the version cannot be stored', async () => {
     const notes = service('1.4.0', {
       appVersionState: {

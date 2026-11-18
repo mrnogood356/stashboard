@@ -120,11 +120,13 @@ export class UpdateCheckService {
       );
       if (!response.ok) {
         return unknown(
-          response.status === 404 || response.status === 401
-            ? token
-              ? 'GitHub didn’t accept the token, or has no releases.'
-              : 'The repository is private; set GITHUB_TOKEN to check.'
-            : `GitHub answered ${response.status}.`,
+          response.status === 401
+            ? 'GitHub didn’t accept the token.'
+            : response.status === 404
+              ? token
+                ? 'GitHub has no release to compare with, or the token can’t see the repository.'
+                : 'GitHub has no release to compare with, or the repository is private (then set GITHUB_TOKEN).'
+              : `GitHub answered ${response.status}.`,
         );
       }
       const body = (await response.json()) as { tag_name?: unknown };

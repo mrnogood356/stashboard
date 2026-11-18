@@ -86,7 +86,14 @@ export class ReleaseNotesService implements OnModuleInit {
    */
   async since(seen: string | undefined): Promise<ReleaseNotesResponse> {
     const current = this.version();
-    const closed = await this.notesSeen();
+    let closed: string | null;
+    try {
+      closed = await this.notesSeen();
+    } catch {
+      // Not known whether they were closed: say nothing this time, rather
+      // than show notes already closed. It asks again next visit.
+      return { current, releases: [] };
+    }
     const from = newest([seen || this.previous, closed]);
     if (!from || !parseVersion(current)) {
       return { current, releases: [] };
@@ -103,12 +110,28 @@ export class ReleaseNotesService implements OnModuleInit {
     };
   }
 
-  /** "What's new" for this version was closed: don't show it again anywhere. */
-  async markSeen(version: string): Promise<void> {
+  /**
+   * "What's new" for this version was closed: don't show it again anywhere.
+   * One at a time, so a slower, older one can't replace a newer one. A
+   * failed read fails the call, so the browser tries again later.
+   */
+  markSeen(version: string): Promise<void> {
+    const run = this.marking.then(() => this.storeSeen(version));
+    // The next one waits for this one, whether it worked or not.
+    this.marking = run.catch(() => undefined);
+    return run;
+  }
+
+  private marking: Promise<void> = Promise.resolve();
+
+  private async storeSeen(version: string): Promise<void> {
     const current = this.version();
+    // Only a release at or below the running one: an edge build, or a newer
+    // version than this server runs, is never stored.
     if (
       !this.prisma ||
       !parseVersion(version) ||
+      compareVersions(version, current) === null ||
       compareVersions(version, current) === 1
     ) {
       return;
@@ -129,10 +152,14 @@ export class ReleaseNotesService implements OnModuleInit {
     });
   }
 
+  /** The newest notes closed anywhere; throws when it can't be read. */
   private async notesSeen(): Promise<string | null> {
-    const state = await this.prisma?.appVersionState
-      .findUnique({ where: { key: STATE_KEY } })
-      .catch(() => null);
+    if (!this.prisma) {
+      return null;
+    }
+    const state = await this.prisma.appVersionState.findUnique({
+      where: { key: STATE_KEY },
+    });
     const value = state?.notesSeenVersion ?? null;
     return value && parseVersion(value) ? value : null;
   }
