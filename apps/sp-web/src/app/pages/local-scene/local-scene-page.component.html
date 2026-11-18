@@ -203,6 +203,15 @@
                 <span>Catalog page</span>
               </a>
             }
+            <button
+              type="button"
+              class="action secondary"
+              data-testid="edit-scene"
+              (click)="editing.set(true)"
+            >
+              <i class="pi pi-pencil" aria-hidden="true"></i>
+              <span>Edit</span>
+            </button>
             <a
               class="action secondary"
               [href]="scene.viewUrl"
@@ -445,4 +454,10 @@
       }
     </div>
   }
+  <app-scene-edit-sheet
+    [open]="editing()"
+    [scene]="scene()"
+    (closed)="editing.set(false)"
+    (saved)="onEdited($event)"
+  />
 </main>

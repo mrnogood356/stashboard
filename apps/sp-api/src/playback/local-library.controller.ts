@@ -29,6 +29,7 @@ import {
   MergeTagsDto,
   MergeEntitiesDto,
   IgnoreDuplicatesDto,
+  PeopleSearchQueryDto,
   SkipProblemDto,
   ChaptersQueryDto,
   MergeQueryDto,
@@ -73,6 +74,16 @@ export class LocalLibraryController {
       rating100: body.rating100,
       organized: body.organized,
       tagIds: body.tagIds,
+      title: body.title?.trim(),
+      code: body.code === undefined ? undefined : body.code?.trim() || null,
+      details:
+        body.details === undefined ? undefined : body.details?.trim() || null,
+      director:
+        body.director === undefined ? undefined : body.director?.trim() || null,
+      date: body.date,
+      urls: body.urls?.map((url) => url.trim()),
+      studioId: body.studioId,
+      performerIds: body.performerIds,
     });
   }
 
@@ -351,6 +362,15 @@ export class LocalLibraryController {
     @Body() body: FavoriteDto,
   ): Promise<LocalStudioDto> {
     return this.library.setStudioFavorite(studioId, body.favorite);
+  }
+
+  /** Stash's performers and studios by name, to put on a scene. */
+  @Get('people')
+  searchPeople(@Query() query: PeopleSearchQueryDto): Promise<{
+    performers: Array<{ id: string; name: string }>;
+    studios: Array<{ id: string; name: string }>;
+  }> {
+    return this.library.searchPeople(query.query ?? '');
   }
 
   @Get('tags')

@@ -36,6 +36,68 @@ export class UpdateLocalSceneDto {
   @IsString({ each: true })
   @MaxLength(64, { each: true })
   tagIds?: string[];
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty({ message: 'A scene needs a title.' })
+  @MaxLength(500)
+  title?: string;
+
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @MaxLength(200)
+  code?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @MaxLength(20000)
+  details?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @MaxLength(200)
+  director?: string | null;
+
+  /** YYYY-MM-DD; null clears it. */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Write the date as YYYY-MM-DD.' })
+  date?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(2000, { each: true })
+  @Matches(/^https?:\/\/\S+$/, {
+    each: true,
+    message: 'Each link starts with http:// or https://.',
+  })
+  urls?: string[];
+
+  /** Null takes the studio off. */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @MaxLength(64)
+  studioId?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(200)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  performerIds?: string[];
+}
+
+export class PeopleSearchQueryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  query?: string;
 }
 
 export class SceneWatchedDto {

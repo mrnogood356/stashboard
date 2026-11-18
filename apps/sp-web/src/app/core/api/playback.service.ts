@@ -63,6 +63,9 @@ export interface LocalSceneDetails {
   title: string;
   code: string | null;
   details: string | null;
+  director?: string | null;
+  /** Where the scene is from (the studio's page, say). */
+  urls?: string[];
   date: string | null;
   /** When it was filmed (Stash 0.32 and later). */
   productionDate?: string | null;

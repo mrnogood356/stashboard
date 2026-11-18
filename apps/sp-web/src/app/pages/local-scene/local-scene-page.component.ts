@@ -1,3 +1,4 @@
+import { SceneEditSheetComponent } from './scene-edit-sheet.component';
 import { HistoryBackDirective } from '../../core/navigation/history-back.directive';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { GlassArtService } from '../../core/theme/glass-art.service';
@@ -38,6 +39,7 @@ const DESCRIPTION_PREVIEW_LENGTH = 280;
 @Component({
   selector: 'app-local-scene-page',
   imports: [
+    SceneEditSheetComponent,
     HistoryBackDirective,
     RouterLink,
     SceneCardComponent,
@@ -76,6 +78,8 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
   protected readonly actionError = signal<string | null>(null);
   protected readonly related = signal<LocalSceneCard[]>([]);
   protected readonly editingTags = signal(false);
+  /** The Edit sheet (title, date, studio, performers…) is open. */
+  protected readonly editing = signal(false);
   protected readonly tagQuery = signal('');
   protected readonly tagResults = signal<Array<{ id: string; name: string }>>([]);
   protected readonly watched = computed(() => (this.scene()?.playCount ?? 0) > 0);
@@ -210,6 +214,12 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
     this.save({ tagIds: tags.map((entry) => entry.id) }, (current) => ({ ...current, tags }));
   }
 
+  /** Saved from the Edit sheet: Stash's answer is what's shown now. */
+  protected onEdited(saved: LocalSceneDetails): void {
+    this.scene.set(saved);
+    this.editing.set(false);
+  }
+
   protected chapterQueryParams(marker: SceneMarker): Params {
     return { returnTo: this.router.url, t: Math.floor(marker.seconds) };
   }
@@ -273,6 +283,7 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
     this.descriptionExpanded.set(false);
     this.related.set([]);
     this.editingTags.set(false);
+    this.editing.set(false);
     this.actionError.set(null);
     this.saving.set(false);
     this.playback.getSceneDetails(sceneId).subscribe({

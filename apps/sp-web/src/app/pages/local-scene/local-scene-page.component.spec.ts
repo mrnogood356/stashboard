@@ -128,6 +128,26 @@ describe('LocalScenePageComponent', () => {
     expect(same.root.querySelector('.meta-row')?.textContent).not.toContain('Filmed');
   });
 
+  it('opens Edit, and shows what Stash saved from it', async () => {
+    const { fixture, root } = await render(vi.fn().mockReturnValue(of(sceneDetails())));
+    root.querySelector<HTMLButtonElement>('[data-testid="edit-scene"]')!.click();
+    fixture.detectChanges();
+    const sheet = document.querySelector('[data-testid="scene-edit-sheet"]') as HTMLElement;
+    const title = sheet.querySelector<HTMLInputElement>('[data-testid="edit-title"]')!;
+    expect(title.value).toBe('Sunset Scene');
+
+    library['updateScene'].mockReturnValue(of(sceneDetails({ title: 'Sunrise Scene' })));
+    title.value = 'Sunrise Scene';
+    title.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    sheet.querySelector<HTMLButtonElement>('[data-testid="edit-save"]')!.click();
+    fixture.detectChanges();
+
+    expect(library['updateScene']).toHaveBeenCalledWith('12', { title: 'Sunrise Scene' });
+    expect(root.querySelector('h1')?.textContent).toContain('Sunrise Scene');
+    expect(document.querySelector('[data-testid="scene-edit-sheet"]')).toBeNull();
+  });
+
   it('has a collapsed “Status details” panel for the Stash scene', async () => {
     diagnosticsApi.localScene.mockReset().mockReturnValue(of(null));
     const { root } = await render(vi.fn().mockReturnValue(of(sceneDetails())));

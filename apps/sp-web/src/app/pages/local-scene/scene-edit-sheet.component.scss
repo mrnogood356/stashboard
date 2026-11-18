@@ -1,0 +1,161 @@
+.edit-form {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.field-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.text-input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0 0.8rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 70%, transparent);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  font: inherit;
+  /* 16px or more, so iOS doesn't zoom in on focus. */
+  font-size: max(16px, 1rem);
+}
+
+.text-area {
+  padding: 0.6rem 0.8rem;
+  resize: vertical;
+}
+
+.picked-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.chip-remove {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.65rem;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--focus-ring);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.people-picker {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.people-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.6rem;
+  padding: 0 0.85rem;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.people-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 16px; /* 16px stops iPhone zooming in on focus */
+}
+
+.people-results {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.people-results:empty {
+  display: none;
+}
+
+.people-results li + li {
+  box-shadow: inset 0 1px 0 var(--separator, var(--border-subtle));
+}
+
+.people-results button {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.small {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.form-note,
+.form-error {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.form-note {
+  color: var(--text-muted);
+}
+
+.form-error {
+  color: var(--danger-text, var(--danger));
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+@media (max-width: 560px) {
+  .field-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .form-actions .app-btn {
+    flex: 1 1 0;
+  }
+}

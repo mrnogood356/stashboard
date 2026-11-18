@@ -1,0 +1,207 @@
+<app-sheet
+  [open]="open"
+  title="Edit scene"
+  subtitle="Saved straight to Stash."
+  size="wide"
+  [busy]="saving()"
+  testId="scene-edit-sheet"
+  (closed)="close()"
+>
+  <form class="edit-form" (ngSubmit)="save()">
+    <label class="field">
+      <span class="field-label">Title</span>
+      <input
+        class="text-input"
+        name="title"
+        autocomplete="off"
+        data-testid="edit-title"
+        [ngModel]="title()"
+        (ngModelChange)="title.set($event)"
+      />
+    </label>
+
+    <div class="field-row">
+      <label class="field">
+        <span class="field-label">Release date</span>
+        <input
+          class="text-input"
+          name="date"
+          type="date"
+          data-testid="edit-date"
+          [ngModel]="date()"
+          (ngModelChange)="date.set($event)"
+        />
+      </label>
+      <label class="field">
+        <span class="field-label">Studio code</span>
+        <input
+          class="text-input"
+          name="code"
+          autocomplete="off"
+          [ngModel]="code()"
+          (ngModelChange)="code.set($event)"
+        />
+      </label>
+    </div>
+
+    <div class="field">
+      <span class="field-label">Studio</span>
+      @if (picking() === 'studio') {
+        <ng-container
+          *ngTemplateOutlet="
+            peoplePicker;
+            context: { kind: 'studio', placeholder: 'Find a studio in Stash' }
+          "
+        />
+      } @else {
+        <div class="picked-row">
+          @if (studio(); as current) {
+            <span class="app-chip" data-testid="edit-studio">{{ current.name }}</span>
+            <button type="button" class="link-button" (click)="studio.set(null)">Remove</button>
+          } @else {
+            <span class="muted">No studio</span>
+          }
+          <button
+            type="button"
+            class="link-button"
+            data-testid="edit-pick-studio"
+            (click)="startPicking('studio')"
+          >
+            {{ studio() ? 'Change' : 'Pick one' }}
+          </button>
+        </div>
+      }
+    </div>
+
+    <div class="field">
+      <span class="field-label">Performers</span>
+      <div class="picked-row">
+        @for (performer of performers(); track performer.id) {
+          <span class="app-chip" data-testid="edit-performer">
+            {{ performer.name }}
+            <button
+              type="button"
+              class="chip-remove"
+              [attr.aria-label]="'Take ' + performer.name + ' off'"
+              (click)="removePerformer(performer.id)"
+            >
+              <i class="pi pi-times" aria-hidden="true"></i>
+            </button>
+          </span>
+        } @empty {
+          <span class="muted">Nobody yet</span>
+        }
+        @if (picking() !== 'performer') {
+          <button
+            type="button"
+            class="link-button"
+            data-testid="edit-add-performer"
+            (click)="startPicking('performer')"
+          >
+            Add someone
+          </button>
+        }
+      </div>
+      @if (picking() === 'performer') {
+        <ng-container
+          *ngTemplateOutlet="
+            peoplePicker;
+            context: { kind: 'performer', placeholder: 'Find a performer in Stash' }
+          "
+        />
+      }
+    </div>
+
+    <label class="field">
+      <span class="field-label">Director</span>
+      <input
+        class="text-input"
+        name="director"
+        autocomplete="off"
+        [ngModel]="director()"
+        (ngModelChange)="director.set($event)"
+      />
+    </label>
+
+    <label class="field">
+      <span class="field-label">Links</span>
+      <textarea
+        class="text-input text-area"
+        name="urls"
+        rows="2"
+        spellcheck="false"
+        autocapitalize="off"
+        placeholder="One link a line"
+        data-testid="edit-urls"
+        [ngModel]="urls()"
+        (ngModelChange)="urls.set($event)"
+      ></textarea>
+    </label>
+
+    <label class="field">
+      <span class="field-label">Description</span>
+      <textarea
+        class="text-input text-area"
+        name="details"
+        rows="5"
+        [ngModel]="details()"
+        (ngModelChange)="details.set($event)"
+      ></textarea>
+    </label>
+
+    @if (problem(); as message) {
+      <p class="form-note" role="status">{{ message }}</p>
+    }
+    @if (error(); as message) {
+      <p class="form-error" role="alert">{{ message }}</p>
+    }
+
+    <div class="form-actions">
+      <button type="button" class="app-btn" [disabled]="saving()" (click)="close()">Cancel</button>
+      <button
+        type="submit"
+        class="app-btn app-btn--primary"
+        data-testid="edit-save"
+        [disabled]="saving() || !!problem()"
+      >
+        {{ saving() ? 'Saving…' : 'Save' }}
+      </button>
+    </div>
+  </form>
+</app-sheet>
+
+<ng-template #peoplePicker let-kind="kind" let-placeholder="placeholder">
+  <div class="people-picker">
+    <div class="people-search">
+      <i class="pi pi-search" aria-hidden="true"></i>
+      <input
+        type="search"
+        name="peopleQuery"
+        autocomplete="off"
+        data-testid="edit-people-search"
+        [placeholder]="placeholder"
+        [ngModel]="peopleQuery()"
+        (ngModelChange)="onPeopleQuery($event)"
+      />
+      <button type="button" class="link-button" (click)="stopPicking()">Done</button>
+    </div>
+    @if (peopleSearching()) {
+      <p class="muted small" role="status">Looking in Stash…</p>
+    }
+    <ul class="people-results">
+      @if (kind === 'studio') {
+        @for (option of peopleResults().studios; track option.id) {
+          <li>
+            <button type="button" (click)="pickStudio(option)">{{ option.name }}</button>
+          </li>
+        }
+      } @else {
+        @for (option of peopleResults().performers; track option.id) {
+          <li>
+            <button type="button" (click)="addPerformer(option)">{{ option.name }}</button>
+          </li>
+        }
+      }
+    </ul>
+  </div>
+</ng-template>

@@ -145,6 +145,9 @@ export class LocalLibraryService {
     sceneId: string,
     update: StashLocalSceneUpdate,
   ): Promise<LocalSceneDetailsDto> {
+    if (update.title !== undefined && !update.title.trim()) {
+      throw new BadRequestException('A scene needs a title.');
+    }
     const config = await this.playback.getStashConfig();
     await this.stash.updateLocalScene(config, sceneId, update);
     return this.playback.getSceneDetails(sceneId);
@@ -1402,6 +1405,19 @@ export class LocalLibraryService {
           ),
         );
     }
+  }
+
+  /** Stash's own performers and studios whose names match, most scenes first. */
+  async searchPeople(query: string): Promise<{
+    performers: Array<{ id: string; name: string }>;
+    studios: Array<{ id: string; name: string }>;
+  }> {
+    const config = await this.playback.getStashConfig();
+    const found = await this.stash.searchLocalPeople(config, query);
+    return {
+      performers: found.performers.map(({ id, name }) => ({ id, name })),
+      studios: found.studios.map(({ id, name }) => ({ id, name })),
+    };
   }
 
   async searchTags(
