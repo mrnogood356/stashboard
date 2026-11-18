@@ -182,6 +182,18 @@ describe('AppLockService', () => {
     expect(shielded()).toBe(true);
     touch('touchstart', 6, window.innerHeight / 2);
     expect(shielded()).toBe(false);
+
+    // Only one of two strip fingers is cancelled: the other is still down,
+    // so an ordinary touch doesn't take the cover down until it lifts.
+    touch('touchstart', 9, window.innerHeight - 5);
+    touch('touchstart', 10, window.innerHeight - 3);
+    touch('touchcancel', 10, window.innerHeight - 3);
+    expect(shielded()).toBe(true);
+    touch('touchstart', 11, window.innerHeight / 2);
+    expect(shielded()).toBe(true);
+    touch('touchend', 11, window.innerHeight / 2);
+    touch('touchend', 9, window.innerHeight - 5);
+    expect(shielded()).toBe(false);
     userAgent.mockRestore();
   });
 

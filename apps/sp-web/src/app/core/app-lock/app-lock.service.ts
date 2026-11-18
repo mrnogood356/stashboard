@@ -148,9 +148,17 @@ export class AppLockService implements OnDestroy {
       };
       document.addEventListener('touchend', endTouch, { passive: true });
       this.disposers.push(() => document.removeEventListener('touchend', endTouch));
-      // iOS took the finger over (the swipe went on): it never lifts, so
-      // forget them; the cover stays up until the app is really back.
-      const cancelTouch = () => stripTouches.clear();
+      // iOS took those fingers over (the swipe went on): they never lift, so
+      // forget them; the cover stays up until the app is really back. A
+      // strip finger that wasn't cancelled is still down and still counts.
+      const cancelTouch = (event: Event) => {
+        const cancelled = (event as TouchEvent).changedTouches;
+        if (!cancelled) {
+          stripTouches.clear();
+          return;
+        }
+        Array.from(cancelled).forEach((touch) => stripTouches.delete(touch.identifier));
+      };
       document.addEventListener('touchcancel', cancelTouch, { passive: true });
       this.disposers.push(() => document.removeEventListener('touchcancel', cancelTouch));
     }
