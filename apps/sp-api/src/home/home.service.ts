@@ -1,3 +1,5 @@
+import { libraryChanges } from '../library-changes/library-changes';
+import { SCENE_INDEX_SUMMARY_KEY } from '../indexing/indexing.model';
 import { FollowsService } from '../follows/follows.service';
 import { SuggestionsService } from '../suggestions/suggestions.service';
 import { HomeRowCache, rulesStamp } from './home-row-cache';
@@ -572,9 +574,26 @@ export class HomeService {
       rail,
       () => this.loadRailContent(rail),
       (kept) => this.withCurrentStatuses(kept),
-      // Hiding a studio or tag changes what every row shows.
-      rulesStamp(await this.hiddenContent?.getRules().catch(() => null)),
+      // Hiding a studio or tag changes what every row shows; so does a
+      // change to the library (a match, a rename, a sync writing new scenes),
+      // which builds the rows again instead of waiting out their time.
+      rulesStamp(await this.hiddenContent?.getRules().catch(() => null)) +
+        `|library:${libraryChanges.version}|index:${await this.lastIndexWrite()}`,
     );
+  }
+
+  /** When the library sync last wrote scenes: kept rows are built again after it. */
+  private async lastIndexWrite(): Promise<number> {
+    try {
+      const summary = await this.prisma.sceneIndexSummary.findUnique({
+        where: { key: SCENE_INDEX_SUMMARY_KEY },
+        select: { lastIndexWriteAt: true },
+      });
+      return summary?.lastIndexWriteAt?.valueOf() ?? 0;
+    } catch {
+      // Not known: the rows keep to their usual time.
+      return 0;
+    }
   }
 
   /**
