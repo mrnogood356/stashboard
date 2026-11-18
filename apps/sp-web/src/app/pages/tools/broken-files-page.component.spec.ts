@@ -121,33 +121,43 @@ describe('BrokenFilesPageComponent', () => {
     );
   });
 
-  it('follows the job it started and reads the list again once Stash is done', async () => {
+  it('follows the job it started, and the rescan still to come, then reads the list again', async () => {
     vi.useFakeTimers();
     try {
       const problems = vi
         .fn()
         .mockReturnValueOnce(of([{ kind: 'generate', count: 1, scenes: scenes(1) }]))
         .mockReturnValueOnce(of([{ kind: 'generate', count: 0, scenes: [] }]));
-      // Generate still running, then the rescan Stashboard asked for, then nothing.
+      // Generate done, but its preview rescan waits in Stashboard behind
+      // someone else's job; then it's in Stash's queue; then all done.
       const jobs = vi
         .fn()
-        .mockReturnValue(of([]))
         .mockReturnValueOnce(of([{ id: '2', status: 'RUNNING' }]))
-        .mockReturnValueOnce(of([{ id: '3', status: 'READY', byStashboard: true }]))
-        .mockReturnValueOnce(of([{ id: '9', status: 'RUNNING', byStashboard: false }]));
+        .mockReturnValueOnce(of([{ id: '9', status: 'READY', byStashboard: false }]))
+        .mockReturnValueOnce(of([{ id: '9', status: 'RUNNING', byStashboard: false }]))
+        .mockReturnValueOnce(of([{ id: '3', status: 'RUNNING', byStashboard: true }]))
+        .mockReturnValue(of([]));
+      const pendingJobs = vi
+        .fn()
+        .mockReturnValueOnce(of({ previewRescans: 1 }))
+        .mockReturnValueOnce(of({ previewRescans: 1 }))
+        .mockReturnValueOnce(of({ previewRescans: 1 }))
+        .mockReturnValue(of({ previewRescans: 0 }));
       const generateFor = vi.fn().mockReturnValue(of({ jobId: '2' }));
-      const { fixture, root, notifications } = await render([], { problems, jobs, generateFor });
+      const { fixture, root, notifications } = await render([], {
+        problems,
+        jobs,
+        pendingJobs,
+        generateFor,
+      });
       root.querySelector<HTMLButtonElement>('[data-testid="fix-generate-generate"]')!.click();
       fixture.detectChanges();
       expect(root.querySelector('[data-testid="following"]')).not.toBeNull();
 
-      vi.advanceTimersByTime(5000);
-      vi.advanceTimersByTime(5000);
-      expect(problems).toHaveBeenCalledTimes(1);
-      // Someone else's job doesn't hold it up, but the rescan Generate asks
-      // for can still be on its way to Stash: clear three checks in a row.
-      vi.advanceTimersByTime(5000);
-      vi.advanceTimersByTime(5000);
+      // However long the rescan waits for room, it isn't called done.
+      for (let n = 0; n < 4; n += 1) {
+        vi.advanceTimersByTime(5000);
+      }
       expect(problems).toHaveBeenCalledTimes(1);
       vi.advanceTimersByTime(5000);
       fixture.detectChanges();

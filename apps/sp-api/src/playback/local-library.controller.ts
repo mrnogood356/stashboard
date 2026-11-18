@@ -169,6 +169,12 @@ export class LocalLibraryController {
     return this.library.jobs();
   }
 
+  /** Work Stashboard still has to hand to Stash (Generate's preview rescan). */
+  @Get('jobs/pending')
+  pendingJobs(): { previewRescans: number } {
+    return this.library.pendingWork();
+  }
+
   @Post('jobs/:task')
   startJob(@Param('task') task: string): Promise<{ jobId: string | null }> {
     if (!(LIBRARY_TASKS as readonly string[]).includes(task)) {

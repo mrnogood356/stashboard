@@ -1,6 +1,6 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { Observable, Subscription, firstValueFrom } from 'rxjs';
+import { Observable, Subscription, catchError, firstValueFrom, forkJoin, of } from 'rxjs';
 import {
   LocalLibraryService,
   ProblemKind,
@@ -71,8 +71,6 @@ export const PROBLEMS: Record<ProblemKind, ProblemInfo> = {
 /** How often, and how many times, a started job is checked on (half an hour). */
 const FOLLOW_EVERY_MS = 5000;
 const FOLLOW_CHECKS = 360;
-/** Clear checks in a row before Generate counts as done (15s, past the rescan's 12s wait). */
-const GENERATE_QUIET_CHECKS = 3;
 
 /** Up to this many listed scenes get Generate for themselves; more runs it for the library. */
 const GENERATE_FOR_LISTED = 50;
@@ -194,18 +192,21 @@ export class BrokenFilesPageComponent implements OnInit {
     this.stopFollowing();
     this.following.set({ kind, action });
     let checks = 0;
-    // Generate's preview rescan can wait a few seconds in Stashboard before
-    // it reaches Stash's queue (when Stash's queue had a job waiting): the
-    // queue has to stay clear for a few checks in a row before it's done.
-    const quietNeeded = action === 'generate' ? GENERATE_QUIET_CHECKS : 1;
-    let quiet = 0;
     const check = () => {
       checks += 1;
-      this.followRequest = this.library.jobs().subscribe({
-        next: (jobs) => {
-          const busy = jobs.some((job) => job.id === jobId || job.byStashboard === true);
-          quiet = busy ? 0 : quiet + 1;
-          if (quiet >= quietNeeded) {
+      // Generate's preview rescan can wait in Stashboard for room in Stash's
+      // queue (behind anyone's job) before it's in Stash's job list: until
+      // it's there, Stashboard says it's still to come.
+      const pending =
+        action === 'generate'
+          ? this.library.pendingJobs().pipe(catchError(() => of({ previewRescans: 0 })))
+          : of({ previewRescans: 0 });
+      this.followRequest = forkJoin([this.library.jobs(), pending]).subscribe({
+        next: ([jobs, waiting]) => {
+          const busy =
+            waiting.previewRescans > 0 ||
+            jobs.some((job) => job.id === jobId || job.byStashboard === true);
+          if (!busy) {
             this.stopFollowing();
             this.notifications.success(
               action === 'generate' ? 'Generate is done' : 'The scan is done',
