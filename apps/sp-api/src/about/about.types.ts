@@ -20,8 +20,10 @@ export type UpdateStatus = 'up-to-date' | 'behind' | 'unknown';
 
 export interface UpdateCheckResponse {
   status: UpdateStatus;
-  /** Commits on main this build doesn't have, when behind. */
+  /** Commits on main this build doesn't have, when behind (edge and preview builds). */
   behindBy: number | null;
+  /** A release build is checked against releases: the newest one, like "1.8.0". */
+  latestRelease?: string | null;
   /** Why it couldn't be checked, in plain words. */
   reason: string | null;
   checkedAt: string;

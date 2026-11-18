@@ -240,6 +240,11 @@ export function updateText(update: UpdateCheckResponse | null): string {
   if (!update) {
     return 'Checking for updates…';
   }
+  if (update.latestRelease && update.status !== 'unknown') {
+    return update.status === 'behind'
+      ? `Stashboard ${update.latestRelease} is out.`
+      : 'Up to date: this is the newest release.';
+  }
   switch (update.status) {
     case 'up-to-date':
       return 'Up to date with main.';

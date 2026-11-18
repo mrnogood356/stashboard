@@ -104,6 +104,9 @@ export class WhatsNewComponent implements AfterViewInit {
   protected close(): void {
     if (this.remember) {
       writeSeen(this.remember);
+      // The server remembers too, for a browser that forgets (Safari clears
+      // its storage along with the sign-in). Failing that, it shows again.
+      this.api.markNotesSeen(this.remember).subscribe({ error: () => undefined });
       this.remember = null;
     }
     const dialog = this.dialogElement();

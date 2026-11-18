@@ -48,6 +48,32 @@ describe('UpdateCheckService', () => {
     expect(init.headers).toMatchObject({ Authorization: 'Bearer token' });
   });
 
+  it('checks a release build against the newest release, not main', async () => {
+    const fetch = jest
+      .fn()
+      .mockResolvedValue(answer(200, { tag_name: 'v1.7.0' }));
+    await expect(
+      service(
+        { STASHBOARD_COMMIT: COMMIT, STASHBOARD_VERSION: '1.7.0' },
+        fetch,
+      ).check(),
+    ).resolves.toMatchObject({
+      status: 'up-to-date',
+      behindBy: null,
+      latestRelease: '1.7.0',
+    });
+    expect(fetch.mock.calls[0][0]).toBe(
+      'https://api.github.com/repos/someone/stashboard/releases/latest',
+    );
+
+    const later = jest
+      .fn()
+      .mockResolvedValue(answer(200, { tag_name: 'v1.10.0' }));
+    await expect(
+      service({ STASHBOARD_VERSION: '1.9.2' }, later).check(),
+    ).resolves.toMatchObject({ status: 'behind', latestRelease: '1.10.0' });
+  });
+
   it('is up to date when main has nothing newer', async () => {
     const fetch = jest
       .fn()
