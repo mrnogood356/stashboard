@@ -83,6 +83,17 @@ interface LibraryPageAlert {
   message: string;
 }
 
+/** This device's choice of one scene a row on phones. */
+const ONE_COLUMN_KEY = 'sp-library-one-column';
+
+function readOneColumn(): boolean {
+  try {
+    return localStorage.getItem(ONE_COLUMN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 @Component({
   selector: 'app-library-page',
   imports: [
@@ -135,6 +146,22 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
   // ---------- picking scenes for bulk actions ----------
 
   protected readonly selecting = signal(false);
+  /**
+   * Phones: one scene a row instead of two. Only the card nearest the middle
+   * of the screen plays its preview, so with two side by side the right-hand
+   * ones never do. Kept on this device.
+   */
+  protected readonly oneColumn = signal(readOneColumn());
+
+  protected toggleOneColumn(): void {
+    const next = !this.oneColumn();
+    this.oneColumn.set(next);
+    try {
+      localStorage.setItem(ONE_COLUMN_KEY, next ? '1' : '0');
+    } catch {
+      // Private browsing: it lasts until the page closes.
+    }
+  }
   protected readonly picked = signal<ReadonlySet<string>>(new Set());
   protected readonly bulkBusy = signal(false);
   /** The destructive action waiting for its second tap. */

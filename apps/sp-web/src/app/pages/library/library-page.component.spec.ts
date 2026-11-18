@@ -242,6 +242,22 @@ describe('LibraryPageComponent', () => {
     expect(root.querySelectorAll('app-scene-card')).toHaveLength(0);
   });
 
+  it('shows one scene a row on phones when picked, and remembers it on this device', async () => {
+    localStorage.removeItem('sp-library-one-column');
+    const { fixture } = await renderPage();
+    const root = fixture.nativeElement as HTMLElement;
+    const toggle = root.querySelector<HTMLButtonElement>('[data-testid="library-one-column"]')!;
+    expect(root.querySelector('section.grid')?.classList).not.toContain('one-column');
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+
+    toggle.click();
+    fixture.detectChanges();
+    expect(root.querySelector('section.grid')?.classList).toContain('one-column');
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(localStorage.getItem('sp-library-one-column')).toBe('1');
+    localStorage.removeItem('sp-library-one-column');
+  });
+
   it('loads the default local-library view from the dedicated library API', async () => {
     const { fixture, libraryService, navigateSpy, runtimeHealthService } = await renderPage();
     const resetButton = fixture.nativeElement.querySelector(
