@@ -14,16 +14,31 @@ const lastSent = new Map<string, number>();
  * Uses fetch directly, never the app's HTTP client, so a broken page or a
  * locked app can't stop it or loop on it. Never throws.
  */
-export function reportToServer(level: Level, message: string, error?: unknown): void {
+export function reportToServer(
+  level: Level,
+  message: string,
+  error?: unknown,
+  /**
+   * `every`: a line that tells what happened each time (App Lock leaving
+   * and coming back), sent even when the same line went out a moment ago.
+   * The server still limits how many a minute it writes.
+   */
+  options: { every?: boolean } = {},
+): void {
   try {
     console[level === 'info' ? 'log' : level](message, error ?? '');
     const text = message.slice(0, 2000);
     const now = Date.now();
-    if (sent >= MAX_PER_LOAD || now - (lastSent.get(text) ?? -Infinity) < REPEAT_MS) {
+    if (
+      !options.every &&
+      (sent >= MAX_PER_LOAD || now - (lastSent.get(text) ?? -Infinity) < REPEAT_MS)
+    ) {
       return;
     }
-    sent += 1;
-    lastSent.set(text, now);
+    if (!options.every) {
+      sent += 1;
+      lastSent.set(text, now);
+    }
     const standalone =
       window.matchMedia?.('(display-mode: standalone)').matches ||
       (navigator as Navigator & { standalone?: boolean }).standalone === true;

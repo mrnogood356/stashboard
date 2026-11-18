@@ -365,7 +365,8 @@ export class AppLockService implements OnDestroy {
    * has no console, so a lock that didn't happen can be traced.
    */
   private trace(what: string): void {
-    reportToServer('info', `App Lock on the phone: ${what}.`);
+    // Every time: leaving twice within a minute is two lines, not one.
+    reportToServer('info', `App Lock on the phone: ${what}.`, undefined, { every: true });
   }
 
   private isStandalone(): boolean {
