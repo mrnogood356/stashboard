@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 const trimmed = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -23,6 +23,11 @@ export class LibraryPerformersQueryDto {
   @Min(1)
   @Max(100)
   perPage?: number;
+
+  /** The ranking the earlier pages came from, to keep paging through it. */
+  @IsOptional()
+  @IsUUID()
+  snapshot?: string;
 }
 
 /** A performer in your own scenes, by their Stash id. */
@@ -39,5 +44,7 @@ export interface LibraryPerformersDto {
   page: number;
   perPage: number;
   hasMore: boolean;
+  /** Pass back for the next page, to page through the same order. */
+  snapshot: string;
   items: LibraryPerformerDto[];
 }

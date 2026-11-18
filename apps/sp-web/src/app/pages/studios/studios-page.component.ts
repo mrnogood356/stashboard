@@ -110,6 +110,8 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly libLoading = signal(false);
   protected readonly libFailed = signal(false);
   private libPage = 1;
+  /** The ranking the pages so far came from. */
+  private libSnapshot: string | undefined;
   protected libQuery: string | null = null;
   private libRequest: Subscription | null = null;
   private libraryParamSubscription: Subscription | null = null;
@@ -219,6 +221,7 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
   private loadLibrary(reset: boolean): void {
     if (reset) {
       this.libPage = 1;
+      this.libSnapshot = undefined;
       this.libItems.set([]);
       this.libAnswered.set(false);
     }
@@ -226,7 +229,7 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.libLoading.set(true);
     this.libFailed.set(false);
     this.libRequest = this.libraryApi
-      .listStudios(this.libQuery ?? '', this.libPage)
+      .listStudios(this.libQuery ?? '', this.libPage, undefined, this.libSnapshot)
       .pipe(finalize(() => this.libLoading.set(false)))
       .subscribe({
         next: (result) => {
@@ -242,6 +245,7 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
           this.libTotal.set(result.total);
           this.libHasMore.set(result.hasMore);
           this.libPage = result.page + 1;
+          this.libSnapshot = result.snapshot;
         },
         error: () => this.libFailed.set(true),
       });

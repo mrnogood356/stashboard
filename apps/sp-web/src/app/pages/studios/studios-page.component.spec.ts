@@ -131,7 +131,7 @@ describe('StudiosPageComponent', () => {
   it('shows only studios with scenes of yours under In my library, searched by name', async () => {
     const { root, library, discover } = await render({ query: { lib: '1', q: 'my' } });
 
-    expect(library.listStudios).toHaveBeenCalledWith('my', 1);
+    expect(library.listStudios).toHaveBeenCalledWith('my', 1, undefined, undefined);
     const list = root.querySelector('[data-testid="library-studios"]');
     expect(list?.textContent).toContain('My Studio');
     expect(list?.textContent).toContain('4 scenes of yours');
@@ -143,6 +143,33 @@ describe('StudiosPageComponent', () => {
     // The catalog's own filters are put away meanwhile, and its list isn't asked for.
     expect(root.querySelector('[data-testid="studios-favorites"]')).toBeNull();
     expect(discover.getStudiosFeed).not.toHaveBeenCalled();
+  });
+
+  it('asks for the next library page from the same ranking, and lists a studio once', async () => {
+    const page = (n: number, ids: string[]) =>
+      of({
+        total: 3,
+        page: n,
+        perPage: 2,
+        hasMore: n === 1,
+        snapshot: 'ranking-1',
+        items: ids.map((id) => ({ id, name: `Studio ${id}`, count: 3, imageUrl: `/logo/${id}` })),
+      });
+    const listStudios = vi
+      .fn()
+      .mockReturnValueOnce(page(1, ['1', '2']))
+      .mockReturnValueOnce(page(2, ['2', '3']));
+    const { root, fixture } = await render({ query: { lib: '1' }, listStudios });
+
+    (root.querySelector('.show-more-library') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(listStudios).toHaveBeenLastCalledWith('', 2, undefined, 'ranking-1');
+    const names = Array.from(
+      root.querySelectorAll('[data-testid="library-studios"] .studio-name'),
+      (name) => name.textContent ?? '',
+    );
+    expect(names.filter((name) => name.includes('Studio 2'))).toHaveLength(1);
+    expect(names.some((name) => name.includes('Studio 3'))).toBe(true);
   });
 
   it('loads the catalog on the way back from In my library, and shows a logo that fails as its initial', async () => {

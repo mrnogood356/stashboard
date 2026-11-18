@@ -348,17 +348,19 @@ describe('LibraryService', () => {
   });
 
   it('lists everyone in your own scenes, most scenes first, a page at a time', async () => {
-    queryRawMock
-      .mockResolvedValueOnce([{ id: '7', name: 'Alex Rivers', count: 12 }])
-      .mockResolvedValueOnce([{ total: 30 }]);
+    queryRawMock.mockResolvedValueOnce([
+      { id: '7', name: 'Alex Rivers', count: 12 },
+      { id: '8', name: 'Alexa Lane', count: 3 },
+    ]);
 
-    const result = await service.listPerformers('alex', 1, 24);
+    const result = await service.listPerformers('alex', 1, 1);
 
     expect(result).toEqual({
-      total: 30,
+      total: 2,
       page: 1,
-      perPage: 24,
+      perPage: 1,
       hasMore: true,
+      snapshot: expect.any(String),
       items: [
         {
           id: '7',
@@ -368,62 +370,63 @@ describe('LibraryService', () => {
         },
       ],
     });
-    const [list] = queryRawMock.mock.calls.map(
-      (call) => call[0] as { strings: string[]; values: unknown[] },
-    );
-    expect(list.strings.join(' ')).toContain(
-      'unnest(s."performerIds", s."performerNames")',
-    );
-    expect(list.strings.join(' ')).toContain('ORDER BY count DESC');
-    expect(list.values).toEqual(['%alex%', 24, 0]);
-  });
-
-  it('lists every studio with a scene of yours, a page at a time, in a steady order', async () => {
-    // Two studios with the same name and count, one a page.
-    queryRawMock.mockResolvedValueOnce([
-      { id: '3', name: 'Archive', count: 9, total: 2 },
-    ]);
-    await expect(service.listStudios('arch', 1, 1)).resolves.toEqual({
-      total: 2,
-      page: 1,
-      perPage: 1,
-      hasMore: true,
-      items: [
-        {
-          id: '3',
-          name: 'Archive',
-          count: 9,
-          imageUrl: '/api/media/stash/studios/3/logo?w=480',
-        },
-      ],
-    });
     const list = queryRawMock.mock.calls[0][0] as {
       strings: string[];
       values: unknown[];
     };
-    const sql = list.strings.join(' ');
-    // The page and the total from one statement, ties broken by id.
-    expect(sql).toContain('COUNT(*) OVER ()');
-    expect(sql).toContain('ORDER BY count DESC, name ASC, id ASC');
-    expect(list.values).toEqual(['%arch%', 1, 0]);
-
-    queryRawMock.mockResolvedValueOnce([
-      { id: '4', name: 'Archive', count: 9, total: 2 },
-    ]);
-    const second = await service.listStudios('arch', 2, 1);
-    expect(second.hasMore).toBe(false);
-    expect(
-      (queryRawMock.mock.calls[1][0] as { values: unknown[] }).values,
-    ).toEqual(['%arch%', 1, 1]);
+    expect(list.strings.join(' ')).toContain(
+      'unnest(s."performerIds", s."performerNames")',
+    );
+    expect(list.strings.join(' ')).toContain(
+      'ORDER BY count DESC, name ASC, id ASC',
+    );
+    expect(list.values).toEqual(['%alex%']);
   });
 
-  it('searches studio names as plain text, and still counts past the last page', async () => {
-    queryRawMock
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ total: 3 }]);
+  it('pages through the order the first page saw, so nobody who moves up is missed', async () => {
+    // First page: A, B | C, D.
+    queryRawMock.mockResolvedValueOnce([
+      { id: 'a', name: 'A', count: 9 },
+      { id: 'b', name: 'B', count: 8 },
+      { id: 'c', name: 'C', count: 7 },
+      { id: 'd', name: 'D', count: 6 },
+    ]);
+    const first = await service.listStudios('', 1, 2);
+    expect(first.items.map((item) => item.id)).toEqual(['a', 'b']);
+
+    // D gets more scenes before Show more: ranked again, it'd be on page 1
+    // and page 2 would be B, C. With the snapshot, page 2 is still C, D.
+    queryRawMock.mockResolvedValueOnce([
+      { id: 'd', name: 'D', count: 20 },
+      { id: 'a', name: 'A', count: 9 },
+      { id: 'b', name: 'B', count: 8 },
+      { id: 'c', name: 'C', count: 7 },
+    ]);
+    const second = await service.listStudios('', 2, 2, first.snapshot);
+    expect(second.items.map((item) => item.id)).toEqual(['c', 'd']);
+    expect(second).toMatchObject({ hasMore: false, snapshot: first.snapshot });
+    expect(queryRawMock).toHaveBeenCalledTimes(1);
+
+    // A new search, or another list, ranks again.
+    const again = await service.listStudios('', 1, 2);
+    expect(again.items.map((item) => item.id)).toEqual(['d', 'a']);
+    expect(again.snapshot).not.toBe(first.snapshot);
+    queryRawMock.mockResolvedValueOnce([{ id: 'p', name: 'P', count: 1 }]);
+    const people = await service.listPerformers('', 1, 2, first.snapshot);
+    expect(people.items.map((item) => item.id)).toEqual(['p']);
+  });
+
+  it('lists every studio with a scene of yours in a steady order, names as plain text', async () => {
+    queryRawMock.mockResolvedValueOnce([]);
     const result = await service.listStudios('A_B 50%', 9, 48);
-    expect(result).toMatchObject({ total: 3, hasMore: false, items: [] });
-    const list = queryRawMock.mock.calls[0][0] as { values: unknown[] };
+    expect(result).toMatchObject({ total: 0, hasMore: false, items: [] });
+    const list = queryRawMock.mock.calls[0][0] as {
+      strings: string[];
+      values: unknown[];
+    };
+    expect(list.strings.join(' ')).toContain(
+      'ORDER BY count DESC, name ASC, id ASC',
+    );
     expect(list.values[0]).toBe('%A\\_B 50\\%%');
   });
 
