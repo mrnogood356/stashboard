@@ -10,6 +10,17 @@
       <app-image-obscuration-toggle class="phone-eye" />
       <button
         type="button"
+        class="filters-toggle columns-toggle"
+        data-testid="library-one-column"
+        [attr.aria-pressed]="oneColumn()"
+        aria-label="One scene a row"
+        title="One scene a row"
+        (click)="toggleOneColumn()"
+      >
+        <i [class]="oneColumn() ? 'pi pi-th-large' : 'pi pi-stop'" aria-hidden="true"></i>
+      </button>
+      <button
+        type="button"
         class="filters-toggle select-toggle"
         [class.active]="selecting()"
         [attr.aria-pressed]="selecting()"
@@ -200,7 +211,7 @@
       </div>
     </section>
   } @else {
-    <section class="grid">
+    <section class="grid" [class.one-column]="oneColumn()">
       @for (item of items(); track item.id) {
         <div class="pick-cell" [class.picked]="selecting() && isPicked(item.id)">
           <app-scene-card

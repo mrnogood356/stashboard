@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DiscoverService } from '../../core/api/discover.service';
@@ -128,6 +128,77 @@ describe('SearchPageComponent', () => {
       'couldn’t be searched',
     );
     expect(root.querySelector('a.person')?.getAttribute('href')).toContain('/library/performer/p1');
+  });
+
+  it('coming back to a search shows its results at once, without searching again or opening the keyboard', async () => {
+    vi.useFakeTimers();
+    // Every source answers: only then are the results kept for coming back.
+    discover['searchScenes'].mockReturnValue(of({ items: [], total: 0, hidden: 0 }));
+    const first = await render();
+    const input = first.root.querySelector<HTMLInputElement>('input[type="search"]')!;
+    input.value = 'pier';
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(350);
+    first.fixture.detectChanges();
+    expect(first.root.textContent).toContain('Pier Scene');
+    first.fixture.destroy();
+    TestBed.resetTestingModule();
+    library['getScenesFeed'].mockClear();
+
+    await TestBed.configureTestingModule({
+      imports: [SearchPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: DiscoverService, useValue: discover },
+        { provide: LibraryService, useValue: library },
+        { provide: LocalLibraryService, useValue: local },
+        {
+          provide: AppNotificationsService,
+          useValue: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+        },
+      ],
+    }).compileComponents();
+    await TestBed.inject(Router).navigateByUrl('/?q=pier');
+    const fixture = TestBed.createComponent(SearchPageComponent);
+    document.body.appendChild(fixture.nativeElement as HTMLElement);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.textContent).toContain('Pier Scene');
+    vi.advanceTimersByTime(400);
+    expect(library['getScenesFeed']).not.toHaveBeenCalled();
+    expect(document.activeElement).not.toBe(root.querySelector('input[type="search"]'));
+    (root as HTMLElement).remove();
+  });
+
+  it('searches again on coming back when a source failed, and keeps the kind you picked', async () => {
+    vi.useFakeTimers();
+    // The catalog's scenes fail (the default here): nothing kept for coming back.
+    const first = await render();
+    const input = first.root.querySelector<HTMLInputElement>('input[type="search"]')!;
+    input.value = 'failed words';
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(350);
+    first.fixture.destroy();
+    TestBed.resetTestingModule();
+    library['getScenesFeed'].mockClear();
+    await TestBed.configureTestingModule({
+      imports: [SearchPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: DiscoverService, useValue: discover },
+        { provide: LibraryService, useValue: library },
+        { provide: LocalLibraryService, useValue: local },
+        {
+          provide: AppNotificationsService,
+          useValue: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+        },
+      ],
+    }).compileComponents();
+    await TestBed.inject(Router).navigateByUrl('/?q=failed%20words');
+    const again = TestBed.createComponent(SearchPageComponent);
+    again.detectChanges();
+    vi.advanceTimersByTime(350);
+    expect(library['getScenesFeed']).toHaveBeenCalledWith(1, 12, { query: 'failed words' });
   });
 
   it('says when the hidden list left catalog scenes out, and shows them on request', async () => {

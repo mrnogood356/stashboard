@@ -1,3 +1,4 @@
+import { libraryChanges } from '../library-changes/library-changes';
 import {
   HomeRailContentType,
   HomeRailKey,
@@ -172,6 +173,25 @@ describe('Home rows', () => {
       },
       8,
     );
+  });
+
+  it('builds a kept row again after a change to the library, not only after its time', async () => {
+    const { service, homeRail, stash } = setup();
+    homeRail.findUnique.mockResolvedValue(
+      row({ key: HomeRailKey.TOP_RATED, kind: HomeRailKind.BUILTIN }),
+    );
+    // A row with a scene is kept; an empty one isn't.
+    stash.getLocalScenesMatching.mockResolvedValue([
+      { id: '7', title: 'Kept', imageUrl: null, studioId: null },
+    ]);
+    await service.getRailContent('row-1');
+    await service.getRailContent('row-1');
+    // Kept: asked once.
+    expect(stash.getLocalScenesMatching).toHaveBeenCalledTimes(1);
+
+    libraryChanges.bump();
+    await service.getRailContent('row-1');
+    expect(stash.getLocalScenesMatching).toHaveBeenCalledTimes(2);
   });
 
   it('picks library scenes for each stock row', async () => {

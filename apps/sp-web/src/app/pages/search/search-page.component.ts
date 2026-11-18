@@ -84,6 +84,14 @@ const EMPTY: SearchResults = {
  * and the StashDB/FansDB catalog. Each part loads on its own, so a slow or
  * failing source never blocks the others.
  */
+/** The last search's results, kept while the app is open, for coming back to them. */
+let lastSearch: {
+  query: string;
+  results: SearchResults;
+  filter: SearchFilter;
+  showHidden: boolean;
+} | null = null;
+
 @Component({
   selector: 'app-search-page',
   imports: [
@@ -120,6 +128,8 @@ export class SearchPageComponent implements OnInit, OnDestroy {
   protected readonly showHidden = signal(false);
   /** All, or just scenes, performers or studios. */
   protected readonly filter = signal<SearchFilter>('all');
+  /** The words the results on the page are for. */
+  private answered: string | null = null;
   /** Each performer and studio once, whether in your library, the catalog or both. */
   protected readonly performers = computed(() => {
     const result = this.results();
@@ -181,27 +191,43 @@ export class SearchPageComponent implements OnInit, OnDestroy {
         switchMap((value) => {
           if (value.length < MIN_QUERY) {
             this.searching.set(false);
-            return of(EMPTY);
+            return of({ value, results: EMPTY });
           }
           this.searching.set(true);
-          return this.runSearch(value);
+          // Carried with the answer: the words in the box may have moved on.
+          return this.runSearch(value).pipe(map((results) => ({ value, results })));
         }),
       )
-      .subscribe((results) => {
+      .subscribe(({ value, results }) => {
         this.results.set(results);
         this.searching.set(false);
+        this.answered = value;
         // A kind with nothing for these words would leave the page empty.
         const selected = this.filter();
         if (selected !== 'all' && this.counts()[selected] === 0) {
           this.filter.set('all');
         }
+        this.keepForBack();
       });
 
     const initial = this.route.snapshot.queryParamMap.get('q') ?? '';
     if (initial) {
-      this.setQuery(initial);
+      // Back from a result: the same results, at once, so Back can put you
+      // where you were. Searching again would empty the page first.
+      if (lastSearch?.query === initial.trim()) {
+        this.query.set(initial);
+        this.answered = lastSearch.query;
+        this.results.set(lastSearch.results);
+        this.filter.set(lastSearch.filter);
+        this.showHidden.set(lastSearch.showHidden);
+      } else {
+        this.setQuery(initial);
+      }
+    } else {
+      // Only an empty search takes the cursor: coming back to results, it
+      // would open the keyboard and pull the page back to the top on a phone.
+      setTimeout(() => this.searchInput?.nativeElement.focus(), 50);
     }
-    setTimeout(() => this.searchInput?.nativeElement.focus(), 50);
   }
 
   ngOnDestroy(): void {
@@ -226,6 +252,7 @@ export class SearchPageComponent implements OnInit, OnDestroy {
         }
         if (!response) {
           this.results.update((results) => ({ ...results, catalogScenesFailed: true }));
+          this.keepForBack();
           return;
         }
         this.results.update((results) => ({
@@ -235,6 +262,7 @@ export class SearchPageComponent implements OnInit, OnDestroy {
           catalogScenesTotal: response.total ?? response.items.length,
           catalogHidden: response.hidden ?? 0,
         }));
+        this.keepForBack();
       });
   }
 
@@ -348,6 +376,28 @@ export class SearchPageComponent implements OnInit, OnDestroy {
           : scene,
       ),
     }));
+    this.keepForBack();
+  }
+
+  /** Shows only one kind of result, and remembers it for coming back. */
+  protected pickFilter(filter: SearchFilter): void {
+    this.filter.set(filter);
+    this.keepForBack();
+  }
+
+  /**
+   * Keeps what's on the page for the search it answers, for coming back to
+   * it. Results with a failed source aren't kept, so they're asked again.
+   */
+  private keepForBack(): void {
+    const query = this.answered;
+    if (!query || query !== this.query().trim()) {
+      return;
+    }
+    const results = this.results();
+    lastSearch = catalogFailed(results)
+      ? null
+      : { query, results, filter: this.filter(), showHidden: this.showHidden() };
   }
 
   private runSearch(value: string) {

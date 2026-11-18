@@ -151,11 +151,25 @@ a {
   }
 }
 
-/* Two cards a row on phones, like Scenes, Performers and Studios. */
+/* The one-or-two-a-row switch is for phones only. */
+.columns-toggle {
+  display: none;
+}
+
+/* Two cards a row on phones, like Scenes, Performers and Studios; or one, so
+   each card in turn reaches the middle and plays its preview. */
 @media (max-width: 560px) {
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1.1rem 0.75rem;
+  }
+
+  .grid.one-column {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .columns-toggle {
+    display: inline-flex;
   }
 }
 

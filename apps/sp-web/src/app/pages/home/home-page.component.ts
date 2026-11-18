@@ -1,3 +1,4 @@
+import { HideOwnedService, isOwned } from '../../core/preferences/hide-owned.service';
 import { ImageObscurationToggleComponent } from '../../shared/image-obscuration-toggle/image-obscuration-toggle.component';
 import { Observable } from 'rxjs';
 import { GlassArtService } from '../../core/theme/glass-art.service';
@@ -246,6 +247,7 @@ export class HomePageComponent implements OnInit, OnDestroy {
   protected readonly studioSelectOptions = signal<MultiSelectGroup[]>([]);
   protected readonly formStudioSelectedIdsModel = signal<string[]>([]);
 
+  private readonly hideOwned = inject(HideOwnedService);
   protected readonly railItemsById = signal<Record<string, HomeRailItem[]>>({});
   protected readonly railErrorsById = signal<Record<string, string>>({});
   protected readonly requestModalOpen = signal(false);
@@ -520,6 +522,16 @@ export class HomePageComponent implements OnInit, OnDestroy {
     return true;
   }
 
+  /**
+   * Settings → Hidden → "Scenes you already have": a catalog row leaves out
+   * scenes in your library. Library rows are your scenes, so they all stay.
+   */
+  private withoutOwned(items: HomeRailItem[]): HomeRailItem[] {
+    return this.hideOwned.hideOwned()
+      ? items.filter((item) => item.source === 'STASH' || !isOwned(item))
+      : items;
+  }
+
   private cacheUser(): string | null {
     const status = this.authState.status();
     return status?.authenticated ? status.username : null;
@@ -539,7 +551,7 @@ export class HomePageComponent implements OnInit, OnDestroy {
       .map((rail) => ({
         ...rail,
         pending: !(rail.id in this.railItemsById()) && !(rail.id in this.railErrorsById()),
-        items: this.railItemsById()[rail.id] ?? [],
+        items: this.withoutOwned(this.railItemsById()[rail.id] ?? []),
         error: this.railErrorsById()[rail.id] ?? null,
         seeAllLink: (rail.display?.seeAll ?? true) ? this.buildSeeAllLink(rail) : null,
         look: { ...DEFAULT_HOME_ROW_DISPLAY, ...(rail.display ?? {}) },
@@ -581,8 +593,23 @@ export class HomePageComponent implements OnInit, OnDestroy {
       return false;
     }
 
+    // Rows that came back with scenes aren't empty, even when every scene is
+    // hidden as one you already have: that's said apart.
     return enabledRails.every(
-      (rail) => !rail.pending && rail.items.length === 0 && rail.error === null,
+      (rail) =>
+        !rail.pending && (this.railItemsById()[rail.id] ?? []).length === 0 && rail.error === null,
+    );
+  }
+
+  /** Every row came back, but each scene in them is one you have and hide. */
+  protected isAllOwnedHiddenState(): boolean {
+    const enabledRails = this.rails();
+    if (this.loading() || this.configError() || enabledRails.length === 0) {
+      return false;
+    }
+    return (
+      !this.isPageEmptyState() &&
+      enabledRails.every((rail) => !rail.pending && rail.items.length === 0 && rail.error === null)
     );
   }
 
@@ -1038,8 +1065,9 @@ export class HomePageComponent implements OnInit, OnDestroy {
 
   private applyRailResult(result: RailLoadResult): void {
     const shown = this.railItemsById()[result.id];
-    if (result.error && result.items.length === 0 && shown && shown.length > 0) {
+    if (result.error && result.items.length === 0 && shown && this.withoutOwned(shown).length > 0) {
       // The refresh failed, but last visit's scenes are still worth showing.
+      // (Not when they're all hidden as ones you have: then say it failed.)
       return;
     }
     this.keepAtStart(result.id);

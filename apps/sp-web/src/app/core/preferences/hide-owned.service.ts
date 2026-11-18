@@ -10,7 +10,8 @@ const MOVED_KEY = 'sp-hide-owned-moved';
 /**
  * Settings → Hidden → "Scenes you already have": one setting, saved with
  * the rest of the hidden list, that leaves your library's scenes out of
- * catalog lists (Scenes, a performer's or studio's scenes, Search).
+ * catalog lists (Scenes, a performer's or studio's scenes, Search, Home's
+ * catalog rows).
  */
 @Injectable({ providedIn: 'root' })
 export class HideOwnedService {

@@ -1,3 +1,4 @@
+import { libraryChanges } from '../library-changes/library-changes';
 import { FollowsService } from '../follows/follows.service';
 import { SuggestionsService } from '../suggestions/suggestions.service';
 import { HomeRowCache, rulesStamp } from './home-row-cache';
@@ -572,8 +573,12 @@ export class HomeService {
       rail,
       () => this.loadRailContent(rail),
       (kept) => this.withCurrentStatuses(kept),
-      // Hiding a studio or tag changes what every row shows.
-      rulesStamp(await this.hiddenContent?.getRules().catch(() => null)),
+      // Hiding a studio or tag changes what every row shows; so does a
+      // change to the library (a match, a rename, a sync adding, changing or
+      // removing scenes), which builds the rows again instead of waiting out
+      // their time.
+      rulesStamp(await this.hiddenContent?.getRules().catch(() => null)) +
+        `|library:${libraryChanges.version}`,
     );
   }
 

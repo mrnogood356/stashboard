@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject, of, throwError } from 'rxjs';
+import { LibraryService } from '../../core/api/library.service';
 import { DiscoverService } from '../../core/api/discover.service';
 import { StudioFeedItem } from '../../core/api/discover.types';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
@@ -41,8 +42,23 @@ describe('StudiosPageComponent', () => {
       query?: Record<string, string>;
       feed?: ReturnType<typeof vi.fn>;
       favorite?: ReturnType<typeof vi.fn>;
+      listStudios?: ReturnType<typeof vi.fn>;
+      queryParamMap?: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
     } = {},
   ) {
+    const library = {
+      listStudios:
+        options.listStudios ??
+        vi.fn().mockReturnValue(
+          of({
+            total: 1,
+            page: 1,
+            perPage: 48,
+            hasMore: false,
+            items: [{ id: '9', name: 'My Studio', count: 4, imageUrl: '/logo' }],
+          }),
+        ),
+    };
     const discover = {
       getStudiosFeed:
         options.feed ??
@@ -73,10 +89,12 @@ describe('StudiosPageComponent', () => {
       providers: [
         provideRouter([]),
         { provide: DiscoverService, useValue: discover },
+        { provide: LibraryService, useValue: library },
         {
           provide: ActivatedRoute,
           useValue: {
-            queryParamMap: new BehaviorSubject(convertToParamMap(options.query ?? {})),
+            queryParamMap:
+              options.queryParamMap ?? new BehaviorSubject(convertToParamMap(options.query ?? {})),
           },
         },
         { provide: AppNotificationsService, useValue: notifications },
@@ -87,7 +105,13 @@ describe('StudiosPageComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
-    return { fixture, root: fixture.nativeElement as HTMLElement, discover, notifications };
+    return {
+      fixture,
+      root: fixture.nativeElement as HTMLElement,
+      discover,
+      notifications,
+      library,
+    };
   }
 
   it('lists studios with a preview of their child studios', async () => {
@@ -102,6 +126,47 @@ describe('StudiosPageComponent', () => {
     expect(root.textContent).toContain('Studio One');
     expect(root.textContent).toContain('Child A');
     expect(root.textContent).not.toContain('Child D');
+  });
+
+  it('shows only studios with scenes of yours under In my library, searched by name', async () => {
+    const { root, library, discover } = await render({ query: { lib: '1', q: 'my' } });
+
+    expect(library.listStudios).toHaveBeenCalledWith('my', 1);
+    const list = root.querySelector('[data-testid="library-studios"]');
+    expect(list?.textContent).toContain('My Studio');
+    expect(list?.textContent).toContain('4 scenes of yours');
+    expect(list?.querySelector('a')?.getAttribute('href')).toContain('/library/studio/9/all');
+    expect(root.textContent).toContain('1 in your library');
+    expect(
+      root.querySelector('[data-testid="studios-in-library"]')?.getAttribute('aria-pressed'),
+    ).toBe('true');
+    // The catalog's own filters are put away meanwhile, and its list isn't asked for.
+    expect(root.querySelector('[data-testid="studios-favorites"]')).toBeNull();
+    expect(discover.getStudiosFeed).not.toHaveBeenCalled();
+  });
+
+  it('loads the catalog on the way back from In my library, and shows a logo that fails as its initial', async () => {
+    const queryParamMap = new BehaviorSubject(convertToParamMap({ lib: '1' }));
+    const { fixture, root, discover } = await render({ queryParamMap });
+    const logo = root.querySelector<HTMLImageElement>('[data-testid="library-studios"] img')!;
+    logo.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+    expect(
+      root.querySelector('[data-testid="library-studios"] .placeholder')?.textContent,
+    ).toContain('M');
+
+    queryParamMap.next(convertToParamMap({}));
+    fixture.detectChanges();
+    expect(discover.getStudiosFeed).toHaveBeenCalledTimes(1);
+  });
+
+  it('says nothing about the count until the first library page comes back', async () => {
+    const { root } = await render({
+      query: { lib: '1' },
+      listStudios: vi.fn().mockReturnValue(throwError(() => new Error('down'))),
+    });
+    expect(root.textContent).not.toMatch(/\d in your library/);
+    expect(root.querySelector('[data-testid="library-studios-retry"]')).not.toBeNull();
   });
 
   it('reads search, sort and favorites from the address bar', async () => {

@@ -39,7 +39,7 @@ function pickSort(fixture: { detectChanges(): void }, root: HTMLElement, label: 
 describe('LocalCollectionPageComponent', () => {
   afterEach(() => TestBed.resetTestingModule());
 
-  async function render(kind: 'performer' | 'studio') {
+  async function render(kind: 'performer' | 'studio', query: Record<string, string> = {}) {
     const libraryOptions = {
       searchTags: vi.fn().mockReturnValue(
         of([
@@ -116,7 +116,8 @@ describe('LocalCollectionPageComponent', () => {
             paramMap: new BehaviorSubject(
               convertToParamMap({ id: kind === 'studio' ? 's1' : 'p1' }),
             ),
-            queryParamMap: new BehaviorSubject(convertToParamMap({})),
+            queryParamMap: new BehaviorSubject(convertToParamMap(query)),
+            snapshot: { queryParamMap: convertToParamMap(query) },
           },
         },
       ],
@@ -211,6 +212,34 @@ describe('LocalCollectionPageComponent', () => {
       tagIds: ['t1'],
       studioIds: ['s3'],
     });
+  });
+
+  it('keeps picked filters in the address, and opens with the ones it has there', async () => {
+    const { fixture, root, library } = await render('performer');
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    root.querySelector<HTMLButtonElement>('[data-testid="collection-category"]')!.click();
+    fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-testid="collection-category-option-t1"]')!.click();
+    fixture.detectChanges();
+    expect(navigate).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({
+        queryParams: { tags: 't1', studios: null },
+        replaceUrl: true,
+      }),
+    );
+    expect(library.performerScenes).toHaveBeenCalled();
+    TestBed.resetTestingModule();
+
+    // Back to this page: its filters come with it, named once the choices load.
+    const again = await render('performer', { tags: 't1' });
+    expect(again.library.performerScenes).toHaveBeenCalledWith('p1', 1, 'DATE', 0, {
+      tagIds: ['t1'],
+      studioIds: [],
+    });
+    expect(again.root.querySelector('[data-testid="collection-category"]')?.textContent).toContain(
+      'Outdoor',
+    );
   });
 
   it('shows a studio with its sub-studios', async () => {

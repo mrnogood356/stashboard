@@ -17,6 +17,8 @@ interface Entry {
   at: number;
   /** The row's settings it was built with: a changed row is built again. */
   stamp: string;
+  /** Which build it came from: a later build's row is never replaced by an earlier one's. */
+  build: number;
 }
 
 /**
@@ -29,6 +31,7 @@ export class HomeRowCache {
   private readonly logger = new Logger('HomeRowCache');
   private readonly entries = new Map<string, Entry>();
   private readonly loading = new Map<string, Promise<HomeRailContentDto>>();
+  private builds = 0;
 
   constructor(private readonly now: () => number = Date.now) {}
 
@@ -68,27 +71,38 @@ export class HomeRowCache {
     this.entries.clear();
   }
 
-  /** One build per row at a time; whoever asks meanwhile shares it. */
+  /**
+   * One build per row and stamp at a time; whoever asks for the same one
+   * meanwhile shares it. A build from before a change isn't shared with an
+   * ask after it, which would get the old row.
+   */
   private refresh(
     id: string,
     stamp: string,
     load: () => Promise<HomeRailContentDto>,
   ): Promise<HomeRailContentDto> {
-    const running = this.loading.get(id);
+    const key = `${id}\u0000${stamp}`;
+    const running = this.loading.get(key);
     if (running) {
       return running;
     }
+    const build = ++this.builds;
     const run = load()
       .then((value) => {
+        // A build that finished after a later one doesn't replace it.
+        const kept = this.entries.get(id);
+        if (kept && kept.build > build) {
+          return value;
+        }
         if (value.message === null || value.message === undefined) {
-          this.entries.set(id, { value, at: this.now(), stamp });
+          this.entries.set(id, { value, at: this.now(), stamp, build });
         } else {
           this.entries.delete(id);
         }
         return value;
       })
-      .finally(() => this.loading.delete(id));
-    this.loading.set(id, run);
+      .finally(() => this.loading.delete(key));
+    this.loading.set(key, run);
     return run;
   }
 }

@@ -399,6 +399,20 @@
           <button type="button" class="hero-link" (click)="openEditor()">Customize Home</button>
         </div>
       </section>
+    } @else if (isAllOwnedHiddenState()) {
+      <section class="home-state empty-state app-state-block" data-testid="home-all-owned">
+        <h2>You already have every scene here</h2>
+        <p>
+          Scenes in your library are hidden from Home's catalog rows. Change that in Settings →
+          Hidden, or add a row that shows something new.
+        </p>
+        <div class="empty-links app-action-row">
+          <a class="hero-link" [routerLink]="['/settings/hidden']">Open Hidden</a>
+          <button type="button" class="hero-link secondary" (click)="openEditor()">
+            Customize Home
+          </button>
+        </div>
+      </section>
     } @else if (isPageEmptyState()) {
       <section class="home-state empty-state app-state-block">
         <h2>{{ emptyStateTitle() }}</h2>

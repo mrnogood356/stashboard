@@ -79,9 +79,22 @@ export class ReleaseNotesService implements OnModuleInit {
     });
   }
 
-  since(seen: string | undefined): ReleaseNotesResponse {
+  /**
+   * What's new since `seen` (this browser's last version). Notes already
+   * closed in any browser aren't shown again, so a browser that forgot what
+   * it saw doesn't get them a second time.
+   */
+  async since(seen: string | undefined): Promise<ReleaseNotesResponse> {
     const current = this.version();
-    const from = seen || this.previous;
+    let closed: string | null;
+    try {
+      closed = await this.notesSeen();
+    } catch {
+      // Not known whether they were closed: say nothing this time, rather
+      // than show notes already closed. It asks again next visit.
+      return { current, releases: [] };
+    }
+    const from = newest([seen || this.previous, closed]);
     if (!from || !parseVersion(current)) {
       return { current, releases: [] };
     }
@@ -95,6 +108,60 @@ export class ReleaseNotesService implements OnModuleInit {
         )
         .slice(0, MAX_RELEASES),
     };
+  }
+
+  /**
+   * "What's new" for this version was closed: don't show it again anywhere.
+   * One at a time, so a slower, older one can't replace a newer one. A
+   * failed read fails the call, so the browser tries again later.
+   */
+  markSeen(version: string): Promise<void> {
+    const run = this.marking.then(() => this.storeSeen(version));
+    // The next one waits for this one, whether it worked or not.
+    this.marking = run.catch(() => undefined);
+    return run;
+  }
+
+  private marking: Promise<void> = Promise.resolve();
+
+  private async storeSeen(version: string): Promise<void> {
+    const current = this.version();
+    // Only a release at or below the running one: an edge build, or a newer
+    // version than this server runs, is never stored.
+    if (
+      !this.prisma ||
+      !parseVersion(version) ||
+      compareVersions(version, current) === null ||
+      compareVersions(version, current) === 1
+    ) {
+      return;
+    }
+    const closed = await this.notesSeen();
+    if (closed && compareVersions(closed, version) !== -1) {
+      return;
+    }
+    await this.prisma.appVersionState.upsert({
+      where: { key: STATE_KEY },
+      create: {
+        key: STATE_KEY,
+        lastVersion: current,
+        previousVersion: this.previous,
+        notesSeenVersion: version,
+      },
+      update: { notesSeenVersion: version },
+    });
+  }
+
+  /** The newest notes closed anywhere; throws when it can't be read. */
+  private async notesSeen(): Promise<string | null> {
+    if (!this.prisma) {
+      return null;
+    }
+    const state = await this.prisma.appVersionState.findUnique({
+      where: { key: STATE_KEY },
+    });
+    const value = state?.notesSeenVersion ?? null;
+    return value && parseVersion(value) ? value : null;
   }
 
   /** The running release's own notes, for "What's new" in About. */
@@ -119,4 +186,18 @@ export class ReleaseNotesService implements OnModuleInit {
     this.releases ??= parseChangelog(this.changelog() ?? '');
     return this.releases;
   }
+}
+
+/** The newest of these versions; anything that isn't x.y.z is skipped. */
+function newest(versions: Array<string | null | undefined>): string | null {
+  let best: string | null = null;
+  for (const version of versions) {
+    if (!version || !parseVersion(version)) {
+      continue;
+    }
+    if (!best || compareVersions(version, best) === 1) {
+      best = version;
+    }
+  }
+  return best;
 }

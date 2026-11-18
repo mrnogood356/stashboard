@@ -55,6 +55,18 @@ export class LibraryController {
     );
   }
 
+  /** Every studio with a scene of yours, most scenes first. */
+  @Get('studios/list')
+  listLibraryStudios(
+    @Query() query: LibraryPerformersQueryDto,
+  ): Promise<LibraryPerformersDto> {
+    return this.libraryService.listStudios(
+      query.query,
+      query.page,
+      query.perPage,
+    );
+  }
+
   @Get('studios')
   getLibraryStudios(
     @Query() query: LibraryOptionsQueryDto,

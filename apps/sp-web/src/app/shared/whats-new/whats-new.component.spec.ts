@@ -1,8 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AboutApiService, ReleaseNotesResponse } from '../../core/api/about.service';
-import { SEEN_VERSION_KEY, WhatsNewComponent } from './whats-new.component';
+import { SEEN_UNSENT_KEY, SEEN_VERSION_KEY, WhatsNewComponent } from './whats-new.component';
 import { WhatsNewService } from './whats-new.service';
 
 const NOTES: ReleaseNotesResponse = {
@@ -18,30 +18,39 @@ const NOTES: ReleaseNotesResponse = {
 };
 
 describe('WhatsNewComponent', () => {
-  beforeEach(() => localStorage.removeItem(SEEN_VERSION_KEY));
+  beforeEach(() => {
+    localStorage.removeItem(SEEN_VERSION_KEY);
+    localStorage.removeItem(SEEN_UNSENT_KEY);
+  });
   afterEach(() => {
     TestBed.resetTestingModule();
     localStorage.removeItem(SEEN_VERSION_KEY);
   });
 
-  async function render(response: ReleaseNotesResponse, latest: ReleaseNotesResponse = NOTES) {
+  async function render(
+    response: ReleaseNotesResponse,
+    latest: ReleaseNotesResponse = NOTES,
+    markNotesSeen = vi.fn().mockReturnValue(of(undefined)),
+  ) {
     const changes = vi.fn().mockReturnValue(of(response));
     const latestChanges = vi.fn().mockReturnValue(of(latest));
     await TestBed.configureTestingModule({
       imports: [WhatsNewComponent],
-      providers: [{ provide: AboutApiService, useValue: { changes, latestChanges } }],
+      providers: [
+        { provide: AboutApiService, useValue: { changes, latestChanges, markNotesSeen } },
+      ],
     }).compileComponents();
     const fixture = TestBed.createComponent(WhatsNewComponent);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
     await fixture.whenStable();
-    return { fixture, changes };
+    return { fixture, changes, markNotesSeen };
   }
 
   it('shows what changed since the version this browser last saw, once', async () => {
     localStorage.setItem(SEEN_VERSION_KEY, '1.3.0');
-    const { fixture, changes } = await render(NOTES);
+    const { fixture, changes, markNotesSeen } = await render(NOTES);
     const root = fixture.nativeElement as HTMLElement;
 
     expect(changes).toHaveBeenCalledWith('1.3.0');
@@ -56,6 +65,8 @@ describe('WhatsNewComponent', () => {
 
     expect(dialog.hasAttribute('open')).toBe(false);
     expect(localStorage.getItem(SEEN_VERSION_KEY)).toBe('1.4.0');
+    // The server remembers too, for a browser that forgets.
+    expect(markNotesSeen).toHaveBeenCalledWith('1.4.0');
   });
 
   it('shows the notes the server has for a browser that remembers no version', async () => {
@@ -84,9 +95,27 @@ describe('WhatsNewComponent', () => {
     expect(dialog.textContent).toContain('Back up every setting to a file');
   });
 
+  it('tells the server again on the next visit when it couldn’t be told on close', async () => {
+    localStorage.setItem(SEEN_VERSION_KEY, '1.3.0');
+    const failing = vi.fn().mockReturnValue(throwError(() => new Error('offline')));
+    const { fixture } = await render(NOTES, NOTES, failing);
+    (
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="whats-new-close"]',
+      ) as HTMLButtonElement
+    ).click();
+    expect(localStorage.getItem(SEEN_UNSENT_KEY)).toBe('1.4.0');
+    TestBed.resetTestingModule();
+
+    // Next visit: nothing new to show, but the close is sent again.
+    const { markNotesSeen } = await render({ current: '1.4.0', releases: [] });
+    expect(markNotesSeen).toHaveBeenCalledWith('1.4.0');
+    expect(localStorage.getItem(SEEN_UNSENT_KEY)).toBeNull();
+  });
+
   it('titles reopened notes by their release, and leaves the seen version alone', async () => {
     localStorage.setItem(SEEN_VERSION_KEY, '1.9.0');
-    const { fixture } = await render(
+    const { fixture, markNotesSeen } = await render(
       { current: '1.9.0', releases: [] },
       { ...NOTES, current: '1.9.0' },
     );
@@ -99,6 +128,7 @@ describe('WhatsNewComponent', () => {
     (root.querySelector('[data-testid="whats-new-close"]') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(localStorage.getItem(SEEN_VERSION_KEY)).toBe('1.9.0');
+    expect(markNotesSeen).not.toHaveBeenCalled();
   });
 
   it('only remembers the version on a first visit', async () => {

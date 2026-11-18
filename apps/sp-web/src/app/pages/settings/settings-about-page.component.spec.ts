@@ -310,6 +310,12 @@ describe('About helpers', () => {
     expect(updateText({ ...behind, behindBy: 1 })).toBe('1 newer change on main.');
     expect(updateText({ ...behind, status: 'unknown', behindBy: null })).toBe(
       'Can’t check for updates.',
+    ); // A release build is checked against releases, not main.
+    expect(
+      updateText({ ...behind, status: 'up-to-date', behindBy: null, latestRelease: '1.7.0' }),
+    ).toBe('No newer release is available.');
+    expect(updateText({ ...behind, behindBy: null, latestRelease: '1.8.0' })).toBe(
+      'Stashboard 1.8.0 is out.',
     );
   });
 

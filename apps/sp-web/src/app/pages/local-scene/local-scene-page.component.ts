@@ -1,3 +1,4 @@
+import { HistoryBackDirective } from '../../core/navigation/history-back.directive';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { GlassArtService } from '../../core/theme/glass-art.service';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
@@ -36,7 +37,13 @@ const DESCRIPTION_PREVIEW_LENGTH = 280;
  */
 @Component({
   selector: 'app-local-scene-page',
-  imports: [RouterLink, SceneCardComponent, SceneEvidenceComponent, ClipPreviewComponent],
+  imports: [
+    HistoryBackDirective,
+    RouterLink,
+    SceneCardComponent,
+    SceneEvidenceComponent,
+    ClipPreviewComponent,
+  ],
   templateUrl: './local-scene-page.component.html',
   styleUrl: './local-scene-page.component.scss',
 })

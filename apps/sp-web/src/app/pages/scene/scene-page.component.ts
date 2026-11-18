@@ -1,3 +1,4 @@
+import { sameUrl } from '../../core/navigation/history-back.directive';
 import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
 import { GlassArtService } from '../../core/theme/glass-art.service';
 import { Stage, stagesForStatus } from '../../shared/stage-track/stage-track';
@@ -614,8 +615,9 @@ export class ScenePageComponent implements OnInit, OnDestroy {
     }
     event.preventDefault();
     const target = this.backLinkHref();
-    const previous = this.navigationHistory.previous();
-    if (previous && sameUrl(previous, target)) {
+    // Only when the browser's own Back leads there.
+    const behind = this.navigationHistory.behind();
+    if (behind && sameUrl(behind, target)) {
       this.location.back();
       return;
     }
@@ -734,10 +736,3 @@ export class ScenePageComponent implements OnInit, OnDestroy {
 }
 
 /** Same page and query, whatever order the query is written in. */
-function sameUrl(a: string, b: string): boolean {
-  const normalize = (url: string) => {
-    const [path, query = ''] = url.split('#', 1)[0].split('?');
-    return `${path}?${query.split('&').filter(Boolean).sort().join('&')}`;
-  };
-  return normalize(a) === normalize(b);
-}

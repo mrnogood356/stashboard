@@ -13,6 +13,8 @@ import { WhatsNewService } from './whats-new.service';
 
 /** The last version this browser opened; "What's new" covers everything after it. */
 export const SEEN_VERSION_KEY = 'sp-seen-version';
+/** A close the server hasn't heard about yet: sent again on the next visit. */
+export const SEEN_UNSENT_KEY = 'sp-seen-version-unsent';
 const RELEASE = /^v?\d+\.\d+\.\d+$/;
 
 /**
@@ -47,6 +49,10 @@ export class WhatsNewComponent implements AfterViewInit {
 
   /** Asked once the (closed) dialog is on the page, so it can open straight away. */
   ngAfterViewInit(): void {
+    const unsent = readKey(SEEN_UNSENT_KEY);
+    if (unsent) {
+      this.tellServer(unsent);
+    }
     const seen = readSeen();
     this.api.changes(seen).subscribe({
       next: ({ current, releases }) => {
@@ -104,6 +110,10 @@ export class WhatsNewComponent implements AfterViewInit {
   protected close(): void {
     if (this.remember) {
       writeSeen(this.remember);
+      // The server remembers too, for a browser that forgets (Safari clears
+      // its storage along with the sign-in). If it can't be told now, it's
+      // told on the next visit.
+      this.tellServer(this.remember);
       this.remember = null;
     }
     const dialog = this.dialogElement();
@@ -115,6 +125,18 @@ export class WhatsNewComponent implements AfterViewInit {
       }
     }
     this.releases.set([]);
+  }
+
+  private tellServer(version: string): void {
+    writeKey(SEEN_UNSENT_KEY, version);
+    this.api.markNotesSeen(version).subscribe({
+      next: () => {
+        if (readKey(SEEN_UNSENT_KEY) === version) {
+          removeKey(SEEN_UNSENT_KEY);
+        }
+      },
+      error: () => undefined,
+    });
   }
 
   protected when(date: string | null): string {
@@ -141,5 +163,29 @@ function writeSeen(version: string): void {
     localStorage.setItem(SEEN_VERSION_KEY, version);
   } catch {
     // Private mode: it shows again next time, which is fine.
+  }
+}
+
+function readKey(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeKey(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Private mode: nothing kept to send again.
+  }
+}
+
+function removeKey(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Nothing to remove.
   }
 }

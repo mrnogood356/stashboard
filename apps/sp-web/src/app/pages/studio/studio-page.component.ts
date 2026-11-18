@@ -1,3 +1,4 @@
+import { HistoryBackDirective } from '../../core/navigation/history-back.directive';
 import { GlassArtService } from '../../core/theme/glass-art.service';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import {
@@ -72,6 +73,7 @@ interface MultiSelectOption {
 @Component({
   selector: 'app-studio-page',
   imports: [
+    HistoryBackDirective,
     StudioPerformersComponent,
     SkeletonComponent,
     HideToggleComponent,
