@@ -30,6 +30,7 @@ import {
   MergeEntitiesDto,
   IgnoreDuplicatesDto,
   PeopleSearchQueryDto,
+  CreatePersonDto,
   SkipProblemDto,
   ChaptersQueryDto,
   MergeQueryDto,
@@ -371,6 +372,14 @@ export class LocalLibraryController {
     studios: Array<{ id: string; name: string }>;
   }> {
     return this.library.searchPeople(query.query ?? '');
+  }
+
+  /** A performer or studio by name, made in Stash if it isn't there yet. */
+  @Post('people')
+  createPerson(
+    @Body() body: CreatePersonDto,
+  ): Promise<{ id: string; name: string; created: boolean }> {
+    return this.library.createPerson(body.kind, body.name);
   }
 
   @Get('tags')

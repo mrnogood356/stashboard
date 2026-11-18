@@ -447,6 +447,67 @@ export abstract class StashOrganizerApi extends StashChecksApi {
     }
   }
 
+  /**
+   * A performer or studio by this name, for the scene edit sheet: the one
+   * Stash already has by that name (any case) or alias, else a new one with
+   * just the name.
+   */
+  async createNamed(
+    config: StashAdapterBaseConfig,
+    kind: 'performer' | 'studio',
+    name: string,
+  ): Promise<{ id: string; name: string; created: boolean }> {
+    const existing =
+      (await this.findEntityByName(config, kind, name)) ??
+      (kind === 'studio'
+        ? await this.findEntityByAlias(config, kind, name)
+        : null);
+    if (existing) {
+      return { id: existing, name, created: false };
+    }
+    const mutation =
+      kind === 'studio'
+        ? `mutation NewStudio($input: StudioCreateInput!) { studioCreate(input: $input) { id name } }`
+        : `mutation NewPerformer($input: PerformerCreateInput!) { performerCreate(input: $input) { id name } }`;
+    let payload: Record<string, { id?: unknown; name?: unknown } | undefined>;
+    try {
+      payload =
+        (
+          (await this.executeQuery(
+            config,
+            mutation,
+            { input: { name } },
+            false,
+          )) as unknown as {
+            data?: Record<string, { id?: unknown; name?: unknown } | undefined>;
+          }
+        ).data ?? {};
+    } catch (error) {
+      // Stash names the one that has it as an alias; use that one.
+      const owner = this.aliasOwner(error);
+      const id = owner
+        ? await this.findEntityByName(config, kind, owner)
+        : null;
+      if (id && owner) {
+        return { id, name: owner, created: false };
+      }
+      throw error;
+    }
+    const made =
+      payload[kind === 'studio' ? 'studioCreate' : 'performerCreate'];
+    const id = this.normalizeOptionalString(made?.id);
+    if (!id) {
+      throw new BadGatewayException(
+        `Stash did not create the ${kind} ${name}.`,
+      );
+    }
+    return {
+      id,
+      name: this.normalizeOptionalString(made?.name) ?? name,
+      created: true,
+    };
+  }
+
   /** Saves a StashDB match onto a local scene. */
   async applySceneMatch(
     config: StashAdapterBaseConfig,

@@ -56,6 +56,9 @@ export class SceneEditSheetComponent implements OnDestroy {
   protected readonly peopleQuery = signal('');
   protected readonly peopleResults = signal<PeopleResults>({ performers: [], studios: [] });
   protected readonly peopleSearching = signal(false);
+  /** Adding a new performer or studio to Stash from the search. */
+  protected readonly creating = signal(false);
+  protected readonly createError = signal<string | null>(null);
   private readonly queries = new Subject<string>();
   private readonly searchSubscription: Subscription = this.queries
     .pipe(
@@ -105,6 +108,7 @@ export class SceneEditSheetComponent implements OnDestroy {
   protected stopPicking(): void {
     this.picking.set(null);
     this.peopleQuery.set('');
+    this.createError.set(null);
   }
 
   protected onPeopleQuery(value: string): void {
@@ -123,6 +127,45 @@ export class SceneEditSheetComponent implements OnDestroy {
     }
     this.peopleQuery.set('');
     this.peopleResults.set({ performers: [], studios: [] });
+  }
+
+  /**
+   * Offer to add the name searched for when Stash has no one by exactly that
+   * name: after the search has answered, so it isn't offered for a name
+   * that's only still loading.
+   */
+  protected canCreate(kind: 'studio' | 'performer'): boolean {
+    const name = this.peopleQuery().trim();
+    if (name.length < 2 || this.peopleSearching()) {
+      return false;
+    }
+    const found =
+      kind === 'studio' ? this.peopleResults().studios : this.peopleResults().performers;
+    return !found.some((option) => option.name.toLowerCase() === name.toLowerCase());
+  }
+
+  protected createPerson(kind: 'studio' | 'performer'): void {
+    const name = this.peopleQuery().trim();
+    if (!name || this.creating()) {
+      return;
+    }
+    this.creating.set(true);
+    this.createError.set(null);
+    this.library.createPerson(kind, name).subscribe({
+      next: (person) => {
+        this.creating.set(false);
+        const named = { id: person.id, name: person.name };
+        if (kind === 'studio') {
+          this.pickStudio(named);
+        } else {
+          this.addPerformer(named);
+        }
+      },
+      error: () => {
+        this.creating.set(false);
+        this.createError.set(`Couldn’t add “${name}” to Stash. Check that Stash is running.`);
+      },
+    });
   }
 
   protected removePerformer(id: string): void {

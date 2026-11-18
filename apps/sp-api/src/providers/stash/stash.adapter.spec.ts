@@ -2981,6 +2981,64 @@ describe('StashAdapter', () => {
       await expect(adapter.ensureStudio(config, studio)).resolves.toBe('42');
     });
 
+    it('makes a studio or performer by name from the edit sheet, reusing one Stash has', async () => {
+      // Already there by name, in another case: that one.
+      fetchMock.mockResolvedValueOnce(
+        respond({
+          data: { findStudios: { studios: [{ id: '7', name: 'brazzers' }] } },
+        }),
+      );
+      await expect(
+        adapter.createNamed(config, 'studio', 'Brazzers'),
+      ).resolves.toEqual({ id: '7', name: 'Brazzers', created: false });
+
+      // Not there: a new performer with just the name.
+      fetchMock
+        .mockResolvedValueOnce(
+          respond({ data: { findPerformers: { performers: [] } } }),
+        )
+        .mockResolvedValueOnce(
+          respond({
+            data: { performerCreate: { id: '91', name: 'New Person' } },
+          }),
+        );
+      await expect(
+        adapter.createNamed(config, 'performer', 'New Person'),
+      ).resolves.toEqual({ id: '91', name: 'New Person', created: true });
+      const body = JSON.parse(
+        String((fetchMock.mock.calls[2][1] as RequestInit).body),
+      ) as { query: string; variables: { input: Record<string, unknown> } };
+      expect(body.query).toContain('performerCreate');
+      expect(body.variables.input).toEqual({ name: 'New Person' });
+    });
+
+    it('uses the studio Stash names when the new name is already an alias', async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          respond({ data: { findStudios: { studios: [] } } }),
+        )
+        .mockResolvedValueOnce(
+          respond({ data: { findStudios: { studios: [] } } }),
+        )
+        .mockResolvedValueOnce(
+          respond({
+            errors: [
+              { message: "name 'Mr Anal' is used as alias for 'Mr. Anal'" },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(
+          respond({
+            data: {
+              findStudios: { studios: [{ id: '42', name: 'Mr. Anal' }] },
+            },
+          }),
+        );
+      await expect(
+        adapter.createNamed(config, 'studio', 'Mr Anal'),
+      ).resolves.toEqual({ id: '42', name: 'Mr. Anal', created: false });
+    });
+
     const empty = () => respond({ data: { findStudios: { studios: [] } } });
     const sentInput = (call: number) =>
       (

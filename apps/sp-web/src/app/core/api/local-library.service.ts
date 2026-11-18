@@ -237,6 +237,17 @@ export class LocalLibraryService {
     return this.http.get<PeopleResults>('/api/local/people', { params: { query } });
   }
 
+  /** A performer or studio by name: Stash's own, or a new one made there. */
+  createPerson(
+    kind: 'performer' | 'studio',
+    name: string,
+  ): Observable<{ id: string; name: string; created: boolean }> {
+    return this.http.post<{ id: string; name: string; created: boolean }>('/api/local/people', {
+      kind,
+      name,
+    });
+  }
+
   updateScene(sceneId: string, update: LocalSceneUpdate): Observable<LocalSceneDetails> {
     return this.http.patch<LocalSceneDetails>(`/api/local/scenes/${enc(sceneId)}`, update);
   }

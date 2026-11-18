@@ -1419,6 +1419,15 @@ export class LocalLibraryService {
     };
   }
 
+  /** A performer or studio by this name: Stash's own, or a new one. */
+  async createPerson(
+    kind: 'performer' | 'studio',
+    name: string,
+  ): Promise<{ id: string; name: string; created: boolean }> {
+    const config = await this.playback.getStashConfig();
+    return this.stash.createNamed(config, kind, name);
+  }
+
   async searchTags(
     query: string,
   ): Promise<Array<{ id: string; name: string }>> {

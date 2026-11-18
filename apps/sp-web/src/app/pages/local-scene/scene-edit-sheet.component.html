@@ -202,6 +202,23 @@
           </li>
         }
       }
+      @if (canCreate(kind)) {
+        <li>
+          <button
+            type="button"
+            class="create-option"
+            data-testid="edit-people-create"
+            [disabled]="creating()"
+            (click)="createPerson(kind)"
+          >
+            <i class="pi pi-plus" aria-hidden="true"></i>
+            {{ creating() ? 'Adding…' : 'Add “' + peopleQuery().trim() + '” to Stash' }}
+          </button>
+        </li>
+      }
     </ul>
+    @if (createError()) {
+      <p class="form-error small" role="alert">{{ createError() }}</p>
+    }
   </div>
 </ng-template>

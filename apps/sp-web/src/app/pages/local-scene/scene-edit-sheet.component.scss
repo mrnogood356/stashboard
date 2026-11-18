@@ -159,3 +159,10 @@
     flex: 1 1 0;
   }
 }
+
+.people-results .create-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--accent);
+}

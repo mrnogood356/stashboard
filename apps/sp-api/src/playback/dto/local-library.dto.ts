@@ -109,6 +109,19 @@ export class PeopleSearchQueryDto {
   query?: string;
 }
 
+export class CreatePersonDto {
+  @IsIn(['performer', 'studio'])
+  kind!: 'performer' | 'studio';
+
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  name!: string;
+}
+
 export class SceneWatchedDto {
   @IsBoolean()
   watched!: boolean;

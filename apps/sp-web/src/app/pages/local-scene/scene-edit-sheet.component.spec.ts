@@ -126,6 +126,54 @@ describe('SceneEditSheetComponent', () => {
     });
   });
 
+  it('adds a performer or studio Stash doesn’t have yet, from the search', async () => {
+    vi.useFakeTimers();
+    const library = {
+      updateScene: vi.fn().mockReturnValue(of(scene())),
+      searchPeople: vi
+        .fn()
+        .mockReturnValue(
+          of({
+            performers: [{ id: 'p2', name: 'Cleo Grant' }],
+            studios: [{ id: 's2', name: 'Harbor' }],
+          }),
+        ),
+      createPerson: vi
+        .fn()
+        .mockReturnValueOnce(throwError(() => new Error('down')))
+        .mockReturnValueOnce(of({ id: 'p9', name: 'Cleo', created: true })),
+    };
+    const { fixture, root, type, click } = await render(library);
+    const search = (text: string) => {
+      type('edit-people-search', text);
+      vi.advanceTimersByTime(300);
+      fixture.detectChanges();
+    };
+    const create = () => root().querySelector('[data-testid="edit-people-create"]');
+
+    // Stash has a studio by exactly that name: nothing to add.
+    click('edit-pick-studio');
+    search('harbor');
+    expect(create()).toBeNull();
+
+    click('edit-add-performer');
+    search('Cleo');
+    expect(create()?.textContent).toContain('Add “Cleo” to Stash');
+    click('edit-people-create');
+    expect(library.createPerson).toHaveBeenCalledWith('performer', 'Cleo');
+    expect(root().textContent).toContain('Couldn’t add “Cleo” to Stash');
+    click('edit-people-create');
+    const performers = Array.from(
+      root().querySelectorAll('[data-testid="edit-performer"]'),
+      (chip) => chip.textContent ?? '',
+    );
+    expect(performers.some((name) => name.includes('Cleo'))).toBe(true);
+    expect(root().textContent).not.toContain('Couldn’t add');
+
+    click('edit-save');
+    expect(library.updateScene).toHaveBeenCalledWith('4', { performerIds: ['p1', 'p9'] });
+  });
+
   it('won’t save without a title, a YYYY-MM-DD date or real links, and says why', async () => {
     const library = { updateScene: vi.fn(), searchPeople: vi.fn() };
     const { root, type } = await render(library);
