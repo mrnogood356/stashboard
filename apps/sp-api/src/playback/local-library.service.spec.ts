@@ -335,15 +335,21 @@ describe('LocalLibraryService', () => {
     );
   });
 
-  it('rescans only scenes with the naming hash, and says when the rescan couldn’t be asked for', async () => {
+  it('rescans only scenes with the naming hash, and answers without waiting for that rescan', async () => {
     stash.getOrganizerScene.mockImplementation((_config, id: string) =>
       Promise.resolve(withHash(id === '5' ? null : 'o')),
     );
-    stash.rescanForPreviews.mockRejectedValueOnce(new Error('Stash is busy'));
+    // A rescan that waits its turn in Stash's queue (a minute or more).
+    stash.rescanForPreviews.mockReturnValueOnce(new Promise(() => undefined));
     const result = await service.generateFor(['4', '5']);
     expect(stash.rescanForPreviews).toHaveBeenCalledWith(config, ['4']);
     expect(result.jobId).toBe('7');
-    expect(result.warning).toContain('hover previews wasn’t asked for');
+
+    // One that fails later is logged; Generate has already started.
+    stash.rescanForPreviews.mockRejectedValueOnce(new Error('Stash is busy'));
+    await expect(service.generateFor(['4'])).resolves.toMatchObject({
+      jobId: '7',
+    });
   });
 
   it('asks for no rescan when no scene can be made again', async () => {

@@ -631,16 +631,15 @@ export class LocalLibraryService {
     if (named.length > 0) {
       // Some Stash builds' Generate makes no hover previews at all (Stash
       // issue #7341), though a scan that makes them still works. It only
-      // makes the ones still missing, after the jobs above.
-      try {
-        await this.stash.rescanForPreviews(config, named);
-      } catch (error) {
-        const why = error instanceof Error ? error.message : String(error);
-        this.logger.warn(`Couldn't rescan for hover previews: ${why}`);
-        notes.push(
-          `The rescan that makes missing hover previews wasn’t asked for (${why}); try again.`,
-        );
-      }
+      // makes the ones still missing, after the jobs above. It waits for a
+      // quiet moment in Stash's queue, which can take a minute or more, so
+      // it's asked for behind the answer rather than before it.
+      void this.stash
+        .rescanForPreviews(config, named)
+        .catch((error: unknown) => {
+          const why = error instanceof Error ? error.message : String(error);
+          this.logger.warn(`Couldn't rescan for hover previews: ${why}`);
+        });
     }
     this.logger.log(
       `Started Stash’s Generate for ${sceneIds.length} scene${sceneIds.length === 1 ? '' : 's'}, ${named.length} made again${jobId ? ` (job ${jobId})` : ''}.`,
