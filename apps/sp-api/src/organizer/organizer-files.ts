@@ -1051,6 +1051,65 @@ export abstract class OrganizerFiles extends OrganizerCore {
   }
 
   /**
+   * Where a finished download would end up: one of your matched scenes, as
+   * if its file had just landed in this folder, run through the rename
+   * pattern and folder settings. Null when there's no matched scene to show.
+   */
+  async downloadFilingExample(destination: string): Promise<{
+    title: string;
+    landsAt: string;
+    filedAt: string | null;
+    state: RenameState;
+    pattern: string;
+  } | null> {
+    const folder = trimTrailingSeparators(destination.trim());
+    if (!folder) {
+      return null;
+    }
+    const settings = await this.getSettings();
+    const { pattern } = await this.renamingPattern(settings);
+    const config = await this.stashConfig();
+    const endpoint = await this.handoff.catalogEndpoint(config);
+    const sample = await this.stash
+      .findOrganizerScenes(config, {
+        page: 1,
+        perPage: 1,
+        sceneFilter: {
+          ...(endpoint
+            ? { stash_id_endpoint: { endpoint, modifier: 'NOT_NULL' } }
+            : MATCHED_FILTER),
+          studios: { modifier: 'NOT_NULL' },
+        },
+      })
+      .catch(() => ({ total: 0, items: [] as StashOrganizerScene[] }));
+    const scene = sample.items[0];
+    const file = scene?.files[0];
+    if (!scene || !file) {
+      return null;
+    }
+    const separator =
+      folder.includes('\\') && !folder.includes('/') ? '\\' : '/';
+    const landsAt = `${folder}${separator}${file.basename}`;
+    const roots = await this.stash.getLibraryRoots(config);
+    const plan = planRename(
+      { ...scene, files: [{ ...file, path: landsAt }] },
+      roots,
+      pattern,
+      new Set<string>(),
+      pickTargetRoot(settings.renameRoot, roots),
+      [],
+      await this.whisparrNamingOptions(),
+    );
+    return {
+      title: plan.title,
+      landsAt,
+      filedAt: plan.to,
+      state: plan.state,
+      pattern,
+    };
+  }
+
+  /**
    * What the rename preview plans for just these scenes, with the same
    * "taken" and "renamed before" details. Only looks: no rescans.
    */

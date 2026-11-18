@@ -179,6 +179,16 @@ export interface RenamePreview {
   skipped: RenamePlan[];
 }
 
+/** One of your scenes, as if its file had just landed in the downloads folder. */
+export interface FilingExample {
+  title: string;
+  landsAt: string;
+  /** Where Rename files would put it; null when it wouldn't be moved. */
+  filedAt: string | null;
+  state: RenameState;
+  pattern: string;
+}
+
 export interface ApplyResult {
   sceneId: string;
   renamedTo: string | null;
@@ -449,6 +459,13 @@ export class OrganizerApiService {
       merged: number;
       skipped: Array<{ sceneId: string; reason: string }>;
     }>('/api/organizer/rename/taken/fix', { sceneIds, fix });
+  }
+
+  /** Where a finished download in this folder would be filed; null with nothing matched yet. */
+  filingExample(destination: string): Observable<FilingExample | null> {
+    return this.http.get<FilingExample | null>('/api/organizer/filing-example', {
+      params: { destination },
+    });
   }
 
   preview(pattern?: string): Observable<RenamePreview> {

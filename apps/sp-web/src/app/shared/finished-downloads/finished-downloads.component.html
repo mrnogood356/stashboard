@@ -61,7 +61,7 @@
           placeholder="/data/downloads"
           [disabled]="!loaded()"
           [value]="destination()"
-          (input)="destination.set(inputValue($event))"
+          (input)="onDestination(inputValue($event))"
         />
         <datalist id="finished-downloads-roots">
           @for (root of libraryRoots(); track root) {
@@ -74,6 +74,27 @@
             ({{ libraryRoots().join(', ') }})
           }
         </span>
+        @if (example(); as shown) {
+          <span class="hint filing-example" data-testid="filing-example">
+            For example, “{{ shown.title }}” lands as
+            <code>{{ shown.landsAt }}</code>
+            @switch (shown.state) {
+              @case ('ready') {
+                and is filed at <code>{{ shown.filedAt }}</code
+                >.
+              }
+              @case ('same') {
+                and stays there: that’s already where your pattern puts it.
+              }
+              @case ('outside') {
+                and isn’t filed: that folder isn’t inside one of Stash’s library folders.
+              }
+              @default {
+                and is left where it is.
+              }
+            }
+          </span>
+        }
       </label>
 
       <label>

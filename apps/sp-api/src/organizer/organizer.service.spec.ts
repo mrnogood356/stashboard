@@ -1426,6 +1426,45 @@ describe('OrganizerService', () => {
     });
   });
 
+  it('shows where a finished download in a folder would be filed', async () => {
+    stash.findOrganizerScenes.mockResolvedValue({
+      total: 1,
+      items: [
+        localScene({
+          title: 'Summer Afternoon',
+          date: '2023-08-14',
+          studio: { id: 's', name: 'Bright Studio' },
+          stashIds: [{ endpoint: 'e', stashId: 'x' }],
+        }),
+      ],
+    });
+    // Whisparr tracking that scene doesn't matter: the download is a new file.
+    handoff.trackedStashIds.mockResolvedValue(new Set(['x']));
+
+    await expect(
+      service.downloadFilingExample('/data/downloads/'),
+    ).resolves.toEqual({
+      title: 'Summer Afternoon',
+      landsAt: '/data/downloads/BrightStudio.23.08.14.Summer.Afternoon.mp4',
+      filedAt: '/data/Bright Studio/2023-08-14 - Summer Afternoon.mp4',
+      state: 'ready',
+      pattern: '{studio}/{date} - {title}',
+    });
+    const [[, options]] = stash.findOrganizerScenes.mock.calls as Array<
+      [unknown, { sceneFilter: Record<string, unknown> }]
+    >;
+    expect(options.sceneFilter).toMatchObject({
+      studios: { modifier: 'NOT_NULL' },
+    });
+
+    // Nothing matched yet: nothing to show.
+    stash.findOrganizerScenes.mockResolvedValue({ total: 0, items: [] });
+    await expect(
+      service.downloadFilingExample('/data/downloads'),
+    ).resolves.toBeNull();
+    await expect(service.downloadFilingExample('  ')).resolves.toBeNull();
+  });
+
   it('never renames a scene Whisparr tracks, even if Stashboard’s own index is out of date', async () => {
     handoff.trackedStashIds.mockResolvedValue(new Set(['x']));
     stash.findOrganizerScenes.mockResolvedValue({
