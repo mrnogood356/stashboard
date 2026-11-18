@@ -166,6 +166,48 @@ export class LibraryService {
     };
   }
 
+  /** Every studio with a scene of yours, most scenes first, a page at a time. */
+  async listStudios(
+    query?: string,
+    page = 1,
+    perPage = 48,
+  ): Promise<LibraryPerformersDto> {
+    const name = query?.trim() ?? '';
+    const nameFilter = name
+      ? Prisma.sql`AND "studioName" ILIKE ${`%${name}%`}`
+      : Prisma.empty;
+    const studios = Prisma.sql`
+      SELECT "studioId" AS id, MIN("studioName") AS name, COUNT(*)::int AS count
+      FROM "LibrarySceneIndex"
+      WHERE "studioId" IS NOT NULL AND "studioName" IS NOT NULL ${nameFilter}
+      GROUP BY "studioId"`;
+    const [rows, totals] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ id: string; name: string; count: number }>>(
+        Prisma.sql`${studios}
+          ORDER BY count DESC, name ASC
+          LIMIT ${perPage} OFFSET ${(page - 1) * perPage}`,
+      ),
+      this.prisma.$queryRaw<Array<{ total: number }>>(
+        Prisma.sql`SELECT COUNT(*)::int AS total FROM (${studios}) AS studios`,
+      ),
+    ]);
+    const total = totals[0]?.total ?? 0;
+    return {
+      total,
+      page,
+      perPage,
+      hasMore: page * perPage < total,
+      items: rows.map((row) => ({
+        ...row,
+        imageUrl: stashMediaUrl(
+          `studios/${encodeURIComponent(row.id)}/logo`,
+          null,
+          480,
+        ),
+      })),
+    };
+  }
+
   private scopeFilter(scope: LibraryOptionScope): Prisma.Sql {
     if (scope.performerId) {
       return Prisma.sql`AND "performerIds" @> ARRAY[${scope.performerId}]::text[]`;

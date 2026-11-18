@@ -27,6 +27,7 @@ import { Subscription, finalize } from 'rxjs';
 import { ButtonDirective } from 'primeng/button';
 import { Message } from 'primeng/message';
 import { DiscoverService } from '../../core/api/discover.service';
+import { LibraryPerformer, LibraryService } from '../../core/api/library.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { SortDirection, StudioFeedItem, StudioFeedSort } from '../../core/api/discover.types';
 
@@ -59,6 +60,7 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly notifications = inject(AppNotificationsService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly libraryApi = inject(LibraryService);
   private queryParamSubscription: Subscription | null = null;
   private observer: IntersectionObserver | null = null;
   private sentinelElement: HTMLDivElement | null = null;
@@ -100,6 +102,17 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
     StudiosPageComponent.DEFAULT_DIRECTION,
   );
   protected readonly favoritesOnly = signal(false);
+  /** "In my library" ("lib=1" in the URL): only studios with scenes of yours. */
+  protected readonly inLibrary = signal(false);
+  protected readonly libItems = signal<LibraryPerformer[]>([]);
+  protected readonly libTotal = signal(0);
+  protected readonly libHasMore = signal(false);
+  protected readonly libLoading = signal(false);
+  protected readonly libFailed = signal(false);
+  private libPage = 1;
+  protected libQuery: string | null = null;
+  private libRequest: Subscription | null = null;
+  private libraryParamSubscription: Subscription | null = null;
   protected readonly favoriteInFlightById = signal<Record<string, boolean>>({});
   /** Sort and direction as one plain choice, for the filter bar. */
   private static readonly SORT_CHOICES: SortChoice<StudioFeedSort>[] = [
@@ -137,6 +150,7 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.watchLibraryParam();
     this.setupUrlStateSync();
   }
 
@@ -150,6 +164,62 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     this.observer?.disconnect();
     this.queryParamSubscription?.unsubscribe();
+    this.libraryParamSubscription?.unsubscribe();
+    this.libRequest?.unsubscribe();
+  }
+
+  protected toggleInLibrary(): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { lib: this.inLibrary() ? null : '1' },
+      queryParamsHandling: 'merge',
+    });
+  }
+
+  protected showMoreLibrary(): void {
+    this.loadLibrary(false);
+  }
+
+  /** After a failed page: the first page again, or the one that failed. */
+  protected retryLibrary(): void {
+    this.loadLibrary(this.libItems().length === 0);
+  }
+
+  private watchLibraryParam(): void {
+    this.libraryParamSubscription = this.route.queryParamMap.subscribe((params) => {
+      const on = params.get('lib') === '1';
+      const query = (params.get('q') ?? '').trim();
+      this.inLibrary.set(on);
+      if (on && query !== this.libQuery) {
+        this.libQuery = query;
+        this.loadLibrary(true);
+      }
+      if (!on) {
+        this.libQuery = null;
+      }
+    });
+  }
+
+  private loadLibrary(reset: boolean): void {
+    if (reset) {
+      this.libPage = 1;
+      this.libItems.set([]);
+    }
+    this.libRequest?.unsubscribe();
+    this.libLoading.set(true);
+    this.libFailed.set(false);
+    this.libRequest = this.libraryApi
+      .listStudios(this.libQuery ?? '', this.libPage)
+      .pipe(finalize(() => this.libLoading.set(false)))
+      .subscribe({
+        next: (result) => {
+          this.libItems.update((items) => (reset ? result.items : [...items, ...result.items]));
+          this.libTotal.set(result.total);
+          this.libHasMore.set(result.hasMore);
+          this.libPage = result.page + 1;
+        },
+        error: () => this.libFailed.set(true),
+      });
   }
 
   protected hasItems(): boolean {

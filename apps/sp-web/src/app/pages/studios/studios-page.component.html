@@ -2,14 +2,20 @@
   <app-page-tabs title="Browse" [tabs]="pageTabs" search searchHint="studios by name" />
   <header class="page-head-compact">
     <div class="page-head-compact__title">
-      @if (!loading() && !error()) {
+      @if (inLibrary()) {
+        @if (!libLoading() || libItems().length > 0) {
+          <p class="state">{{ libTotal().toLocaleString() }} in your library</p>
+        }
+      } @else if (!loading() && !error()) {
         <p class="state">
           {{ total().toLocaleString() }} {{ total() === 1 ? 'studio' : 'studios' }}
         </p>
       }
     </div>
     <div class="page-head-compact__actions">
-      <app-catalog-provider-switch />
+      @if (!inLibrary()) {
+        <app-catalog-provider-switch />
+      }
     </div>
   </header>
 
@@ -17,101 +23,187 @@
     <button
       type="button"
       class="filter-toggle"
-      data-testid="studios-favorites"
-      [attr.aria-pressed]="favoritesOnly()"
-      (click)="onFavoritesOnlyChanged(!favoritesOnly())"
+      data-testid="studios-in-library"
+      [attr.aria-pressed]="inLibrary()"
+      (click)="toggleInLibrary()"
     >
-      <i class="pi pi-star" aria-hidden="true"></i>
-      Favorites
+      <i class="pi pi-folder-open" aria-hidden="true"></i>
+      <span>In my library</span>
     </button>
-    <app-filter-chip label="Sort" [value]="sortValue()" neutral testId="studios-sort">
-      <ng-template appFilterPanel>
-        <app-filter-options
-          [options]="sortChoices"
-          [selected]="sortPicked()"
-          [clearable]="false"
-          testId="studios-sort-option"
-          (changed)="onSortPicked($event)"
-        />
-      </ng-template>
-    </app-filter-chip>
+    @if (!inLibrary()) {
+      <button
+        type="button"
+        class="filter-toggle"
+        data-testid="studios-favorites"
+        [attr.aria-pressed]="favoritesOnly()"
+        (click)="onFavoritesOnlyChanged(!favoritesOnly())"
+      >
+        <i class="pi pi-star" aria-hidden="true"></i>
+        Favorites
+      </button>
+      <app-filter-chip label="Sort" [value]="sortValue()" neutral testId="studios-sort">
+        <ng-template appFilterPanel>
+          <app-filter-options
+            [options]="sortChoices"
+            [selected]="sortPicked()"
+            [clearable]="false"
+            testId="studios-sort-option"
+            (changed)="onSortPicked($event)"
+          />
+        </ng-template>
+      </app-filter-chip>
+    }
   </div>
 
-  @if (loading()) {
-    <app-skeleton kind="grid" [count]="12" label="Loading studios" />
-  } @else if (error()) {
-    <p-message severity="error" styleClass="app-page-message">{{ error() }}</p-message>
-    <button pButton type="button" class="retry-button" (click)="retryInitialLoad()">Retry</button>
-  } @else if (!hasItems()) {
-    <p class="state">No studios are available for the current filters.</p>
-  } @else {
-    <section class="studio-grid">
-      @for (item of items(); track item.id) {
-        <article class="studio-card">
-          <a
-            class="studio-link-stretch"
-            [routerLink]="['/studio', item.id]"
-            [queryParams]="{ returnTo: currentRouteUrl() }"
-            [attr.aria-label]="'View studio ' + item.name"
-          ></a>
-
-          <button
-            type="button"
-            class="favorite-star"
-            [class.is-favorite]="item.isFavorite"
-            [disabled]="favoriteToggleBusy(item.id)"
-            [attr.aria-busy]="favoriteToggleBusy(item.id)"
-            [attr.aria-label]="favoriteToggleLabel(item.isFavorite)"
-            [title]="favoriteToggleLabel(item.isFavorite)"
-            (click)="toggleStudioFavorite($event, item)"
-          >
-            <i [class]="item.isFavorite ? 'pi pi-star-fill' : 'pi pi-star'" aria-hidden="true"></i>
-          </button>
-
-          @if (item.cardImageUrl ?? item.imageUrl; as image) {
-            <img class="studio-image" [src]="image" [alt]="item.name + ' logo'" loading="lazy" />
-          } @else {
-            <div class="studio-image placeholder" aria-hidden="true">
-              {{ studioInitial(item.name) }}
-            </div>
-          }
-
-          <div class="studio-meta">
-            <p class="studio-name">{{ item.name }}</p>
-            @if (item.childStudios.length > 0) {
+  @if (inLibrary()) {
+    @if (libFailed() && libItems().length === 0) {
+      <p class="state">Couldn’t load the studios in your library.</p>
+      <button
+        type="button"
+        class="app-btn retry-library"
+        data-testid="library-studios-retry"
+        (click)="retryLibrary()"
+      >
+        Try again
+      </button>
+    } @else if (!libLoading() && libItems().length === 0) {
+      <p class="state">
+        @if (libQuery) {
+          No studio by that name in your library.
+        } @else {
+          No studios in your library yet: they show up here once Stash has scenes from them.
+        }
+      </p>
+    } @else {
+      <section class="studio-grid" data-testid="library-studios">
+        @for (item of libItems(); track item.id) {
+          <article class="studio-card">
+            <a
+              class="studio-link-stretch"
+              [routerLink]="['/library/studio', item.id, 'all']"
+              [queryParams]="{ returnTo: currentRouteUrl() }"
+              [attr.aria-label]="'View studio ' + item.name"
+            ></a>
+            <img
+              class="studio-image"
+              [src]="item.imageUrl"
+              [alt]="item.name + ' logo'"
+              loading="lazy"
+            />
+            <div class="studio-meta">
+              <p class="studio-name">{{ item.name }}</p>
               <p class="child-summary">
-                {{ item.childStudios.length }}
-                {{ item.childStudios.length === 1 ? 'studio' : 'studios' }} in this network
+                {{ item.count }} {{ item.count === 1 ? 'scene' : 'scenes' }} of yours
               </p>
-              <div class="child-chips">
-                @for (childName of childStudiosPreview(item); track childName) {
-                  <span class="child-chip">{{ childName }}</span>
-                }
-                @if (childStudiosOverflowCount(item) > 0) {
-                  <span class="child-chip">+{{ childStudiosOverflowCount(item) }}</span>
-                }
-              </div>
-            } @else if (item.parentStudio) {
-              <p class="child-summary">Part of {{ item.parentStudio.name }}</p>
-            }
-          </div>
-        </article>
+            </div>
+          </article>
+        }
+      </section>
+      @if (libFailed()) {
+        <p class="state">Couldn’t load more.</p>
+        <button
+          type="button"
+          class="app-btn show-more-library"
+          data-testid="library-studios-retry"
+          (click)="retryLibrary()"
+        >
+          Try again
+        </button>
+      } @else if (libHasMore()) {
+        <button
+          type="button"
+          class="app-btn show-more-library"
+          [disabled]="libLoading()"
+          (click)="showMoreLibrary()"
+        >
+          {{ libLoading() ? 'Loading…' : 'Show more' }}
+        </button>
       }
-    </section>
-
-    <div #loadMoreSentinel class="load-sentinel"></div>
-
-    @if (loadingMore()) {
-      <p class="state">Loading more studios...</p>
-    }
-
-    @if (loadMoreError()) {
-      <div class="load-more-error">
-        <p-message severity="error" styleClass="app-inline-message">{{
-          loadMoreError()
-        }}</p-message>
-        <button pButton type="button" class="retry-button" (click)="retryLoadMore()">Retry</button>
-      </div>
     }
   }
+
+  <div class="catalog-list" [hidden]="inLibrary()">
+    @if (loading()) {
+      <app-skeleton kind="grid" [count]="12" label="Loading studios" />
+    } @else if (error()) {
+      <p-message severity="error" styleClass="app-page-message">{{ error() }}</p-message>
+      <button pButton type="button" class="retry-button" (click)="retryInitialLoad()">Retry</button>
+    } @else if (!hasItems()) {
+      <p class="state">No studios are available for the current filters.</p>
+    } @else {
+      <section class="studio-grid">
+        @for (item of items(); track item.id) {
+          <article class="studio-card">
+            <a
+              class="studio-link-stretch"
+              [routerLink]="['/studio', item.id]"
+              [queryParams]="{ returnTo: currentRouteUrl() }"
+              [attr.aria-label]="'View studio ' + item.name"
+            ></a>
+
+            <button
+              type="button"
+              class="favorite-star"
+              [class.is-favorite]="item.isFavorite"
+              [disabled]="favoriteToggleBusy(item.id)"
+              [attr.aria-busy]="favoriteToggleBusy(item.id)"
+              [attr.aria-label]="favoriteToggleLabel(item.isFavorite)"
+              [title]="favoriteToggleLabel(item.isFavorite)"
+              (click)="toggleStudioFavorite($event, item)"
+            >
+              <i
+                [class]="item.isFavorite ? 'pi pi-star-fill' : 'pi pi-star'"
+                aria-hidden="true"
+              ></i>
+            </button>
+
+            @if (item.cardImageUrl ?? item.imageUrl; as image) {
+              <img class="studio-image" [src]="image" [alt]="item.name + ' logo'" loading="lazy" />
+            } @else {
+              <div class="studio-image placeholder" aria-hidden="true">
+                {{ studioInitial(item.name) }}
+              </div>
+            }
+
+            <div class="studio-meta">
+              <p class="studio-name">{{ item.name }}</p>
+              @if (item.childStudios.length > 0) {
+                <p class="child-summary">
+                  {{ item.childStudios.length }}
+                  {{ item.childStudios.length === 1 ? 'studio' : 'studios' }} in this network
+                </p>
+                <div class="child-chips">
+                  @for (childName of childStudiosPreview(item); track childName) {
+                    <span class="child-chip">{{ childName }}</span>
+                  }
+                  @if (childStudiosOverflowCount(item) > 0) {
+                    <span class="child-chip">+{{ childStudiosOverflowCount(item) }}</span>
+                  }
+                </div>
+              } @else if (item.parentStudio) {
+                <p class="child-summary">Part of {{ item.parentStudio.name }}</p>
+              }
+            </div>
+          </article>
+        }
+      </section>
+
+      <div #loadMoreSentinel class="load-sentinel"></div>
+
+      @if (loadingMore()) {
+        <p class="state">Loading more studios...</p>
+      }
+
+      @if (loadMoreError()) {
+        <div class="load-more-error">
+          <p-message severity="error" styleClass="app-inline-message">{{
+            loadMoreError()
+          }}</p-message>
+          <button pButton type="button" class="retry-button" (click)="retryLoadMore()">
+            Retry
+          </button>
+        </div>
+      }
+    }
+  </div>
 </main>

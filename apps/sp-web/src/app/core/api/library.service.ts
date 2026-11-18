@@ -81,6 +81,15 @@ export class LibraryService {
     });
   }
 
+  /** Every studio with a scene of yours, most scenes first. */
+  listStudios(query: string, page = 1, perPage = 48): Observable<LibraryPerformers> {
+    let params = new HttpParams().set('page', page).set('perPage', perPage);
+    if (query.trim()) {
+      params = params.set('query', query.trim());
+    }
+    return this.http.get<LibraryPerformers>('/api/library/studios/list', { params });
+  }
+
   /** Everyone in your own scenes, most scenes first. */
   listPerformers(query: string, page = 1, perPage = 48): Observable<LibraryPerformers> {
     let params = new HttpParams().set('page', page).set('perPage', perPage);

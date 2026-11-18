@@ -378,6 +378,32 @@ describe('LibraryService', () => {
     expect(list.values).toEqual(['%alex%', 24, 0]);
   });
 
+  it('lists every studio with a scene of yours, most scenes first, a page at a time', async () => {
+    queryRawMock
+      .mockResolvedValueOnce([{ id: '3', name: 'Archive', count: 9 }])
+      .mockResolvedValueOnce([{ total: 2 }]);
+
+    await expect(service.listStudios('arch', 1, 48)).resolves.toEqual({
+      total: 2,
+      page: 1,
+      perPage: 48,
+      hasMore: false,
+      items: [
+        {
+          id: '3',
+          name: 'Archive',
+          count: 9,
+          imageUrl: '/api/media/stash/studios/3/logo?w=480',
+        },
+      ],
+    });
+    const [list] = queryRawMock.mock.calls.map(
+      (call) => call[0] as { strings: string[]; values: unknown[] },
+    );
+    expect(list.strings.join(' ')).toContain('GROUP BY "studioId"');
+    expect(list.values).toEqual(['%arch%', 48, 0]);
+  });
+
   it('returns indexed studio options from the local-library projection', async () => {
     queryRawMock.mockResolvedValue([{ id: 'studio-1', name: 'Archive' }]);
 
