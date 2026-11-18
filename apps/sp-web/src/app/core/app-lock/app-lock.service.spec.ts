@@ -166,6 +166,15 @@ describe('AppLockService', () => {
     touch('touchend', 3, window.innerHeight - 5);
     expect(shielded()).toBe(false);
 
+    // Two fingers both on the strip: the second lifting leaves the cover up
+    // while the first is still down.
+    touch('touchstart', 7, window.innerHeight - 5);
+    touch('touchstart', 8, window.innerHeight - 3);
+    touch('touchend', 8, window.innerHeight - 3);
+    expect(shielded()).toBe(true);
+    touch('touchend', 7, window.innerHeight - 5);
+    expect(shielded()).toBe(false);
+
     // iOS takes the strip's finger over (it never lifts): the next ordinary
     // touch, the app having stayed, still takes the cover down.
     touch('touchstart', 5, window.innerHeight - 5);
