@@ -1,3 +1,4 @@
+import { HideOwnedService } from '../../core/preferences/hide-owned.service';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -138,6 +139,8 @@ describe('HomePageComponent', () => {
     rails$?: Observable<HomeRailConfig[]>;
     /** Signed-in user; Home is only cached for a known user. */
     username?: string;
+    /** Settings → Hidden → "Scenes you already have". */
+    hideOwned?: boolean;
   }) {
     const rails: HomeRailConfig[] = [
       {
@@ -258,6 +261,18 @@ describe('HomePageComponent', () => {
           provide: SetupStatusStore,
           useValue: setupStatusStore,
         },
+        ...(options?.hideOwned
+          ? [
+              {
+                provide: HideOwnedService,
+                useValue: {
+                  hideOwned: signal(true),
+                  filter: <T extends { status?: { state: string } | null }>(items: T[]) =>
+                    items.filter((item) => item.status?.state !== 'AVAILABLE'),
+                },
+              },
+            ]
+          : []),
         {
           provide: AppNotificationsService,
           useValue: {
@@ -457,6 +472,26 @@ describe('HomePageComponent', () => {
     // Still opens the catalog scene, and can play the library copy.
     expect(hrefs.some((href) => href?.includes('/scene/stashdb-scene-1'))).toBe(true);
     expect(hrefs.some((href) => href?.includes('/watch/42'))).toBe(true);
+  });
+
+  it('leaves scenes you have out of catalog rows when you hide them, never out of library rows', async () => {
+    const { fixture } = await renderPage({
+      hideOwned: true,
+      discoverFeed: buildDiscoverFeed([
+        buildDiscoveryItem({
+          id: 'owned-scene',
+          title: 'Owned Scene',
+          status: { state: 'AVAILABLE' },
+          requestable: false,
+        }),
+        buildDiscoveryItem({ id: 'new-scene', title: 'New Scene' }),
+      ]),
+    });
+    const catalog = railSectionByTitle(fixture, 'Discovery Rail');
+    expect(catalog.textContent).toContain('New Scene');
+    expect(catalog.textContent).not.toContain('Owned Scene');
+    // Library rows are your scenes: all of them stay.
+    expect(railSectionByTitle(fixture, 'Library Rail').textContent).toContain('Library Scene');
   });
 
   it('shows Home from the last visit at once, then refreshes it', async () => {

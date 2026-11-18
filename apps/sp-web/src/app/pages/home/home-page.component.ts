@@ -1,3 +1,4 @@
+import { HideOwnedService, isOwned } from '../../core/preferences/hide-owned.service';
 import { ImageObscurationToggleComponent } from '../../shared/image-obscuration-toggle/image-obscuration-toggle.component';
 import { Observable } from 'rxjs';
 import { GlassArtService } from '../../core/theme/glass-art.service';
@@ -246,6 +247,7 @@ export class HomePageComponent implements OnInit, OnDestroy {
   protected readonly studioSelectOptions = signal<MultiSelectGroup[]>([]);
   protected readonly formStudioSelectedIdsModel = signal<string[]>([]);
 
+  private readonly hideOwned = inject(HideOwnedService);
   protected readonly railItemsById = signal<Record<string, HomeRailItem[]>>({});
   protected readonly railErrorsById = signal<Record<string, string>>({});
   protected readonly requestModalOpen = signal(false);
@@ -520,6 +522,16 @@ export class HomePageComponent implements OnInit, OnDestroy {
     return true;
   }
 
+  /**
+   * Settings → Hidden → "Scenes you already have": a catalog row leaves out
+   * scenes in your library. Library rows are your scenes, so they all stay.
+   */
+  private withoutOwned(items: HomeRailItem[]): HomeRailItem[] {
+    return this.hideOwned.hideOwned()
+      ? items.filter((item) => item.source === 'STASH' || !isOwned(item))
+      : items;
+  }
+
   private cacheUser(): string | null {
     const status = this.authState.status();
     return status?.authenticated ? status.username : null;
@@ -539,7 +551,7 @@ export class HomePageComponent implements OnInit, OnDestroy {
       .map((rail) => ({
         ...rail,
         pending: !(rail.id in this.railItemsById()) && !(rail.id in this.railErrorsById()),
-        items: this.railItemsById()[rail.id] ?? [],
+        items: this.withoutOwned(this.railItemsById()[rail.id] ?? []),
         error: this.railErrorsById()[rail.id] ?? null,
         seeAllLink: (rail.display?.seeAll ?? true) ? this.buildSeeAllLink(rail) : null,
         look: { ...DEFAULT_HOME_ROW_DISPLAY, ...(rail.display ?? {}) },
