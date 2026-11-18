@@ -84,6 +84,9 @@ const EMPTY: SearchResults = {
  * and the StashDB/FansDB catalog. Each part loads on its own, so a slow or
  * failing source never blocks the others.
  */
+/** The last search's results, kept while the app is open, for coming back to them. */
+let lastSearch: { query: string; results: SearchResults } | null = null;
+
 @Component({
   selector: 'app-search-page',
   imports: [
@@ -190,6 +193,7 @@ export class SearchPageComponent implements OnInit, OnDestroy {
       .subscribe((results) => {
         this.results.set(results);
         this.searching.set(false);
+        lastSearch = { query: this.query().trim(), results };
         // A kind with nothing for these words would leave the page empty.
         const selected = this.filter();
         if (selected !== 'all' && this.counts()[selected] === 0) {
@@ -199,9 +203,19 @@ export class SearchPageComponent implements OnInit, OnDestroy {
 
     const initial = this.route.snapshot.queryParamMap.get('q') ?? '';
     if (initial) {
-      this.setQuery(initial);
+      // Back from a result: the same results, at once, so Back can put you
+      // where you were. Searching again would empty the page first.
+      if (lastSearch?.query === initial.trim()) {
+        this.query.set(initial);
+        this.results.set(lastSearch.results);
+      } else {
+        this.setQuery(initial);
+      }
+    } else {
+      // Only an empty search takes the cursor: coming back to results, it
+      // would open the keyboard and pull the page back to the top on a phone.
+      setTimeout(() => this.searchInput?.nativeElement.focus(), 50);
     }
-    setTimeout(() => this.searchInput?.nativeElement.focus(), 50);
   }
 
   ngOnDestroy(): void {

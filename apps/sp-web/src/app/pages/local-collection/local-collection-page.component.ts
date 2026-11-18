@@ -1,3 +1,4 @@
+import { HistoryBackDirective } from '../../core/navigation/history-back.directive';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
@@ -55,6 +56,7 @@ const SORTS: Array<{ value: LocalSceneSort; label: string }> = [
 @Component({
   selector: 'app-local-collection-page',
   imports: [
+    HistoryBackDirective,
     RouterLink,
     SceneCardComponent,
     FilterChipComponent,
