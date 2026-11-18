@@ -13,8 +13,8 @@
         class="filters-toggle columns-toggle"
         data-testid="library-one-column"
         [attr.aria-pressed]="oneColumn()"
-        [attr.aria-label]="oneColumn() ? 'Two scenes a row' : 'One scene a row'"
-        [title]="oneColumn() ? 'Two scenes a row' : 'One scene a row'"
+        aria-label="One scene a row"
+        title="One scene a row"
         (click)="toggleOneColumn()"
       >
         <i [class]="oneColumn() ? 'pi pi-th-large' : 'pi pi-stop'" aria-hidden="true"></i>

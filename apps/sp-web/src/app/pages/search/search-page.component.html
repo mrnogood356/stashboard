@@ -88,7 +88,7 @@
               [attr.aria-pressed]="filter() === option.id"
               [attr.data-testid]="'search-filter-' + option.id"
               [disabled]="option.count === 0"
-              (click)="filter.set($any(option.id))"
+              (click)="pickFilter($any(option.id))"
             >
               {{ option.label }}
               @if (option.count !== null) {

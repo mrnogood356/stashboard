@@ -261,18 +261,11 @@ describe('HomePageComponent', () => {
           provide: SetupStatusStore,
           useValue: setupStatusStore,
         },
-        ...(options?.hideOwned
-          ? [
-              {
-                provide: HideOwnedService,
-                useValue: {
-                  hideOwned: signal(true),
-                  filter: <T extends { status?: { state: string } | null }>(items: T[]) =>
-                    items.filter((item) => item.status?.state !== 'AVAILABLE'),
-                },
-              },
-            ]
-          : []),
+        // Set in every test, so none depends on the hidden settings loading.
+        {
+          provide: HideOwnedService,
+          useValue: { hideOwned: signal(options?.hideOwned ?? false) },
+        },
         {
           provide: AppNotificationsService,
           useValue: {
@@ -492,6 +485,20 @@ describe('HomePageComponent', () => {
     expect(catalog.textContent).not.toContain('Owned Scene');
     // Library rows are your scenes: all of them stay.
     expect(railSectionByTitle(fixture, 'Library Rail').textContent).toContain('Library Scene');
+  });
+
+  it('says every scene is one you have, not that Home is empty, when hiding leaves nothing', async () => {
+    const { fixture } = await renderPage({
+      hideOwned: true,
+      discoverFeed: buildDiscoverFeed([
+        buildDiscoveryItem({ status: { state: 'AVAILABLE' }, requestable: false }),
+      ]),
+      homeRailItemsById: { 'rail-stash': { items: [], message: null } as never },
+    });
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="home-all-owned"]')?.textContent).toContain(
+      'You already have every scene here',
+    );
   });
 
   it('shows Home from the last visit at once, then refreshes it', async () => {

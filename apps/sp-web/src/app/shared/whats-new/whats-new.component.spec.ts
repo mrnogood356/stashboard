@@ -1,8 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AboutApiService, ReleaseNotesResponse } from '../../core/api/about.service';
-import { SEEN_VERSION_KEY, WhatsNewComponent } from './whats-new.component';
+import { SEEN_UNSENT_KEY, SEEN_VERSION_KEY, WhatsNewComponent } from './whats-new.component';
 import { WhatsNewService } from './whats-new.service';
 
 const NOTES: ReleaseNotesResponse = {
@@ -18,16 +18,22 @@ const NOTES: ReleaseNotesResponse = {
 };
 
 describe('WhatsNewComponent', () => {
-  beforeEach(() => localStorage.removeItem(SEEN_VERSION_KEY));
+  beforeEach(() => {
+    localStorage.removeItem(SEEN_VERSION_KEY);
+    localStorage.removeItem(SEEN_UNSENT_KEY);
+  });
   afterEach(() => {
     TestBed.resetTestingModule();
     localStorage.removeItem(SEEN_VERSION_KEY);
   });
 
-  async function render(response: ReleaseNotesResponse, latest: ReleaseNotesResponse = NOTES) {
+  async function render(
+    response: ReleaseNotesResponse,
+    latest: ReleaseNotesResponse = NOTES,
+    markNotesSeen = vi.fn().mockReturnValue(of(undefined)),
+  ) {
     const changes = vi.fn().mockReturnValue(of(response));
     const latestChanges = vi.fn().mockReturnValue(of(latest));
-    const markNotesSeen = vi.fn().mockReturnValue(of(undefined));
     await TestBed.configureTestingModule({
       imports: [WhatsNewComponent],
       providers: [
@@ -87,6 +93,24 @@ describe('WhatsNewComponent', () => {
 
     expect(dialog.hasAttribute('open')).toBe(true);
     expect(dialog.textContent).toContain('Back up every setting to a file');
+  });
+
+  it('tells the server again on the next visit when it couldn’t be told on close', async () => {
+    localStorage.setItem(SEEN_VERSION_KEY, '1.3.0');
+    const failing = vi.fn().mockReturnValue(throwError(() => new Error('offline')));
+    const { fixture } = await render(NOTES, NOTES, failing);
+    (
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="whats-new-close"]',
+      ) as HTMLButtonElement
+    ).click();
+    expect(localStorage.getItem(SEEN_UNSENT_KEY)).toBe('1.4.0');
+    TestBed.resetTestingModule();
+
+    // Next visit: nothing new to show, but the close is sent again.
+    const { markNotesSeen } = await render({ current: '1.4.0', releases: [] });
+    expect(markNotesSeen).toHaveBeenCalledWith('1.4.0');
+    expect(localStorage.getItem(SEEN_UNSENT_KEY)).toBeNull();
   });
 
   it('titles reopened notes by their release, and leaves the seen version alone', async () => {

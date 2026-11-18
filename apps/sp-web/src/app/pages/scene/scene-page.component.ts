@@ -615,8 +615,9 @@ export class ScenePageComponent implements OnInit, OnDestroy {
     }
     event.preventDefault();
     const target = this.backLinkHref();
-    const previous = this.navigationHistory.previous();
-    if (previous && sameUrl(previous, target)) {
+    // Only when the browser's own Back leads there.
+    const behind = this.navigationHistory.behind();
+    if (behind && sameUrl(behind, target)) {
       this.location.back();
       return;
     }

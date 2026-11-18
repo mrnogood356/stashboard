@@ -18,7 +18,7 @@ async function render(previous: string | null) {
     imports: [Host],
     providers: [
       provideRouter([]),
-      { provide: NavigationHistoryService, useValue: { previous: signal(previous) } },
+      { provide: NavigationHistoryService, useValue: { behind: signal(previous) } },
       { provide: Location, useValue: { back, path: () => '' } },
     ],
   }).compileComponents();
@@ -47,8 +47,17 @@ describe('HistoryBackDirective', () => {
     TestBed.resetTestingModule();
   });
 
-  it('compares pages whatever the order of their query', () => {
+  it('compares pages whatever the order of their keys, but not of one key’s values', () => {
     expect(sameUrl('/scenes?a=1&b=2', '/scenes?b=2&a=1')).toBe(true);
     expect(sameUrl('/scenes?a=1', '/scenes?a=2')).toBe(false);
+    expect(sameUrl('/performers?q=anna&q=beth', '/performers?q=beth&q=anna')).toBe(false);
+  });
+
+  it('goes back only once for taps in quick succession', async () => {
+    const { link, back } = await render('/search?q=anna');
+    link.click();
+    link.click();
+    expect(back).toHaveBeenCalledTimes(1);
+    TestBed.resetTestingModule();
   });
 });

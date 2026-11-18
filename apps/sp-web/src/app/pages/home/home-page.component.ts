@@ -593,8 +593,23 @@ export class HomePageComponent implements OnInit, OnDestroy {
       return false;
     }
 
+    // Rows that came back with scenes aren't empty, even when every scene is
+    // hidden as one you already have: that's said apart.
     return enabledRails.every(
-      (rail) => !rail.pending && rail.items.length === 0 && rail.error === null,
+      (rail) =>
+        !rail.pending && (this.railItemsById()[rail.id] ?? []).length === 0 && rail.error === null,
+    );
+  }
+
+  /** Every row came back, but each scene in them is one you have and hide. */
+  protected isAllOwnedHiddenState(): boolean {
+    const enabledRails = this.rails();
+    if (this.loading() || this.configError() || enabledRails.length === 0) {
+      return false;
+    }
+    return (
+      !this.isPageEmptyState() &&
+      enabledRails.every((rail) => !rail.pending && rail.items.length === 0 && rail.error === null)
     );
   }
 
@@ -1050,8 +1065,9 @@ export class HomePageComponent implements OnInit, OnDestroy {
 
   private applyRailResult(result: RailLoadResult): void {
     const shown = this.railItemsById()[result.id];
-    if (result.error && result.items.length === 0 && shown && shown.length > 0) {
+    if (result.error && result.items.length === 0 && shown && this.withoutOwned(shown).length > 0) {
       // The refresh failed, but last visit's scenes are still worth showing.
+      // (Not when they're all hidden as ones you have: then say it failed.)
       return;
     }
     this.keepAtStart(result.id);

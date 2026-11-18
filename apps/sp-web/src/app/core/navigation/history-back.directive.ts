@@ -1,5 +1,7 @@
 import { Directive, ElementRef, OnDestroy, OnInit, inject } from '@angular/core';
 import { Location } from '@angular/common';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter, take } from 'rxjs';
 import { NavigationHistoryService } from './navigation-history.service';
 
 /**
@@ -13,19 +15,35 @@ export class HistoryBackDirective implements OnInit, OnDestroy {
   private readonly element = inject<ElementRef<HTMLAnchorElement>>(ElementRef);
   private readonly location = inject(Location);
   private readonly history = inject(NavigationHistoryService);
+  private readonly router = inject(Router);
+  /** A Back already on its way: a second tap meanwhile would go back twice. */
+  private goingBack = false;
 
   // Capture: it runs before the link's own navigation and can stop it.
   private readonly onClick = (event: MouseEvent) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
       return;
     }
-    const previous = this.history.previous();
+    if (this.goingBack) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+    // Only when the browser's own Back leads there; otherwise the link opens it.
+    const behind = this.history.behind();
     const target = this.element.nativeElement.getAttribute('href');
-    if (!previous || !target || !sameUrl(previous, target)) {
+    if (!behind || !target || !sameUrl(behind, target)) {
       return;
     }
     event.preventDefault();
     event.stopImmediatePropagation();
+    this.goingBack = true;
+    this.router.events
+      .pipe(
+        filter((routerEvent) => routerEvent instanceof NavigationEnd),
+        take(1),
+      )
+      .subscribe(() => (this.goingBack = false));
     this.location.back();
   };
 
@@ -38,11 +56,20 @@ export class HistoryBackDirective implements OnInit, OnDestroy {
   }
 }
 
-/** The same page and query, whatever the order of the query's parts. */
+/**
+ * The same page and query, whatever the order of the query's keys. A key
+ * given more than once keeps its values in order: ?q=a&q=b isn't ?q=b&q=a.
+ */
 export function sameUrl(a: string, b: string): boolean {
   const normalize = (url: string) => {
     const [path, query = ''] = url.split('#', 1)[0].split('?');
-    return `${path}?${query.split('&').filter(Boolean).sort().join('&')}`;
+    const byKey = new Map<string, string[]>();
+    for (const part of query.split('&').filter(Boolean)) {
+      const key = part.split('=', 1)[0];
+      byKey.set(key, [...(byKey.get(key) ?? []), part]);
+    }
+    const keys = [...byKey.keys()].sort();
+    return `${path}?${keys.map((key) => byKey.get(key)!.join('&')).join('&')}`;
   };
   return normalize(a) === normalize(b);
 }

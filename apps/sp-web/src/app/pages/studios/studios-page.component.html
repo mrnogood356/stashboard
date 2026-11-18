@@ -3,7 +3,7 @@
   <header class="page-head-compact">
     <div class="page-head-compact__title">
       @if (inLibrary()) {
-        @if (!libLoading() || libItems().length > 0) {
+        @if (libAnswered()) {
           <p class="state">{{ libTotal().toLocaleString() }} in your library</p>
         }
       } @else if (!loading() && !error()) {
@@ -66,7 +66,9 @@
       >
         Try again
       </button>
-    } @else if (!libLoading() && libItems().length === 0) {
+    } @else if (libLoading() && libItems().length === 0) {
+      <app-skeleton kind="grid" [count]="12" label="Loading the studios in your library" />
+    } @else if (libItems().length === 0) {
       <p class="state">
         @if (libQuery) {
           No studio by that name in your library.
@@ -84,12 +86,19 @@
               [queryParams]="{ returnTo: currentRouteUrl() }"
               [attr.aria-label]="'View studio ' + item.name"
             ></a>
-            <img
-              class="studio-image"
-              [src]="item.imageUrl"
-              [alt]="item.name + ' logo'"
-              loading="lazy"
-            />
+            @if (libLogoFailed().has(item.id)) {
+              <div class="studio-image placeholder" aria-hidden="true">
+                {{ studioInitial(item.name) }}
+              </div>
+            } @else {
+              <img
+                class="studio-image"
+                [src]="item.imageUrl"
+                [alt]="item.name + ' logo'"
+                loading="lazy"
+                (error)="onLibLogoError(item.id)"
+              />
+            }
             <div class="studio-meta">
               <p class="studio-name">{{ item.name }}</p>
               <p class="child-summary">

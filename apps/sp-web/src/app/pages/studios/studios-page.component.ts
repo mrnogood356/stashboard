@@ -113,6 +113,12 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
   protected libQuery: string | null = null;
   private libRequest: Subscription | null = null;
   private libraryParamSubscription: Subscription | null = null;
+  /** The first page of the current library search came back. */
+  protected readonly libAnswered = signal(false);
+  /** Library studios whose logo didn't load: shown with their initial. */
+  protected readonly libLogoFailed = signal<ReadonlySet<string>>(new Set());
+  /** The catalog list changed while hidden under In my library. */
+  private catalogStale = false;
   protected readonly favoriteInFlightById = signal<Record<string, boolean>>({});
   /** Sort and direction as one plain choice, for the filter bar. */
   private static readonly SORT_CHOICES: SortChoice<StudioFeedSort>[] = [
@@ -176,6 +182,10 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
+  protected onLibLogoError(id: string): void {
+    this.libLogoFailed.update((failed) => new Set(failed).add(id));
+  }
+
   protected showMoreLibrary(): void {
     this.loadLibrary(false);
   }
@@ -190,12 +200,18 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
       const on = params.get('lib') === '1';
       const query = (params.get('q') ?? '').trim();
       this.inLibrary.set(on);
+      if (on) {
+        this.sentinelIntersecting = false;
+      }
       if (on && query !== this.libQuery) {
         this.libQuery = query;
         this.loadLibrary(true);
       }
       if (!on) {
         this.libQuery = null;
+        if (this.catalogStale) {
+          this.resetFeedAndReload();
+        }
       }
     });
   }
@@ -204,6 +220,7 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
     if (reset) {
       this.libPage = 1;
       this.libItems.set([]);
+      this.libAnswered.set(false);
     }
     this.libRequest?.unsubscribe();
     this.libLoading.set(true);
@@ -213,7 +230,15 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
       .pipe(finalize(() => this.libLoading.set(false)))
       .subscribe({
         next: (result) => {
-          this.libItems.update((items) => (reset ? result.items : [...items, ...result.items]));
+          // A studio already listed isn't listed twice if the ranking moved.
+          this.libItems.update((items) => {
+            if (reset) {
+              return result.items;
+            }
+            const listed = new Set(items.map((item) => item.id));
+            return [...items, ...result.items.filter((item) => !listed.has(item.id))];
+          });
+          this.libAnswered.set(true);
           this.libTotal.set(result.total);
           this.libHasMore.set(result.hasMore);
           this.libPage = result.page + 1;
@@ -333,6 +358,7 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const nextPage = this.page() + 1;
     const isInitialPage = nextPage === 1;
     const requestVersion = this.feedVersion;
+    let answered = false;
     this.inFlight.set(true);
 
     if (isInitialPage) {
@@ -368,7 +394,9 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
             this.loadingMore.set(false);
           }
 
-          if (this.sentinelIntersecting && this.hasMore()) {
+          // Keep paging only after a page that came back: a failed one waits
+          // for Retry instead of being asked for again and again.
+          if (answered && this.sentinelIntersecting && this.hasMore() && !this.inLibrary()) {
             this.loadNextPage();
           }
         }),
@@ -379,6 +407,7 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
             return;
           }
 
+          answered = true;
           this.total.set(response.total);
           this.page.set(response.page);
           this.hasMore.set(response.hasMore);
@@ -504,6 +533,8 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private resetFeedAndReload(): void {
     this.feedVersion += 1;
+    // A new list: whether the old one's end was on screen says nothing now.
+    this.sentinelIntersecting = false;
     this.pendingReload = false;
     this.page.set(0);
     this.total.set(0);
@@ -513,6 +544,13 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.loadingMore.set(false);
     this.error.set(null);
     this.loadMoreError.set(null);
+
+    // Under In my library the catalog isn't shown: it loads on the way back.
+    if (this.inLibrary()) {
+      this.catalogStale = true;
+      return;
+    }
+    this.catalogStale = false;
 
     if (this.inFlight()) {
       this.pendingReload = true;
@@ -531,8 +569,8 @@ export class StudiosPageComponent implements OnInit, AfterViewInit, OnDestroy {
             return;
           }
 
-          this.sentinelIntersecting = entry.isIntersecting;
-          if (!entry.isIntersecting) {
+          this.sentinelIntersecting = entry.isIntersecting && !this.inLibrary();
+          if (!this.sentinelIntersecting) {
             return;
           }
 

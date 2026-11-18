@@ -75,6 +75,8 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
   protected readonly playbackOn = inject(PlaybackSettingsService).playbackEnabled;
   private subscription: Subscription | null = null;
   private loadToken = 0;
+  /** The performer or studio whose page this shows ("kind:id"). */
+  private loadedFor: string | null = null;
   private scenesToken = 0;
 
   protected readonly kind = signal<LocalCollectionKind>('performer');
@@ -145,7 +147,9 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
       this.applyReturnTo(query.get('returnTo'));
       const kind: LocalCollectionKind = data['kind'] === 'studio' ? 'studio' : 'performer';
       const id = params.get('id')?.trim() ?? '';
-      if (kind !== this.kind() || id !== this.id() || this.header() === null) {
+      // Picking a category only changes the address's filters: no reload.
+      if (`${kind}:${id}` !== this.loadedFor) {
+        this.loadedFor = `${kind}:${id}`;
         this.kind.set(kind);
         this.id.set(id);
         this.load();
@@ -169,8 +173,13 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
     this.error.set(null);
     this.header.set(null);
     this.detailsExpanded.set(false);
-    this.pickedTags.set([]);
-    this.pickedStudios.set([]);
+    // The filters in the address (kept there for Back), named once the
+    // choices load.
+    const query = this.route.snapshot.queryParamMap;
+    this.pickedTags.set(idsFrom(query.get('tags')).map((tagId) => ({ id: tagId, name: tagId })));
+    this.pickedStudios.set(
+      idsFrom(query.get('studios')).map((studioId) => ({ id: studioId, name: studioId })),
+    );
     this.loadOptions(id);
     const request: Observable<LocalPerformer | LocalStudio> =
       this.kind() === 'studio' ? this.library.studio(id) : this.library.performer(id);
@@ -198,6 +207,7 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
       [...this.tagFacets(), ...this.pickedTags()].map((tag) => [tag.id, tag.name]),
     );
     this.pickedTags.set(ids.map((id) => ({ id, name: names.get(id) ?? id })));
+    this.keepFiltersInAddress();
     this.loadScenes(1);
   }
 
@@ -206,7 +216,19 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
       [...this.studioFacets(), ...this.pickedStudios()].map((studio) => [studio.id, studio.name]),
     );
     this.pickedStudios.set(ids.map((id) => ({ id, name: names.get(id) ?? id })));
+    this.keepFiltersInAddress();
     this.loadScenes(1);
+  }
+
+  /** The picked categories and studios in the address, so Back to this page brings them back. */
+  private keepFiltersInAddress(): void {
+    const join = (ids: string[]) => (ids.length > 0 ? ids.join(',') : null);
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tags: join(this.pickedTagIds()), studios: join(this.pickedStudioIds()) },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
   protected onSortPicked(ids: string[]): void {
@@ -219,6 +241,7 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
   protected clearFilters(): void {
     this.pickedTags.set([]);
     this.pickedStudios.set([]);
+    this.keepFiltersInAddress();
     this.loadScenes(1);
   }
 
@@ -231,6 +254,7 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
       next: (tags) => {
         if (id === this.id()) {
           this.tagFacets.set(tags.map((tag) => ({ ...tag, count: tag.count ?? 0 })));
+          this.pickedTags.update((picked) => named(picked, tags));
         }
         this.optionsLoading.set(false);
       },
@@ -243,6 +267,7 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
             this.studioFacets.set(
               studios.map((studio) => ({ ...studio, count: studio.count ?? 0 })),
             );
+            this.pickedStudios.update((picked) => named(picked, studios));
           }
         },
         error: () => undefined,
@@ -462,4 +487,21 @@ function ageFrom(birthdate: string | null): number | null {
     age -= 1;
   }
   return age >= 0 && age < 130 ? age : null;
+}
+
+/** Ids from the address: "1,2" → ["1", "2"]. */
+function idsFrom(value: string | null): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => /^[\w-]{1,64}$/.test(id));
+}
+
+/** Picked filters with their names, once the choices are known. */
+function named<T extends { id: string; name: string }>(
+  picked: T[],
+  known: Array<{ id: string; name: string }>,
+): T[] {
+  const names = new Map(known.map((option) => [option.id, option.name]));
+  return picked.map((item) => ({ ...item, name: names.get(item.id) ?? item.name }));
 }

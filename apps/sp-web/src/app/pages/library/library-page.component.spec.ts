@@ -255,6 +255,16 @@ describe('LibraryPageComponent', () => {
     expect(root.querySelector('section.grid')?.classList).toContain('one-column');
     expect(toggle.getAttribute('aria-pressed')).toBe('true');
     expect(localStorage.getItem('sp-library-one-column')).toBe('1');
+    // The name stays put; pressed says which way it is.
+    expect(toggle.getAttribute('aria-label')).toBe('One scene a row');
+
+    // Opened again: the choice is still there.
+    fixture.destroy();
+    TestBed.resetTestingModule();
+    const again = await renderPage();
+    expect(
+      (again.fixture.nativeElement as HTMLElement).querySelector('section.grid')?.classList,
+    ).toContain('one-column');
     localStorage.removeItem('sp-library-one-column');
   });
 

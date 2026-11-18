@@ -243,7 +243,7 @@ export function updateText(update: UpdateCheckResponse | null): string {
   if (update.latestRelease && update.status !== 'unknown') {
     return update.status === 'behind'
       ? `Stashboard ${update.latestRelease} is out.`
-      : 'Up to date: this is the newest release.';
+      : 'No newer release is available.';
   }
   switch (update.status) {
     case 'up-to-date':
