@@ -47,6 +47,10 @@ export interface MatchCandidateDto {
   imageUrl: string | null;
   duration: number | null;
   code: string | null;
+  /** The text a match would fill in, to copy only some of it by hand. */
+  details: string | null;
+  director: string | null;
+  urls: string[];
   /** Where the match came from, e.g. StashDB, FansDB, ThePornDB. */
   source: string;
   score: number;

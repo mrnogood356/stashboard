@@ -61,6 +61,10 @@ export interface MatchCandidate {
   imageUrl: string | null;
   duration: number | null;
   code: string | null;
+  /** The text a match would fill in. */
+  details?: string | null;
+  director?: string | null;
+  urls?: string[];
   source: string;
   score: number;
   confidence: MatchConfidence;

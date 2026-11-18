@@ -618,6 +618,10 @@ describe('OrganizerService', () => {
       id: 's0-remote-1',
       source: 'StashDB',
       confidence: 'exact',
+      // The text it would fill in, for copying only some of it by hand.
+      details: 'About',
+      director: null,
+      urls: ['https://example.com/scene'],
     });
   });
 
@@ -3362,6 +3366,9 @@ describe('pickSure', () => {
     imageUrl: null,
     duration: null,
     code: null,
+    details: null,
+    director: null,
+    urls: [],
     source: 'StashDB',
     score: 1,
     confidence: 'exact',

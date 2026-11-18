@@ -8,6 +8,123 @@
   (closed)="close()"
 >
   <form class="edit-form" (ngSubmit)="save()">
+    @if (!finding()) {
+      <button
+        type="button"
+        class="app-btn find-button"
+        data-testid="edit-find-stashdb"
+        (click)="startFinding()"
+      >
+        <i class="pi pi-search" aria-hidden="true"></i>
+        Fill in from StashDB
+      </button>
+    } @else {
+      <section class="finder" data-testid="edit-finder" aria-label="Fill in from StashDB">
+        <div class="people-search">
+          <i class="pi pi-search" aria-hidden="true"></i>
+          <input
+            type="search"
+            name="findQuery"
+            autocomplete="off"
+            enterkeyhint="search"
+            data-testid="edit-find-query"
+            placeholder="Search StashDB by title, studio or performer"
+            [ngModel]="findQuery()"
+            (ngModelChange)="findQuery.set($event)"
+            (keydown.enter)="$event.preventDefault(); lookUp()"
+          />
+          <button type="button" class="link-button" (click)="stopFinding()">Done</button>
+        </div>
+        @if (findLoading()) {
+          <p class="muted small" role="status">Looking on StashDB…</p>
+        } @else if (chosen(); as candidate) {
+          <div class="chosen" data-testid="edit-chosen">
+            <p class="chosen-title">{{ candidate.title || 'Untitled' }}</p>
+            <p class="muted small">
+              {{ candidate.studio || 'No studio' }}
+              @if (candidate.date) {
+                · {{ candidate.date }}
+              }
+            </p>
+            <p class="field-label">Copy into the form</p>
+            <div class="copy-fields">
+              @for (field of copyFields; track field.key) {
+                @if (matchValue(candidate, field.key); as value) {
+                  <label class="copy-field">
+                    <input
+                      type="checkbox"
+                      [attr.data-testid]="'edit-copy-' + field.key"
+                      [checked]="copying().has(field.key)"
+                      (change)="toggleCopy(field.key)"
+                    />
+                    <span>
+                      <strong>{{ field.label }}</strong>
+                      <span class="muted copy-value">{{ value }}</span>
+                    </span>
+                  </label>
+                }
+              }
+            </div>
+            <div class="form-actions">
+              <button type="button" class="app-btn" (click)="chosen.set(null)">Back</button>
+              <button
+                type="button"
+                class="app-btn"
+                data-testid="edit-copy"
+                [disabled]="copying().size === 0 || matching()"
+                (click)="copyChosen()"
+              >
+                Copy {{ copying().size }}
+              </button>
+              <button
+                type="button"
+                class="app-btn app-btn--primary"
+                data-testid="edit-match"
+                [disabled]="matching()"
+                (click)="matchChosen()"
+              >
+                {{ matching() ? 'Matching…' : 'Match fully' }}
+              </button>
+            </div>
+            <p class="form-note small">
+              Match fully saves it now, as Match scenes does: the text, studio, performers, tags,
+              cover and the link to this StashDB scene.
+            </p>
+          </div>
+        } @else {
+          @if (searchedFor(); as words) {
+            <p class="muted small">Searched for “{{ words }}”.</p>
+          }
+          <ul class="people-results finds">
+            @for (candidate of finds(); track candidate.id) {
+              <li>
+                <button type="button" data-testid="edit-find-result" (click)="choose(candidate)">
+                  <strong>{{ candidate.title || 'Untitled' }}</strong>
+                  <span class="muted small">
+                    {{ candidate.studio || 'No studio' }}
+                    @if (candidate.date) {
+                      · {{ candidate.date }}
+                    }
+                    @if (candidate.performers.length) {
+                      · {{ candidate.performers.join(', ') }}
+                    }
+                  </span>
+                </button>
+              </li>
+            }
+          </ul>
+          @if (finds().length === 0 && !findError()) {
+            <p class="muted small" data-testid="edit-find-none">
+              Nothing found. Try the title, the studio or a performer’s name.
+            </p>
+          }
+        }
+        @if (findError(); as message) {
+          <p class="form-error small" role="alert">{{ message }}</p>
+        }
+      </section>
+    }
+
     <label class="field">
       <span class="field-label">Title</span>
       <input

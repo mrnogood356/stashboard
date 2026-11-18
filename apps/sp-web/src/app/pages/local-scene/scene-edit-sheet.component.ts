@@ -8,10 +8,23 @@ import {
   LocalSceneUpdate,
   PeopleResults,
 } from '../../core/api/local-library.service';
-import type { LocalSceneDetails } from '../../core/api/playback.service';
+import { MatchCandidate, OrganizerApiService } from '../../core/api/organizer.service';
+import { PlaybackService, type LocalSceneDetails } from '../../core/api/playback.service';
 import { SheetComponent } from '../../shared/sheet/sheet.component';
 
 type Named = { id: string; name: string };
+
+/** The text fields a StashDB match can fill in on its own. */
+type CopyField = 'title' | 'date' | 'code' | 'director' | 'details' | 'urls';
+
+const COPY_FIELDS: ReadonlyArray<{ key: CopyField; label: string }> = [
+  { key: 'title', label: 'Title' },
+  { key: 'date', label: 'Release date' },
+  { key: 'code', label: 'Studio code' },
+  { key: 'director', label: 'Director' },
+  { key: 'details', label: 'Description' },
+  { key: 'urls', label: 'Links' },
+];
 
 /**
  * A library scene's details, as in Stash's Edit tab: title, date, studio,
@@ -26,6 +39,8 @@ type Named = { id: string; name: string };
 })
 export class SceneEditSheetComponent implements OnDestroy {
   private readonly library = inject(LocalLibraryService);
+  private readonly organizer = inject(OrganizerApiService);
+  private readonly playback = inject(PlaybackService);
 
   @Input() open = false;
   @Input() set scene(value: LocalSceneDetails | null) {
@@ -81,8 +96,159 @@ export class SceneEditSheetComponent implements OnDestroy {
       this.peopleSearching.set(false);
     });
 
+  // ---------- filling in from StashDB ----------
+
+  protected readonly copyFields = COPY_FIELDS;
+  /** The StashDB finder is open. */
+  protected readonly finding = signal(false);
+  protected readonly findQuery = signal('');
+  protected readonly finds = signal<MatchCandidate[]>([]);
+  protected readonly findLoading = signal(false);
+  protected readonly findError = signal<string | null>(null);
+  /** What was searched for, when the fingerprints found nothing. */
+  protected readonly searchedFor = signal<string | null>(null);
+  protected readonly chosen = signal<MatchCandidate | null>(null);
+  protected readonly copying = signal<ReadonlySet<CopyField>>(new Set());
+  protected readonly matching = signal(false);
+  private findRequest: Subscription | null = null;
+
+  protected startFinding(): void {
+    this.finding.set(true);
+    this.findQuery.set('');
+    this.chosen.set(null);
+    this.lookUp();
+  }
+
+  protected stopFinding(): void {
+    this.findRequest?.unsubscribe();
+    this.finding.set(false);
+    this.finds.set([]);
+    this.chosen.set(null);
+    this.findError.set(null);
+    this.findLoading.set(false);
+  }
+
+  /** Fingerprints and the file name first; your own words when given. */
+  protected lookUp(): void {
+    const scene = this.original;
+    if (!scene) {
+      return;
+    }
+    this.findRequest?.unsubscribe();
+    this.findLoading.set(true);
+    this.findError.set(null);
+    this.chosen.set(null);
+    this.findRequest = this.organizer
+      .lookup([scene.id], this.findQuery().trim() || undefined)
+      .subscribe({
+        next: ([result]) => {
+          this.findLoading.set(false);
+          this.finds.set(result?.candidates ?? []);
+          this.searchedFor.set(result?.searchedFor ?? null);
+        },
+        error: () => {
+          this.findLoading.set(false);
+          this.finds.set([]);
+          this.findError.set('Couldn’t search StashDB. Check its settings and try again.');
+        },
+      });
+  }
+
+  /** What a match would put in a field, or null when it has nothing. */
+  protected matchValue(candidate: MatchCandidate, field: CopyField): string | null {
+    switch (field) {
+      case 'title':
+        return candidate.title?.trim() || null;
+      case 'date':
+        // Only a whole date: the form takes YYYY-MM-DD.
+        return candidate.date && /^\d{4}-\d{2}-\d{2}$/.test(candidate.date) ? candidate.date : null;
+      case 'code':
+        return candidate.code?.trim() || null;
+      case 'director':
+        return candidate.director?.trim() || null;
+      case 'details':
+        return candidate.details?.trim() || null;
+      case 'urls':
+        return candidate.urls?.length ? candidate.urls.join('\n') : null;
+    }
+  }
+
+  protected choose(candidate: MatchCandidate): void {
+    this.chosen.set(candidate);
+    this.copying.set(
+      new Set(COPY_FIELDS.map(({ key }) => key).filter((key) => this.matchValue(candidate, key))),
+    );
+  }
+
+  protected toggleCopy(field: CopyField): void {
+    const next = new Set(this.copying());
+    if (next.has(field)) {
+      next.delete(field);
+    } else {
+      next.add(field);
+    }
+    this.copying.set(next);
+  }
+
+  /** Puts the ticked fields into the form, to check and save as usual. */
+  protected copyChosen(): void {
+    const candidate = this.chosen();
+    if (!candidate) {
+      return;
+    }
+    const targets: Record<CopyField, (value: string) => void> = {
+      title: (value) => this.title.set(value),
+      date: (value) => this.date.set(value),
+      code: (value) => this.code.set(value),
+      director: (value) => this.director.set(value),
+      details: (value) => this.details.set(value),
+      urls: (value) => this.urls.set(value),
+    };
+    for (const field of this.copying()) {
+      const value = this.matchValue(candidate, field);
+      if (value) {
+        targets[field](value);
+      }
+    }
+    this.stopFinding();
+  }
+
+  /**
+   * Saves the whole match now, as Match scenes does: the text, studio,
+   * performers, tags, cover and the link to the StashDB scene.
+   */
+  protected matchChosen(): void {
+    const scene = this.original;
+    const candidate = this.chosen();
+    if (!scene || !candidate || this.matching()) {
+      return;
+    }
+    this.matching.set(true);
+    this.findError.set(null);
+    this.organizer
+      .apply(scene.id, candidate.id)
+      .pipe(switchMap(() => this.playback.getSceneDetails(scene.id)))
+      .subscribe({
+        next: (details) => {
+          this.matching.set(false);
+          this.stopFinding();
+          this.saved.emit(details);
+        },
+        error: (error: unknown) => {
+          this.matching.set(false);
+          const message =
+            error instanceof HttpErrorResponse &&
+            typeof (error.error as { message?: unknown } | null)?.message === 'string'
+              ? (error.error as { message: string }).message
+              : 'Try again.';
+          this.findError.set(`Couldn’t match it. ${message}`);
+        },
+      });
+  }
+
   ngOnDestroy(): void {
     this.searchSubscription.unsubscribe();
+    this.findRequest?.unsubscribe();
   }
 
   private reset(scene: LocalSceneDetails): void {
@@ -96,6 +262,7 @@ export class SceneEditSheetComponent implements OnDestroy {
     this.performers.set(scene.performers.map(({ id, name }) => ({ id, name })));
     this.error.set(null);
     this.stopPicking();
+    this.stopFinding();
   }
 
   protected startPicking(kind: 'studio' | 'performer'): void {
