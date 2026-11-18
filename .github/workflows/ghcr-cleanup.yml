@@ -15,6 +15,10 @@ on:
         description: "Only list what would be deleted"
         type: boolean
         default: true
+      delete-tags:
+        description: "Also delete these tags, comma-separated (old releases too). latest and edge are never deleted."
+        type: string
+        default: ""
 
 permissions:
   packages: write
@@ -44,3 +48,16 @@ jobs:
           delete-ghost-images: true
           delete-partial-images: true
           dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run || false }}
+
+      # Run by hand with tags to remove, old releases included. A tag on an
+      # image that has other tags is only unlinked; the image stays.
+      - name: Delete the tags asked for
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.delete-tags != '' }}
+        uses: dataaxiom/ghcr-cleanup-action@v1
+        with:
+          package: stashboard
+          owner: ${{ github.repository_owner }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          delete-tags: ${{ inputs.delete-tags }}
+          exclude-tags: "latest,edge"
+          dry-run: ${{ inputs.dry-run }}
