@@ -220,6 +220,16 @@ export interface StashLocalSceneUpdate {
   rating100?: number | null;
   organized?: boolean;
   tagIds?: string[];
+  title?: string;
+  code?: string | null;
+  details?: string | null;
+  director?: string | null;
+  /** YYYY-MM-DD, or null to clear it. */
+  date?: string | null;
+  urls?: string[];
+  /** Null takes the studio off. */
+  studioId?: string | null;
+  performerIds?: string[];
 }
 
 export interface StashLocalSceneDetails {
@@ -227,6 +237,8 @@ export interface StashLocalSceneDetails {
   title: string;
   code: string | null;
   details: string | null;
+  director?: string | null;
+  urls?: string[];
   date: string | null;
   /** When it was filmed (Stash 0.32 and later). */
   productionDate?: string | null;

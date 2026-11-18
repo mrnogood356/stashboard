@@ -53,11 +53,18 @@ export class PasskeyResponseDto {
   response!: Record<string, unknown>;
 }
 
+export class ImagesObscuredDto {
+  @IsBoolean()
+  obscured!: boolean;
+}
+
 export interface AppLockStatusDto {
   enabled: boolean;
   locked: boolean;
   timeoutSeconds: number;
   hideInSwitcher: boolean;
+  /** The phone app's eye; null until the app has sent it once. */
+  imagesObscured: boolean | null;
   hasPin: boolean;
   passkeys: Array<{
     id: string;

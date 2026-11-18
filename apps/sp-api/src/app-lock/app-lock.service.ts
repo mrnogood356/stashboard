@@ -22,6 +22,7 @@ interface LockSettings {
   pinHash: string | null;
   timeoutSeconds: number;
   hideInSwitcher: boolean;
+  imagesObscured: boolean | null;
 }
 
 /** Don't write "last active" more often than this, to keep requests cheap. */
@@ -43,6 +44,11 @@ export class AppLockService {
     string,
     { value: LockSettings; at: number }
   >();
+  /**
+   * Bumped whenever a user's settings are saved: a read that started before
+   * the save doesn't put the old settings back in the cache.
+   */
+  private readonly settingsGeneration = new Map<string, number>();
 
   /** Sessions already marked as the phone app, to skip the write. */
   private readonly phoneAppSessions = new Set<string>();
@@ -153,6 +159,7 @@ export class AppLockService {
       locked: await this.isLocked(userId, sessionId),
       timeoutSeconds: settings.timeoutSeconds,
       hideInSwitcher: settings.hideInSwitcher,
+      imagesObscured: settings.imagesObscured,
       hasPin: !!settings.pinHash,
       passkeys: passkeys.map((passkey) => ({
         id: passkey.id,
@@ -161,6 +168,16 @@ export class AppLockService {
         lastUsedAt: passkey.lastUsedAt?.toISOString() ?? null,
       })),
     };
+  }
+
+  /** The phone app's eye, remembered here as iOS can clear the app's storage. */
+  async setImagesObscured(userId: string, obscured: boolean): Promise<void> {
+    await this.prisma.appLock.upsert({
+      where: { userId },
+      create: { userId, imagesObscured: obscured },
+      update: { imagesObscured: obscured },
+    });
+    this.forgetSettings(userId);
   }
 
   /** Locks this device now (sent by the app when it goes to the background). */
@@ -275,7 +292,7 @@ export class AppLockService {
       create: { userId, ...data },
       update: data,
     });
-    this.settingsCache.delete(userId);
+    this.forgetSettings(userId);
     this.logger.log(
       `App Lock settings saved: ${dto.enabled ? 'on' : 'off'}, locks after ${dto.timeoutSeconds}s${dto.pin ? ', new PIN' : ''}.`,
     );
@@ -291,14 +308,26 @@ export class AppLockService {
       return cached.value;
     }
 
+    const generation = this.settingsGeneration.get(userId) ?? 0;
     const row = await this.prisma.appLock.findUnique({ where: { userId } });
     const value: LockSettings = {
       enabled: row?.enabled ?? false,
       pinHash: row?.pinHash ?? null,
       timeoutSeconds: row?.timeoutSeconds ?? 60,
       hideInSwitcher: row?.hideInSwitcher ?? true,
+      imagesObscured: row?.imagesObscured ?? null,
     };
-    this.settingsCache.set(userId, { value, at: Date.now() });
+    if ((this.settingsGeneration.get(userId) ?? 0) === generation) {
+      this.settingsCache.set(userId, { value, at: Date.now() });
+    }
     return value;
+  }
+
+  private forgetSettings(userId: string): void {
+    this.settingsCache.delete(userId);
+    this.settingsGeneration.set(
+      userId,
+      (this.settingsGeneration.get(userId) ?? 0) + 1,
+    );
   }
 }

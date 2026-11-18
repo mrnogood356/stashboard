@@ -145,6 +145,9 @@ export class LocalLibraryService {
     sceneId: string,
     update: StashLocalSceneUpdate,
   ): Promise<LocalSceneDetailsDto> {
+    if (update.title !== undefined && !update.title.trim()) {
+      throw new BadRequestException('A scene needs a title.');
+    }
     const config = await this.playback.getStashConfig();
     await this.stash.updateLocalScene(config, sceneId, update);
     return this.playback.getSceneDetails(sceneId);
@@ -628,16 +631,15 @@ export class LocalLibraryService {
     if (named.length > 0) {
       // Some Stash builds' Generate makes no hover previews at all (Stash
       // issue #7341), though a scan that makes them still works. It only
-      // makes the ones still missing, after the jobs above.
-      try {
-        await this.stash.rescanForPreviews(config, named);
-      } catch (error) {
-        const why = error instanceof Error ? error.message : String(error);
-        this.logger.warn(`Couldn't rescan for hover previews: ${why}`);
-        notes.push(
-          `The rescan that makes missing hover previews wasn’t asked for (${why}); try again.`,
-        );
-      }
+      // makes the ones still missing, after the jobs above. It waits for a
+      // quiet moment in Stash's queue, which can take a minute or more, so
+      // it's asked for behind the answer rather than before it.
+      void this.stash
+        .rescanForPreviews(config, named)
+        .catch((error: unknown) => {
+          const why = error instanceof Error ? error.message : String(error);
+          this.logger.warn(`Couldn't rescan for hover previews: ${why}`);
+        });
     }
     this.logger.log(
       `Started Stash’s Generate for ${sceneIds.length} scene${sceneIds.length === 1 ? '' : 's'}, ${named.length} made again${jobId ? ` (job ${jobId})` : ''}.`,
@@ -1402,6 +1404,19 @@ export class LocalLibraryService {
           ),
         );
     }
+  }
+
+  /** Stash's own performers and studios whose names match, most scenes first. */
+  async searchPeople(query: string): Promise<{
+    performers: Array<{ id: string; name: string }>;
+    studios: Array<{ id: string; name: string }>;
+  }> {
+    const config = await this.playback.getStashConfig();
+    const found = await this.stash.searchLocalPeople(config, query);
+    return {
+      performers: found.performers.map(({ id, name }) => ({ id, name })),
+      studios: found.studios.map(({ id, name }) => ({ id, name })),
+    };
   }
 
   async searchTags(

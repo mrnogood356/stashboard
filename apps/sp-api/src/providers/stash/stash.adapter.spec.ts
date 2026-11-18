@@ -2545,6 +2545,35 @@ describe('StashAdapter', () => {
       });
     });
 
+    it('saves the details Stash’s Edit tab has, clearing text with an empty string', async () => {
+      fetchMock.mockResolvedValue(ok({ sceneUpdate: { id: '5' } }));
+
+      await adapter.updateLocalScene(config, '5', {
+        title: 'New title',
+        code: null,
+        details: 'About it',
+        director: null,
+        date: '2026-01-02',
+        urls: ['https://example.com/scene'],
+        studioId: null,
+        performerIds: ['7', '8'],
+      });
+
+      expect(sentBody(0).variables).toEqual({
+        input: {
+          id: '5',
+          title: 'New title',
+          code: '',
+          details: 'About it',
+          director: '',
+          date: '2026-01-02',
+          urls: ['https://example.com/scene'],
+          studio_id: null,
+          performer_ids: ['7', '8'],
+        },
+      });
+    });
+
     it('only sends the fields that changed', async () => {
       fetchMock.mockResolvedValue(ok({ sceneUpdate: { id: '5' } }));
 

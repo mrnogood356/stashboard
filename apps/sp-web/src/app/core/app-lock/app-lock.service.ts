@@ -7,6 +7,8 @@ export interface AppLockStatus {
   locked: boolean;
   timeoutSeconds: number;
   hideInSwitcher: boolean;
+  /** The installed phone app's eye, kept on the server; null until first sent. */
+  imagesObscured?: boolean | null;
   hasPin: boolean;
   passkeys: Array<{ id: string; label: string; createdAt: string; lastUsedAt: string | null }>;
 }
@@ -25,6 +27,8 @@ const ACTIVE_EVERY_MS = 10_000;
 /** Remembered on the device so the app-switcher cover works before the first request. */
 const SHIELD_PREF_KEY = 'stashboard.hideInSwitcher';
 const SHIELD_CLASS = 'app-shielded';
+/** The strip at the bottom of the screen where iOS's home swipe starts. */
+const HOME_SWIPE_STRIP_PX = 24;
 /** How long an unlock waits for the server before saying so. */
 const UNLOCK_TIMEOUT_MS = 15_000;
 
@@ -102,11 +106,61 @@ export class AppLockService implements OnDestroy {
     this.disposers.push(() => clearInterval(active));
     if (ios) {
       listen(document, 'touchcancel', () => this.raiseShield());
-      listen(document, 'touchstart', () => {
-        if (document.visibilityState === 'visible') {
+      // The home swipe starts on the strip at the very bottom of the screen.
+      // Waiting for its touch to be cancelled is sometimes too late for the
+      // switcher's picture, so a touch there covers the screen at once; one
+      // that ends as a plain tap takes the cover down again.
+      // Only iPhones with the home bar (a safe area at the bottom): on one
+      // with a Home button that strip is the tab bar's labels.
+      const hasHomeBar = this.bottomSafeArea() > 0;
+      // The fingers that started on the strip, while they're down.
+      const stripTouches = new Set<number>();
+      const startTouch = (event: Event) => {
+        if (document.visibilityState !== 'visible') {
+          return;
+        }
+        // The touches that started now, not every finger already down.
+        const started = Array.from((event as TouchEvent).changedTouches ?? []);
+        const onStrip = hasHomeBar
+          ? started.filter((touch) => touch.clientY >= window.innerHeight - HOME_SWIPE_STRIP_PX)
+          : [];
+        if (onStrip.length > 0) {
+          onStrip.forEach((touch) => stripTouches.add(touch.identifier));
+          this.raiseShield();
+        } else if (stripTouches.size === 0) {
+          // Any other touch means the app never left: the cover comes down.
           this.lowerShield();
         }
-      });
+      };
+      document.addEventListener('touchstart', startTouch, { passive: true });
+      this.disposers.push(() => document.removeEventListener('touchstart', startTouch));
+      // The cover comes down once the last finger from the strip lifts.
+      const endTouch = (event: Event) => {
+        const ended = Array.from((event as TouchEvent).changedTouches ?? []);
+        const liftedFromStrip = ended.filter((touch) => stripTouches.delete(touch.identifier));
+        if (
+          liftedFromStrip.length > 0 &&
+          stripTouches.size === 0 &&
+          document.visibilityState === 'visible'
+        ) {
+          this.lowerShield();
+        }
+      };
+      document.addEventListener('touchend', endTouch, { passive: true });
+      this.disposers.push(() => document.removeEventListener('touchend', endTouch));
+      // iOS took those fingers over (the swipe went on): they never lift, so
+      // forget them; the cover stays up until the app is really back. A
+      // strip finger that wasn't cancelled is still down and still counts.
+      const cancelTouch = (event: Event) => {
+        const cancelled = (event as TouchEvent).changedTouches;
+        if (!cancelled) {
+          stripTouches.clear();
+          return;
+        }
+        Array.from(cancelled).forEach((touch) => stripTouches.delete(touch.identifier));
+      };
+      document.addEventListener('touchcancel', cancelTouch, { passive: true });
+      this.disposers.push(() => document.removeEventListener('touchcancel', cancelTouch));
     }
   }
 
@@ -381,6 +435,21 @@ export class AppLockService implements OnDestroy {
       }
     }
     this.pausedPreviews.clear();
+  }
+
+  /** The screen's safe area at the bottom, in pixels (the home bar's room). */
+  private bottomSafeArea(): number {
+    try {
+      const probe = document.createElement('div');
+      probe.style.cssText =
+        'position:fixed;bottom:0;visibility:hidden;pointer-events:none;padding-bottom:env(safe-area-inset-bottom)';
+      document.body.appendChild(probe);
+      const inset = parseFloat(getComputedStyle(probe).paddingBottom) || 0;
+      probe.remove();
+      return inset;
+    } catch {
+      return 0;
+    }
   }
 
   private isIos(): boolean {

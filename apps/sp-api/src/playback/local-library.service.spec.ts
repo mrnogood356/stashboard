@@ -36,6 +36,7 @@ describe('LocalLibraryService', () => {
     getLocalSceneDetails: jest.fn(),
     findLocalScenes: jest.fn(),
     updateLocalScene: jest.fn().mockResolvedValue(undefined),
+    searchLocalPeople: jest.fn(),
     setSceneWatched: jest.fn().mockResolvedValue(undefined),
     getLocalPerformer: jest.fn(),
     getLocalStudio: jest.fn(),
@@ -71,6 +72,41 @@ describe('LocalLibraryService', () => {
   );
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('won’t save a scene without a title', async () => {
+    await expect(service.updateScene('4', { title: '   ' })).rejects.toThrow(
+      'A scene needs a title.',
+    );
+    expect(stash.updateLocalScene).not.toHaveBeenCalled();
+  });
+
+  it('finds Stash’s performers and studios by name, for putting on a scene', async () => {
+    stash.searchLocalPeople.mockResolvedValue({
+      performers: [
+        {
+          id: '7',
+          name: 'Ana',
+          imageVersion: null,
+          sceneCount: 3,
+          favorite: false,
+          catalogIds: [],
+        },
+      ],
+      studios: [
+        {
+          id: '2',
+          name: 'Archive',
+          imageVersion: null,
+          sceneCount: 9,
+          catalogIds: [],
+        },
+      ],
+    });
+    await expect(service.searchPeople('an')).resolves.toEqual({
+      performers: [{ id: '7', name: 'Ana' }],
+      studios: [{ id: '2', name: 'Archive' }],
+    });
+  });
 
   it('refuses to delete from disk a duplicate whose scene has more than one file', async () => {
     stash.getOrganizerScene.mockResolvedValue({
@@ -299,15 +335,21 @@ describe('LocalLibraryService', () => {
     );
   });
 
-  it('rescans only scenes with the naming hash, and says when the rescan couldn’t be asked for', async () => {
+  it('rescans only scenes with the naming hash, and answers without waiting for that rescan', async () => {
     stash.getOrganizerScene.mockImplementation((_config, id: string) =>
       Promise.resolve(withHash(id === '5' ? null : 'o')),
     );
-    stash.rescanForPreviews.mockRejectedValueOnce(new Error('Stash is busy'));
+    // A rescan that waits its turn in Stash's queue (a minute or more).
+    stash.rescanForPreviews.mockReturnValueOnce(new Promise(() => undefined));
     const result = await service.generateFor(['4', '5']);
     expect(stash.rescanForPreviews).toHaveBeenCalledWith(config, ['4']);
     expect(result.jobId).toBe('7');
-    expect(result.warning).toContain('hover previews wasn’t asked for');
+
+    // One that fails later is logged; Generate has already started.
+    stash.rescanForPreviews.mockRejectedValueOnce(new Error('Stash is busy'));
+    await expect(service.generateFor(['4'])).resolves.toMatchObject({
+      jobId: '7',
+    });
   });
 
   it('asks for no rescan when no scene can be made again', async () => {

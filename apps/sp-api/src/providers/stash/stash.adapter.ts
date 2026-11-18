@@ -480,6 +480,8 @@ export class StashAdapter extends StashLibraryToolsApi {
           title
           code
           details
+          director
+          urls
           date
           ${productionDate ? 'production_date' : ''}
           rating100
@@ -561,6 +563,13 @@ export class StashAdapter extends StashLibraryToolsApi {
       title: str(scene.title) ?? `Scene #${id}`,
       code: str(scene.code),
       details: str(scene.details),
+      director: str(scene.director),
+      urls: Array.isArray(scene.urls)
+        ? scene.urls.filter(
+            (url): url is string =>
+              typeof url === 'string' && url.trim() !== '',
+          )
+        : [],
       date: str(scene.date),
       productionDate: str(scene.production_date),
       rating100: num(scene.rating100),
@@ -649,7 +658,7 @@ export class StashAdapter extends StashLibraryToolsApi {
 
   // ---------- local library: organize, browse, related ----------
 
-  /** Rating, organized flag and tags, saved straight to Stash. */
+  /** A library scene's details (rating, title, studio, performers…), saved straight to Stash. */
   async updateLocalScene(
     config: StashAdapterBaseConfig,
     sceneId: string,
@@ -668,6 +677,31 @@ export class StashAdapter extends StashLibraryToolsApi {
     }
     if (update.tagIds !== undefined) {
       input['tag_ids'] = update.tagIds;
+    }
+    if (update.title !== undefined) {
+      input['title'] = update.title;
+    }
+    // Stash clears a text field given an empty string, not null.
+    for (const [key, field] of [
+      ['code', 'code'],
+      ['details', 'details'],
+      ['director', 'director'],
+    ] as const) {
+      if (update[key] !== undefined) {
+        input[field] = update[key] ?? '';
+      }
+    }
+    if (update.date !== undefined) {
+      input['date'] = update.date;
+    }
+    if (update.urls !== undefined) {
+      input['urls'] = update.urls;
+    }
+    if (update.studioId !== undefined) {
+      input['studio_id'] = update.studioId;
+    }
+    if (update.performerIds !== undefined) {
+      input['performer_ids'] = update.performerIds;
     }
     await this.executeQuery(
       config,

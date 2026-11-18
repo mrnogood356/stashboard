@@ -109,6 +109,22 @@ export interface LocalSceneUpdate {
   rating100?: number | null;
   organized?: boolean;
   tagIds?: string[];
+  title?: string;
+  code?: string | null;
+  details?: string | null;
+  director?: string | null;
+  /** YYYY-MM-DD; null clears it. */
+  date?: string | null;
+  urls?: string[];
+  /** Null takes the studio off. */
+  studioId?: string | null;
+  performerIds?: string[];
+}
+
+/** Stash's performers and studios by name, to put on a scene. */
+export interface PeopleResults {
+  performers: Array<{ id: string; name: string }>;
+  studios: Array<{ id: string; name: string }>;
 }
 
 export interface LocalSearchResults {
@@ -216,6 +232,10 @@ export interface DuplicateGroup {
 @Injectable({ providedIn: 'root' })
 export class LocalLibraryService {
   private readonly http = inject(HttpClient);
+
+  searchPeople(query: string): Observable<PeopleResults> {
+    return this.http.get<PeopleResults>('/api/local/people', { params: { query } });
+  }
 
   updateScene(sceneId: string, update: LocalSceneUpdate): Observable<LocalSceneDetails> {
     return this.http.patch<LocalSceneDetails>(`/api/local/scenes/${enc(sceneId)}`, update);

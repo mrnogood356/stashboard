@@ -20,6 +20,7 @@ import {
   PasskeyRegistrationOptionsDto,
   PasskeyResponseDto,
   UnlockWithPinDto,
+  ImagesObscuredDto,
   UpdateAppLockSettingsDto,
 } from './dto/app-lock.dto';
 
@@ -124,6 +125,17 @@ export class AppLockController {
     const { user, sessionId } =
       await this.auth.requireAuthenticatedRequest(request);
     return this.appLock.updateSettings(user.id, sessionId, body);
+  }
+
+  /** The installed phone app's eye (images blurred), so it outlasts iOS clearing the app. */
+  @Put('images')
+  @HttpCode(204)
+  async setImagesObscured(
+    @Req() request: Request,
+    @Body() body: ImagesObscuredDto,
+  ): Promise<void> {
+    const { user } = await this.auth.requireAuthenticatedRequest(request);
+    await this.appLock.setImagesObscured(user.id, body.obscured);
   }
 
   @Post('passkeys/options')

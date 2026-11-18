@@ -445,6 +445,9 @@ model AppLock {
   pinHash        String?
   timeoutSeconds Int       @default(60)
   hideInSwitcher Boolean   @default(true)
+  /// The installed phone app's eye (images blurred), kept here because iOS
+  /// can clear the app's own storage. Null until the app first sends it.
+  imagesObscured Boolean?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   user           AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)

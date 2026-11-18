@@ -71,6 +71,9 @@ export interface LocalSceneDetailsDto {
   title: string;
   code: string | null;
   details: string | null;
+  director: string | null;
+  /** Where the scene is from (the studio's page, say). */
+  urls: string[];
   date: string | null;
   /** When it was filmed (Stash 0.32 and later). */
   productionDate: string | null;
@@ -180,6 +183,8 @@ export class PlaybackService {
       title: scene.title,
       code: scene.code,
       details: scene.details,
+      director: scene.director ?? null,
+      urls: scene.urls ?? [],
       date: scene.date,
       productionDate: scene.productionDate ?? null,
       rating100: scene.rating100,

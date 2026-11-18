@@ -128,6 +128,59 @@ describe('LocalScenePageComponent', () => {
     expect(same.root.querySelector('.meta-row')?.textContent).not.toContain('Filmed');
   });
 
+  it('opens Edit, and shows what Stash saved from it', async () => {
+    const { fixture, root } = await render(vi.fn().mockReturnValue(of(sceneDetails())));
+    root.querySelector<HTMLButtonElement>('[data-testid="edit-scene"]')!.click();
+    fixture.detectChanges();
+    const sheet = document.querySelector('[data-testid="scene-edit-sheet"]') as HTMLElement;
+    const title = sheet.querySelector<HTMLInputElement>('[data-testid="edit-title"]')!;
+    expect(title.value).toBe('Sunset Scene');
+
+    library['updateScene'].mockReturnValue(of(sceneDetails({ title: 'Sunrise Scene' })));
+    title.value = 'Sunrise Scene';
+    title.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    sheet.querySelector<HTMLButtonElement>('[data-testid="edit-save"]')!.click();
+    fixture.detectChanges();
+
+    expect(library['updateScene']).toHaveBeenCalledWith('12', { title: 'Sunrise Scene' });
+    expect(root.querySelector('h1')?.textContent).toContain('Sunrise Scene');
+    expect(document.querySelector('[data-testid="scene-edit-sheet"]')).toBeNull();
+  });
+
+  it('can’t open Edit while another change is saving, and ignores a save for a scene you left', async () => {
+    const { fixture, root } = await render(vi.fn().mockReturnValue(of(sceneDetails())));
+    const pending = new Subject<ReturnType<typeof sceneDetails>>();
+    library['updateScene'].mockReturnValue(pending);
+    root.querySelector<HTMLButtonElement>('.star')!.click();
+    fixture.detectChanges();
+    expect(root.querySelector<HTMLButtonElement>('[data-testid="edit-scene"]')!.disabled).toBe(
+      true,
+    );
+    pending.next(sceneDetails());
+    pending.complete();
+    fixture.detectChanges();
+    expect(root.querySelector<HTMLButtonElement>('[data-testid="edit-scene"]')!.disabled).toBe(
+      false,
+    );
+
+    // A save that answers for another scene leaves this one as it is.
+    const page = fixture.componentInstance as unknown as {
+      onEdited: (saved: ReturnType<typeof sceneDetails>) => void;
+    };
+    page.onEdited(sceneDetails({ id: '99', title: 'Another scene' }));
+    fixture.detectChanges();
+    expect(root.querySelector('h1')?.textContent).toContain('Sunset Scene');
+  });
+
+  it('shows an early year as itself, not as the 1900s', async () => {
+    const { root } = await render(
+      vi.fn().mockReturnValue(of(sceneDetails({ date: '0096-02-29' }))),
+    );
+    expect(root.querySelector('.meta-row')?.textContent).toContain('96');
+    expect(root.querySelector('.meta-row')?.textContent).not.toContain('1996');
+  });
+
   it('has a collapsed “Status details” panel for the Stash scene', async () => {
     diagnosticsApi.localScene.mockReset().mockReturnValue(of(null));
     const { root } = await render(vi.fn().mockReturnValue(of(sceneDetails())));

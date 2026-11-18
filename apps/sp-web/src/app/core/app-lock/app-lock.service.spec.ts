@@ -128,6 +128,75 @@ describe('AppLockService', () => {
     userAgent.mockRestore();
   });
 
+  it('covers the screen as soon as a touch starts on the strip where the home swipe begins', async () => {
+    const userAgent = vi
+      .spyOn(navigator, 'userAgent', 'get')
+      .mockReturnValue('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)');
+    // An iPhone with the home bar: room for it at the bottom of the screen.
+    vi.spyOn(
+      service as unknown as { bottomSafeArea: () => number },
+      'bottomSafeArea',
+    ).mockReturnValue(34);
+    service.ngOnDestroy();
+    service.start();
+    await load(status({ enabled: false, hideInSwitcher: true }));
+    const shielded = () => document.documentElement.classList.contains('app-shielded');
+    const touch = (type: string, identifier: number, clientY: number) => {
+      const event = new Event(type);
+      Object.defineProperty(event, 'changedTouches', { value: [{ identifier, clientY }] });
+      document.dispatchEvent(event);
+    };
+
+    touch('touchstart', 1, window.innerHeight - 5);
+    expect(shielded()).toBe(true);
+    // Only a tap there after all: the cover comes down again.
+    touch('touchend', 1, window.innerHeight - 5);
+    expect(shielded()).toBe(false);
+
+    // A touch higher up never raises it.
+    touch('touchstart', 2, window.innerHeight / 2);
+    expect(shielded()).toBe(false);
+
+    // Another finger touching and lifting while the strip's finger is still
+    // down doesn't take the cover down; only that finger lifting does.
+    touch('touchstart', 3, window.innerHeight - 5);
+    touch('touchstart', 4, window.innerHeight / 2);
+    touch('touchend', 4, window.innerHeight / 2);
+    expect(shielded()).toBe(true);
+    touch('touchend', 3, window.innerHeight - 5);
+    expect(shielded()).toBe(false);
+
+    // Two fingers both on the strip: the second lifting leaves the cover up
+    // while the first is still down.
+    touch('touchstart', 7, window.innerHeight - 5);
+    touch('touchstart', 8, window.innerHeight - 3);
+    touch('touchend', 8, window.innerHeight - 3);
+    expect(shielded()).toBe(true);
+    touch('touchend', 7, window.innerHeight - 5);
+    expect(shielded()).toBe(false);
+
+    // iOS takes the strip's finger over (it never lifts): the next ordinary
+    // touch, the app having stayed, still takes the cover down.
+    touch('touchstart', 5, window.innerHeight - 5);
+    document.dispatchEvent(new Event('touchcancel'));
+    expect(shielded()).toBe(true);
+    touch('touchstart', 6, window.innerHeight / 2);
+    expect(shielded()).toBe(false);
+
+    // Only one of two strip fingers is cancelled: the other is still down,
+    // so an ordinary touch doesn't take the cover down until it lifts.
+    touch('touchstart', 9, window.innerHeight - 5);
+    touch('touchstart', 10, window.innerHeight - 3);
+    touch('touchcancel', 10, window.innerHeight - 3);
+    expect(shielded()).toBe(true);
+    touch('touchstart', 11, window.innerHeight / 2);
+    expect(shielded()).toBe(true);
+    touch('touchend', 11, window.innerHeight / 2);
+    touch('touchend', 9, window.innerHeight - 5);
+    expect(shielded()).toBe(false);
+    userAgent.mockRestore();
+  });
+
   it('keeps the cover up on iOS when focus comes back before the app has left', async () => {
     const userAgent = vi
       .spyOn(navigator, 'userAgent', 'get')
