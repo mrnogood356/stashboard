@@ -262,6 +262,34 @@ describe('AppLockService', () => {
     expect(service.locked()).toBe(true);
   });
 
+  it('writes what it did to Stashboard’s log, as the phone has no console', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const traced = () =>
+        fetchMock.mock.calls.map(
+          ([, init]) =>
+            (JSON.parse(String((init as RequestInit).body)) as { message: string }).message,
+        );
+      // The log skips a line it sent in the last minute (an earlier test's).
+      vi.setSystemTime(Date.now() + 120_000);
+      await load(status({ timeoutSeconds: 0 }));
+      setVisibility('hidden');
+      // pagehide right after: still one line for leaving.
+      window.dispatchEvent(new Event('pagehide'));
+      vi.setSystemTime(Date.now() + 12_000);
+      setVisibility('visible');
+      await Promise.resolve();
+      expect(traced()).toEqual([
+        'App Lock on the phone: left the app: locked now (lock sent to the server: yes).',
+        'App Lock on the phone: back after 12s: locked.',
+      ]);
+      expect(fetchMock.mock.calls[0][0]).toBe('/api/client-log');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('locks on return after being away longer than the timeout', async () => {
     await load(status({ timeoutSeconds: 60 }));
     setVisibility('hidden');

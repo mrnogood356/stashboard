@@ -1,3 +1,4 @@
+import { reportToServer } from '../logging/client-log';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, OnDestroy, computed, inject, signal } from '@angular/core';
 import { Observable, firstValueFrom, from, share, switchMap, timeout } from 'rxjs';
@@ -68,11 +69,21 @@ export class AppLockService implements OnDestroy {
 
   /** Starts the background/foreground handling. Safe to call more than once. */
   start(): void {
+    if (this.started || typeof document === 'undefined') {
+      return;
+    }
     // A browser on a computer, or a phone's browser tab, never locks.
-    if (this.started || typeof document === 'undefined' || !this.isPhoneApp()) {
+    if (!this.isPhoneApp()) {
+      // On an iPhone or iPad that's worth knowing: the lock is off there.
+      if (this.isIos()) {
+        this.trace(
+          `not the home-screen app here (standalone: ${String(this.isStandalone())}, touch screen: ${String(window.matchMedia?.('(pointer: coarse)').matches ?? false)}), so it never locks`,
+        );
+      }
       return;
     }
     this.started = true;
+    this.trace('watching the home-screen app');
 
     const listen = (target: Document | Window, type: string, handler: () => void) => {
       target.addEventListener(type, handler);
@@ -316,24 +327,68 @@ export class AppLockService implements OnDestroy {
 
   private onBackground(): void {
     if (this.reloading) {
+      this.trace('left the app while reloading it, so not locking');
       return;
     }
+    // Both pagehide and visibilitychange come as the app leaves: once is enough.
+    const first = this.hiddenAt === null;
     this.raiseShield();
-    this.hiddenAt = Date.now();
+    this.hiddenAt ??= Date.now();
     const status = this.status();
     if (status?.enabled && status.timeoutSeconds === 0 && !this.locked()) {
       // Lock on the server as the app leaves; beacons survive the app closing.
+      let sent = false;
       try {
-        navigator.sendBeacon?.('/api/app-lock/lock');
+        sent = navigator.sendBeacon?.('/api/app-lock/lock') ?? false;
       } catch {
         // The server's idle timeout still locks it.
       }
       this.locked.set(true);
+      this.trace(`left the app: locked now (lock sent to the server: ${sent ? 'yes' : 'no'})`);
+    } else if (first) {
+      this.trace(
+        `left the app: ${
+          !status
+            ? 'App Lock settings not read yet, so not locking'
+            : !status.enabled
+              ? 'App Lock is off'
+              : this.locked()
+                ? 'already locked'
+                : `locks if away ${status.timeoutSeconds}s or more`
+        }`,
+      );
     }
+  }
+
+  /**
+   * One line in Stashboard's log about what App Lock did on the phone, which
+   * has no console, so a lock that didn't happen can be traced.
+   */
+  private trace(what: string): void {
+    reportToServer('info', `App Lock on the phone: ${what}.`);
+  }
+
+  private isStandalone(): boolean {
+    return (
+      window.matchMedia?.('(display-mode: standalone)').matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true
+    );
   }
 
   private async onForeground(): Promise<void> {
     const status = this.status();
+    if (this.hiddenAt !== null) {
+      const away = Math.round((Date.now() - this.hiddenAt) / 1000);
+      this.trace(
+        `back after ${away}s: ${
+          this.locked()
+            ? 'locked'
+            : status?.enabled && away >= status.timeoutSeconds
+              ? 'locking now'
+              : 'not locked'
+        }`,
+      );
+    }
     if (status?.enabled && this.hiddenAt !== null && !this.locked()) {
       const awaySeconds = (Date.now() - this.hiddenAt) / 1000;
       if (awaySeconds >= status.timeoutSeconds) {
@@ -465,10 +520,7 @@ export class AppLockService implements OnDestroy {
     if (typeof window === 'undefined') {
       return false;
     }
-    const standalone =
-      window.matchMedia?.('(display-mode: standalone)').matches ||
-      (navigator as Navigator & { standalone?: boolean }).standalone === true;
     const touch = window.matchMedia?.('(pointer: coarse)').matches ?? false;
-    return Boolean(standalone && touch);
+    return Boolean(this.isStandalone() && touch);
   }
 }
