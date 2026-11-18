@@ -1,6 +1,6 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { Observable, Subscription, catchError, firstValueFrom, forkJoin, of } from 'rxjs';
+import { Observable, Subscription, firstValueFrom, map, of, switchMap } from 'rxjs';
 import {
   LocalLibraryService,
   ProblemKind,
@@ -197,38 +197,43 @@ export class BrokenFilesPageComponent implements OnInit {
       // Generate's preview rescan can wait in Stashboard for room in Stash's
       // queue (behind anyone's job) before it's in Stash's job list: until
       // it's there, Stashboard says it's still to come.
+      // The count first, then a fresh job list: a rescan handed over in
+      // between shows in the list rather than slipping past both. A count
+      // that couldn't be read is a check to try again, not "nothing waiting".
       const pending =
-        action === 'generate'
-          ? this.library.pendingJobs().pipe(catchError(() => of({ previewRescans: 0 })))
-          : of({ previewRescans: 0 });
-      this.followRequest = forkJoin([this.library.jobs(), pending]).subscribe({
-        next: ([jobs, waiting]) => {
-          const busy =
-            waiting.previewRescans > 0 ||
-            jobs.some((job) => job.id === jobId || job.byStashboard === true);
-          if (!busy) {
-            this.stopFollowing();
-            this.notifications.success(
-              action === 'generate' ? 'Generate is done' : 'The scan is done',
-              'The list is up to date.',
-            );
-            // A fresh check either way: the background lists keep a result.
-            this.load(true);
-          } else if (checks < FOLLOW_CHECKS) {
-            this.followTimer = setTimeout(check, FOLLOW_EVERY_MS);
-          } else {
-            this.following.set(null);
-          }
-        },
-        // Stash not answering for a moment: keep waiting.
-        error: () => {
-          if (checks < FOLLOW_CHECKS) {
-            this.followTimer = setTimeout(check, FOLLOW_EVERY_MS);
-          } else {
-            this.following.set(null);
-          }
-        },
-      });
+        action === 'generate' ? this.library.pendingJobs() : of({ previewRescans: 0 });
+      this.followRequest = pending
+        .pipe(
+          switchMap((waiting) => this.library.jobs().pipe(map((jobs) => [jobs, waiting] as const))),
+        )
+        .subscribe({
+          next: ([jobs, waiting]) => {
+            const busy =
+              waiting.previewRescans > 0 ||
+              jobs.some((job) => job.id === jobId || job.byStashboard === true);
+            if (!busy) {
+              this.stopFollowing();
+              this.notifications.success(
+                action === 'generate' ? 'Generate is done' : 'The scan is done',
+                'The list is up to date.',
+              );
+              // A fresh check either way: the background lists keep a result.
+              this.load(true);
+            } else if (checks < FOLLOW_CHECKS) {
+              this.followTimer = setTimeout(check, FOLLOW_EVERY_MS);
+            } else {
+              this.following.set(null);
+            }
+          },
+          // Stash not answering for a moment: keep waiting.
+          error: () => {
+            if (checks < FOLLOW_CHECKS) {
+              this.followTimer = setTimeout(check, FOLLOW_EVERY_MS);
+            } else {
+              this.following.set(null);
+            }
+          },
+        });
     };
     this.followTimer = setTimeout(check, FOLLOW_EVERY_MS);
   }
