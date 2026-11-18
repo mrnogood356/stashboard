@@ -179,3 +179,35 @@ p {
 .quick-hide > p {
   margin: 0;
 }
+
+.privacy-check ul {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.privacy-check li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.privacy-check li > span {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.privacy-check small {
+  color: var(--text-muted);
+}
+
+.privacy-check .pi {
+  margin-top: 0.2rem;
+  color: var(--text-muted);
+}
+
+.privacy-check .pi.on {
+  color: var(--success, var(--accent));
+}

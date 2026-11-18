@@ -2,12 +2,17 @@ import { computed, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppLockService, AppLockStatus } from '../../core/app-lock/app-lock.service';
+import { ImageObscurationService } from '../../core/preferences/image-obscuration.service';
 import { SettingsPrivacyPageComponent } from './settings-privacy-page.component';
 
 describe('SettingsPrivacyPageComponent', () => {
   afterEach(() => TestBed.resetTestingModule());
 
-  async function render(initial: Partial<AppLockStatus> = {}, faceIdSupported = false) {
+  async function render(
+    initial: Partial<AppLockStatus> = {},
+    faceIdSupported = false,
+    device: { phoneApp?: boolean; blurred?: boolean } = {},
+  ) {
     const status = signal<AppLockStatus | null>({
       enabled: false,
       locked: false,
@@ -24,11 +29,15 @@ describe('SettingsPrivacyPageComponent', () => {
       refresh: vi.fn().mockImplementation(() => Promise.resolve(status())),
       saveSettings: vi.fn().mockResolvedValue(status()),
       describeError: () => 'Error',
-      isPhoneApp: () => false,
+      isPhoneApp: () => device.phoneApp ?? false,
     };
+    const images = { mode: signal(device.blurred ? 'obscured' : 'clear') };
     await TestBed.configureTestingModule({
       imports: [SettingsPrivacyPageComponent],
-      providers: [{ provide: AppLockService, useValue: appLock }],
+      providers: [
+        { provide: AppLockService, useValue: appLock },
+        { provide: ImageObscurationService, useValue: images },
+      ],
     }).compileComponents();
     const fixture = TestBed.createComponent(SettingsPrivacyPageComponent);
     fixture.detectChanges();
@@ -36,10 +45,37 @@ describe('SettingsPrivacyPageComponent', () => {
     fixture.detectChanges();
     return {
       fixture,
+      images,
       appLock,
       component: fixture.componentInstance as unknown as Record<string, unknown>,
     };
   }
+
+  it('says what’s in force on this device: the lock, the switcher cover and the eye', async () => {
+    const check = (root: HTMLElement, id: string) =>
+      root.querySelector(`[data-testid="privacy-check-${id}"]`)?.textContent?.replace(/\s+/g, ' ');
+    const phone = await render(
+      { enabled: true, timeoutSeconds: 300, hideInSwitcher: true, imagesObscured: true },
+      false,
+      { phoneApp: true, blurred: true },
+    );
+    let root = phone.fixture.nativeElement as HTMLElement;
+    expect(check(root, 'lock')).toContain('On, after 5 minutes');
+    expect(check(root, 'switcher')).toContain('On: the app is covered in the app switcher');
+    expect(check(root, 'eye')).toContain('On, saved to the server too');
+    expect(root.querySelectorAll('.privacy-check .pi.on')).toHaveLength(3);
+    // Not yet on the server: says so.
+    phone.images.mode.set('clear');
+    phone.fixture.detectChanges();
+    expect(check(root, 'eye')).toContain('Off, saving to the server…');
+    TestBed.resetTestingModule();
+
+    const browser = await render({ enabled: true }, false, { phoneApp: false });
+    root = browser.fixture.nativeElement as HTMLElement;
+    expect(check(root, 'lock')).toContain('Only in the home-screen app');
+    expect(check(root, 'switcher')).toContain('Only in the home-screen app');
+    expect(check(root, 'eye')).toContain('Off, remembered in this browser only');
+  });
 
   it('requires a matching 4–8 digit PIN and the account password to turn the lock on', async () => {
     const { component, appLock } = await render();
