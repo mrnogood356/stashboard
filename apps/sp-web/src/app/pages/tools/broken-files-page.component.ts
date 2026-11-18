@@ -68,6 +68,10 @@ export const PROBLEMS: Record<ProblemKind, ProblemInfo> = {
   },
 };
 
+/** How often, and how many times, a started job is checked on (half an hour). */
+const FOLLOW_EVERY_MS = 5000;
+const FOLLOW_CHECKS = 360;
+
 /** Up to this many listed scenes get Generate for themselves; more runs it for the library. */
 const GENERATE_FOR_LISTED = 50;
 
@@ -102,6 +106,13 @@ export class BrokenFilesPageComponent implements OnInit {
   /** "kind:sceneId" pairs being skipped. */
   protected readonly skipping = signal<Set<string>>(new Set());
   protected readonly info = PROBLEMS;
+  /**
+   * The Stash job started from a list, being followed: the list reads
+   * "under way" and is looked at again by itself once Stash is done.
+   */
+  protected readonly following = signal<{ kind: ProblemKind; action: FixAction } | null>(null);
+  private followTimer: ReturnType<typeof setTimeout> | null = null;
+  private followRequest: Subscription | null = null;
 
   /** Scenes skipped across the lists. */
   protected readonly skippedCount = computed(() =>
@@ -109,7 +120,10 @@ export class BrokenFilesPageComponent implements OnInit {
   );
 
   ngOnInit(): void {
-    this.destroyRef.onDestroy(() => this.stopPolling());
+    this.destroyRef.onDestroy(() => {
+      this.stopPolling();
+      this.stopFollowing();
+    });
     this.load();
   }
 
@@ -166,6 +180,60 @@ export class BrokenFilesPageComponent implements OnInit {
     this.request = null;
   }
 
+  /**
+   * Waits for the job, then for anything else Stashboard started in Stash
+   * after it (the preview rescan Generate asks for), then reads the lists
+   * again. Gives up quietly after half an hour: Look again still works.
+   */
+  private follow(kind: ProblemKind, action: FixAction, jobId: string): void {
+    this.stopFollowing();
+    this.following.set({ kind, action });
+    let checks = 0;
+    const check = () => {
+      checks += 1;
+      this.followRequest = this.library.jobs().subscribe({
+        next: (jobs) => {
+          const busy = jobs.some((job) => job.id === jobId || job.byStashboard === true);
+          if (!busy) {
+            this.stopFollowing();
+            this.notifications.success(
+              action === 'generate' ? 'Generate is done' : 'The scan is done',
+              'The list is up to date.',
+            );
+            this.load(action === 'generate');
+          } else if (checks < FOLLOW_CHECKS) {
+            this.followTimer = setTimeout(check, FOLLOW_EVERY_MS);
+          } else {
+            this.following.set(null);
+          }
+        },
+        // Stash not answering for a moment: keep waiting.
+        error: () => {
+          if (checks < FOLLOW_CHECKS) {
+            this.followTimer = setTimeout(check, FOLLOW_EVERY_MS);
+          } else {
+            this.following.set(null);
+          }
+        },
+      });
+    };
+    this.followTimer = setTimeout(check, FOLLOW_EVERY_MS);
+  }
+
+  private stopFollowing(): void {
+    if (this.followTimer) {
+      clearTimeout(this.followTimer);
+      this.followTimer = null;
+    }
+    this.followRequest?.unsubscribe();
+    this.followRequest = null;
+    this.following.set(null);
+  }
+
+  protected isFollowing(list: ProblemList): boolean {
+    return this.following()?.kind === list.kind;
+  }
+
   protected currentUrl(): string {
     return this.router.url;
   }
@@ -215,12 +283,18 @@ export class BrokenFilesPageComponent implements OnInit {
         this.started.update((set) => new Set(set).add(key));
         if (result.warning) {
           this.notifications.info('Started in Stash, with a note', result.warning);
+        }
+        if (result.jobId) {
+          // This list reads "under way" and updates by itself when Stash is done.
+          this.follow(list.kind, fix.action, result.jobId);
           return;
         }
-        this.notifications.success(
-          'Started in Stash',
-          'Follow it in Library tools → Stash jobs, then Look again.',
-        );
+        if (!result.warning) {
+          this.notifications.success(
+            'Started in Stash',
+            'Follow it in Library tools → Stash jobs, then Look again.',
+          );
+        }
       },
       error: () => {
         this.busy.set(null);
