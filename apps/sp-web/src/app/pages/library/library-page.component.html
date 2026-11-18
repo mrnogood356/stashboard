@@ -271,6 +271,15 @@
       <button
         type="button"
         class="bar-button"
+        data-testid="bulk-edit"
+        [disabled]="bulkBusy() || picked().size === 0"
+        (click)="openBulkEdit()"
+      >
+        Edit
+      </button>
+      <button
+        type="button"
+        class="bar-button"
         [disabled]="bulkBusy() || picked().size === 0"
         (click)="runBulk('organize')"
       >
@@ -295,5 +304,13 @@
         {{ confirmBulk() === 'delete' ? 'Tap again to delete files' : 'Delete files' }}
       </button>
     </app-selection-bar>
+  }
+  @if (bulkEditIds(); as ids) {
+    <app-bulk-edit-sheet
+      [open]="true"
+      [sceneIds]="ids"
+      (closed)="bulkEditIds.set(null)"
+      (saved)="onBulkEdited($event)"
+    />
   }
 </main>

@@ -214,6 +214,50 @@ export class LocalBulkScenesDto {
   sceneIds!: string[];
 }
 
+/** The same change on many library scenes: a studio, people or tags added or taken off. */
+export class LocalBulkEditDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  sceneIds!: string[];
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(64)
+  studioId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  addPerformerIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  removePerformerIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  addTagIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  removeTagIds?: string[];
+}
+
 export class TagSearchQueryDto {
   @IsOptional()
   @IsString()

@@ -3012,6 +3012,34 @@ describe('StashAdapter', () => {
       expect(body.variables.input).toEqual({ name: 'New Person' });
     });
 
+    it('sends a bulk edit as Stash’s own bulk scene update', async () => {
+      fetchMock.mockResolvedValueOnce(
+        respond({ data: { bulkSceneUpdate: [{ id: '1' }] } }),
+      );
+      await adapter.bulkUpdateLocalScenes(config, ['1', '2'], {
+        studioId: 's9',
+        performers: { ids: ['p1'], mode: 'ADD' },
+        tags: { ids: [], mode: 'ADD' },
+      });
+      const body = JSON.parse(
+        String((fetchMock.mock.calls[0][1] as RequestInit).body),
+      ) as { query: string; variables: { input: Record<string, unknown> } };
+      expect(body.query).toContain('bulkSceneUpdate');
+      // An empty list isn't sent: Stash would read it as "none".
+      expect(body.variables.input).toEqual({
+        ids: ['1', '2'],
+        studio_id: 's9',
+        performer_ids: { ids: ['p1'], mode: 'ADD' },
+      });
+
+      // Nothing to change: Stash isn't asked.
+      fetchMock.mockClear();
+      await adapter.bulkUpdateLocalScenes(config, ['1'], {
+        tags: { ids: [], mode: 'REMOVE' },
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
     it('uses the studio Stash names when the new name is already an alias', async () => {
       fetchMock
         .mockResolvedValueOnce(

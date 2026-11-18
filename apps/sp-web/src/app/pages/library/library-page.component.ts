@@ -47,6 +47,7 @@ import { LocalLibraryService } from '../../core/api/local-library.service';
 import { WatchLaterService } from '../../core/api/watch-later.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { SelectionBarComponent } from '../../shared/selection-bar/selection-bar.component';
+import { BulkEditSheetComponent } from './bulk-edit-sheet.component';
 import { RuntimeHealthService } from '../../core/api/runtime-health.service';
 import { SetupStatusStore } from '../../core/api/setup-status.store';
 import {
@@ -104,6 +105,7 @@ function readOneColumn(): boolean {
     Message,
     SceneCardComponent,
     SelectionBarComponent,
+    BulkEditSheetComponent,
     FilterChipComponent,
     FilterPanelDirective,
     FilterOptionsComponent,
@@ -166,6 +168,24 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly bulkBusy = signal(false);
   /** The destructive action waiting for its second tap. */
   protected readonly confirmBulk = signal<'remove' | 'delete' | null>(null);
+
+  /** The bulk edit sheet, open on the scenes picked when it opened. */
+  protected readonly bulkEditIds = signal<string[] | null>(null);
+
+  protected openBulkEdit(): void {
+    if (this.picked().size > 0 && !this.bulkBusy()) {
+      this.bulkEditIds.set([...this.picked()].slice(0, 100));
+    }
+  }
+
+  protected onBulkEdited(edited: number): void {
+    this.bulkEditIds.set(null);
+    this.notifications.success(
+      edited === 1 ? 'Changed 1 scene' : `Changed ${edited} scenes`,
+      'Saved to Stash. The library catches up in a minute.',
+    );
+    this.stopSelecting();
+  }
 
   protected startSelecting(): void {
     this.selecting.set(true);

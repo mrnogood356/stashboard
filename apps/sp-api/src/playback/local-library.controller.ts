@@ -31,6 +31,7 @@ import {
   IgnoreDuplicatesDto,
   PeopleSearchQueryDto,
   CreatePersonDto,
+  LocalBulkEditDto,
   SkipProblemDto,
   ChaptersQueryDto,
   MergeQueryDto,
@@ -93,6 +94,13 @@ export class LocalLibraryController {
   @HttpCode(200)
   bulkScenes(@Body() body: LocalBulkScenesDto): Promise<LocalBulkResultDto> {
     return this.library.bulkScenes(body.action, body.sceneIds);
+  }
+
+  /** A studio, performers or tags on many scenes at once. */
+  @Post('scenes/bulk-edit')
+  @HttpCode(200)
+  bulkEditScenes(@Body() body: LocalBulkEditDto): Promise<{ edited: number }> {
+    return this.library.bulkEditScenes(body);
   }
 
   @Post('scenes/:sceneId/watched')

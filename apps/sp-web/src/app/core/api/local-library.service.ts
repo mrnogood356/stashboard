@@ -367,6 +367,18 @@ export class LocalLibraryService {
   }
 
   /** organize: mark organized; remove: off Stash, files stay; delete: files too. */
+  /** A studio, performers or tags on many scenes at once. */
+  bulkEditScenes(edit: {
+    sceneIds: string[];
+    studioId?: string;
+    addPerformerIds?: string[];
+    removePerformerIds?: string[];
+    addTagIds?: string[];
+    removeTagIds?: string[];
+  }): Observable<{ edited: number }> {
+    return this.http.post<{ edited: number }>('/api/local/scenes/bulk-edit', edit);
+  }
+
   bulkScenes(
     action: 'organize' | 'remove' | 'delete',
     sceneIds: string[],
