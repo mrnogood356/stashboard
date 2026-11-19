@@ -87,8 +87,9 @@
                 <span class="who">
                   From
                   @for (follow of item.followed.follows; track follow.id; let last = $last) {
-                    <a [routerLink]="entityRoute(follow.kind, follow.entityId)">{{ follow.name }}</a
-                    >{{ last ? '' : ', ' }}
+                    <a [routerLink]="entityRoute(follow.kind, follow.entityId)">{{
+                      follow.name
+                    }}</a>{{ last ? '' : ', ' }}
                   }
                 </span>
                 @if (tab() === 'new' && item.requestable) {

@@ -109,8 +109,7 @@
             <p class="muted small">
               @if (fix.usesWhisparrNaming) {
                 Each one goes into its own folder from Whisparr’s Scene Folder Format,
-                <code>{{ fix.folderFormat }}</code
-                >.
+                <code>{{ fix.folderFormat }}</code>.
               } @else {
                 Each one goes into its own folder from your pattern, like
                 <code>{{ fix.destination }}/Studio/2020-01-02 - Title</code>.
@@ -139,8 +138,9 @@
                         @if (scene.from) {
                           <!-- Struck through only when it moves somewhere else. -->
                           <p class="path" [class.from]="!!scene.to">
-                            <span class="sr-only">{{ scene.to ? 'From ' : 'In ' }}</span
-                            >{{ scene.from }}
+                            <span class="sr-only">{{ scene.to ? 'From ' : 'In ' }}</span>{{
+                              scene.from
+                            }}
                           </p>
                         }
                         @if (scene.to) {
@@ -177,10 +177,10 @@
               <p class="muted small">
                 So Whisparr puts new downloads in the same place: in Whisparr → Settings → Media
                 Management, set
-                <strong>Scene Folder Format</strong> to <code>{{ fix.folderFormat }}</code
-                >, and under Root Folders keep <code>{{ fix.rootFolder }}</code> (add it if it’s
-                missing). After the repair, remove the <code>{{ fix.destination }}</code> root
-                folder there; removing a root folder doesn’t touch any files.
+                <strong>Scene Folder Format</strong> to <code>{{ fix.folderFormat }}</code>, and
+                under Root Folders keep <code>{{ fix.rootFolder }}</code> (add it if it’s missing).
+                After the repair, remove the <code>{{ fix.destination }}</code> root folder there;
+                removing a root folder doesn’t touch any files.
               </p>
             }
           </div>
