@@ -10,6 +10,17 @@ import {
   LibraryTagOption,
 } from './library.types';
 
+/** The Stats page's quality groups, by a video's short side. */
+export type LibraryResolution = '4k' | '1080p' | '720p' | 'sd' | 'unknown';
+
+export const LIBRARY_RESOLUTION_CHOICES: Array<{ id: LibraryResolution; label: string }> = [
+  { id: '4k', label: '4K' },
+  { id: '1080p', label: '1080p' },
+  { id: '720p', label: '720p' },
+  { id: 'sd', label: 'SD' },
+  { id: 'unknown', label: 'Unknown' },
+];
+
 @Injectable({
   providedIn: 'root',
 })
@@ -29,6 +40,7 @@ export class LibraryService {
       favoritePerformersOnly?: boolean;
       favoriteStudiosOnly?: boolean;
       favoriteTagsOnly?: boolean;
+      resolution?: LibraryResolution;
     },
   ): Observable<LibraryScenesFeedResponse> {
     let params = new HttpParams().set('page', page.toString()).set('perPage', perPage.toString());
@@ -59,6 +71,9 @@ export class LibraryService {
     }
     if (filters?.favoriteTagsOnly) {
       params = params.set('favoriteTagsOnly', 'true');
+    }
+    if (filters?.resolution) {
+      params = params.set('resolution', filters.resolution);
     }
 
     return this.http.get<LibraryScenesFeedResponse>('/api/library/scenes', { params });

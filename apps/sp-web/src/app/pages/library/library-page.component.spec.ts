@@ -327,6 +327,34 @@ describe('LibraryPageComponent', () => {
     expect(resetButton).toBeNull();
   });
 
+  it('opens on one resolution from the Stats page, and says so on its chip', async () => {
+    const { fixture, libraryService } = await renderPage({
+      initialQueryParams: { resolution: '1080p' },
+    });
+
+    expect(libraryService.getScenesFeed).toHaveBeenCalledWith(
+      1,
+      24,
+      expect.objectContaining({ resolution: '1080p' }),
+    );
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="library-resolution"]')?.textContent,
+    ).toContain('1080p');
+    // A filter on: Clear all is offered.
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="library-clear-filters"]'),
+    ).toBeTruthy();
+  });
+
+  it('ignores a resolution it doesn’t know', async () => {
+    const { libraryService } = await renderPage({ initialQueryParams: { resolution: '8k' } });
+    expect(libraryService.getScenesFeed).toHaveBeenCalledWith(
+      1,
+      24,
+      expect.objectContaining({ resolution: undefined }),
+    );
+  });
+
   it('clears active local-library filters back to the default indexed library view', async () => {
     const { fixture, libraryService, navigateSpy } = await renderPage({
       initialQueryParams: {
@@ -378,6 +406,7 @@ describe('LibraryPageComponent', () => {
         favoritePerformersOnly: null,
         favoriteStudiosOnly: null,
         favoriteTagsOnly: null,
+        resolution: null,
         mode: null,
         tags: null,
         tagNames: null,
@@ -485,7 +514,8 @@ describe('LibraryPageComponent', () => {
     expect(
       fixture.nativeElement.querySelector('.library-search input[type="search"]'),
     ).toBeTruthy();
-    expect(fixture.nativeElement.querySelectorAll('.filter-bar app-filter-chip')).toHaveLength(3);
+    // Categories, studios, resolution and sort.
+    expect(fixture.nativeElement.querySelectorAll('.filter-bar app-filter-chip')).toHaveLength(4);
     expect(fixture.nativeElement.querySelector('.grid')).toBeTruthy();
   });
 

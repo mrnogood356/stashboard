@@ -78,6 +78,9 @@ describe('LibraryStatsPageComponent', () => {
     expect(root.querySelector('[data-testid="reencode-link"]')?.getAttribute('href')).toBe(
       '/tools/better-copies',
     );
+    // Each resolution opens the library with just those scenes.
+    const resolutionLink = root.querySelector('[data-testid^="stats-resolution-"]');
+    expect(resolutionLink?.getAttribute('href')).toMatch(/^\/library\?resolution=/);
     // The biggest bucket fills the bar; the next one is in proportion.
     const bars = [...root.querySelectorAll<HTMLElement>('.bar')].map((bar) => bar.style.width);
     expect(bars.slice(0, 2)).toEqual(['100%', '50%']);

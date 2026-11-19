@@ -159,6 +159,15 @@
       >
         Favorite categories
       </button>
+      <app-filter-chip label="Resolution" [value]="resolutionValue()" testId="library-resolution">
+        <ng-template appFilterPanel>
+          <app-filter-options
+            [options]="resolutionChoices"
+            [selected]="resolutionPicked()"
+            (changed)="onResolutionPicked($event)"
+          />
+        </ng-template>
+      </app-filter-chip>
       <app-filter-chip label="Sort" [value]="sortValue()" neutral testId="library-sort">
         <ng-template appFilterPanel>
           <app-filter-options

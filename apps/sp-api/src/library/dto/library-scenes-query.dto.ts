@@ -8,6 +8,16 @@ import {
 } from 'class-validator';
 import { DiscoverQueryDto } from '../../discover/dto/discover-query.dto';
 
+/** The Stats page's resolution groups: by a video's short side. */
+export const LIBRARY_RESOLUTIONS = [
+  '4k',
+  '1080p',
+  '720p',
+  'sd',
+  'unknown',
+] as const;
+export type LibraryResolution = (typeof LIBRARY_RESOLUTIONS)[number];
+
 export const LIBRARY_SCENE_SORT_VALUES = [
   'CREATED_AT',
   'UPDATED_AT',
@@ -85,4 +95,9 @@ export class LibraryScenesQueryDto extends DiscoverQueryDto {
   @Transform(({ value }) => value === true || value === 'true' || value === '1')
   @IsBoolean()
   favoriteTagsOnly?: boolean;
+
+  /** Only scenes of one quality, as the Stats page groups them. */
+  @IsOptional()
+  @IsIn(LIBRARY_RESOLUTIONS)
+  resolution?: LibraryResolution;
 }

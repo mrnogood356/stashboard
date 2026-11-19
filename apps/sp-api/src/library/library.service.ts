@@ -9,6 +9,7 @@ import {
   LibrarySceneFeedItemDto,
 } from './dto/library-scenes-feed.dto';
 import {
+  LibraryResolution,
   LibrarySceneSort,
   LibrarySortDirection,
   LibraryTagMatchMode,
@@ -39,6 +40,7 @@ export class LibraryService {
     favoritePerformersOnly = false,
     favoriteStudiosOnly = false,
     favoriteTagsOnly = false,
+    resolution?: LibraryResolution,
   ): Promise<LibraryScenesFeedDto> {
     return this.librarySceneQueryService.getScenesFeed(page, perPage, {
       sort,
@@ -50,6 +52,7 @@ export class LibraryService {
       favoritePerformersOnly,
       favoriteStudiosOnly,
       favoriteTagsOnly,
+      resolution,
     });
   }
 
