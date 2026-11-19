@@ -23,6 +23,14 @@ export interface SceneMarker {
   previewUrl?: string;
 }
 
+/** One subtitle track, served as WebVTT. */
+export interface PlaybackCaption {
+  /** Language code, or "" when the file names none. */
+  language: string;
+  label: string;
+  url: string;
+}
+
 export interface PlaybackInfo {
   sceneId: string;
   title: string;
@@ -37,6 +45,8 @@ export interface PlaybackInfo {
   playCount: number;
   posterUrl: string | null;
   thumbnailsVttUrl: string | null;
+  /** Subtitle files next to the video; older APIs leave this out. */
+  captions?: PlaybackCaption[];
   sources: PlaybackSource[];
   markers?: SceneMarker[];
   viewUrl: string;
@@ -69,6 +79,8 @@ export interface LocalSceneDetails {
   date: string | null;
   /** When it was filmed (Stash 0.32 and later). */
   productionDate?: string | null;
+  /** The Stash here can set a production date (0.32 and later). */
+  hasProductionDate?: boolean;
   rating100: number | null;
   oCounter: number;
   playCount: number;

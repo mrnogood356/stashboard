@@ -226,6 +226,8 @@ export interface StashLocalSceneUpdate {
   director?: string | null;
   /** YYYY-MM-DD, or null to clear it. */
   date?: string | null;
+  /** When it was filmed, YYYY-MM-DD (Stash 0.32 and later); null clears it. */
+  productionDate?: string | null;
   urls?: string[];
   /** Null takes the studio off. */
   studioId?: string | null;
@@ -291,7 +293,17 @@ export interface StashScenePlayback {
   screenshotVersion: string | null;
   streams: Array<{ url?: unknown; mime_type?: unknown; label?: unknown }>;
   markers: StashSceneMarker[];
+  /** Subtitle files next to the video; older Stash may leave this out. */
+  captions?: StashSceneCaption[];
   viewUrl: string;
+}
+
+/** One subtitle file Stash found for a scene, e.g. English SRT. */
+export interface StashSceneCaption {
+  /** As Stash names it: "en", "de", or "00" when the file says no language. */
+  language: string;
+  /** The file type, e.g. "srt" or "vtt"; Stash serves either as WebVTT. */
+  type: string;
 }
 
 export interface StashScenePlaybackRecord {
@@ -302,6 +314,7 @@ export interface StashScenePlaybackRecord {
   paths?: { screenshot?: unknown; vtt?: unknown } | null;
   studio?: { name?: unknown } | null;
   scene_markers?: unknown;
+  captions?: unknown;
   files?: Array<{
     duration?: unknown;
     width?: unknown;

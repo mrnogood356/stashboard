@@ -576,6 +576,65 @@ describe('WatchPageComponent', () => {
     expect(video.classList.contains('mirrored')).toBe(false);
   });
 
+  it('shows the subtitles Stash has, and keeps the language for the next scene', async () => {
+    const sceneIds = new BehaviorSubject('12');
+    const captions = (scene: string) => [
+      {
+        language: 'en',
+        label: 'English (SRT)',
+        url: `/api/playback/stream/T/scene/${scene}/caption?lang=en&type=srt`,
+      },
+      {
+        language: 'de',
+        label: 'German (VTT)',
+        url: `/api/playback/stream/T/scene/${scene}/caption?lang=de&type=vtt`,
+      },
+    ];
+    playback.getInfo.mockImplementation((sceneId: string) =>
+      of({ ...baseInfo, sceneId, captions: captions(sceneId) }),
+    );
+    const fixture = await render({ sceneIds });
+    const root = fixture.nativeElement as HTMLElement;
+    const modes = () => {
+      // jsdom has no TextTrack: give each <track> a stand-in to read back.
+      const tracks = Array.from(root.querySelectorAll<HTMLTrackElement>('video track'));
+      for (const track of tracks) {
+        if (!track.track) {
+          Object.defineProperty(track, 'track', { value: { mode: 'disabled' } });
+        }
+      }
+      return tracks;
+    };
+    const openMore = () => {
+      root.querySelector<HTMLButtonElement>('[data-testid="more-button"]')!.click();
+      fixture.detectChanges();
+    };
+    expect(modes().map((track) => track.getAttribute('srclang'))).toEqual(['en', 'de']);
+
+    openMore();
+    const options = root.querySelectorAll<HTMLButtonElement>('[data-testid="caption-option"]');
+    expect(Array.from(options).map((option) => option.textContent?.trim())).toEqual([
+      'English (SRT)',
+      'German (VTT)',
+    ]);
+    options[1].click();
+    fixture.detectChanges();
+    expect(modes().map((track) => track.track.mode)).toEqual(['disabled', 'showing']);
+
+    // The next scene: still German, on that scene's own file.
+    sceneIds.next('13');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(modes()[1].getAttribute('src')).toContain('/scene/13/caption?lang=de');
+    openMore();
+    const checked = root.querySelector('[data-testid="caption-option"][aria-checked="true"]');
+    expect(checked?.textContent?.trim()).toBe('German (VTT)');
+
+    root.querySelector<HTMLButtonElement>('[data-testid="captions-off"]')!.click();
+    fixture.detectChanges();
+    expect(modes().map((track) => track.track.mode)).toEqual(['disabled', 'disabled']);
+  });
+
   it('loops a chapter from the chapter list', async () => {
     playback.getInfo.mockReturnValue(
       of({

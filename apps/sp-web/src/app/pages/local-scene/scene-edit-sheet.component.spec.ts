@@ -92,6 +92,26 @@ describe('SceneEditSheetComponent', () => {
     expect(emitted).toHaveBeenCalledWith(saved);
   });
 
+  it('sets a production date only where Stash has one (0.32 and later)', async () => {
+    const library = {
+      updateScene: vi.fn().mockReturnValue(of(scene())),
+      searchPeople: vi.fn(),
+    };
+    const { fixture, root, type, click } = await render(library);
+    expect(root().querySelector('[data-testid="edit-production-date"]')).toBeNull();
+
+    fixture.componentRef.setInput(
+      'scene',
+      scene({ hasProductionDate: true, productionDate: null }),
+    );
+    fixture.detectChanges();
+    await fixture.whenStable();
+    type('edit-production-date', '2024-11-30');
+    click('edit-save');
+
+    expect(library.updateScene).toHaveBeenCalledWith('4', { productionDate: '2024-11-30' });
+  });
+
   it('picks a studio and adds and takes off performers from Stash’s own lists', async () => {
     vi.useFakeTimers();
     const library = {

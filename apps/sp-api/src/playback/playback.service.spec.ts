@@ -22,6 +22,7 @@ describe('PlaybackService', () => {
       saveSceneActivity,
       addScenePlay,
       getLocalSceneDetails,
+      supportsProductionDate: jest.fn().mockResolvedValue(true),
     } as unknown as StashAdapter,
     tokens,
   );
@@ -63,6 +64,10 @@ describe('PlaybackService', () => {
           label: 'HLS HD (720p)',
         },
       ],
+      captions: [
+        { language: 'en', type: 'srt' },
+        { language: '00', type: 'vtt' },
+      ],
       viewUrl: 'http://stash.local/scenes/12',
     });
 
@@ -88,6 +93,18 @@ describe('PlaybackService', () => {
         'hls',
         `/api/playback/stream/${token}/scene/12/stream.m3u8?resolution=STANDARD_HD`,
       ],
+    ]); // Subtitles go through the same signed proxy; Stash serves them as WebVTT.
+    expect(info.captions).toEqual([
+      {
+        language: 'en',
+        label: 'English (SRT)',
+        url: `/api/playback/stream/${token}/scene/12/caption?lang=en&type=srt`,
+      },
+      {
+        language: '',
+        label: 'Subtitles (VTT)',
+        url: `/api/playback/stream/${token}/scene/12/caption?lang=00&type=vtt`,
+      },
     ]);
   });
 
@@ -182,6 +199,8 @@ describe('PlaybackService', () => {
           },
           catalogSceneId: 'cat-1',
           resumeTime: 61,
+          // Stash 0.32: the edit sheet offers a production date.
+          hasProductionDate: true,
         }),
       );
       expect(result.performers.map((performer) => performer.imageUrl)).toEqual([

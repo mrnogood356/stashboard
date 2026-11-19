@@ -18,6 +18,14 @@ describe('UpdateLocalSceneDto', () => {
     expect(await errorsFor({ date: '2 Jan 2025' })).toEqual(['date']);
   });
 
+  it('checks a production date the same way', async () => {
+    expect(await errorsFor({ productionDate: '2024-02-29' })).toEqual([]);
+    expect(await errorsFor({ productionDate: null })).toEqual([]);
+    expect(await errorsFor({ productionDate: '2025-02-30' })).toEqual([
+      'productionDate',
+    ]);
+  });
+
   it('knows leap years', () => {
     expect(isCalendarDate('2000-02-29')).toBe(true);
     expect(isCalendarDate('1900-02-29')).toBe(false);

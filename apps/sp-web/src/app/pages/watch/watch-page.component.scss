@@ -323,6 +323,28 @@
   font-weight: 700;
 }
 
+/* A heading inside a menu, e.g. Subtitles in More. */
+.quality-menu .menu-label {
+  margin-top: 0.35rem;
+  padding: 0.45rem 0.75rem 0.2rem;
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  color: rgb(255 255 255 / 60%);
+  font-size: 0.78rem;
+}
+
+/* With subtitles in it, More can outgrow a phone held sideways. */
+.more-menu {
+  max-height: min(70vh, 26rem);
+  overflow-y: auto;
+}
+
+/* Subtitles: easy to read over any picture. */
+.video::cue {
+  background: rgb(0 0 0 / 65%);
+  color: #fff;
+  font-size: 1em;
+}
+
 .spinner {
   position: absolute;
   inset: 0;

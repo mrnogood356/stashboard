@@ -5,7 +5,9 @@ import {
   ElementRef,
   HostListener,
   OnDestroy,
+  Injector,
   ViewChild,
+  afterNextRender,
   computed,
   effect,
   inject,
@@ -15,7 +17,12 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type Hls from 'hls.js';
 import { releaseVideo } from '../../core/playback/release-video.util';
-import { PlaybackInfo, PlaybackService, SceneMarker } from '../../core/api/playback.service';
+import {
+  PlaybackCaption,
+  PlaybackInfo,
+  PlaybackService,
+  SceneMarker,
+} from '../../core/api/playback.service';
 import { LocalLibraryService, LocalSceneCard } from '../../core/api/local-library.service';
 import { AppLockService } from '../../core/app-lock/app-lock.service';
 import { ImageObscurationService } from '../../core/preferences/image-obscuration.service';
@@ -81,6 +88,7 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly playback = inject(PlaybackService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
   private readonly appLock = inject(AppLockService);
   /** With images obscured: no poster, and nothing telling on the lock screen. */
   protected readonly obscured = inject(ImageObscurationService).isObscured;
@@ -140,6 +148,9 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   protected readonly loop = signal<{ a: number; b: number | null } | null>(null);
   /** The picture flipped left to right; kept while the player is open. */
   protected readonly mirrored = signal(false);
+  protected readonly captions = computed<PlaybackCaption[]>(() => this.info()?.captions ?? []);
+  /** The subtitle track showing; null when off. */
+  protected readonly activeCaption = signal<PlaybackCaption | null>(null);
   protected readonly loopBand = computed(() => {
     const loop = this.loop();
     const duration = this.duration();
@@ -368,6 +379,7 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
             return;
           }
           this.info.set(info);
+          this.keepCaptionLanguage(info.captions ?? []);
           if (info.duration) {
             this.duration.set(info.duration);
           }
@@ -1118,6 +1130,45 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     this.showHud(`Looping “${marker.title}”`);
     this.seekTo(marker.seconds);
     void this.videoRef?.nativeElement.play().catch(() => undefined);
+  }
+
+  /** Turns subtitles on in one language, or off with null. */
+  protected chooseCaption(caption: PlaybackCaption | null): void {
+    this.activeCaption.set(caption);
+    this.moreMenuOpen.set(false);
+    this.applyCaption();
+    this.showHud(caption ? `Subtitles: ${caption.label}` : 'Subtitles off');
+  }
+
+  /** A new scene (or fresh links): stay on the same language when it has one. */
+  private keepCaptionLanguage(captions: PlaybackCaption[]): void {
+    const active = this.activeCaption();
+    const same = active
+      ? (captions.find(
+          (caption) => caption.language === active.language && caption.label === active.label,
+        ) ??
+        captions.find((caption) => caption.language === active.language) ??
+        null)
+      : null;
+    this.activeCaption.set(same);
+    // The <track> elements for these captions are drawn on the next render.
+    afterNextRender(() => this.applyCaption(), { injector: this.injector });
+  }
+
+  /** Shows the chosen track and hides the rest; the browser draws the text. */
+  private applyCaption(): void {
+    const video = this.videoRef?.nativeElement;
+    if (!video) {
+      return;
+    }
+    const url = this.activeCaption()?.url ?? null;
+    for (const element of Array.from(video.querySelectorAll('track'))) {
+      // Older browsers (and test DOMs) may have no TextTrack behind the element.
+      if (element.track) {
+        element.track.mode =
+          url !== null && element.getAttribute('src') === url ? 'showing' : 'disabled';
+      }
+    }
   }
 
   protected toggleMirror(): void {

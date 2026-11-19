@@ -205,6 +205,14 @@ export class LocalLibraryService {
       throw new BadRequestException('A scene needs a title.');
     }
     const config = await this.playback.getStashConfig();
+    if (
+      update.productionDate !== undefined &&
+      !(await this.stash.supportsProductionDate(config))
+    ) {
+      throw new BadRequestException(
+        'Production date needs Stash 0.32 or later.',
+      );
+    }
     await this.stash.updateLocalScene(config, sceneId, update);
     return this.playback.getSceneDetails(sceneId);
   }

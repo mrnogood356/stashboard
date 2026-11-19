@@ -2584,6 +2584,49 @@ describe('StashAdapter', () => {
       });
     });
 
+    it('sends a production date as Stash 0.32 names it', async () => {
+      fetchMock.mockResolvedValue(ok({ sceneUpdate: { id: '5' } }));
+
+      await adapter.updateLocalScene(config, '5', {
+        productionDate: '2024-06-01',
+      });
+      await adapter.updateLocalScene(config, '5', { productionDate: null });
+
+      expect(sentBody(0).variables).toEqual({
+        input: { id: '5', production_date: '2024-06-01' },
+      });
+      expect(sentBody(1).variables).toEqual({
+        input: { id: '5', production_date: null },
+      });
+    });
+
+    it('reads the subtitle files Stash found, dropping odd or repeated ones', async () => {
+      fetchMock.mockResolvedValue(
+        ok({
+          findScene: {
+            id: '5',
+            title: 'Scene',
+            captions: [
+              { language_code: 'en', caption_type: 'srt' },
+              { language_code: 'en', caption_type: 'srt' },
+              { language_code: 'pt-BR', caption_type: 'vtt' },
+              { language_code: '../x', caption_type: 'srt' },
+              { language_code: 'de' },
+              null,
+            ],
+          },
+          sceneStreams: [],
+        }),
+      );
+
+      const scene = await adapter.getScenePlayback(config, '5');
+
+      expect(scene?.captions).toEqual([
+        { language: 'en', type: 'srt' },
+        { language: 'pt-BR', type: 'vtt' },
+      ]);
+    });
+
     it('marks unwatched on older Stash by clearing play_count when sceneResetPlayCount is missing', async () => {
       fetchMock
         .mockResolvedValueOnce(

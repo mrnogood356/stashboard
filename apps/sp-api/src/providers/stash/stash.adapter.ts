@@ -34,6 +34,7 @@ import {
   type StashSceneMatch,
   type StashSceneMatchOverlayConfig,
   type StashScenePlayback,
+  type StashSceneCaption,
   type StashScenePlaybackRecord,
   type StashStudioSearchRecord,
   type StashTagRecord,
@@ -391,6 +392,10 @@ export class StashAdapter extends StashLibraryToolsApi {
             screenshot
             vtt
           }
+          captions {
+            language_code
+            caption_type
+          }
           studio {
             name
           }
@@ -458,6 +463,7 @@ export class StashAdapter extends StashLibraryToolsApi {
       screenshotVersion: stashImageVersion(scene.paths?.screenshot),
       streams: payload.data?.sceneStreams ?? [],
       markers: this.toMarkers(scene.scene_markers),
+      captions: toCaptions(scene.captions),
       viewUrl: this.resolveSceneViewUrl(config.baseUrl, scene.id),
     };
   }
@@ -693,6 +699,9 @@ export class StashAdapter extends StashLibraryToolsApi {
     }
     if (update.date !== undefined) {
       input['date'] = update.date;
+    }
+    if (update.productionDate !== undefined) {
+      input['production_date'] = update.productionDate;
     }
     if (update.urls !== undefined) {
       input['urls'] = update.urls;
@@ -2117,4 +2126,31 @@ export function stashVersionAtLeast(
   }
   const [have, haveMinor] = [Number(match[1]), Number(match[2])];
   return have > major || (have === major && haveMinor >= minor);
+}
+
+/** The subtitle files Stash found next to a scene's video, as it names them. */
+function toCaptions(value: unknown): StashSceneCaption[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const captions: StashSceneCaption[] = [];
+  for (const item of value as Array<Record<string, unknown> | null>) {
+    const language = item?.['language_code'];
+    const type = item?.['caption_type'];
+    if (
+      typeof language !== 'string' ||
+      typeof type !== 'string' ||
+      !/^[\w-]{1,32}$/.test(language) ||
+      !/^\w{1,16}$/.test(type)
+    ) {
+      continue;
+    }
+    const key = `${language}/${type}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      captions.push({ language, type });
+    }
+  }
+  return captions;
 }
