@@ -5,7 +5,9 @@ import {
   ElementRef,
   HostListener,
   OnDestroy,
+  Injector,
   ViewChild,
+  afterNextRender,
   computed,
   effect,
   inject,
@@ -15,7 +17,12 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type Hls from 'hls.js';
 import { releaseVideo } from '../../core/playback/release-video.util';
-import { PlaybackInfo, PlaybackService, SceneMarker } from '../../core/api/playback.service';
+import {
+  PlaybackCaption,
+  PlaybackInfo,
+  PlaybackService,
+  SceneMarker,
+} from '../../core/api/playback.service';
 import { LocalLibraryService, LocalSceneCard } from '../../core/api/local-library.service';
 import { AppLockService } from '../../core/app-lock/app-lock.service';
 import { ImageObscurationService } from '../../core/preferences/image-obscuration.service';
@@ -81,6 +88,7 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly playback = inject(PlaybackService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
   private readonly appLock = inject(AppLockService);
   /** With images obscured: no poster, and nothing telling on the lock screen. */
   protected readonly obscured = inject(ImageObscurationService).isObscured;
@@ -140,6 +148,9 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   protected readonly loop = signal<{ a: number; b: number | null } | null>(null);
   /** The picture flipped left to right; kept while the player is open. */
   protected readonly mirrored = signal(false);
+  protected readonly captions = computed<PlaybackCaption[]>(() => this.info()?.captions ?? []);
+  /** The subtitle track showing; null when off. */
+  protected readonly activeCaption = signal<PlaybackCaption | null>(null);
   protected readonly loopBand = computed(() => {
     const loop = this.loop();
     const duration = this.duration();
@@ -368,6 +379,7 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
             return;
           }
           this.info.set(info);
+          this.keepCaptionLanguage(info.captions ?? []);
           if (info.duration) {
             this.duration.set(info.duration);
           }
@@ -599,7 +611,10 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       if (loop && loop.b !== null && video.currentTime >= loop.b) {
         video.currentTime = loop.a;
       }
-      this.currentTime.set(video.currentTime);
+      // While a finger drags the seek bar, the bar follows the finger, not playback.
+      if (!this.scrubbing) {
+        this.currentTime.set(video.currentTime);
+      }
       this.trackWatched(video.currentTime);
       const end = this.queued?.end;
       if (end !== undefined && !loop && video.currentTime >= end && !video.paused) {
@@ -1120,6 +1135,47 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
     void this.videoRef?.nativeElement.play().catch(() => undefined);
   }
 
+  /** Turns subtitles on in one language, or off with null. */
+  protected chooseCaption(caption: PlaybackCaption | null): void {
+    this.activeCaption.set(caption);
+    this.moreMenuOpen.set(false);
+    // The menu kept the controls up; let them hide again.
+    this.scheduleHideControls();
+    this.applyCaption();
+    this.showHud(caption ? `Subtitles: ${caption.label}` : 'Subtitles off');
+  }
+
+  /** A new scene (or fresh links): stay on the same language when it has one. */
+  private keepCaptionLanguage(captions: PlaybackCaption[]): void {
+    const active = this.activeCaption();
+    const same = active
+      ? (captions.find(
+          (caption) => caption.language === active.language && caption.label === active.label,
+        ) ??
+        captions.find((caption) => caption.language === active.language) ??
+        null)
+      : null;
+    this.activeCaption.set(same);
+    // The <track> elements for these captions are drawn on the next render.
+    afterNextRender(() => this.applyCaption(), { injector: this.injector });
+  }
+
+  /** Shows the chosen track and hides the rest; the browser draws the text. */
+  private applyCaption(): void {
+    const video = this.videoRef?.nativeElement;
+    if (!video) {
+      return;
+    }
+    const url = this.activeCaption()?.url ?? null;
+    for (const element of Array.from(video.querySelectorAll('track'))) {
+      // Older browsers (and test DOMs) may have no TextTrack behind the element.
+      if (element.track) {
+        element.track.mode =
+          url !== null && element.getAttribute('src') === url ? 'showing' : 'disabled';
+      }
+    }
+  }
+
   protected toggleMirror(): void {
     this.mirrored.update((on) => !on);
     this.showHud(this.mirrored() ? 'Mirrored' : 'Not mirrored');
@@ -1444,33 +1500,52 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   private scheduleHideControls(): void {
     this.clearTimer(this.hideTimer);
     this.hideTimer = setTimeout(() => {
-      if (this.playing() && !this.qualityMenuOpen() && !this.speedMenuOpen() && !this.scrubbing) {
-        this.controlsVisible.set(false);
+      if (!this.playing()) {
+        return;
       }
+      // A menu open or a finger on the bar: keep the controls up and look
+      // again later, so they still hide once it's closed, however it closed.
+      if (
+        this.qualityMenuOpen() ||
+        this.speedMenuOpen() ||
+        this.moreMenuOpen() ||
+        this.chaptersMenuOpen() ||
+        this.scrubbing
+      ) {
+        this.scheduleHideControls();
+        return;
+      }
+      this.controlsVisible.set(false);
     }, CONTROLS_HIDE_MS);
   }
 
   // ---------- Seek bar with scrub previews ----------
 
-  private timeAtPointer(clientX: number): { time: number; left: number } | null {
+  private timeAtPointer(clientX: number): { time: number; left: number; width: number } | null {
     const bar = this.seekBarRef?.nativeElement;
     const duration = this.duration();
-    if (!bar || !duration) {
+    if (!bar || !duration || !(bar.getBoundingClientRect().width > 0)) {
       return null;
     }
     const rect = bar.getBoundingClientRect();
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    return { time: ratio * duration, left: ratio * 100 };
+    return { time: ratio * duration, left: ratio * 100, width: rect.width };
   }
 
   protected onSeekHover(event: PointerEvent): void {
+    // A touch only moves the bar while it's down; a mouse can hover for a preview.
+    if (event.pointerType !== 'mouse' && !this.scrubbing) {
+      return;
+    }
     const point = this.timeAtPointer(event.clientX);
     if (!point) {
       return;
     }
+    const cue = this.thumbnails.length ? cueAt(this.thumbnails, point.time) : null;
     this.scrub.set({
-      ...point,
-      cue: this.thumbnails.length ? cueAt(this.thumbnails, point.time) : null,
+      time: point.time,
+      left: previewLeft(point.left, point.width, cue?.width ?? 64),
+      cue,
     });
     if (this.scrubbing) {
       this.currentTime.set(point.time);
@@ -1478,19 +1553,43 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   }
 
   protected onSeekDown(event: PointerEvent): void {
+    if (event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
     this.scrubbing = true;
-    (event.target as HTMLElement).setPointerCapture?.(event.pointerId);
+    // Captured on the bar itself, so a finger that drifts off it keeps scrubbing.
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
     this.onSeekHover(event);
     this.showControls();
   }
 
   protected onSeekUp(event: PointerEvent): void {
+    if (!this.scrubbing) {
+      return;
+    }
     const point = this.timeAtPointer(event.clientX);
     this.scrubbing = false;
     this.scrub.set(null);
     if (point) {
       this.seekTo(point.time);
+    } else {
+      this.scheduleHideControls();
     }
+  }
+
+  /** The phone took the touch back (a system swipe, say): no seek, nothing stuck. */
+  protected onSeekCancel(): void {
+    if (!this.scrubbing) {
+      return;
+    }
+    const video = this.videoRef?.nativeElement;
+    this.scrubbing = false;
+    this.scrub.set(null);
+    if (video) {
+      this.currentTime.set(video.currentTime);
+    }
+    this.scheduleHideControls();
   }
 
   protected onSeekLeave(): void {
@@ -1696,4 +1795,16 @@ function cardOf(item: QueueItem): LocalSceneCard {
     type: 'SCENE',
     source: 'STASH',
   };
+}
+
+/**
+ * Where the scrub preview's centre sits, in % of the bar: under the finger,
+ * but never so close to an end that the thumbnail runs off the screen.
+ */
+export function previewLeft(left: number, barWidth: number, previewWidth: number): number {
+  if (!(barWidth > 0)) {
+    return left;
+  }
+  const half = Math.min(50, ((previewWidth / 2 + 4) / barWidth) * 100);
+  return Math.min(100 - half, Math.max(half, left));
 }

@@ -83,6 +83,7 @@ export class LocalLibraryController {
       director:
         body.director === undefined ? undefined : body.director?.trim() || null,
       date: body.date,
+      productionDate: body.productionDate,
       urls: body.urls?.map((url) => url.trim()),
       studioId: body.studioId,
       performerIds: body.performerIds,

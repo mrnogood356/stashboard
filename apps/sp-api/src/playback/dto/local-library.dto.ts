@@ -76,6 +76,20 @@ export class UpdateLocalSceneDto {
   })
   date?: string | null;
 
+  /** When it was filmed (Stash 0.32 and later); YYYY-MM-DD, null clears it. */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Write the date as YYYY-MM-DD.' })
+  @ValidateBy({
+    name: 'isCalendarDate',
+    validator: {
+      validate: (value: unknown) =>
+        typeof value === 'string' && isCalendarDate(value),
+      defaultMessage: () => 'That date doesn’t exist.',
+    },
+  })
+  productionDate?: string | null;
+
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(50)

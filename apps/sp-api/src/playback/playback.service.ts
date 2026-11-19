@@ -38,10 +38,19 @@ export interface PlaybackInfoDto {
   playCount: number;
   posterUrl: string | null;
   thumbnailsVttUrl: string | null;
+  /** Subtitle tracks, served by Stash as WebVTT. */
+  captions: PlaybackCaptionDto[];
   sources: PlaybackSourceDto[];
   markers: SceneMarkerDto[];
   viewUrl: string;
   expiresAt: number;
+}
+
+export interface PlaybackCaptionDto {
+  /** BCP 47-ish language code, or "" when the file names none. */
+  language: string;
+  label: string;
+  url: string;
 }
 
 export interface SceneMarkerDto {
@@ -77,6 +86,8 @@ export interface LocalSceneDetailsDto {
   date: string | null;
   /** When it was filmed (Stash 0.32 and later). */
   productionDate: string | null;
+  /** This Stash has a production date to set (0.32 and later). */
+  hasProductionDate: boolean;
   rating100: number | null;
   oCounter: number;
   playCount: number;
@@ -144,6 +155,11 @@ export class PlaybackService {
           )
         : null,
       thumbnailsVttUrl: hash ? `${prefix}/${hash}_thumbs.vtt` : null,
+      captions: (scene.captions ?? []).map((caption) => ({
+        language: caption.language === '00' ? '' : caption.language,
+        label: captionLabel(caption.language, caption.type),
+        url: `${prefix}/${encodeURIComponent(scene.id)}/caption?lang=${encodeURIComponent(caption.language)}&type=${encodeURIComponent(caption.type)}`,
+      })),
       sources: toStreamSources(scene.id, scene.streams).map((source) => ({
         kind: source.kind,
         label: source.label,
@@ -160,7 +176,7 @@ export class PlaybackService {
   /** Details for the local scene page: what's in Stash, before pressing Play. */
   async getSceneDetails(sceneId: string): Promise<LocalSceneDetailsDto> {
     const config = await this.getStashConfig();
-    const [scene, indexRow] = await Promise.all([
+    const [scene, indexRow, hasProductionDate] = await Promise.all([
       this.stashAdapter.getLocalSceneDetails(config, sceneId),
       this.prisma.librarySceneIndex
         .findUnique({
@@ -173,6 +189,7 @@ export class PlaybackService {
           );
           return null;
         }),
+      this.stashAdapter.supportsProductionDate(config).catch(() => false),
     ]);
     if (!scene) {
       throw new NotFoundException('That scene is not in your Stash library.');
@@ -187,6 +204,7 @@ export class PlaybackService {
       urls: scene.urls ?? [],
       date: scene.date,
       productionDate: scene.productionDate ?? null,
+      hasProductionDate,
       rating100: scene.rating100,
       oCounter: scene.oCounter,
       playCount: scene.playCount,
@@ -284,4 +302,19 @@ function toMarkerDtos(
     imageUrl: `/api/media/stash/scenes/${encodeURIComponent(sceneId)}/markers/${encodeURIComponent(marker.id)}/screenshot`,
     previewUrl: `/api/playback/scenes/${encodeURIComponent(sceneId)}/markers/${encodeURIComponent(marker.id)}/preview`,
   }));
+}
+
+/** "English", or "Subtitles" when the file names no language, with its type. */
+function captionLabel(language: string, type: string): string {
+  let name = 'Subtitles';
+  if (language && language !== '00') {
+    try {
+      name =
+        new Intl.DisplayNames(['en'], { type: 'language' }).of(language) ??
+        language;
+    } catch {
+      name = language;
+    }
+  }
+  return `${name} (${type.toUpperCase()})`;
 }

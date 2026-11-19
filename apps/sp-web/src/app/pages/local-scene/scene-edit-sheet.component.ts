@@ -65,6 +65,9 @@ export class SceneEditSheetComponent implements OnDestroy {
 
   protected readonly title = signal('');
   protected readonly date = signal('');
+  protected readonly productionDate = signal('');
+  /** Stash 0.32 and later: a production date can be set. */
+  protected readonly hasProductionDate = signal(false);
   protected readonly code = signal('');
   protected readonly director = signal('');
   protected readonly details = signal('');
@@ -289,6 +292,8 @@ export class SceneEditSheetComponent implements OnDestroy {
   private reset(scene: LocalSceneDetails): void {
     this.title.set(scene.title);
     this.date.set(scene.date ?? '');
+    this.productionDate.set(scene.productionDate ?? '');
+    this.hasProductionDate.set(scene.hasProductionDate === true);
     this.code.set(scene.code ?? '');
     this.director.set(scene.director ?? '');
     this.details.set(scene.details ?? '');
@@ -396,6 +401,12 @@ export class SceneEditSheetComponent implements OnDestroy {
     if (text(this.date()) !== (scene.date ?? null)) {
       update.date = text(this.date());
     }
+    if (
+      this.hasProductionDate() &&
+      text(this.productionDate()) !== (scene.productionDate ?? null)
+    ) {
+      update.productionDate = text(this.productionDate());
+    }
     if (text(this.code()) !== (scene.code ?? null)) {
       update.code = text(this.code());
     }
@@ -429,6 +440,10 @@ export class SceneEditSheetComponent implements OnDestroy {
     const date = this.date().trim();
     if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return 'Write the date as YYYY-MM-DD.';
+    }
+    const productionDate = this.productionDate().trim();
+    if (this.hasProductionDate() && productionDate && !/^\d{4}-\d{2}-\d{2}$/.test(productionDate)) {
+      return 'Write the production date as YYYY-MM-DD.';
     }
     const bad = this.urls()
       .split(/\s+/)

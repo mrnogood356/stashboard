@@ -9,7 +9,17 @@
     x-webkit-airplay="allow"
     preload="metadata"
     [attr.poster]="obscured() ? null : (info()?.posterUrl ?? null)"
-  ></video>
+  >
+    @for (caption of captions(); track caption.url) {
+      <track
+        kind="subtitles"
+        [attr.src]="caption.url"
+        [attr.srclang]="caption.language || null"
+        [attr.label]="caption.label"
+        [attr.default]="activeCaption()?.url === caption.url ? '' : null"
+      />
+    }
+  </video>
 
   <div
     class="surface"
@@ -237,6 +247,7 @@
     <div
       #seekBar
       class="seek"
+      [class.is-scrubbing]="!!scrub()"
       role="slider"
       tabindex="0"
       aria-label="Seek"
@@ -247,6 +258,8 @@
       (pointermove)="onSeekHover($event)"
       (pointerdown)="onSeekDown($event)"
       (pointerup)="onSeekUp($event)"
+      (pointercancel)="onSeekCancel()"
+      (lostpointercapture)="onSeekCancel()"
       (pointerleave)="onSeekLeave()"
       (keydown)="onSeekKey($event)"
     >
@@ -388,7 +401,7 @@
             type="button"
             class="icon-button"
             data-testid="more-button"
-            [class.is-on]="!!loop() || mirrored()"
+            [class.is-on]="!!loop() || mirrored() || activeCaption() !== null"
             (click)="toggleMoreMenu()"
             aria-label="More options"
             [attr.aria-expanded]="moreMenuOpen()"
@@ -443,6 +456,35 @@
                   Mirror the picture
                 </button>
               </li>
+              @if (captions().length > 0) {
+                <li class="menu-label" role="presentation">Subtitles</li>
+                <li>
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    data-testid="captions-off"
+                    [attr.aria-checked]="activeCaption() === null"
+                    [class.active]="activeCaption() === null"
+                    (click)="chooseCaption(null)"
+                  >
+                    Off
+                  </button>
+                </li>
+                @for (caption of captions(); track caption.url) {
+                  <li>
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      data-testid="caption-option"
+                      [attr.aria-checked]="activeCaption()?.url === caption.url"
+                      [class.active]="activeCaption()?.url === caption.url"
+                      (click)="chooseCaption(caption)"
+                    >
+                      {{ caption.label }}
+                    </button>
+                  </li>
+                }
+              }
             </ul>
           }
         </div>

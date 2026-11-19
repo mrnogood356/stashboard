@@ -779,6 +779,22 @@ describe('LocalLibraryService', () => {
     );
   });
 
+  it('sets a production date only on a Stash that has one (0.32 and later)', async () => {
+    const supports = jest.fn().mockResolvedValue(false);
+    (stash as Record<string, unknown>).supportsProductionDate = supports;
+    await expect(
+      service.updateScene('5', { productionDate: '2024-06-01' }),
+    ).rejects.toThrow('Production date needs Stash 0.32 or later.');
+    expect(stash.updateLocalScene).not.toHaveBeenCalled();
+
+    supports.mockResolvedValue(true);
+    playback.getSceneDetails.mockResolvedValueOnce({ id: '5' });
+    await service.updateScene('5', { productionDate: '2024-06-01' });
+    expect(stash.updateLocalScene).toHaveBeenCalledWith(config, '5', {
+      productionDate: '2024-06-01',
+    });
+  });
+
   it('sorts by production date on Stash 0.32 and later, and by release date before', async () => {
     stash.findLocalScenes.mockResolvedValue({ total: 1, items: [] });
     const supports = jest.fn().mockResolvedValue(true);

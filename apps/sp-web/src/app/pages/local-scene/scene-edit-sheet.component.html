@@ -149,6 +149,19 @@
           (ngModelChange)="date.set($event)"
         />
       </label>
+      @if (hasProductionDate()) {
+        <label class="field">
+          <span class="field-label">Production date</span>
+          <input
+            class="text-input"
+            name="productionDate"
+            type="date"
+            data-testid="edit-production-date"
+            [ngModel]="productionDate()"
+            (ngModelChange)="productionDate.set($event)"
+          />
+        </label>
+      }
       <label class="field">
         <span class="field-label">Studio code</span>
         <input

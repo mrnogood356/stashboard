@@ -115,6 +115,8 @@ export interface LocalSceneUpdate {
   director?: string | null;
   /** YYYY-MM-DD; null clears it. */
   date?: string | null;
+  /** When it was filmed; needs Stash 0.32 or later. */
+  productionDate?: string | null;
   urls?: string[];
   /** Null takes the studio off. */
   studioId?: string | null;

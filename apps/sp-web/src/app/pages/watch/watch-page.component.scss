@@ -190,8 +190,25 @@
 }
 
 .seek:hover .seek-track,
-.seek:active .seek-track {
+.seek.is-scrubbing .seek-track {
   height: 6px;
+}
+
+/* Phones: a finger-sized bar that doesn't change size under the finger. */
+@media (pointer: coarse) {
+  .seek {
+    height: 2.75rem;
+    margin-block: -0.6rem;
+  }
+
+  .seek-track {
+    height: 5px;
+    transition: none;
+  }
+
+  .seek.is-scrubbing .seek-track {
+    height: 5px;
+  }
 }
 
 .seek-buffered,
@@ -321,6 +338,28 @@
 .quality-menu button.active {
   color: var(--focus-ring);
   font-weight: 700;
+}
+
+/* A heading inside a menu, e.g. Subtitles in More. */
+.quality-menu .menu-label {
+  margin-top: 0.35rem;
+  padding: 0.45rem 0.75rem 0.2rem;
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  color: rgb(255 255 255 / 60%);
+  font-size: 0.78rem;
+}
+
+/* With subtitles in it, More can outgrow a phone held sideways. */
+.more-menu {
+  max-height: min(70vh, 26rem);
+  overflow-y: auto;
+}
+
+/* Subtitles: easy to read over any picture. */
+.video::cue {
+  background: rgb(0 0 0 / 65%);
+  color: #fff;
+  font-size: 1em;
 }
 
 .spinner {
@@ -987,5 +1026,17 @@
 
   .skip-flash {
     animation: none;
+  }
+}
+
+/* Phones: the preview clears the finger, and the thumb grows while dragging. */
+@media (pointer: coarse) {
+  .scrub-preview {
+    bottom: 2.6rem;
+  }
+
+  .seek.is-scrubbing .seek-thumb {
+    width: 20px;
+    height: 20px;
   }
 }
