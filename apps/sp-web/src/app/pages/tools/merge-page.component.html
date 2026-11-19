@@ -194,8 +194,7 @@
     @if (confirming(); as set) {
       <p>
         {{ movingScenes(set) }} {{ movingScenes(set) === 1 ? 'scene moves' : 'scenes move' }} onto
-        <strong>{{ keptName(set) }}</strong
-        >, along with galleries and images{{
+        <strong>{{ keptName(set) }}</strong>, along with galleries and images{{
           kind() === 'studios' ? ', groups and sub-studios' : ''
         }}. Their names become aliases.
       </p>
