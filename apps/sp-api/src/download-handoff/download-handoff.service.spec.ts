@@ -14,6 +14,7 @@ import type { StashAdapter } from '../providers/stash/stash.adapter';
 import {
   DownloadHandoffService,
   insideLibrary,
+  releaseKeyOf,
 } from './download-handoff.service';
 
 describe('DownloadHandoffService', () => {
@@ -121,9 +122,21 @@ describe('DownloadHandoffService', () => {
     prisma = {
       downloadHandoff: {
         findMany: jest.fn(
-          ({ where }: { where: { status?: string | { in: string[] } } }) =>
+          ({
+            where,
+          }: {
+            where: {
+              status?: string | { in: string[] };
+              releaseTitle?: { in: string[] };
+            };
+          }) =>
             Promise.resolve(
-              rows.filter((entry) => matches(entry, where ?? {})),
+              rows.filter(
+                (entry) =>
+                  matches(entry, where ?? {}) &&
+                  (!where?.releaseTitle ||
+                    where.releaseTitle.in.includes(entry.releaseTitle)),
+              ),
             ),
         ),
         findUnique: jest.fn(({ where }: { where: { id: string } }) =>
@@ -1412,6 +1425,33 @@ describe('DownloadHandoffService', () => {
       expect(outcome()).toMatchObject({ outcome: 'kept-both' });
       expect(outcome().detail).toContain('Stash said no');
     });
+  });
+
+  it('knows which releases failed before, whatever their case or spacing', async () => {
+    rows.push(
+      handoff({
+        id: 'h1',
+        releaseTitle: 'BangBus.25.06.11.XXX.1080p',
+        status: 'failed',
+        error: 'RAR files failed to verify.',
+      }),
+      handoff({
+        id: 'h2',
+        releaseTitle: 'Fine.Release.1080p',
+        status: 'imported',
+      }),
+    );
+    const failed = await service.failedReleases([
+      'BangBus.25.06.11.XXX.1080p',
+      'Fine.Release.1080p',
+    ]);
+    expect([...failed]).toEqual([
+      ['bangbus.25.06.11.xxx.1080p', 'RAR files failed to verify.'],
+    ]);
+    expect(releaseKeyOf('  BangBus.25.06.11.XXX.1080p ')).toBe(
+      'bangbus.25.06.11.xxx.1080p',
+    );
+    await expect(service.failedReleases([])).resolves.toEqual(new Map());
   });
 
   it('stops watching one download when asked, touching nothing else', async () => {

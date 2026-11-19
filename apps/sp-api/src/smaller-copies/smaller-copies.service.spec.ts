@@ -202,14 +202,20 @@ describe('SmallerCopiesService', () => {
           });
           return Promise.resolve();
         }),
-        findMany: jest.fn(({ where }: { where?: { outcome?: string } } = {}) =>
-          Promise.resolve(
-            [...tries]
-              .reverse()
-              .filter(
-                (row) => !where?.outcome || row.outcome === where.outcome,
-              ),
-          ),
+        findMany: jest.fn(
+          ({
+            where,
+          }: { where?: { outcome?: string; stashSceneId?: string } } = {}) =>
+            Promise.resolve(
+              [...tries]
+                .reverse()
+                .filter(
+                  (row) =>
+                    (!where?.outcome || row.outcome === where.outcome) &&
+                    (!where?.stashSceneId ||
+                      row.stashSceneId === where.stashSceneId),
+                ),
+            ),
         ),
         updateMany: jest.fn(
           ({
@@ -516,6 +522,38 @@ describe('SmallerCopiesService', () => {
       outcome: 'grabbed',
       releaseGuid: 'g2',
     });
+  });
+
+  it('skips a release tried before under a new guid, or one that failed in SABnzbd', async () => {
+    tries.push({
+      id: 't0',
+      stashSceneId: '2',
+      title: 'Scene 2',
+      releaseTitle: 'Studio.Scene.1080p.x265',
+      outcome: 'failed',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    downloads.searchReleases.mockResolvedValue({
+      releases: [
+        // The same release the indexer now lists under another guid.
+        release({ guid: 'g9', title: 'studio.scene.1080p.X265' }),
+        release({
+          guid: 'g3',
+          title: 'Studio.Scene.1080p.AV1',
+          failedBefore: 'RAR files failed to verify.',
+        }),
+        release({ guid: 'g2', title: 'Studio.Scene.1080p.HEVC' }),
+      ],
+    });
+    await service.tick();
+    expect(downloads.grabRelease).toHaveBeenCalledTimes(1);
+    expect(downloads.grabRelease).toHaveBeenCalledWith(
+      'cat-2',
+      expect.objectContaining({ guid: 'g2' }),
+      'STASHDB',
+      { replacesStashSceneId: '2' },
+    );
   });
 
   it('remembers a grabbed release through later searches that find nothing', async () => {

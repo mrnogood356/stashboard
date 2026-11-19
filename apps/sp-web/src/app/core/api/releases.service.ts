@@ -51,6 +51,8 @@ export interface ProwlarrRelease {
   publishDate: string | null;
   infoUrl: string | null;
   match: ReleaseMatch | null;
+  /** Why SABnzbd couldn't download it before; it would fail again. */
+  failedBefore?: string;
 }
 
 /** Where a Find downloads grab went: Prowlarr's client, or SABnzbd (Finished downloads). */

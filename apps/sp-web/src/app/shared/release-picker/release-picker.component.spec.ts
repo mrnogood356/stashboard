@@ -386,6 +386,32 @@ describe('ReleasePickerComponent', () => {
       expect(grabbed).toHaveBeenCalled();
     });
 
+    it('marks a release SABnzbd couldn’t download before, and says why', async () => {
+      const api = {
+        search: vi.fn(),
+        searchProwlarr: vi.fn().mockReturnValue(
+          of({
+            releases: [
+              prowlarrRelease('broken', {
+                title: 'Jane.Doe.24.03.15.Beach.Day',
+                match: { strength: 'strong', matched: ['studio', 'date'] },
+                failedBefore: 'RAR files failed to verify.',
+              }),
+            ],
+          }),
+        ),
+        grabProwlarr: vi.fn(),
+      };
+      const { root } = await renderProwlarr(api);
+
+      expect(root.querySelector('[data-testid="failed-before"]')?.textContent).toContain(
+        'Failed before',
+      );
+      expect(root.textContent).toContain(
+        'SABnzbd couldn’t download this before: RAR files failed to verify.',
+      );
+    });
+
     it('says so when Finished downloads sent it to SABnzbd', async () => {
       const api = {
         search: vi.fn(),

@@ -333,6 +333,37 @@ export class DownloadHandoffService {
   // ---------- what's happening ----------
 
   /** The latest downloads sent to SABnzbd, newest first. */
+  /**
+   * Releases that failed in SABnzbd before (broken RARs, missing articles),
+   * by their title as {@link releaseKeyOf} writes it, with why. A release
+   * that failed once fails again: it's the same files on usenet.
+   */
+  async failedReleases(titles: string[]): Promise<Map<string, string>> {
+    const keys = [...new Set(titles.map(releaseKeyOf).filter(Boolean))];
+    if (keys.length === 0) {
+      return new Map();
+    }
+    const rows = await this.prisma.downloadHandoff.findMany({
+      where: {
+        status: 'failed',
+        releaseTitle: {
+          in: [...new Set(titles.map((title) => title.trim()))],
+          mode: 'insensitive',
+        },
+      },
+      select: { releaseTitle: true, error: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+    const failed = new Map<string, string>();
+    for (const row of rows) {
+      const key = releaseKeyOf(row.releaseTitle);
+      if (key && !failed.has(key)) {
+        failed.set(key, row.error?.trim() || 'It failed to download.');
+      }
+    }
+    return failed;
+  }
+
   async recent(limit = RECENT_LIMIT): Promise<DownloadHandoffDto[]> {
     const rows = await this.prisma.downloadHandoff.findMany({
       orderBy: { createdAt: 'desc' },
@@ -1947,6 +1978,14 @@ export function placedLines(
     ...(placed.to !== from ? [`Put in its folder: ${placed.to}`] : []),
     ...(placed.reason ? [placed.reason] : []),
   ];
+}
+
+/**
+ * A release title as it's compared: case and spacing don't make a different
+ * release.
+ */
+export function releaseKeyOf(title: string | null | undefined): string {
+  return (title ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 export function toDto(row: DownloadHandoff): DownloadHandoffDto {

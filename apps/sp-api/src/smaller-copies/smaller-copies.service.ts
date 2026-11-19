@@ -7,7 +7,10 @@ import {
 } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import type { SmallerCopyAttempt, SmallerCopySettings } from '@prisma/client';
-import { DownloadHandoffService } from '../download-handoff/download-handoff.service';
+import {
+  DownloadHandoffService,
+  releaseKeyOf,
+} from '../download-handoff/download-handoff.service';
 import { OPEN_HANDOFF_STATUSES } from '../download-handoff/download-handoff.model';
 import { DownloadsService } from '../downloads/downloads.service';
 import type { StatsFile } from '../playback/library-stats.util';
@@ -560,8 +563,27 @@ export class SmallerCopiesService {
         .findUnique({ where: { stashSceneId: file.sceneId } })
         .catch(() => null);
       const taken = new Set(before?.grabbedGuids ?? []);
+      // Some indexers give a release a new guid on every search, so the
+      // ones tried before are known by title too.
+      const triedTitles = new Set(
+        (
+          await this.prisma.smallerCopyTry
+            .findMany({
+              where: { stashSceneId: file.sceneId },
+              select: { releaseTitle: true },
+            })
+            .catch(() => [])
+        ).map((tried) => releaseKeyOf(tried.releaseTitle)),
+      );
+      const fresh = found.releases.filter(
+        (candidate) =>
+          !candidate.failedBefore &&
+          !taken.has(candidate.guid) &&
+          !triedTitles.has(releaseKeyOf(candidate.title)),
+      );
+      const skipped = found.releases.length - fresh.length;
       const release = pickRelease(
-        found.releases.filter((candidate) => !taken.has(candidate.guid)),
+        fresh,
         { size: file.size ?? 0, duration: file.duration },
         reason,
         rules,
@@ -570,7 +592,7 @@ export class SmallerCopiesService {
         await this.note(file.sceneId, {
           ...base,
           outcome: 'none-found',
-          detail: `Nothing that fits the rules at ${rules.target} (${found.releases.length} releases looked at).`,
+          detail: `Nothing that fits the rules at ${rules.target} (${found.releases.length} releases looked at${skipped > 0 ? `, ${skipped} left out as tried or failed before` : ''}).`,
           retryAfter: new Date(this.now() + NONE_FOUND_WAIT),
         });
         return true;
