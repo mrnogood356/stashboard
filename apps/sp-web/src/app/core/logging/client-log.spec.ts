@@ -37,6 +37,21 @@ describe('client log', () => {
     vi.unstubAllGlobals();
   });
 
+  it('sends a line meant for every time each time, such as App Lock leaving twice in a minute', () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    reportToServer('info', 'App Lock on the phone: left the app.', undefined, { every: true });
+    reportToServer('info', 'App Lock on the phone: left the app.', undefined, { every: true });
+
+    expect(sentBodies(fetchMock).map((body) => body['message'])).toEqual([
+      'App Lock on the phone: left the app.',
+      'App Lock on the phone: left the app.',
+    ]);
+    vi.unstubAllGlobals();
+  });
+
   it('sends the same message only once a minute, and never throws', () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error('offline'));
     vi.stubGlobal('fetch', fetchMock);

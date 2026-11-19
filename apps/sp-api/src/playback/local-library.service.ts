@@ -601,6 +601,18 @@ export class LocalLibraryService {
 
   // ---------- Stash jobs ----------
 
+  /** Generate's preview rescans still waiting in Stashboard to reach Stash's queue. */
+  private pendingRescans = 0;
+
+  /**
+   * Work Stashboard has been asked for that isn't in Stash's queue yet:
+   * a preview rescan waits for room there first. Until it's there, Stash's
+   * own job list can look done while it isn't.
+   */
+  pendingWork(): { previewRescans: number } {
+    return { previewRescans: this.pendingRescans };
+  }
+
   async jobs(): Promise<StashJob[]> {
     const config = await this.playback.getStashConfig();
     return this.stash.getJobQueue(config);
@@ -690,11 +702,17 @@ export class LocalLibraryService {
       // makes the ones still missing, after the jobs above. It waits for a
       // quiet moment in Stash's queue, which can take a minute or more, so
       // it's asked for behind the answer rather than before it.
+      // Counted until it's in Stash's queue, so a page following Generate
+      // knows it's still to come (see pendingWork).
+      this.pendingRescans += 1;
       void this.stash
         .rescanForPreviews(config, named)
         .catch((error: unknown) => {
           const why = error instanceof Error ? error.message : String(error);
           this.logger.warn(`Couldn't rescan for hover previews: ${why}`);
+        })
+        .finally(() => {
+          this.pendingRescans = Math.max(0, this.pendingRescans - 1);
         });
     }
     this.logger.log(

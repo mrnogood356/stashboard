@@ -398,6 +398,11 @@ export class LocalLibraryService {
     return this.http.get<StashJob[]>('/api/local/jobs');
   }
 
+  /** Work Stashboard still has to hand to Stash: Generate's preview rescans. */
+  pendingJobs(): Observable<{ previewRescans: number }> {
+    return this.http.get<{ previewRescans: number }>('/api/local/jobs/pending');
+  }
+
   startJob(task: LibraryTask): Observable<{ jobId: string | null }> {
     return this.http.post<{ jobId: string | null }>(`/api/local/jobs/${task}`, {});
   }

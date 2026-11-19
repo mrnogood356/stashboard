@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { NEVER, Subject, of } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { LocalLibraryService, ProblemList } from '../../core/api/local-library.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
@@ -121,33 +121,43 @@ describe('BrokenFilesPageComponent', () => {
     );
   });
 
-  it('follows the job it started and reads the list again once Stash is done', async () => {
+  it('follows the job it started, and the rescan still to come, then reads the list again', async () => {
     vi.useFakeTimers();
     try {
       const problems = vi
         .fn()
         .mockReturnValueOnce(of([{ kind: 'generate', count: 1, scenes: scenes(1) }]))
         .mockReturnValueOnce(of([{ kind: 'generate', count: 0, scenes: [] }]));
-      // Generate still running, then the rescan Stashboard asked for, then nothing.
+      // Generate done, but its preview rescan waits in Stashboard behind
+      // someone else's job; then it's in Stash's queue; then all done.
       const jobs = vi
         .fn()
-        .mockReturnValue(of([]))
         .mockReturnValueOnce(of([{ id: '2', status: 'RUNNING' }]))
-        .mockReturnValueOnce(of([{ id: '3', status: 'READY', byStashboard: true }]))
-        .mockReturnValueOnce(of([{ id: '9', status: 'RUNNING', byStashboard: false }]));
+        .mockReturnValueOnce(of([{ id: '9', status: 'READY', byStashboard: false }]))
+        .mockReturnValueOnce(of([{ id: '9', status: 'RUNNING', byStashboard: false }]))
+        .mockReturnValueOnce(of([{ id: '3', status: 'RUNNING', byStashboard: true }]))
+        .mockReturnValue(of([]));
+      const pendingJobs = vi
+        .fn()
+        .mockReturnValueOnce(of({ previewRescans: 1 }))
+        .mockReturnValueOnce(of({ previewRescans: 1 }))
+        .mockReturnValueOnce(of({ previewRescans: 1 }))
+        .mockReturnValue(of({ previewRescans: 0 }));
       const generateFor = vi.fn().mockReturnValue(of({ jobId: '2' }));
-      const { fixture, root, notifications } = await render([], { problems, jobs, generateFor });
+      const { fixture, root, notifications } = await render([], {
+        problems,
+        jobs,
+        pendingJobs,
+        generateFor,
+      });
       root.querySelector<HTMLButtonElement>('[data-testid="fix-generate-generate"]')!.click();
       fixture.detectChanges();
       expect(root.querySelector('[data-testid="following"]')).not.toBeNull();
 
-      vi.advanceTimersByTime(5000);
-      vi.advanceTimersByTime(5000);
-      expect(problems).toHaveBeenCalledTimes(1);
-      // Someone else's job doesn't hold it up, but the rescan Generate asks
-      // for can still be on its way to Stash: clear three checks in a row.
-      vi.advanceTimersByTime(5000);
-      vi.advanceTimersByTime(5000);
+      // However long the rescan waits for room, it isn't called done.
+      for (let n = 0; n < 4; n += 1) {
+        vi.advanceTimersByTime(5000);
+      }
       expect(problems).toHaveBeenCalledTimes(1);
       vi.advanceTimersByTime(5000);
       fixture.detectChanges();
@@ -160,6 +170,61 @@ describe('BrokenFilesPageComponent', () => {
       );
       expect(root.querySelector('[data-testid="following"]')).toBeNull();
       expect(root.querySelector('[data-testid="problem-generate"]')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps following when the waiting count can’t be read, and reads it before the job list', async () => {
+    vi.useFakeTimers();
+    try {
+      const calls: string[] = [];
+      const problems = vi
+        .fn()
+        .mockReturnValue(of([{ kind: 'generate', count: 1, scenes: scenes(1) }]));
+      // The rescan is handed over between the count and the job list: the
+      // list asked for second shows it, so it isn't missed.
+      const pendingJobs = vi
+        .fn(() => {
+          calls.push('pending');
+          return of({ previewRescans: 0 });
+        })
+        .mockImplementationOnce(() => {
+          calls.push('pending');
+          return throwError(() => new Error('offline'));
+        })
+        .mockImplementationOnce(() => {
+          calls.push('pending');
+          return of({ previewRescans: 0 });
+        });
+      const jobs = vi
+        .fn(() => {
+          calls.push('jobs');
+          return of([] as Array<{ id: string; status: string; byStashboard?: boolean }>);
+        })
+        .mockImplementationOnce(() => {
+          calls.push('jobs');
+          return of([{ id: '3', status: 'READY', byStashboard: true }]);
+        });
+      const generateFor = vi.fn().mockReturnValue(of({ jobId: '2' }));
+      const { fixture, root } = await render([], { problems, jobs, pendingJobs, generateFor });
+      root.querySelector<HTMLButtonElement>('[data-testid="fix-generate-generate"]')!.click();
+
+      // The count couldn't be read: not "nothing waiting", so still following.
+      vi.advanceTimersByTime(5000);
+      fixture.detectChanges();
+      expect(root.querySelector('[data-testid="following"]')).not.toBeNull();
+      expect(problems).toHaveBeenCalledTimes(1);
+
+      // Count 0, then the job list shows the rescan just handed over.
+      vi.advanceTimersByTime(5000);
+      fixture.detectChanges();
+      expect(root.querySelector('[data-testid="following"]')).not.toBeNull();
+      expect(problems).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(5000);
+      expect(problems).toHaveBeenCalledTimes(2);
+      expect(calls).toEqual(['pending', 'pending', 'jobs', 'pending', 'jobs']);
     } finally {
       vi.useRealTimers();
     }
