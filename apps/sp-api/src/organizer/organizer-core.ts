@@ -535,6 +535,9 @@ export abstract class OrganizerCore {
       );
     } else if (status === 'PARTIAL') {
       this.logger.warn(line);
+    } else if (kind === 'sync') {
+      // The sync runs after every Whisparr import; it's in the activity log.
+      this.logger.debug(line);
     } else {
       this.logger.log(line);
     }

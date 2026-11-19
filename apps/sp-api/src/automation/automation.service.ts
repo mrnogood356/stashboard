@@ -427,7 +427,7 @@ export class AutomationService
       return;
     }
     const config = await this.stashConfig().catch(() => null);
-    this.logger.log(`Library automation started (${reason}).`);
+    this.logger.debug(`Library automation started (${reason}).`);
     try {
       if (!config) {
         await this.record(
@@ -1014,7 +1014,7 @@ export class AutomationService
         `Library automation (${reason}) failed: ${message}`,
         error instanceof Error ? error.stack : undefined,
       );
-    } else if (reason === 'detected' && /^No new scenes/.test(message)) {
+    } else if (/^No new scenes/.test(message)) {
       this.logger.debug(`Library automation (${reason}) finished: ${message}`);
     } else {
       this.logger.log(`Library automation (${reason}) finished: ${message}`);

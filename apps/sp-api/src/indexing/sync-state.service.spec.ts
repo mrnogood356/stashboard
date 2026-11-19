@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { SyncJobStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SyncStateService } from './sync-state.service';
@@ -184,6 +185,48 @@ describe('SyncStateService', () => {
         lastRunReason: 'manual',
       }),
     ]);
+  });
+
+  it('logs a scheduled run at debug, and a startup or asked-for run at info', async () => {
+    const info = jest
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined);
+    const debug = jest
+      .spyOn(Logger.prototype, 'debug')
+      .mockImplementation(() => undefined);
+    const run = (runReason: string) =>
+      service.runWithLease(
+        {
+          jobName: `movie-sync-${runReason}`,
+          leaseMs: 60_000,
+          onSuccess: () => ({ processedCount: 5, updatedCount: 2, runReason }),
+        },
+        async () => 'ok',
+      );
+    const finished = (calls: unknown[][]) =>
+      calls
+        .map(([line]) => String(line))
+        .filter((line) => line.startsWith('Finished'));
+
+    await run('interval');
+    await run('library-changed');
+    await run('manual');
+    await run('startup');
+
+    expect(finished(debug.mock.calls)).toEqual([
+      expect.stringContaining('(interval)'),
+      expect.stringContaining('(library-changed)'),
+    ]);
+    expect(finished(info.mock.calls)).toEqual([
+      expect.stringContaining('(manual)'),
+      expect.stringContaining('(startup)'),
+    ]);
+    // Starting is only ever debug.
+    expect(
+      info.mock.calls.some(([line]) => String(line).startsWith('Started')),
+    ).toBe(false);
+    info.mockRestore();
+    debug.mockRestore();
   });
 
   it('records duration, counts, and reason from leased runs', async () => {

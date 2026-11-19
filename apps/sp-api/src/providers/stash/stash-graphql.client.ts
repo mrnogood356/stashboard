@@ -277,13 +277,25 @@ export abstract class StashGraphqlClient {
         body: JSON.stringify({ query, variables }),
       });
     } catch (error) {
-      this.logger.warn(
-        `Couldn't reach Stash (${operation}): ${this.errorMessage(error)}`,
-      );
+      const line = `Couldn't reach Stash (${operation}): ${this.errorMessage(error)}`;
+      // Once a warning while Stash is down; every retry after it is debug.
+      if (markUnreachable(endpoint, Date.now())) {
+        this.logger.warn(
+          `${line}. Until it answers again, further failures are logged at debug.`,
+        );
+      } else {
+        this.logger.debug(line);
+      }
       if (trackRuntimeHealth) {
         await this.reportRuntimeFailure(error);
       }
       throw new BadGatewayException('Failed to reach Stash provider endpoint.');
+    }
+    const downFor = markReachable(endpoint, Date.now());
+    if (downFor !== null) {
+      this.logger.log(
+        `Stash answers again, after ${formatOutage(downFor)} out of reach.`,
+      );
     }
 
     if (!response.ok) {
@@ -406,4 +418,39 @@ export function withStashAccessHint(message: string, status: number): string {
     return message;
   }
   return `${message}. Stash refuses addresses outside your local network when it has no username and password. In Stash, set a username and password and give Stashboard its API key, or add Stashboard's address to public_whitelist in Stash's config.yml (for example 203.0.113.5/32).`;
+}
+
+/**
+ * Stash addresses that can't be reached right now, with when that started.
+ * Shared by every Stash API class, so an outage is reported once, not once
+ * per class.
+ */
+const unreachableSince = new Map<string, number>();
+
+/** True the first time an address is found out of reach. */
+export function markUnreachable(endpoint: string, now: number): boolean {
+  if (unreachableSince.has(endpoint)) {
+    return false;
+  }
+  unreachableSince.set(endpoint, now);
+  return true;
+}
+
+/** How long it was out of reach, in ms; null when it wasn't. */
+export function markReachable(endpoint: string, now: number): number | null {
+  const since = unreachableSince.get(endpoint);
+  if (since === undefined) {
+    return null;
+  }
+  unreachableSince.delete(endpoint);
+  return now - since;
+}
+
+function formatOutage(ms: number): string {
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 120) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.round(seconds / 60);
+  return minutes < 120 ? `${minutes} min` : `${(minutes / 60).toFixed(1)} h`;
 }

@@ -758,7 +758,7 @@ export class DownloadHandoffService {
               reason: `SABnzbd didn’t say where its “${settings.category}” downloads go.`,
             };
         if (result.result === 'removed') {
-          this.logger.log(`Removed SABnzbd's folder ${folder}.`);
+          this.logger.debug(`Removed SABnzbd's folder ${folder}.`);
         } else if (result.result === 'kept') {
           problems.push(result.reason);
         }
@@ -961,7 +961,7 @@ export class DownloadHandoffService {
             videos: [],
           };
       if (result.result === 'removed') {
-        this.logger.log(`Removed SABnzbd's folder ${folder}.`);
+        this.logger.debug(`Removed SABnzbd's folder ${folder}.`);
       } else if (result.result === 'kept') {
         this.logger.log(
           `Left SABnzbd's folder ${folder} for “${name}”: ${result.reason}`,

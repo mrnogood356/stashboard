@@ -194,7 +194,7 @@ export abstract class StashJobsApi extends StashGraphqlClient {
         if (covered) {
           return job;
         }
-        this.logger.log(
+        this.logger.debug(
           `Started Stash's ${KIND_NAMES[kind]} for ${batch.items.size} ${kind.endsWith('scan') ? 'folder(s)' : kind === 'task' ? 'library task' : 'scene(s)'}${job ? ` (job ${job})` : ''}.`,
         );
         this.noteOurJob(config, job);

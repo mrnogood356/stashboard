@@ -59,6 +59,8 @@ const NEEDS_WHISPARR: CheckBody = {
 @Injectable()
 export class SetupCheckService {
   private readonly logger = new Logger(SetupCheckService.name);
+  /** The last summary logged at info, so an unchanged one is only debug. */
+  private lastSummary: string | null = null;
 
   /** Whether Stashboard can see a folder. Swapped in tests. */
   see: (folder: string) => Promise<boolean> = canSee;
@@ -138,9 +140,14 @@ export class SetupCheckService {
     const failing = checks.filter(
       (check) => check.status === 'fail' || check.status === 'warn',
     );
-    this.logger.log(
-      `Setup check: ${count('ok')} ok, ${count('warn')} warning(s), ${count('fail')} problem(s), ${count('skip')} skipped${failing.length ? ` (${failing.map((check) => check.title).join(', ')})` : ''}.`,
-    );
+    const summary = `Setup check: ${count('ok')} ok, ${count('warn')} warning(s), ${count('fail')} problem(s), ${count('skip')} skipped${failing.length ? ` (${failing.map((check) => check.title).join(', ')})` : ''}.`;
+    // The page asks often; only a result that changed is worth an info line.
+    if (summary !== this.lastSummary) {
+      this.lastSummary = summary;
+      this.logger.log(summary);
+    } else {
+      this.logger.debug(summary);
+    }
     return {
       checkedAt: new Date().toISOString(),
       checks,

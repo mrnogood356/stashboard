@@ -1,4 +1,4 @@
-import { BadGatewayException } from '@nestjs/common';
+import { BadGatewayException, Logger } from '@nestjs/common';
 import { RuntimeHealthService } from '../../runtime-health/runtime-health.service';
 import { withStashAccessHint } from './stash-graphql.client';
 import { StashAdapter, stashVersionAtLeast } from './stash.adapter';
@@ -1047,6 +1047,42 @@ describe('StashAdapter', () => {
       'STASH',
       expect.any(Error),
     );
+  });
+
+  it('warns once while Stash is out of reach, and says when it answers again', async () => {
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    const debug = jest
+      .spyOn(Logger.prototype, 'debug')
+      .mockImplementation(() => undefined);
+    const info = jest
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined);
+    const down = { baseUrl: 'http://stash-outage.local' };
+    fetchMock.mockRejectedValue(new Error('fetch failed'));
+    for (let n = 0; n < 3; n += 1) {
+      await expect(
+        adapter.findScenesByStashId('stash-1', down),
+      ).rejects.toBeInstanceOf(BadGatewayException);
+    }
+    const reach = (calls: unknown[][]) =>
+      calls.filter(([line]) => String(line).startsWith("Couldn't reach Stash"));
+    expect(reach(warn.mock.calls)).toHaveLength(1);
+    expect(reach(debug.mock.calls)).toHaveLength(2);
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ data: { findScenes: { scenes: [] } } }),
+    } as Response);
+    await adapter.findScenesByStashId('stash-1', down);
+    expect(info).toHaveBeenCalledWith(
+      expect.stringMatching(/^Stash answers again, after \d+s out of reach\.$/),
+    );
+    warn.mockRestore();
+    debug.mockRestore();
+    info.mockRestore();
   });
 
   it('reports a reply that is not JSON as a provider failure, not a crash', async () => {

@@ -150,7 +150,7 @@ export class DownloadsService {
         match: matchRelease(release.title, scene),
       })),
     );
-    this.logger.log(
+    this.logger.debug(
       `Prowlarr found ${releases.length} release(s) for “${scene.title ?? scene.id}” (${scene.source}).`,
     );
     return releases.length > 0

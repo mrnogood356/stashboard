@@ -1220,7 +1220,8 @@ export class OrganizerService
     if (linked.length > 0) {
       this.scheduleRefresh();
     }
-    this.logger.log(
+    // Info only when it linked something; the regular check usually doesn't.
+    this.logger[linked.length > 0 ? 'log' : 'debug'](
       `Linked ${linked.length} of ${files.length} scene(s) waiting for import to their catalog scenes.`,
     );
     return linked;
@@ -1265,7 +1266,8 @@ export class OrganizerService
       total: 3,
       message: 'Checking what Stash is out of date on…',
     };
-    this.logger.log(
+    // Runs after every Whisparr import; the finish line says what it did.
+    this.logger.debug(
       `Organizer started (${this.runState.kind}): ${this.runState.message}`,
     );
     try {
@@ -1530,7 +1532,7 @@ export class OrganizerService
         left = await waiting(ids);
       }
     }
-    this.logger.log(
+    this.logger[before.length > left.length ? 'log' : 'debug'](
       `Checked ${before.length} scene(s) waiting for import: ${before.length - left.length} fixed, ${left.length} still waiting.`,
     );
     return {

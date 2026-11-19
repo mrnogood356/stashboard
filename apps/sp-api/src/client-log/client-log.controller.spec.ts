@@ -16,6 +16,23 @@ describe('ClientLogController', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
+  it('writes the app’s tracing lines at debug', () => {
+    const debug = jest
+      .spyOn(Logger.prototype, 'debug')
+      .mockImplementation(() => undefined);
+    const info = jest
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined);
+    new ClientLogController().log(
+      { level: 'debug', message: 'App Lock on the phone: left the app.' },
+      phone,
+    );
+    expect(debug).toHaveBeenCalledWith(
+      'App Lock on the phone: left the app. (phone app)',
+    );
+    expect(info).not.toHaveBeenCalled();
+  });
+
   it('writes the app’s errors to the log, saying where they came from', () => {
     const error = jest
       .spyOn(Logger.prototype, 'error')
