@@ -332,6 +332,12 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
     }
   }
 
+  /** Why SABnzbd couldn't download a Prowlarr release before; null otherwise. */
+  protected failedBefore(release: WhisparrRelease): string | null {
+    const why = (release as WhisparrRelease & { failedBefore?: unknown }).failedBefore;
+    return typeof why === 'string' && why ? why : null;
+  }
+
   /** "Matches studio, date" or, for a weak one, why it's weak. */
   protected matchDetail(release: WhisparrRelease): string | null {
     const match = release.match;
