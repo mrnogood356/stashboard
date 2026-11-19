@@ -8,7 +8,7 @@ import { AppLockService } from '../../core/app-lock/app-lock.service';
 import { WatchLaterService } from '../../core/api/watch-later.service';
 import { PlayQueueService } from '../../core/play-queue/play-queue.service';
 import { signal, type WritableSignal } from '@angular/core';
-import { WatchPageComponent } from './watch-page.component';
+import { WatchPageComponent, previewLeft } from './watch-page.component';
 
 const baseInfo: PlaybackInfo = {
   sceneId: '12',
@@ -637,6 +637,57 @@ describe('WatchPageComponent', () => {
     fixture.detectChanges();
     expect(modes().map((track) => track.track.mode)).toEqual(['disabled', 'disabled']);
     delete (HTMLTrackElement.prototype as { track?: unknown }).track;
+  });
+
+  it('drags the seek bar with a finger: follows the finger, seeks on release, and a cancelled touch seeks nowhere', async () => {
+    const fixture = await render();
+    const root = fixture.nativeElement as HTMLElement;
+    const video = root.querySelector('video') as HTMLVideoElement;
+    const bar = root.querySelector('.seek') as HTMLElement;
+    vi.spyOn(bar, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      width: 400,
+      top: 0,
+      height: 44,
+    } as DOMRect);
+    const touch = (type: string, clientX: number) => {
+      const event = new MouseEvent(type, { bubbles: true, clientX, button: 0 });
+      Object.assign(event, { pointerType: 'touch', pointerId: 1 });
+      bar.dispatchEvent(event);
+      fixture.detectChanges();
+    };
+    const time = () => root.querySelector('.time')!.textContent!.trim().split(' / ')[0];
+    video.currentTime = 10;
+
+    touch('pointerdown', 100);
+    touch('pointermove', 200);
+    // Playback ticking along doesn't pull the bar back from the finger.
+    video.dispatchEvent(new Event('timeupdate'));
+    fixture.detectChanges();
+    expect(time()).toBe('15:00');
+    expect(bar.classList.contains('is-scrubbing')).toBe(true);
+    touch('pointerup', 200);
+    expect(video.currentTime).toBe(900);
+    expect(bar.classList.contains('is-scrubbing')).toBe(false);
+
+    // The phone takes the touch back halfway: nothing seeks, nothing stays stuck.
+    touch('pointerdown', 300);
+    touch('pointercancel', 300);
+    expect(video.currentTime).toBe(900);
+    expect(time()).toBe('15:00');
+    expect(root.querySelector('.scrub-preview')).toBeNull();
+    // A touch that isn't down doesn't scrub.
+    touch('pointermove', 50);
+    expect(root.querySelector('.scrub-preview')).toBeNull();
+  });
+
+  it('keeps the scrub preview on screen at either end of the bar', () => {
+    // A 160px thumbnail on a 400px bar: its centre stays 84px from each end.
+    expect(previewLeft(0, 400, 160)).toBe(21);
+    expect(previewLeft(100, 400, 160)).toBe(79);
+    expect(previewLeft(50, 400, 160)).toBe(50);
+    // Thumbnail wider than the bar: centred.
+    expect(previewLeft(10, 100, 300)).toBe(50);
   });
 
   it('loops a chapter from the chapter list', async () => {

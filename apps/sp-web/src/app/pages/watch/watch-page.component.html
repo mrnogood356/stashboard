@@ -246,6 +246,7 @@
     <div
       #seekBar
       class="seek"
+      [class.is-scrubbing]="!!scrub()"
       role="slider"
       tabindex="0"
       aria-label="Seek"
@@ -256,6 +257,8 @@
       (pointermove)="onSeekHover($event)"
       (pointerdown)="onSeekDown($event)"
       (pointerup)="onSeekUp($event)"
+      (pointercancel)="onSeekCancel()"
+      (lostpointercapture)="onSeekCancel()"
       (pointerleave)="onSeekLeave()"
       (keydown)="onSeekKey($event)"
     >

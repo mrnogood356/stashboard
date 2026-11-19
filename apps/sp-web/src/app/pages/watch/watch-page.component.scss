@@ -190,8 +190,25 @@
 }
 
 .seek:hover .seek-track,
-.seek:active .seek-track {
+.seek.is-scrubbing .seek-track {
   height: 6px;
+}
+
+/* Phones: a finger-sized bar that doesn't change size under the finger. */
+@media (pointer: coarse) {
+  .seek {
+    height: 2.75rem;
+    margin-block: -0.6rem;
+  }
+
+  .seek-track {
+    height: 5px;
+    transition: none;
+  }
+
+  .seek.is-scrubbing .seek-track {
+    height: 5px;
+  }
 }
 
 .seek-buffered,
@@ -1009,5 +1026,17 @@
 
   .skip-flash {
     animation: none;
+  }
+}
+
+/* Phones: the preview clears the finger, and the thumb grows while dragging. */
+@media (pointer: coarse) {
+  .scrub-preview {
+    bottom: 2.6rem;
+  }
+
+  .seek.is-scrubbing .seek-thumb {
+    width: 20px;
+    height: 20px;
   }
 }

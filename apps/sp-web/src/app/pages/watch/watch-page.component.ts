@@ -611,7 +611,10 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
       if (loop && loop.b !== null && video.currentTime >= loop.b) {
         video.currentTime = loop.a;
       }
-      this.currentTime.set(video.currentTime);
+      // While a finger drags the seek bar, the bar follows the finger, not playback.
+      if (!this.scrubbing) {
+        this.currentTime.set(video.currentTime);
+      }
       this.trackWatched(video.currentTime);
       const end = this.queued?.end;
       if (end !== undefined && !loop && video.currentTime >= end && !video.paused) {
@@ -1512,25 +1515,31 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
 
   // ---------- Seek bar with scrub previews ----------
 
-  private timeAtPointer(clientX: number): { time: number; left: number } | null {
+  private timeAtPointer(clientX: number): { time: number; left: number; width: number } | null {
     const bar = this.seekBarRef?.nativeElement;
     const duration = this.duration();
-    if (!bar || !duration) {
+    if (!bar || !duration || !(bar.getBoundingClientRect().width > 0)) {
       return null;
     }
     const rect = bar.getBoundingClientRect();
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    return { time: ratio * duration, left: ratio * 100 };
+    return { time: ratio * duration, left: ratio * 100, width: rect.width };
   }
 
   protected onSeekHover(event: PointerEvent): void {
+    // A touch only moves the bar while it's down; a mouse can hover for a preview.
+    if (event.pointerType !== 'mouse' && !this.scrubbing) {
+      return;
+    }
     const point = this.timeAtPointer(event.clientX);
     if (!point) {
       return;
     }
+    const cue = this.thumbnails.length ? cueAt(this.thumbnails, point.time) : null;
     this.scrub.set({
-      ...point,
-      cue: this.thumbnails.length ? cueAt(this.thumbnails, point.time) : null,
+      time: point.time,
+      left: previewLeft(point.left, point.width, cue?.width ?? 64),
+      cue,
     });
     if (this.scrubbing) {
       this.currentTime.set(point.time);
@@ -1538,19 +1547,43 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   }
 
   protected onSeekDown(event: PointerEvent): void {
+    if (event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
     this.scrubbing = true;
-    (event.target as HTMLElement).setPointerCapture?.(event.pointerId);
+    // Captured on the bar itself, so a finger that drifts off it keeps scrubbing.
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
     this.onSeekHover(event);
     this.showControls();
   }
 
   protected onSeekUp(event: PointerEvent): void {
+    if (!this.scrubbing) {
+      return;
+    }
     const point = this.timeAtPointer(event.clientX);
     this.scrubbing = false;
     this.scrub.set(null);
     if (point) {
       this.seekTo(point.time);
+    } else {
+      this.scheduleHideControls();
     }
+  }
+
+  /** The phone took the touch back (a system swipe, say): no seek, nothing stuck. */
+  protected onSeekCancel(): void {
+    if (!this.scrubbing) {
+      return;
+    }
+    const video = this.videoRef?.nativeElement;
+    this.scrubbing = false;
+    this.scrub.set(null);
+    if (video) {
+      this.currentTime.set(video.currentTime);
+    }
+    this.scheduleHideControls();
   }
 
   protected onSeekLeave(): void {
@@ -1756,4 +1789,16 @@ function cardOf(item: QueueItem): LocalSceneCard {
     type: 'SCENE',
     source: 'STASH',
   };
+}
+
+/**
+ * Where the scrub preview's centre sits, in % of the bar: under the finger,
+ * but never so close to an end that the thumbnail runs off the screen.
+ */
+export function previewLeft(left: number, barWidth: number, previewWidth: number): number {
+  if (!(barWidth > 0)) {
+    return left;
+  }
+  const half = Math.min(50, ((previewWidth / 2 + 4) / barWidth) * 100);
+  return Math.min(100 - half, Math.max(half, left));
 }
