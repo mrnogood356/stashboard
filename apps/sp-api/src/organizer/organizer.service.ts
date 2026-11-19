@@ -1273,9 +1273,14 @@ export class OrganizerService
     try {
       const result = await this.runWhisparrSync();
       this.finish(result.message);
+      // Problems along the way are a warning, even when the rest went fine.
       await this.record(
         'sync',
-        result.failed && !result.removed && !result.linked ? 'FAILED' : 'DONE',
+        result.failed && !result.removed && !result.linked
+          ? 'FAILED'
+          : result.failed || result.problems?.length
+            ? 'PARTIAL'
+            : 'DONE',
         result.message,
       );
       if (result.rescanned + result.removed + result.linked > 0) {
@@ -1428,6 +1433,7 @@ export class OrganizerService
       removed: removal.removed,
       linked: linked.length,
       failed: removal.failed.length,
+      problems,
       steps,
       message: `${summary}${failedNote}${problemNote}`,
     };

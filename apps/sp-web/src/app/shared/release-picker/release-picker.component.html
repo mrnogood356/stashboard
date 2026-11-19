@@ -171,7 +171,7 @@
               @if (viaProwlarr()) {
                 <div
                   class="release"
-                  [class.weak]="release.match?.strength === 'weak' || !!failedBefore(release)"
+                  [class.weak]="release.match?.strength === 'weak' || !!release.failedBefore"
                 >
                   <ng-container
                     [ngTemplateOutlet]="releaseCopy"
@@ -241,7 +241,7 @@
   <span class="release-copy">
     <span class="release-title">{{ release.title }}</span>
     <span class="chips">
-      @if (failedBefore(release)) {
+      @if (release.failedBefore) {
         <span class="chip poor" data-testid="failed-before">Failed before</span>
       }
       @if (matchLabel(release); as label) {
@@ -284,7 +284,7 @@
     @if (release.match && release.match.strength !== 'strong') {
       <span class="match-why">{{ matchDetail(release) }}</span>
     }
-    @if (failedBefore(release); as why) {
+    @if (release.failedBefore; as why) {
       <span class="why">SABnzbd couldn’t download this before: {{ why }}</span>
     }
     @if (release.rejected && release.rejections.length) {

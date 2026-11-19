@@ -423,6 +423,22 @@ describe('SmallerCopiesService', () => {
     expect(attempts.get('2')?.outcome).toBe('grabbed');
   });
 
+  it('won’t grab a listed match that failed in SABnzbd since, and looks again', async () => {
+    settings.autoGrab = false;
+    await service.tick();
+    downloads.searchReleases.mockResolvedValue({
+      releases: [release({ failedBefore: 'Out of retention.' })],
+    });
+
+    await expect(service.grabListed('2')).rejects.toThrow(
+      'SABnzbd couldn’t download that release before (Out of retention.)',
+    );
+    expect(downloads.grabRelease).not.toHaveBeenCalled();
+    expect(attempts.get('2')).toMatchObject({ outcome: 'none-found' });
+    const attempt = attempts.get('2') as { retryAfter: Date } | undefined;
+    expect(attempt?.retryAfter.getTime()).toBeLessThanOrEqual(now);
+  });
+
   it('only searches in the hours allowed, unless asked to now', async () => {
     settings.activeFromHour = 1;
     settings.activeToHour = 6;

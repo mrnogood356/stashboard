@@ -7,18 +7,28 @@ import type { Logger } from '@nestjs/common';
  */
 const unreachableSince = new Map<string, number>();
 
-/** The part of a URL an outage is about: the server, not the path. */
-function keyOf(url: string): string {
+/**
+ * What an outage is about: one service at one server. Every request path of
+ * that service shares it; another service behind the same reverse proxy
+ * doesn't.
+ */
+function keyOf(service: string, url: string): string {
+  let origin = url;
   try {
-    return new URL(url).origin;
+    origin = new URL(url).origin;
   } catch {
-    return url;
+    // Not a URL: the text itself.
   }
+  return `${service} ${origin}`;
 }
 
 /** True the first time a service is found out of reach. */
-export function markUnreachable(url: string, now: number): boolean {
-  const key = keyOf(url);
+export function markUnreachable(
+  service: string,
+  url: string,
+  now: number,
+): boolean {
+  const key = keyOf(service, url);
   if (unreachableSince.has(key)) {
     return false;
   }
@@ -27,8 +37,12 @@ export function markUnreachable(url: string, now: number): boolean {
 }
 
 /** How long it was out of reach, in ms; null when it wasn't. */
-export function markReachable(url: string, now: number): number | null {
-  const key = keyOf(url);
+export function markReachable(
+  service: string,
+  url: string,
+  now: number,
+): number | null {
+  const key = keyOf(service, url);
   const since = unreachableSince.get(key);
   if (since === undefined) {
     return null;
@@ -54,11 +68,12 @@ type OutageLogger = Pick<Logger, 'warn' | 'debug' | 'log'>;
  */
 export function logUnreachable(
   logger: OutageLogger,
+  service: string,
   url: string,
   line: string,
   now = Date.now(),
 ): void {
-  if (markUnreachable(url, now)) {
+  if (markUnreachable(service, url, now)) {
     logger.warn(
       `${line}. Until it answers again, further failures are logged at debug.`,
     );
@@ -70,11 +85,12 @@ export function logUnreachable(
 /** A request that reached the service: says so once after an outage. */
 export function logReachable(
   logger: OutageLogger,
+  service: string,
   url: string,
   name: string,
   now = Date.now(),
 ): void {
-  const downFor = markReachable(url, now);
+  const downFor = markReachable(service, url, now);
   if (downFor !== null) {
     logger.log(
       `${name} answers again, after ${formatOutage(downFor)} out of reach.`,

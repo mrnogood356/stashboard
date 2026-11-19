@@ -281,6 +281,7 @@ export abstract class StashGraphqlClient {
       // Once a warning while Stash is down; every retry after it is debug.
       logUnreachable(
         this.logger,
+        'stash',
         endpoint,
         `Couldn't reach Stash (${operation}): ${this.errorMessage(error)}`,
       );
@@ -289,7 +290,7 @@ export abstract class StashGraphqlClient {
       }
       throw new BadGatewayException('Failed to reach Stash provider endpoint.');
     }
-    logReachable(this.logger, endpoint, 'Stash');
+    logReachable(this.logger, 'stash', endpoint, 'Stash');
 
     if (!response.ok) {
       const message = withStashAccessHint(

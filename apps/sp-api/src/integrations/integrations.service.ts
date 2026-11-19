@@ -378,12 +378,18 @@ export class IntegrationsService {
     // A service that hangs would hold the answer for the whole request
     // timeout. Its probe goes on, and records what it finds, but the page
     // gets what's known after a few seconds.
-    await Promise.race([
-      Promise.allSettled(probes),
-      new Promise<void>((resolve) =>
-        setTimeout(resolve, RUNTIME_REFRESH_WAIT_MS).unref?.(),
-      ),
-    ]);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.allSettled(probes),
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, RUNTIME_REFRESH_WAIT_MS);
+          timer.unref?.();
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
 
     return this.runtimeHealthService.getSummary();
   }

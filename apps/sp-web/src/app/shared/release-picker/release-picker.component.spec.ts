@@ -412,6 +412,39 @@ describe('ReleasePickerComponent', () => {
       );
     });
 
+    it('keeps one that failed before last, whatever the order picked', async () => {
+      const api = {
+        search: vi.fn(),
+        searchProwlarr: vi.fn().mockReturnValue(
+          of({
+            releases: [
+              prowlarrRelease('small', {
+                title: 'Jane.Doe.24.03.15.720p',
+                size: 1e9,
+                match: { strength: 'strong', matched: ['studio', 'date'] },
+              }),
+              prowlarrRelease('huge-broken', {
+                title: 'Jane.Doe.24.03.15.2160p',
+                size: 9e9,
+                match: { strength: 'strong', matched: ['studio', 'date'] },
+                failedBefore: 'Aborted.',
+              }),
+            ],
+          }),
+        ),
+        grabProwlarr: vi.fn(),
+      };
+      const { fixture, root } = await renderProwlarr(api);
+      Array.from(root.querySelectorAll<HTMLButtonElement>('[role="tab"]'))
+        .find((tab) => tab.textContent?.includes('Biggest'))!
+        .click();
+      fixture.detectChanges();
+      const titles = Array.from(root.querySelectorAll('.release-title')).map((title) =>
+        title.textContent?.trim(),
+      );
+      expect(titles).toEqual(['Jane.Doe.24.03.15.720p', 'Jane.Doe.24.03.15.2160p']);
+    });
+
     it('says so when Finished downloads sent it to SABnzbd', async () => {
       const api = {
         search: vi.fn(),

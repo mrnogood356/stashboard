@@ -1465,6 +1465,7 @@ export class WhisparrAdapter {
     } catch (error) {
       logUnreachable(
         this.logger,
+        'whisparr',
         endpoint,
         `Couldn't reach Whisparr (${method} ${endpointPath(endpoint)}): ${this.errorMessage(error)}`,
       );
@@ -1472,7 +1473,7 @@ export class WhisparrAdapter {
         'Failed to reach Whisparr provider endpoint.',
       );
     }
-    logReachable(this.logger, endpoint, 'Whisparr');
+    logReachable(this.logger, 'whisparr', endpoint, 'Whisparr');
 
     if (!response.ok) {
       const message = await describeErrorResponse(

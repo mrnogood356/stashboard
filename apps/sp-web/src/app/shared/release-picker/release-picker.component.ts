@@ -133,6 +133,11 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
       return list;
     }
     return [...list].sort((left, right) => {
+      // One that failed before would fail again: last, whatever the order.
+      const failed = Number(!!left.failedBefore) - Number(!!right.failedBefore);
+      if (failed !== 0) {
+        return failed;
+      }
       if (sort === 'seeders') {
         return (right.seeders ?? -1) - (left.seeders ?? -1);
       }
@@ -330,12 +335,6 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
       default:
         return null;
     }
-  }
-
-  /** Why SABnzbd couldn't download a Prowlarr release before; null otherwise. */
-  protected failedBefore(release: WhisparrRelease): string | null {
-    const why = (release as WhisparrRelease & { failedBefore?: unknown }).failedBefore;
-    return typeof why === 'string' && why ? why : null;
   }
 
   /** "Matches studio, date" or, for a weak one, why it's weak. */

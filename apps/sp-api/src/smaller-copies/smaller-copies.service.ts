@@ -402,8 +402,30 @@ export class SmallerCopiesService {
     }
     const provider = (await this.catalog.getInstanceCatalogProvider())
       .providerKey;
-    // The grab needs a fresh search result to find the release by.
-    await this.downloads.searchReleases(index.linkedStashId, provider);
+    // The grab needs a fresh search result to find the release by. It also
+    // says whether the release failed in SABnzbd since it was listed.
+    const found = await this.downloads.searchReleases(
+      index.linkedStashId,
+      provider,
+    );
+    const listed = found.releases.find(
+      (release) =>
+        release.guid === row.releaseGuid ||
+        releaseKeyOf(release.title) === releaseKeyOf(row.releaseTitle),
+    );
+    if (listed?.failedBefore) {
+      // Searched again on the next pass, for another release.
+      await this.note(stashSceneId, {
+        title: row.title,
+        oldSize: row.oldSize,
+        outcome: 'none-found',
+        detail: `The match SABnzbd couldn’t download before: ${listed.failedBefore}`,
+        retryAfter: new Date(this.now()),
+      });
+      throw new BadRequestException(
+        `SABnzbd couldn’t download that release before (${listed.failedBefore}), so it wasn’t sent again. It’ll look for another.`,
+      );
+    }
     const sent = await this.downloads.grabRelease(
       index.linkedStashId,
       {

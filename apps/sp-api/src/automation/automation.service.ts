@@ -86,6 +86,14 @@ const SCAN_PREVIEWS_POLL_MS = 5_000;
  * Triggered by Whisparr's webhook (instant) or, as a backup, by noticing
  * scenes Whisparr has a file for that Stash doesn't have yet.
  */
+/**
+ * A run that found nothing and did nothing more than the routine rescan
+ * after Whisparr: debug. One that also made previews, linked, matched or
+ * tidied stays at info.
+ */
+export const NOTHING_DONE =
+  /^No new scenes found(?:, rescanned \d+ folders?)?\.?$/;
+
 @Injectable()
 export class AutomationService
   implements OnApplicationBootstrap, OnModuleDestroy
@@ -1014,7 +1022,7 @@ export class AutomationService
         `Library automation (${reason}) failed: ${message}`,
         error instanceof Error ? error.stack : undefined,
       );
-    } else if (/^No new scenes/.test(message)) {
+    } else if (NOTHING_DONE.test(message)) {
       this.logger.debug(`Library automation (${reason}) finished: ${message}`);
     } else {
       this.logger.log(`Library automation (${reason}) finished: ${message}`);

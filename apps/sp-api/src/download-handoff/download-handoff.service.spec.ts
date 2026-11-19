@@ -15,6 +15,7 @@ import {
   DownloadHandoffService,
   insideLibrary,
   releaseKeyOf,
+  SAB_DOWNLOAD_FAILED,
 } from './download-handoff.service';
 
 describe('DownloadHandoffService', () => {
@@ -127,15 +128,15 @@ describe('DownloadHandoffService', () => {
           }: {
             where: {
               status?: string | { in: string[] };
-              releaseTitle?: { in: string[] };
+              error?: { startsWith: string };
             };
           }) =>
             Promise.resolve(
               rows.filter(
                 (entry) =>
                   matches(entry, where ?? {}) &&
-                  (!where?.releaseTitle ||
-                    where.releaseTitle.in.includes(entry.releaseTitle)),
+                  (!where?.error ||
+                    (entry.error ?? '').startsWith(where.error.startsWith)),
               ),
             ),
         ),
@@ -1427,29 +1428,37 @@ describe('DownloadHandoffService', () => {
     });
   });
 
-  it('knows which releases failed before, whatever their case or spacing', async () => {
+  it('knows which releases SABnzbd failed before, whatever their case or spacing', async () => {
     rows.push(
       handoff({
         id: 'h1',
-        releaseTitle: 'BangBus.25.06.11.XXX.1080p',
+        releaseTitle: 'BangBus.25.06.11  XXX.1080p',
         status: 'failed',
-        error: 'RAR files failed to verify.',
+        error: `${SAB_DOWNLOAD_FAILED} RAR files failed to verify.`,
       }),
+      // Failed while being brought in, not in SABnzbd: the release is fine.
       handoff({
         id: 'h2',
         releaseTitle: 'Fine.Release.1080p',
+        status: 'failed',
+        error: 'No destination is set, so it was left in SABnzbd’s folder.',
+      }),
+      handoff({
+        id: 'h3',
+        releaseTitle: 'Other.Release.1080p',
         status: 'imported',
       }),
     );
     const failed = await service.failedReleases([
-      'BangBus.25.06.11.XXX.1080p',
+      'bangbus.25.06.11 XXX.1080p',
       'Fine.Release.1080p',
+      'Other.Release.1080p',
     ]);
     expect([...failed]).toEqual([
-      ['bangbus.25.06.11.xxx.1080p', 'RAR files failed to verify.'],
+      ['bangbus.25.06.11 xxx.1080p', 'RAR files failed to verify.'],
     ]);
-    expect(releaseKeyOf('  BangBus.25.06.11.XXX.1080p ')).toBe(
-      'bangbus.25.06.11.xxx.1080p',
+    expect(releaseKeyOf('  BangBus.25.06.11\tXXX.1080p ')).toBe(
+      'bangbus.25.06.11 xxx.1080p',
     );
     await expect(service.failedReleases([])).resolves.toEqual(new Map());
   });
