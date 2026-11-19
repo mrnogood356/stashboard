@@ -800,6 +800,56 @@ describe('WatchPageComponent', () => {
     fixture.destroy();
   });
 
+  it('keeps the controls up while a menu is open, and hides them after it closes, however it closed', async () => {
+    vi.useFakeTimers();
+    try {
+      const fixture = await render();
+      const root = fixture.nativeElement as HTMLElement;
+      const component = fixture.componentInstance as unknown as {
+        controlsVisible: WritableSignal<boolean>;
+      };
+      const video = root.querySelector('video') as HTMLVideoElement;
+      video.dispatchEvent(new Event('playing'));
+      root.querySelector<HTMLButtonElement>('[data-testid="more-button"]')!.click();
+      fixture.detectChanges();
+
+      vi.advanceTimersByTime(10_000);
+      expect(component.controlsVisible()).toBe(true);
+
+      // Closed by an action, not a subtitle pick: the controls still go away.
+      root.querySelector<HTMLButtonElement>('[data-testid="watch-later-toggle"]')!.click();
+      fixture.detectChanges();
+      vi.advanceTimersByTime(10_000);
+      expect(component.controlsVisible()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('marks the chosen subtitle track as the default one, as Safari needs', async () => {
+    playback.getInfo.mockReturnValue(
+      of({
+        ...baseInfo,
+        captions: [
+          { language: 'en', label: 'English (SRT)', url: '/c/en' },
+          { language: 'de', label: 'German (VTT)', url: '/c/de' },
+        ],
+      }),
+    );
+    const fixture = await render();
+    const root = fixture.nativeElement as HTMLElement;
+    const defaults = () =>
+      Array.from(root.querySelectorAll('video track')).map((track) =>
+        track.hasAttribute('default'),
+      );
+    expect(defaults()).toEqual([false, false]);
+    root.querySelector<HTMLButtonElement>('[data-testid="more-button"]')!.click();
+    fixture.detectChanges();
+    root.querySelectorAll<HTMLButtonElement>('[data-testid="caption-option"]')[1].click();
+    fixture.detectChanges();
+    expect(defaults()).toEqual([false, true]);
+  });
+
   it('plays at 2× while you hold the picture, then goes back to your speed', async () => {
     vi.useFakeTimers();
     try {

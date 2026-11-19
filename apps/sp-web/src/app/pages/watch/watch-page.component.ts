@@ -1500,16 +1500,22 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   private scheduleHideControls(): void {
     this.clearTimer(this.hideTimer);
     this.hideTimer = setTimeout(() => {
-      if (
-        this.playing() &&
-        !this.qualityMenuOpen() &&
-        !this.speedMenuOpen() &&
-        !this.moreMenuOpen() &&
-        !this.chaptersMenuOpen() &&
-        !this.scrubbing
-      ) {
-        this.controlsVisible.set(false);
+      if (!this.playing()) {
+        return;
       }
+      // A menu open or a finger on the bar: keep the controls up and look
+      // again later, so they still hide once it's closed, however it closed.
+      if (
+        this.qualityMenuOpen() ||
+        this.speedMenuOpen() ||
+        this.moreMenuOpen() ||
+        this.chaptersMenuOpen() ||
+        this.scrubbing
+      ) {
+        this.scheduleHideControls();
+        return;
+      }
+      this.controlsVisible.set(false);
     }, CONTROLS_HIDE_MS);
   }
 

@@ -16,6 +16,7 @@
         [attr.src]="caption.url"
         [attr.srclang]="caption.language || null"
         [attr.label]="caption.label"
+        [attr.default]="activeCaption()?.url === caption.url ? '' : null"
       />
     }
   </video>
