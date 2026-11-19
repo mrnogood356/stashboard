@@ -12,7 +12,10 @@ import { SabnzbdAdapter } from '../providers/sabnzbd/sabnzbd.adapter';
 import { buildCatalogProviderSelectionConfig } from '../providers/catalog/catalog-provider.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { RuntimeHealthService } from '../runtime-health/runtime-health.service';
-import { IntegrationsService } from './integrations.service';
+import {
+  IntegrationsService,
+  RUNTIME_REFRESH_WAIT_MS,
+} from './integrations.service';
 
 describe('IntegrationsService', () => {
   const upsert = jest.fn<Promise<unknown>, [Record<string, unknown>]>();
@@ -831,5 +834,38 @@ describe('IntegrationsService', () => {
     });
     expect(prowlarrTestConnection).not.toHaveBeenCalled();
     expect(getRuntimeHealthSummary).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers a health refresh after a few seconds even when a service hangs', async () => {
+    jest.useFakeTimers();
+    try {
+      findMany.mockResolvedValue([
+        {
+          type: IntegrationType.STASH,
+          enabled: true,
+          status: IntegrationStatus.CONFIGURED,
+          baseUrl: 'http://stash.local',
+          apiKey: 'stash-token',
+          lastHealthyAt: new Date('2026-04-01T00:00:00.000Z'),
+        },
+      ]);
+      stashProbeConnection.mockReturnValue(new Promise(() => undefined));
+      getRuntimeHealthSummary.mockResolvedValue({
+        degraded: false,
+        services: {},
+      });
+
+      let answered = false;
+      const refresh = service.refreshRuntimeHealth().then(() => {
+        answered = true;
+      });
+      await jest.advanceTimersByTimeAsync(RUNTIME_REFRESH_WAIT_MS - 1);
+      expect(answered).toBe(false);
+      await jest.advanceTimersByTimeAsync(1);
+      await refresh;
+      expect(answered).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

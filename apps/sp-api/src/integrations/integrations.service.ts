@@ -57,6 +57,9 @@ type TestedIntegrationConfig = IntegrationConfig & {
   status: Extract<IntegrationStatus, 'CONFIGURED' | 'ERROR'>;
 };
 
+/** How long a health refresh waits for its probes before answering. */
+export const RUNTIME_REFRESH_WAIT_MS = 8_000;
+
 @Injectable()
 export class IntegrationsService {
   private readonly logger = new Logger(IntegrationsService.name);
@@ -372,7 +375,15 @@ export class IntegrationsService {
     this.logger.debug(
       `Checking ${probes.length} integration(s) are reachable.`,
     );
-    await Promise.allSettled(probes);
+    // A service that hangs would hold the answer for the whole request
+    // timeout. Its probe goes on, and records what it finds, but the page
+    // gets what's known after a few seconds.
+    await Promise.race([
+      Promise.allSettled(probes),
+      new Promise<void>((resolve) =>
+        setTimeout(resolve, RUNTIME_REFRESH_WAIT_MS).unref?.(),
+      ),
+    ]);
 
     return this.runtimeHealthService.getSummary();
   }

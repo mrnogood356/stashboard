@@ -1,3 +1,4 @@
+import { logReachable, logUnreachable } from '../../logging/outage';
 import { BadGatewayException, Logger } from '@nestjs/common';
 import { RuntimeHealthServiceKey } from '@prisma/client';
 import { RuntimeHealthService } from '../../runtime-health/runtime-health.service';
@@ -302,7 +303,9 @@ export abstract class StashdbGraphqlClient {
         throw error;
       }
       const message = this.providerRequestFailureMessage(error);
-      this.logger.warn(
+      logUnreachable(
+        this.logger,
+        endpoint,
         `Couldn't reach the catalog at ${hostOf(endpoint)} (${operation}): ${this.errorMessage(error)}`,
       );
       if (trackRuntimeHealth) {
@@ -310,6 +313,8 @@ export abstract class StashdbGraphqlClient {
       }
       throw new BadGatewayException(message);
     }
+
+    logReachable(this.logger, endpoint, `The catalog at ${hostOf(endpoint)}`);
 
     if (!response.ok) {
       const message = await describeErrorResponse(response, 'StashDB provider');

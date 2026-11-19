@@ -72,6 +72,20 @@ describe('httpRequestLogger', () => {
     );
   });
 
+  it('never calls a video stream slow, but still warns when it fails', () => {
+    const url = '/api/playback/stream/token/scene/12/stream';
+    expect(run({ originalUrl: url }, 206, 600_000).warn).not.toHaveBeenCalled();
+    expect(run({ originalUrl: url }, 502, 900).warn).toHaveBeenCalledWith(
+      `GET ${url} 502 900ms 192.168.1.20`,
+    );
+  });
+
+  it('gives Better copies’ Search one now as long as a release search', () => {
+    const search = { method: 'POST', originalUrl: '/api/smaller-copies/next' };
+    expect(run(search, 200, 9_000).warn).not.toHaveBeenCalled();
+    expect(run(search, 200, 25_000).warn).toHaveBeenCalled();
+  });
+
   it('gives Organizer lookups and the empty-folder scan longer too', () => {
     const lookup = { method: 'POST', originalUrl: '/api/organizer/lookup' };
     expect(run(lookup, 200, 8347).warn).not.toHaveBeenCalled();
