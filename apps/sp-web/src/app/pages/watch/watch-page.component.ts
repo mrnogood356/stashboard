@@ -1136,6 +1136,8 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   protected chooseCaption(caption: PlaybackCaption | null): void {
     this.activeCaption.set(caption);
     this.moreMenuOpen.set(false);
+    // The menu kept the controls up; let them hide again.
+    this.scheduleHideControls();
     this.applyCaption();
     this.showHud(caption ? `Subtitles: ${caption.label}` : 'Subtitles off');
   }
@@ -1495,7 +1497,14 @@ export class WatchPageComponent implements AfterViewInit, OnDestroy {
   private scheduleHideControls(): void {
     this.clearTimer(this.hideTimer);
     this.hideTimer = setTimeout(() => {
-      if (this.playing() && !this.qualityMenuOpen() && !this.speedMenuOpen() && !this.scrubbing) {
+      if (
+        this.playing() &&
+        !this.qualityMenuOpen() &&
+        !this.speedMenuOpen() &&
+        !this.moreMenuOpen() &&
+        !this.chaptersMenuOpen() &&
+        !this.scrubbing
+      ) {
         this.controlsVisible.set(false);
       }
     }, CONTROLS_HIDE_MS);

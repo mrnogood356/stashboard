@@ -595,16 +595,18 @@ describe('WatchPageComponent', () => {
     );
     const fixture = await render({ sceneIds });
     const root = fixture.nativeElement as HTMLElement;
-    const modes = () => {
-      // jsdom has no TextTrack: give each <track> a stand-in to read back.
-      const tracks = Array.from(root.querySelectorAll<HTMLTrackElement>('video track'));
-      for (const track of tracks) {
-        if (!track.track) {
-          Object.defineProperty(track, 'track', { value: { mode: 'disabled' } });
+    // jsdom has no TextTrack: give every <track>, as it's drawn, a stand-in to read back.
+    const stand = new WeakMap<HTMLTrackElement, { mode: TextTrackMode }>();
+    Object.defineProperty(HTMLTrackElement.prototype, 'track', {
+      configurable: true,
+      get(this: HTMLTrackElement) {
+        if (!stand.has(this)) {
+          stand.set(this, { mode: 'disabled' });
         }
-      }
-      return tracks;
-    };
+        return stand.get(this);
+      },
+    });
+    const modes = () => Array.from(root.querySelectorAll<HTMLTrackElement>('video track'));
     const openMore = () => {
       root.querySelector<HTMLButtonElement>('[data-testid="more-button"]')!.click();
       fixture.detectChanges();
@@ -626,6 +628,7 @@ describe('WatchPageComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     expect(modes()[1].getAttribute('src')).toContain('/scene/13/caption?lang=de');
+    expect(modes().map((track) => track.track.mode)).toEqual(['disabled', 'showing']);
     openMore();
     const checked = root.querySelector('[data-testid="caption-option"][aria-checked="true"]');
     expect(checked?.textContent?.trim()).toBe('German (VTT)');
@@ -633,6 +636,7 @@ describe('WatchPageComponent', () => {
     root.querySelector<HTMLButtonElement>('[data-testid="captions-off"]')!.click();
     fixture.detectChanges();
     expect(modes().map((track) => track.track.mode)).toEqual(['disabled', 'disabled']);
+    delete (HTMLTrackElement.prototype as { track?: unknown }).track;
   });
 
   it('loops a chapter from the chapter list', async () => {
