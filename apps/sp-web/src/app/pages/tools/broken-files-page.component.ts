@@ -1,6 +1,6 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { Observable, Subscription, firstValueFrom } from 'rxjs';
+import { Observable, Subscription, firstValueFrom, map, of, switchMap } from 'rxjs';
 import {
   LocalLibraryService,
   ProblemKind,
@@ -71,8 +71,6 @@ export const PROBLEMS: Record<ProblemKind, ProblemInfo> = {
 /** How often, and how many times, a started job is checked on (half an hour). */
 const FOLLOW_EVERY_MS = 5000;
 const FOLLOW_CHECKS = 360;
-/** Clear checks in a row before Generate counts as done (15s, past the rescan's 12s wait). */
-const GENERATE_QUIET_CHECKS = 3;
 
 /** Up to this many listed scenes get Generate for themselves; more runs it for the library. */
 const GENERATE_FOR_LISTED = 50;
@@ -194,40 +192,48 @@ export class BrokenFilesPageComponent implements OnInit {
     this.stopFollowing();
     this.following.set({ kind, action });
     let checks = 0;
-    // Generate's preview rescan can wait a few seconds in Stashboard before
-    // it reaches Stash's queue (when Stash's queue had a job waiting): the
-    // queue has to stay clear for a few checks in a row before it's done.
-    const quietNeeded = action === 'generate' ? GENERATE_QUIET_CHECKS : 1;
-    let quiet = 0;
     const check = () => {
       checks += 1;
-      this.followRequest = this.library.jobs().subscribe({
-        next: (jobs) => {
-          const busy = jobs.some((job) => job.id === jobId || job.byStashboard === true);
-          quiet = busy ? 0 : quiet + 1;
-          if (quiet >= quietNeeded) {
-            this.stopFollowing();
-            this.notifications.success(
-              action === 'generate' ? 'Generate is done' : 'The scan is done',
-              'The list is up to date.',
-            );
-            // A fresh check either way: the background lists keep a result.
-            this.load(true);
-          } else if (checks < FOLLOW_CHECKS) {
-            this.followTimer = setTimeout(check, FOLLOW_EVERY_MS);
-          } else {
-            this.following.set(null);
-          }
-        },
-        // Stash not answering for a moment: keep waiting.
-        error: () => {
-          if (checks < FOLLOW_CHECKS) {
-            this.followTimer = setTimeout(check, FOLLOW_EVERY_MS);
-          } else {
-            this.following.set(null);
-          }
-        },
-      });
+      // Generate's preview rescan can wait in Stashboard for room in Stash's
+      // queue (behind anyone's job) before it's in Stash's job list: until
+      // it's there, Stashboard says it's still to come.
+      // The count first, then a fresh job list: a rescan handed over in
+      // between shows in the list rather than slipping past both. A count
+      // that couldn't be read is a check to try again, not "nothing waiting".
+      const pending =
+        action === 'generate' ? this.library.pendingJobs() : of({ previewRescans: 0 });
+      this.followRequest = pending
+        .pipe(
+          switchMap((waiting) => this.library.jobs().pipe(map((jobs) => [jobs, waiting] as const))),
+        )
+        .subscribe({
+          next: ([jobs, waiting]) => {
+            const busy =
+              waiting.previewRescans > 0 ||
+              jobs.some((job) => job.id === jobId || job.byStashboard === true);
+            if (!busy) {
+              this.stopFollowing();
+              this.notifications.success(
+                action === 'generate' ? 'Generate is done' : 'The scan is done',
+                'The list is up to date.',
+              );
+              // A fresh check either way: the background lists keep a result.
+              this.load(true);
+            } else if (checks < FOLLOW_CHECKS) {
+              this.followTimer = setTimeout(check, FOLLOW_EVERY_MS);
+            } else {
+              this.following.set(null);
+            }
+          },
+          // Stash not answering for a moment: keep waiting.
+          error: () => {
+            if (checks < FOLLOW_CHECKS) {
+              this.followTimer = setTimeout(check, FOLLOW_EVERY_MS);
+            } else {
+              this.following.set(null);
+            }
+          },
+        });
     };
     this.followTimer = setTimeout(check, FOLLOW_EVERY_MS);
   }

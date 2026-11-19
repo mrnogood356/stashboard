@@ -354,6 +354,30 @@ describe('LocalLibraryService', () => {
     });
   });
 
+  it('counts a preview rescan as still to come until it is in Stash’s queue', async () => {
+    stash.getOrganizerScene.mockResolvedValue(withHash('o'));
+    let handOver!: (job: string) => void;
+    stash.rescanForPreviews.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        handOver = resolve;
+      }),
+    );
+    // An earlier test's rescan may never have been handed over: count from here.
+    const before = service.pendingWork().previewRescans;
+    await service.generateFor(['4']);
+    // Generate has answered; the rescan still waits for room in Stash.
+    expect(service.pendingWork().previewRescans).toBe(before + 1);
+    handOver('9');
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(service.pendingWork().previewRescans).toBe(before);
+
+    // One that fails is no longer waiting either.
+    stash.rescanForPreviews.mockRejectedValueOnce(new Error('Stash is busy'));
+    await service.generateFor(['4']);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(service.pendingWork().previewRescans).toBe(before);
+  });
+
   it('asks for no rescan when no scene can be made again', async () => {
     stash.getOrganizerScene.mockResolvedValue(withHash(null));
     await service.generateFor(['4']);
