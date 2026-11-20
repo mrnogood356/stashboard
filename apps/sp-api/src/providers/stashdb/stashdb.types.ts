@@ -627,3 +627,21 @@ export interface StashdbSceneFacets {
   tags: StashdbFacet[];
   studios: StashdbFacet[];
 }
+
+/** A scene someone submitted to the catalog that isn't accepted yet. */
+export interface StashdbPendingScene {
+  editId: string;
+  title: string | null;
+  date: string | null;
+  duration: number | null;
+  studio: { id: string; name: string } | null;
+  performers: Array<{ id: string; name: string }>;
+  imageUrl: string | null;
+  votes: number;
+  submittedAt: string | null;
+}
+
+export interface StashdbPendingScenesResult {
+  total: number;
+  scenes: StashdbPendingScene[];
+}

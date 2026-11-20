@@ -56,7 +56,8 @@ describe('SuggestionsService', () => {
         getScenesForPerformer: jest
           .fn()
           .mockResolvedValue({ total: 2, scenes: [scene('a'), scene('b')] }),
-        getScenesBySort: jest.fn(),
+        getScenesBySort: jest.fn().mockResolvedValue({ total: 0, scenes: [] }),
+        findTagIdsByNames: jest.fn().mockResolvedValue(new Map()),
       },
       sceneStatus: {
         resolveForScenes: jest.fn((ids: string[]) =>
@@ -179,5 +180,84 @@ describe('SuggestionsService', () => {
     expect(
       deps.stashdb.getScenesForPerformer.mock.calls[0][0],
     ).not.toHaveProperty('tagIds');
+  });
+
+  it('asks for popular scenes in the categories you watch, and for co-stars’ scenes', async () => {
+    const { service, deps } = setup();
+    const watched = (tags: string[]) => ({
+      playCount: 3,
+      oCounter: 1,
+      rating100: null,
+      lastPlayedAt: new Date().toISOString(),
+      performers: [{ catalogId: 'p-k', name: 'Kaitlyn', favorite: false }],
+      studio: null,
+      tags,
+    });
+    deps.stash.listWatchHistory.mockResolvedValue([
+      watched(['Anal', 'Outdoors']),
+      watched(['Anal']),
+      watched(['Outdoors']),
+    ]);
+    deps.stashdb.findTagIdsByNames.mockResolvedValue(
+      new Map([
+        ['anal', 'tag-anal'],
+        ['outdoors', 'tag-out'],
+      ]),
+    );
+    const withCostar = (id: string) => ({
+      id,
+      title: id,
+      details: null,
+      imageUrl: null,
+      studioId: null,
+      studioName: null,
+      studioImageUrl: null,
+      date: null,
+      releaseDate: '2026-10-01',
+      productionDate: null,
+      duration: 1800,
+      performers: [
+        { id: 'p-k', name: 'Kaitlyn' },
+        { id: 'p-new', name: 'Nova' },
+      ],
+    });
+    deps.stashdb.getScenesForPerformer.mockImplementation(
+      ({ performerId }: { performerId: string }) =>
+        Promise.resolve(
+          performerId === 'p-new'
+            ? {
+                total: 1,
+                scenes: [
+                  {
+                    ...withCostar('n1'),
+                    performers: [{ id: 'p-new', name: 'Nova' }],
+                  },
+                ],
+              }
+            : { total: 2, scenes: [withCostar('a'), withCostar('b')] },
+        ),
+    );
+
+    const result = await service.list();
+
+    // Popular scenes in each category you watch, by its catalog id.
+    const tagCalls = deps.stashdb.getScenesBySort.mock.calls.map(
+      (call: Array<{ sort: string; tagFilter?: { tagIds: string[] } }>) =>
+        call[0],
+    );
+    expect(tagCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sort: 'TRENDING',
+          tagFilter: { tagIds: ['tag-anal'], mode: 'OR' },
+        }),
+      ]),
+    );
+    // Nova is in two of Kaitlyn's scenes: her own scenes are asked for too.
+    expect(deps.stashdb.getScenesForPerformer).toHaveBeenCalledWith(
+      expect.objectContaining({ performerId: 'p-new' }),
+    );
+    const nova = result.items.find((item) => item.id === 'n1');
+    expect(nova?.reason.text).toBe('With Nova, often seen with Kaitlyn');
   });
 });

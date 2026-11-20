@@ -150,6 +150,10 @@
       </div>
     </section>
 
+    @if (performerId(); as currentPerformerId) {
+      <app-pending-scenes kind="performer" [targetId]="currentPerformerId" />
+    }
+
     <section class="section scenes-section" aria-label="Performer scene filters">
       <h2>Scenes</h2>
       <div class="filter-bar" data-testid="performer-filter-bar">

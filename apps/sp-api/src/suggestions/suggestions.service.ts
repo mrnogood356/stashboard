@@ -17,6 +17,8 @@ import { ScenesService } from '../scenes/scenes.service';
 import {
   type SuggestionReason,
   buildTasteProfile,
+  diversify,
+  findCostars,
   pickSources,
   rankCandidates,
   reshuffle,
@@ -42,6 +44,12 @@ const PERFORMER_POOL = 20;
 const TOP_STUDIOS = 2;
 const EXTRA_STUDIOS = 2;
 const STUDIO_POOL = 10;
+/** Categories you watch most, asked for their popular scenes. */
+const TOP_TAGS = 2;
+const EXTRA_TAGS = 1;
+const TAG_POOL = 6;
+/** People who keep turning up with those you watch, asked for their scenes. */
+const COSTARS = 3;
 /** Scenes asked for per performer or studio (one page). */
 const PER_SOURCE = 20;
 /** How deep a shuffle can reach into someone's scenes (pages of PER_SOURCE). */
@@ -84,6 +92,8 @@ export class SuggestionsService {
   private readonly running = new Map<string, Promise<SuggestionsDto>>();
   /** How many scenes each performer or studio has, learnt as they're asked about. */
   private readonly sourceTotals = new Map<string, number>();
+  /** Each category name's catalog id (or null), learnt once. */
+  private readonly tagIds = new Map<string, string | null>();
   /** What the last few lists put first, for a shuffle to move past. */
   private recentlyShown = new Set<string>();
   /** Used by tests for a fixed draw. */
@@ -247,51 +257,116 @@ export class SuggestionsService {
         );
         return null;
       });
-    const results = await Promise.all([
-      ...performers.map((entry) =>
-        quietly(
-          this.stashdb.getScenesForPerformer({
-            ...catalog,
-            performerId: entry.catalogId,
-            page: this.pageFor(
-              `performer:${entry.catalogId}${tagKey}`,
-              shuffled,
+    const performerScenes = (catalogId: string, name: string) =>
+      quietly(
+        this.stashdb.getScenesForPerformer({
+          ...catalog,
+          performerId: catalogId,
+          page: this.pageFor(`performer:${catalogId}${tagKey}`, shuffled),
+          perPage: PER_SOURCE,
+          sort: 'DATE',
+          direction: 'DESC',
+          includeTagNames: true,
+          ...(tags.length > 0 ? { tagIds: tags } : {}),
+        }),
+        `${name}'s scenes`,
+      );
+    // Categories you watch most, for their popular scenes: only when no
+    // categories were picked, which already narrow the list.
+    const tagSources =
+      tags.length > 0
+        ? []
+        : await this.catalogTagSources(
+            catalog,
+            pickSources(
+              (profile.tags ?? []).map((entry) => ({
+                catalogId: entry.key,
+                name: entry.name,
+                weight: entry.weight,
+              })),
+              TOP_TAGS,
+              EXTRA_TAGS,
+              TAG_POOL,
+              this.random,
             ),
-            perPage: PER_SOURCE,
-            sort: 'DATE',
-            direction: 'DESC',
-            includeTagNames: true,
-            ...(tags.length > 0 ? { tagIds: tags } : {}),
-          }),
-          `${entry.name}'s scenes`,
+          );
+    const [performerResults, studioResults, tagResults] = await Promise.all([
+      Promise.all(
+        performers.map((entry) => performerScenes(entry.catalogId, entry.name)),
+      ),
+      Promise.all(
+        studios.map((entry) =>
+          quietly(
+            this.stashdb.getScenesBySort({
+              ...catalog,
+              page: this.pageFor(
+                `studio:${entry.catalogId}${tagKey}`,
+                shuffled,
+              ),
+              perPage: PER_SOURCE,
+              sort: 'DATE',
+              direction: 'DESC',
+              studioIds: [entry.catalogId],
+              includeTagNames: true,
+              ...(tags.length > 0
+                ? { tagFilter: { tagIds: tags, mode: 'OR' as const } }
+                : {}),
+            }),
+            `${entry.name}'s scenes`,
+          ),
         ),
       ),
-      ...studios.map((entry) =>
-        quietly(
-          this.stashdb.getScenesBySort({
-            ...catalog,
-            page: this.pageFor(`studio:${entry.catalogId}${tagKey}`, shuffled),
-            perPage: PER_SOURCE,
-            sort: 'DATE',
-            direction: 'DESC',
-            studioIds: [entry.catalogId],
-            includeTagNames: true,
-            ...(tags.length > 0
-              ? { tagFilter: { tagIds: tags, mode: 'OR' as const } }
-              : {}),
-          }),
-          `${entry.name}'s scenes`,
+      Promise.all(
+        tagSources.map((entry) =>
+          quietly(
+            this.stashdb.getScenesBySort({
+              ...catalog,
+              page: this.pageFor(`tag:${entry.catalogId}`, shuffled),
+              perPage: PER_SOURCE,
+              sort: 'TRENDING',
+              direction: 'DESC',
+              includeTagNames: true,
+              tagFilter: { tagIds: [entry.catalogId], mode: 'OR' as const },
+            }),
+            `popular ${entry.name} scenes`,
+          ),
         ),
       ),
     ]);
+    // People who keep turning up with the ones you watch: new faces close to
+    // your taste, asked for in a second round.
+    profile.costars = findCostars(
+      performerResults.flatMap((result) => result?.scenes ?? []),
+      profile,
+      COSTARS,
+    );
+    const costarResults = await Promise.all(
+      profile.costars.map((entry) =>
+        performerScenes(entry.catalogId, entry.name),
+      ),
+    );
     this.learnTotals(
       [
         ...performers.map((entry) => `performer:${entry.catalogId}${tagKey}`),
         ...studios.map((entry) => `studio:${entry.catalogId}${tagKey}`),
+        ...tagSources.map((entry) => `tag:${entry.catalogId}`),
+        ...profile.costars.map(
+          (entry) => `performer:${entry.catalogId}${tagKey}`,
+        ),
       ],
-      results.map((result) => result?.total ?? null),
+      [
+        ...performerResults,
+        ...studioResults,
+        ...tagResults,
+        ...costarResults,
+      ].map((result) => result?.total ?? null),
     );
-    const candidates = results.flatMap((result) => result?.scenes ?? []);
+    const candidates = [
+      ...performerResults,
+      ...studioResults,
+      ...tagResults,
+      ...costarResults,
+    ].flatMap((result) => result?.scenes ?? []);
 
     const rules =
       (await this.hiddenContent.getRules(false).catch(() => null)) ??
@@ -315,9 +390,10 @@ export class SuggestionsService {
       profile,
       dismissals,
     );
-    const ranked = shuffled
-      ? reshuffle(ordered, this.recentlyShown, this.random)
-      : ordered;
+    // Spread out, so a screenful isn't one studio's or one person's newest.
+    const ranked = diversify(
+      shuffled ? reshuffle(ordered, this.recentlyShown, this.random) : ordered,
+    );
     const statuses = await this.sceneStatus.resolveForScenes(
       ranked.map((entry) => entry.scene.id),
     );
@@ -343,7 +419,7 @@ export class SuggestionsService {
         };
       });
     this.logger.debug(
-      `You may enjoy: ${items.length} suggestion(s) from ${performers.length} performer(s) and ${studios.length} studio(s) you watch.`,
+      `You may enjoy: ${items.length} suggestion(s) from ${performers.length} performer(s) and ${studios.length} studio(s) you watch, ${tagSources.length} categor(ies) and ${profile.costars.length} co-star(s).`,
     );
     return {
       items,
@@ -370,6 +446,35 @@ export class SuggestionsService {
       Math.min(MAX_PAGE, Math.ceil(total / PER_SOURCE)),
     );
     return 1 + Math.floor(this.random() ** 1.5 * pages);
+  }
+
+  /**
+   * The catalog's ids for these categories (by name), asked once per name;
+   * ones it doesn't have are left out.
+   */
+  private async catalogTagSources(
+    catalog: { baseUrl: string; apiKey: string | null },
+    picked: Array<{ catalogId: string; name: string; weight: number }>,
+  ): Promise<Array<{ catalogId: string; name: string }>> {
+    const unknown = picked
+      .map((entry) => entry.name)
+      .filter((name) => !this.tagIds.has(name.toLowerCase()));
+    if (unknown.length > 0) {
+      try {
+        const found = await this.stashdb.findTagIdsByNames(catalog, unknown);
+        for (const [key, id] of found) {
+          this.tagIds.set(key, id);
+        }
+      } catch (error) {
+        this.logger.debug(
+          `You may enjoy: couldn't look up categories: ${(error as Error)?.message}`,
+        );
+      }
+    }
+    return picked.flatMap((entry) => {
+      const id = this.tagIds.get(entry.name.toLowerCase());
+      return id ? [{ catalogId: id, name: entry.name }] : [];
+    });
   }
 
   private learnTotals(keys: string[], totals: Array<number | null>): void {

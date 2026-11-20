@@ -1,4 +1,8 @@
 import type { StashdbSceneFacets } from '../providers/stashdb/stashdb.types';
+import {
+  PendingScenesService,
+  type PendingScenesDto,
+} from '../pending-scenes/pending-scenes.service';
 import { SceneFacetsService } from '../scene-facets/scene-facets.service';
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { StudioDetailsDto } from './dto/studio-details.dto';
@@ -11,6 +15,7 @@ export class StudiosController {
   constructor(
     private readonly studiosService: StudiosService,
     private readonly sceneFacets: SceneFacetsService,
+    private readonly pendingScenes: PendingScenesService,
   ) {}
 
   @Get()
@@ -26,6 +31,14 @@ export class StudiosController {
   }
 
   /** Their own categories and studios, the most used first, with counts. */
+  /** New scenes submitted to the catalog for this studio, not accepted yet. */
+  @Get(':studioId/pending')
+  getPendingScenes(
+    @Param('studioId') studioId: string,
+  ): Promise<PendingScenesDto> {
+    return this.pendingScenes.forStudio(studioId);
+  }
+
   @Get(':studioId/facets')
   getStudioFacets(
     @Param('studioId') studioId: string,

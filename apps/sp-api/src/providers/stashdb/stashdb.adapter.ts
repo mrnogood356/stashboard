@@ -11,6 +11,8 @@ import {
   type StashdbAdapterSceneFeedConfig,
   type StashdbAdapterTrendingConfig,
   type StashdbMatchScene,
+  type StashdbPendingScene,
+  type StashdbPendingScenesResult,
   type StashdbPerformerScenesConfig,
   type StashdbScene,
   type StashdbSceneDetails,
@@ -38,6 +40,112 @@ export * from './stashdb.types';
 export class StashdbAdapter extends StashdbPeopleApi {
   constructor(runtimeHealthService: RuntimeHealthService) {
     super(runtimeHealthService);
+  }
+
+  /**
+   * New scenes submitted for this studio or performer that the catalog hasn't
+   * accepted yet, newest first. The catalog finds them itself: a studio's
+   * pending edits include new scenes naming it as their studio, a
+   * performer's those adding them.
+   */
+  async getPendingScenes(
+    config: StashdbAdapterBaseConfig,
+    target: { kind: 'STUDIO' | 'PERFORMER'; id: string },
+    perPage = 25,
+  ): Promise<StashdbPendingScenesResult> {
+    const query = `
+      query PendingScenes($input: EditQueryInput!) {
+        queryEdits(input: $input) {
+          count
+          edits {
+            id
+            target_type
+            operation
+            vote_count
+            created
+            details {
+              ... on SceneEdit {
+                title
+                date
+                duration
+                studio { id name }
+                added_performers { performer { id name } }
+                added_images { url }
+              }
+            }
+          }
+        }
+      }
+    `;
+    const payload = await this.executeQuery(config, query, {
+      input: {
+        target_type: target.kind,
+        target_id: target.id,
+        status: 'PENDING',
+        operation: 'CREATE',
+        page: 1,
+        per_page: perPage,
+        sort: 'CREATED_AT',
+        direction: 'DESC',
+      },
+    });
+    const found = (payload.data as Record<string, unknown> | undefined)
+      ?.queryEdits as { count?: unknown; edits?: unknown } | undefined;
+    const text = (value: unknown): string | null =>
+      typeof value === 'string' && value.trim() ? value.trim() : null;
+    const scenes = (Array.isArray(found?.edits) ? found.edits : []).flatMap(
+      (raw): StashdbPendingScene[] => {
+        const edit = raw as Record<string, unknown>;
+        const details = edit.details as Record<string, unknown> | null;
+        const id = text(edit.id);
+        // Only new scenes: a studio's own edits come back too.
+        if (
+          !id ||
+          !details ||
+          edit.target_type !== 'SCENE' ||
+          edit.operation !== 'CREATE'
+        ) {
+          return [];
+        }
+        const studio = details.studio as Record<string, unknown> | null;
+        const studioId = text(studio?.id);
+        const studioName = text(studio?.name);
+        const images = Array.isArray(details.added_images)
+          ? (details.added_images as Array<Record<string, unknown> | null>)
+          : [];
+        return [
+          {
+            editId: id,
+            title: text(details.title),
+            date: text(details.date),
+            duration:
+              typeof details.duration === 'number' ? details.duration : null,
+            studio:
+              studioId && studioName
+                ? { id: studioId, name: studioName }
+                : null,
+            performers: (Array.isArray(details.added_performers)
+              ? (details.added_performers as Array<Record<string, unknown>>)
+              : []
+            ).flatMap((appearance) => {
+              const performer = appearance?.performer as
+                Record<string, unknown> | undefined;
+              const performerId = text(performer?.id);
+              const name = text(performer?.name);
+              return performerId && name ? [{ id: performerId, name }] : [];
+            }),
+            imageUrl:
+              images.map((image) => text(image?.url)).find(Boolean) ?? null,
+            votes: typeof edit.vote_count === 'number' ? edit.vote_count : 0,
+            submittedAt: text(edit.created),
+          },
+        ];
+      },
+    );
+    return {
+      total: typeof found?.count === 'number' ? found.count : scenes.length,
+      scenes,
+    };
   }
 
   async testConnection(config: StashdbAdapterBaseConfig): Promise<void> {

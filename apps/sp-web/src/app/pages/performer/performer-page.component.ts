@@ -1,4 +1,5 @@
 import { HistoryBackDirective } from '../../core/navigation/history-back.directive';
+import { PendingScenesComponent } from '../../shared/pending-scenes/pending-scenes.component';
 import { backLabelFor } from '../../core/navigation/back-label';
 import { GlassArtService } from '../../core/theme/glass-art.service';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
@@ -90,6 +91,7 @@ interface MultiSelectGroup {
 @Component({
   selector: 'app-performer-page',
   imports: [
+    PendingScenesComponent,
     HistoryBackDirective,
     SkeletonComponent,
     HideToggleComponent,

@@ -1,0 +1,159 @@
+.pending-scenes {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.head {
+  margin: 0;
+}
+
+/* One row until opened, like Performers on a studio page. */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0 0.85rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toggle:hover {
+  border-color: var(--border-strong);
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.toggle .pi {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.toggle .pi.is-open {
+  transform: rotate(180deg);
+}
+
+.count {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.body {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.body[hidden] {
+  display: none;
+}
+
+.muted {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(12rem, 14rem);
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0 0 0.25rem;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+
+.row > li {
+  scroll-snap-align: start;
+}
+
+.card {
+  display: grid;
+  gap: 0.3rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.placeholder {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+}
+
+.title {
+  font-weight: 600;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* ---------- A soft card whose whole top row opens it, like Performers above ---------- */
+
+.pending-scenes {
+  --app-section-padding: 0;
+  --app-section-radius: var(--radius-md);
+  --app-section-bg: var(--surface-1);
+  --app-section-border: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.toggle {
+  display: flex;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 0;
+  font-size: 1rem;
+}
+
+.toggle:hover {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+.toggle .pi {
+  margin-left: auto;
+}
+
+.toggle:focus-visible {
+  outline-offset: -2px;
+}
+
+.body {
+  padding: 0 1rem 1rem;
+}

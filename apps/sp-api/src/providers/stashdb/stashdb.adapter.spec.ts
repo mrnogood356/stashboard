@@ -2213,4 +2213,79 @@ describe('StashdbAdapter', () => {
       alreadyFavorited: false,
     });
   });
+
+  it('lists pending new scenes for a studio, leaving out the studio’s own edits', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            queryEdits: {
+              count: 2,
+              edits: [
+                {
+                  id: 'e1',
+                  target_type: 'SCENE',
+                  operation: 'CREATE',
+                  vote_count: 3,
+                  created: '2026-11-20T10:00:00Z',
+                  details: {
+                    title: 'Coming Soon',
+                    date: '2026-12-01',
+                    duration: 1800,
+                    studio: { id: 's1', name: 'Gold Studio' },
+                    added_performers: [
+                      { performer: { id: 'p1', name: 'Nova' } },
+                    ],
+                    added_images: [null, { url: 'https://img/1' }],
+                  },
+                },
+                {
+                  id: 'e2',
+                  target_type: 'STUDIO',
+                  operation: 'MODIFY',
+                  vote_count: 0,
+                  created: '2026-11-19T10:00:00Z',
+                  details: {},
+                },
+              ],
+            },
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    const result = await adapter.getPendingScenes(
+      { baseUrl: 'https://stashdb.org/graphql', apiKey: 'key' },
+      { kind: 'STUDIO', id: 's1' },
+    );
+
+    expect(result).toEqual({
+      total: 2,
+      scenes: [
+        {
+          editId: 'e1',
+          title: 'Coming Soon',
+          date: '2026-12-01',
+          duration: 1800,
+          studio: { id: 's1', name: 'Gold Studio' },
+          performers: [{ id: 'p1', name: 'Nova' }],
+          imageUrl: 'https://img/1',
+          votes: 3,
+          submittedAt: '2026-11-20T10:00:00Z',
+        },
+      ],
+    });
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1].body)) as {
+      variables: { input: Record<string, unknown> };
+    };
+    expect(body.variables.input).toEqual(
+      expect.objectContaining({
+        target_type: 'STUDIO',
+        target_id: 's1',
+        status: 'PENDING',
+        operation: 'CREATE',
+      }),
+    );
+  });
 });
