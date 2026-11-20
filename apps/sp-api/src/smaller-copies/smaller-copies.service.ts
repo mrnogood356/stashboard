@@ -606,9 +606,15 @@ export class SmallerCopiesService {
           })
         ).map((tried) => releaseKeyOf(tried.releaseTitle)),
       );
+      // Read here, not trusted from the search (which carries on without
+      // it): if it can't be read, this search fails and is tried later.
+      const failed = await this.handoff.failedReleases(
+        found.releases.map((candidate) => candidate.title),
+      );
       const fresh = found.releases.filter(
         (candidate) =>
           !candidate.failedBefore &&
+          !failed.has(releaseKeyOf(candidate.title)) &&
           !taken.has(candidate.guid) &&
           !triedTitles.has(releaseKeyOf(candidate.title)),
       );

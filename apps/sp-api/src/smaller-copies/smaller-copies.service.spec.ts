@@ -533,6 +533,36 @@ describe('SmallerCopiesService', () => {
     });
   });
 
+  it('grabs nothing when it can’t read which releases failed in SABnzbd, and tries again later', async () => {
+    handoff.failedReleases.mockRejectedValueOnce(new Error('database down'));
+    await service.tick();
+
+    expect(downloads.grabRelease).not.toHaveBeenCalled();
+    expect(attempts.get('2')).toMatchObject({
+      outcome: 'failed',
+      detail: 'database down',
+    });
+  });
+
+  it('skips a release SABnzbd failed even when the search didn’t mark it', async () => {
+    downloads.searchReleases.mockResolvedValue({
+      releases: [
+        release({ guid: 'g1', title: 'Studio.Scene.1080p.x265' }),
+        release({ guid: 'g2', title: 'Studio.Scene.1080p.HEVC' }),
+      ],
+    });
+    handoff.failedReleases.mockResolvedValueOnce(
+      new Map([['studio.scene.1080p.x265', 'Aborted.']]),
+    );
+    await service.tick();
+    expect(downloads.grabRelease).toHaveBeenCalledWith(
+      'cat-2',
+      expect.objectContaining({ guid: 'g2' }),
+      'STASHDB',
+      { replacesStashSceneId: '2' },
+    );
+  });
+
   it('cleans up what it saves', async () => {
     await service.saveSettings({
       ...(await service.status()).settings,
