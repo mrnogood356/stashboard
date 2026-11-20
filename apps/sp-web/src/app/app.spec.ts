@@ -43,4 +43,22 @@ describe('App', () => {
 
     expect(document.body.textContent).toContain('Reset All Integrations?');
   });
+
+  it('opens a confirmation asked for before the dialog had loaded', async () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    TestBed.inject(ConfirmationService).confirm({
+      key: 'app-destructive',
+      header: 'Reset Stash?',
+      message: 'Clears the Stash integration.',
+    });
+    const [confirmBlock] = await fixture.getDeferBlocks();
+    await confirmBlock.render(DeferBlockState.Complete);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(document.body.textContent).toContain('Reset Stash?');
+  });
 });

@@ -2231,6 +2231,39 @@ describe('IndexingService library change check', () => {
     expect(runWithLease).toHaveBeenCalledTimes(2);
   });
 
+  it('runs the next safety sync after a sync failed, even soon after a success', async () => {
+    jest.useFakeTimers();
+    try {
+      const runWithLease = jest
+        .fn()
+        .mockResolvedValueOnce({ processedCount: 1, updatedCount: 0 })
+        .mockRejectedValueOnce(new Error('Stash is down'))
+        .mockResolvedValue({ processedCount: 1, updatedCount: 0 });
+      const service = new IndexingService(
+        {} as PrismaService,
+        {} as IntegrationsService,
+        {} as CatalogProviderService,
+        {} as WhisparrAdapter,
+        {} as StashAdapter,
+        {} as StashdbAdapter,
+        { runWithLease } as unknown as SyncStateService,
+      );
+
+      await service.syncLibraryProjection('library-changed');
+      await jest.advanceTimersByTimeAsync(60_000);
+      await expect(
+        service.syncLibraryProjection('library-changed'),
+      ).rejects.toThrow('Stash is down');
+
+      // Not held back by the success two minutes earlier.
+      await jest.advanceTimersByTimeAsync(60_000);
+      await service.syncLibraryProjection('interval');
+      expect(runWithLease).toHaveBeenCalledTimes(3);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('syncs at the next check once a held-back sync ran out of tries', async () => {
     jest.useFakeTimers();
     try {

@@ -35,4 +35,18 @@ describe('IdlePreloading', () => {
     const load = () => throwError(() => new Error('offline'));
     await expect(firstValueFrom(new IdlePreloading().preload({}, load))).resolves.toBeNull();
   });
+
+  it('skips the download when the connection turned to 2G while waiting', async () => {
+    const connection = { effectiveType: '4g' };
+    vi.stubGlobal('navigator', { connection });
+    try {
+      const load = vi.fn(() => of('page'));
+      const preloaded = firstValueFrom(new IdlePreloading().preload({}, load));
+      connection.effectiveType = '2g';
+      await expect(preloaded).resolves.toBeNull();
+      expect(load).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

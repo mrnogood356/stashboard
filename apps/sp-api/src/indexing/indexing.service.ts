@@ -240,19 +240,26 @@ export class IndexingService extends IndexingSync {
     }
     this.lastLibrarySyncAt = Date.now();
     const started = ++this.librarySyncOrder;
-    const result = await this.syncStateService.runWithLease(
-      {
-        jobName: INDEXING_JOB_NAMES.LIBRARY_PROJECTION,
-        leaseMs: INDEXING_LIMITS.LIBRARY_LEASE_MS,
-        onSuccess: (result, context) => ({
-          processedCount: result.processedCount,
-          updatedCount: result.updatedCount,
-          durationMs: context.durationMs,
-          runReason: reason,
-        }),
-      },
-      async () => this.performLibraryProjectionSync(reason),
-    );
+    let result: SyncRunSummary | null;
+    try {
+      result = await this.syncStateService.runWithLease(
+        {
+          jobName: INDEXING_JOB_NAMES.LIBRARY_PROJECTION,
+          leaseMs: INDEXING_LIMITS.LIBRARY_LEASE_MS,
+          onSuccess: (result, context) => ({
+            processedCount: result.processedCount,
+            updatedCount: result.updatedCount,
+            durationMs: context.durationMs,
+            runReason: reason,
+          }),
+        },
+        async () => this.performLibraryProjectionSync(reason),
+      );
+    } catch (error) {
+      // A failed sync leaves the library stale: the next safety sync runs.
+      this.lastLibrarySyncDoneAt = 0;
+      throw error;
+    }
     if (result !== null) {
       this.lastLibrarySyncDoneAt = Date.now();
     }

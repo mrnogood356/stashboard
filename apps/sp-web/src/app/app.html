@@ -11,6 +11,6 @@
   <p-toast key="global" position="bottom-right" styleClass="app-toast" [baseZIndex]="1200" />
   <!-- Only ever opened by a tap, so its code can wait until the page is up. -->
   @defer (on idle) {
-    <p-confirmdialog key="app-destructive" styleClass="app-confirm-dialog" [baseZIndex]="1250" />
+    <app-confirm-host />
   }
 </div>

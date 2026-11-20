@@ -48,7 +48,8 @@ export class IdlePreloading implements PreloadingStrategy {
       return of(null);
     }
     return whenIdle().pipe(
-      switchMap(() => load()),
+      // The connection can change while waiting (Wi-Fi to a weak signal).
+      switchMap(() => (shouldPreload() ? load() : of(null))),
       catchError(() => of(null)),
     );
   }
