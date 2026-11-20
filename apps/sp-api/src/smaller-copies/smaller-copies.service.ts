@@ -413,17 +413,26 @@ export class SmallerCopiesService {
         release.guid === row.releaseGuid ||
         releaseKeyOf(release.title) === releaseKeyOf(row.releaseTitle),
     );
-    if (listed?.failedBefore) {
+    // Not in the fresh search (the grab sends it from what was found
+    // before): its own history says whether it failed.
+    const failedBefore =
+      listed?.failedBefore ??
+      (row.releaseTitle
+        ? (await this.handoff.failedReleases([row.releaseTitle])).get(
+            releaseKeyOf(row.releaseTitle),
+          )
+        : undefined);
+    if (failedBefore) {
       // Searched again on the next pass, for another release.
       await this.note(stashSceneId, {
         title: row.title,
         oldSize: row.oldSize,
         outcome: 'none-found',
-        detail: `The match SABnzbd couldn’t download before: ${listed.failedBefore}`,
+        detail: `The match SABnzbd couldn’t download before: ${failedBefore}`,
         retryAfter: new Date(this.now()),
       });
       throw new BadRequestException(
-        `SABnzbd couldn’t download that release before (${listed.failedBefore}), so it wasn’t sent again. It’ll look for another.`,
+        `SABnzbd couldn’t download that release before (${failedBefore}), so it wasn’t sent again. It’ll look for another.`,
       );
     }
     const sent = await this.downloads.grabRelease(

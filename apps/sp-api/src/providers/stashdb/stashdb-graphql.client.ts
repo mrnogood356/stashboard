@@ -305,7 +305,7 @@ export abstract class StashdbGraphqlClient {
       const message = this.providerRequestFailureMessage(error);
       logUnreachable(
         this.logger,
-        'catalog',
+        `catalog ${endpoint}`,
         endpoint,
         `Couldn't reach the catalog at ${hostOf(endpoint)} (${operation}): ${this.errorMessage(error)}`,
       );
@@ -317,7 +317,7 @@ export abstract class StashdbGraphqlClient {
 
     logReachable(
       this.logger,
-      'catalog',
+      `catalog ${endpoint}`,
       endpoint,
       `The catalog at ${hostOf(endpoint)}`,
     );

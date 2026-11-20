@@ -346,12 +346,12 @@ export class DownloadHandoffService {
       return new Map();
     }
     // Compared in full here, not in the query: the same release can be
-    // spaced differently from one indexer to the next.
+    // spaced differently from one indexer to the next. Every one is read
+    // (two short columns): a failure left unread would let it be sent again.
     const rows = await this.prisma.downloadHandoff.findMany({
       where: { status: 'failed', error: { startsWith: SAB_DOWNLOAD_FAILED } },
       select: { releaseTitle: true, error: true },
       orderBy: { updatedAt: 'desc' },
-      take: FAILED_RELEASES_LOOKED_AT,
     });
     const failed = new Map<string, string>();
     for (const row of rows) {
@@ -1982,9 +1982,6 @@ export function placedLines(
 
 /** How a download SABnzbd itself failed starts its error. */
 export const SAB_DOWNLOAD_FAILED = 'SABnzbd couldn’t download it:';
-
-/** The newest failed downloads looked at for a release search. */
-const FAILED_RELEASES_LOOKED_AT = 5_000;
 
 /**
  * A release title as it's compared: case and spacing don't make a different

@@ -21,7 +21,11 @@ describe('SmallerCopiesService', () => {
   let prisma: Record<string, Record<string, jest.Mock>>;
   let transaction: jest.Mock;
   let downloads: { searchReleases: jest.Mock; grabRelease: jest.Mock };
-  let handoff: { stashConfig: jest.Mock; isActive: jest.Mock };
+  let handoff: {
+    stashConfig: jest.Mock;
+    isActive: jest.Mock;
+    failedReleases: jest.Mock;
+  };
   let stash: { listLibraryFiles: jest.Mock; getJobQueue: jest.Mock };
   let service: SmallerCopiesService;
   let now: number;
@@ -292,6 +296,7 @@ describe('SmallerCopiesService', () => {
         .fn()
         .mockResolvedValue({ baseUrl: 'http://stash:9999' }),
       isActive: jest.fn().mockResolvedValue(true),
+      failedReleases: jest.fn().mockResolvedValue(new Map()),
     };
     stash = {
       listLibraryFiles: jest.fn(() => Promise.resolve(files)),
@@ -437,6 +442,23 @@ describe('SmallerCopiesService', () => {
     expect(attempts.get('2')).toMatchObject({ outcome: 'none-found' });
     const attempt = attempts.get('2') as { retryAfter: Date } | undefined;
     expect(attempt?.retryAfter.getTime()).toBeLessThanOrEqual(now);
+  });
+
+  it('won’t grab a listed match the fresh search no longer finds if it failed since', async () => {
+    settings.autoGrab = false;
+    await service.tick();
+    downloads.searchReleases.mockResolvedValue({ releases: [] });
+    handoff.failedReleases.mockResolvedValueOnce(
+      new Map([['studio.scene.1080p.x265', 'Aborted.']]),
+    );
+
+    await expect(service.grabListed('2')).rejects.toThrow(
+      'SABnzbd couldn’t download that release before (Aborted.)',
+    );
+    expect(handoff.failedReleases).toHaveBeenCalledWith([
+      'Studio.Scene.1080p.x265',
+    ]);
+    expect(downloads.grabRelease).not.toHaveBeenCalled();
   });
 
   it('only searches in the hours allowed, unless asked to now', async () => {

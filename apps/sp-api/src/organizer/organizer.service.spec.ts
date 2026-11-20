@@ -2071,6 +2071,15 @@ describe('OrganizerService', () => {
     const result = await service.syncWithWhisparr();
 
     expect(result.problems?.length).toBeGreaterThan(0);
+    // Every problem is in the summary, not only the first.
+    for (const problem of result.problems ?? []) {
+      expect(result.message.toLowerCase()).toContain(
+        problem
+          .replace(/[.\s]+$/, '')
+          .toLowerCase()
+          .slice(0, 20),
+      );
+    }
     expect(warn).toHaveBeenCalledWith(
       expect.stringMatching(/^Organizer sync: .*Stash’s scan/),
     );

@@ -1360,8 +1360,8 @@ export class OrganizerService
     const after =
       toScan.length > 0
         ? await plan().catch((error: unknown) => {
-            this.logger.warn(
-              `Couldn't re-plan after the Stash scan; using the earlier plan: ${messageOf(error)}`,
+            problems.push(
+              `couldn't re-plan after the Stash scan, so the earlier plan was used (${messageOf(error)})`,
             );
             return before;
           })
@@ -1424,7 +1424,8 @@ export class OrganizerService
           `${removal.failed.length} ${removal.failed.length === 1 ? 'copy' : 'copies'} couldn’t be removed: ${removal.failed[0].reason}`,
         )
       : '';
-    const problemNote = problems.length ? sentence(problems[0]) : '';
+    // Every problem, so none is only in the debug log.
+    const problemNote = problems.map(sentence).join('');
     const summary = steps.length
       ? `${steps.join(', ').replace(/^./, (first) => first.toUpperCase())}.`
       : 'Stash and Whisparr already agree. Nothing to tidy up.';

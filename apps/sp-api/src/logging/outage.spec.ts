@@ -96,6 +96,23 @@ describe('outage logging', () => {
     expect(log.log).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps two catalogs on the same server apart', () => {
+    const log = logger();
+    const stashdb = 'https://boxes.lan/stashdb/graphql';
+    const fansdb = 'https://boxes.lan/fansdb/graphql';
+    logUnreachable(
+      log,
+      `catalog ${stashdb}`,
+      stashdb,
+      'Couldn’t reach StashDB',
+      0,
+    );
+    logReachable(log, `catalog ${fansdb}`, fansdb, 'FansDB', 1_000);
+    expect(log.log).not.toHaveBeenCalled();
+    logReachable(log, `catalog ${stashdb}`, stashdb, 'StashDB', 2_000);
+    expect(log.log).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps each service’s outage apart', () => {
     const log = logger();
     logUnreachable(
