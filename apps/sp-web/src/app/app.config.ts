@@ -1,17 +1,64 @@
 import { ApplicationConfig, ErrorHandler, provideBrowserGlobalErrorListeners } from '@angular/core';
-import {
-  PreloadAllModules,
-  provideRouter,
-  withInMemoryScrolling,
-  withPreloading,
-} from '@angular/router';
+import { provideRouter, withInMemoryScrolling, withPreloading } from '@angular/router';
 import { prefetchInterceptor } from './core/prefetch/prefetch.service';
+import { IdlePreloading } from './core/navigation/idle-preloading';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { providePrimeNG } from 'primeng/config';
 import { definePreset } from '@primeuix/themes';
-import Aura from '@primeuix/themes/aura';
+import AuraBase from '@primeuix/themes/aura/base';
+import auraCss from '@primeuix/themes/aura/css';
+import type { ExtendedCSS } from '@primeuix/themes/types';
+import badge from '@primeuix/themes/aura/badge';
+import button from '@primeuix/themes/aura/button';
+import checkbox from '@primeuix/themes/aura/checkbox';
+import chip from '@primeuix/themes/aura/chip';
+import confirmdialog from '@primeuix/themes/aura/confirmdialog';
+import dialog from '@primeuix/themes/aura/dialog';
+import iconfield from '@primeuix/themes/aura/iconfield';
+import inputtext from '@primeuix/themes/aura/inputtext';
+import message from '@primeuix/themes/aura/message';
+import multiselect from '@primeuix/themes/aura/multiselect';
+import progressspinner from '@primeuix/themes/aura/progressspinner';
+import ripple from '@primeuix/themes/aura/ripple';
+import select from '@primeuix/themes/aura/select';
+import toast from '@primeuix/themes/aura/toast';
+import toggleswitch from '@primeuix/themes/aura/toggleswitch';
+import tooltip from '@primeuix/themes/aura/tooltip';
+import virtualscroller from '@primeuix/themes/aura/virtualscroller';
+
+/**
+ * Aura with only the components the app uses, and the ones they use inside
+ * (a multiselect's checkboxes and chips, a confirm dialog's dialog, a select's
+ * scroller). The full `@primeuix/themes/aura` carries settings for about 90
+ * components and was the largest single piece of the first page load. A
+ * PrimeNG component added later needs its entry here, or it shows unstyled.
+ */
+const Aura = {
+  ...AuraBase,
+  components: {
+    badge,
+    button,
+    checkbox,
+    chip,
+    confirmdialog,
+    dialog,
+    iconfield,
+    inputtext,
+    message,
+    multiselect,
+    progressspinner,
+    ripple,
+    select,
+    toast,
+    toggleswitch,
+    tooltip,
+    virtualscroller,
+  },
+  // The module's default export is the CSS string; its typings only declare a named export.
+  css: auraCss as unknown as ExtendedCSS,
+};
 
 /** `a` mixed into `b`; PrimeNG keeps the var() references, so tokens follow the theme live. */
 const mix = (a: string, pct: number, b: string) => `color-mix(in srgb, ${a} ${pct}%, ${b})`;
@@ -132,8 +179,8 @@ export const appConfig: ApplicationConfig = {
         scrollPositionRestoration: 'top',
       }),
       // Pages load on demand; once the first page is up, fetch the rest quietly
-      // in the background so switching pages stays instant.
-      withPreloading(PreloadAllModules),
+      // in the background, in quiet moments, so switching pages stays instant.
+      withPreloading(IdlePreloading),
     ),
     provideHttpClient(
       withInterceptors([

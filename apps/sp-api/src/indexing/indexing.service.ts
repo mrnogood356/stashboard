@@ -38,6 +38,14 @@ const EVENT_SYNC_REASONS = new Set([
 const LIBRARY_SYNC_GAP_MS = 20_000;
 /** How often a held-back library sync tries before the full sync covers it. */
 const FOLLOW_UP_SYNC_TRIES = 5;
+/**
+ * The every-5-minutes full sync is a safety net for changes the 30-second
+ * check can't see (a performer renamed, a file rescanned). It skips while
+ * another library sync finished within this long, so a busy library isn't
+ * read in full from Stash several times over. Kept well inside the 20-minute
+ * freshness window (SNAPSHOT_FRESHNESS_MAX_AGE_MS) with one tick to spare.
+ */
+export const LIBRARY_SAFETY_SYNC_MS = 12 * 60_000;
 
 @Injectable()
 export class IndexingService extends IndexingSync {
@@ -53,6 +61,8 @@ export class IndexingService extends IndexingSync {
   private librarySyncOrder = 0;
   /** When the last library sync started, and a follow-up one waiting. */
   private lastLibrarySyncAt = 0;
+  /** When a library sync last finished reading Stash; the safety net skips soon after. */
+  private lastLibrarySyncDoneAt = 0;
   private followUpLibrarySync: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
@@ -217,6 +227,12 @@ export class IndexingService extends IndexingSync {
     // A new scene sets off several asks within seconds (Stash changed, the
     // organizer, automation): one sync shortly after covers them all, rather
     // than reading the whole library from Stash for each.
+    if (
+      reason === 'interval' &&
+      Date.now() - this.lastLibrarySyncDoneAt < LIBRARY_SAFETY_SYNC_MS
+    ) {
+      return null;
+    }
     const since = Date.now() - this.lastLibrarySyncAt;
     if (EVENT_SYNC_REASONS.has(reason) && since < LIBRARY_SYNC_GAP_MS) {
       this.scheduleFollowUpSync(reason, LIBRARY_SYNC_GAP_MS - since, 1);
@@ -237,6 +253,9 @@ export class IndexingService extends IndexingSync {
       },
       async () => this.performLibraryProjectionSync(reason),
     );
+    if (result !== null) {
+      this.lastLibrarySyncDoneAt = Date.now();
+    }
     // A sync that ran, having started after the change was owed, covers it;
     // one already going then may have read past it.
     if (

@@ -239,8 +239,11 @@
   </nav>
 }
 
-<app-quick-search />
-<app-whats-new />
+<!-- Loaded once the first page is up: neither is needed to show it. -->
+@defer (on idle) {
+  <app-quick-search />
+  <app-whats-new />
+}
 
 <!-- Outside the layout grid: it only ever shows a fixed arrow. -->
 <app-pull-to-refresh />
