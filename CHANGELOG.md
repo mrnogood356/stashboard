@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.7.1](https://github.com/mrnogood356/stashboard/compare/v1.7.0...v1.7.1) (2026-11-20)
+
+
+### Features
+
+* Edit a library scene's details like Stash's Edit tab: title, date, studio, people, tags, links and, on Stash 0.32, its production date
+* Edit many library scenes at once: set a studio, add or take off performers and tags
+* Add a performer or studio to Stash right from the edit sheet, and fill in an unmatched scene from StashDB
+* Subtitles in the player, picked under More, staying in your language from one scene to the next
+* The library can filter by resolution, and each row of Stats → By resolution opens it
+* Studios get "In my library", like Performers, and Home's catalog rows can leave out scenes you already have
+* One scene a row in the library on phones, if you like
+* Finished downloads show where they'll be filed
+* Find downloads marks a release SABnzbd couldn't download before, says why, and lists it last
+* An "On this device" check on the Privacy page
+* Broken files follows the Stash job it starts
+
+### Bug Fixes
+
+* Better copies no longer grabs a release that already failed, even when an indexer gives it a new name
+* Dragging the seek bar on phones is smooth: no flicker, no getting stuck, the preview stays on screen
+* The player's controls stay up while a menu is open and hide again after
+* The logs are much quieter: routine background work is at debug, and a service that's down is warned about once, with a line when it's back
+* A health refresh answers within seconds even when a service hangs
+* Generate answers as soon as Stash starts it, and the page follows the preview rescan after
+* The phone app keeps the eye (blur) setting, and covers the screen sooner in the app switcher
+* App Lock writes what it did on the phone to the log, for tracing a lock that didn't happen
+* What's new shows once per update, and About no longer calls a release "behind"
+* Back links return to the page as you left it
+* Home rows show a match or other library change on the next visit
+* In my library lists page through one ranking, so a studio or performer isn't missed or shown twice
+* Security: lifts the `effect` package (used by Prisma) to 3.22.x, past its security fix
+
 ## [1.7.0](https://github.com/mrnogood356/stashboard/compare/v1.6.0...v1.7.0) (2026-11-15)
 
 ### Features
