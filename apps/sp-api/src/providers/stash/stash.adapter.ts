@@ -1489,6 +1489,13 @@ export class StashAdapter extends StashLibraryToolsApi {
    * changed scene. It moves whenever a scene is added, removed or updated, so a
    * caller can skip a full library sync while it stays the same.
    */
+  /**
+   * A cheap fingerprint of the library: its size and newest change, for the
+   * scenes and for the performers, studios and tags they show. Renaming a
+   * performer or studio, or editing a tag, changes what scenes display
+   * without touching the scenes themselves, so those count too. One small
+   * request, whatever the library's size.
+   */
   async getLibraryChangeMarker(
     config: StashAdapterBaseConfig,
   ): Promise<string> {
@@ -1501,24 +1508,56 @@ export class StashAdapter extends StashLibraryToolsApi {
             updated_at
           }
         }
+        findPerformers(filter: $filter) {
+          count
+          performers {
+            id
+            updated_at
+          }
+        }
+        findStudios(filter: $filter) {
+          count
+          studios {
+            id
+            updated_at
+          }
+        }
+        findTags(filter: $filter) {
+          count
+          tags {
+            id
+            updated_at
+          }
+        }
       }
     `;
     const payload = await this.executeQuery(config, query, {
       filter: { page: 1, per_page: 1, sort: 'updated_at', direction: 'DESC' },
     });
-    const found = payload.data?.findScenes;
-    const latest: unknown = found?.scenes?.[0];
-    const field = (key: string): string => {
-      const value =
-        latest && typeof latest === 'object'
-          ? (latest as Record<string, unknown>)[key]
-          : null;
-      return typeof value === 'string' || typeof value === 'number'
-        ? String(value)
-        : '';
+    const data = (payload.data ?? {}) as Record<string, unknown>;
+    const part = (root: string, list: string): string => {
+      const found = data[root] as
+        { count?: unknown; [key: string]: unknown } | null | undefined;
+      const items = found?.[list];
+      const latest: unknown = Array.isArray(items) ? items[0] : null;
+      const field = (key: string): string => {
+        const value =
+          latest && typeof latest === 'object'
+            ? (latest as Record<string, unknown>)[key]
+            : null;
+        return typeof value === 'string' || typeof value === 'number'
+          ? String(value)
+          : '';
+      };
+      const count = typeof found?.count === 'number' ? found.count : 0;
+      return `${count}|${field('id')}|${field('updated_at')}`;
     };
-    const count = typeof found?.count === 'number' ? found.count : 0;
-    return `${count}|${field('id')}|${field('updated_at')}`;
+    return [
+      part('findScenes', 'scenes'),
+      part('findPerformers', 'performers'),
+      part('findStudios', 'studios'),
+      part('findTags', 'tags'),
+    ].join('/');
   }
 
   async searchTags(

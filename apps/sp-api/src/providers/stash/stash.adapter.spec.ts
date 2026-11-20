@@ -1436,30 +1436,50 @@ describe('StashAdapter', () => {
     expect(stashVersionAtLeast(null, 0, 32)).toBe(false);
   });
 
-  it('fingerprints the library from its size and most recently changed scene', async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: {
-            findScenes: {
-              count: 1532,
-              scenes: [{ id: '88', updated_at: '2026-10-28T19:00:00Z' }],
+  it('fingerprints the library from the newest scene, performer, studio and tag', async () => {
+    const respond = (performerUpdated: string) =>
+      ({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              findScenes: {
+                count: 1532,
+                scenes: [{ id: '88', updated_at: '2026-10-28T19:00:00Z' }],
+              },
+              findPerformers: {
+                count: 410,
+                performers: [{ id: '7', updated_at: performerUpdated }],
+              },
+              findStudios: {
+                count: 95,
+                studios: [{ id: '3', updated_at: '2026-10-01T08:00:00Z' }],
+              },
+              findTags: { count: 0, tags: [] },
             },
-          },
-        }),
-    } as Response);
+          }),
+      }) as Response;
+    fetchMock
+      .mockResolvedValueOnce(respond('2026-10-20T10:00:00Z'))
+      .mockResolvedValueOnce(respond('2026-11-20T21:00:00Z'));
+    const config = { baseUrl: 'http://stash.local', apiKey: 'secret' };
 
-    await expect(
-      adapter.getLibraryChangeMarker({
-        baseUrl: 'http://stash.local',
-        apiKey: 'secret',
-      }),
-    ).resolves.toBe('1532|88|2026-10-28T19:00:00Z');
+    const before = await adapter.getLibraryChangeMarker(config);
+    expect(before).toBe(
+      '1532|88|2026-10-28T19:00:00Z/410|7|2026-10-20T10:00:00Z/95|3|2026-10-01T08:00:00Z/0||',
+    );
+    // A performer renamed in Stash: no scene changed, but the marker does.
+    const after = await adapter.getLibraryChangeMarker(config);
+    expect(after).not.toBe(before);
 
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+      query: string;
       variables: { filter: Record<string, unknown> };
     };
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(body.query).toContain('findPerformers');
+    expect(body.query).toContain('findStudios');
+    expect(body.query).toContain('findTags');
     expect(body.variables.filter).toEqual({
       page: 1,
       per_page: 1,

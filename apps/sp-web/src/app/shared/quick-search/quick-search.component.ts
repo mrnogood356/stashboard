@@ -274,8 +274,9 @@ export class QuickSearchComponent implements OnInit {
     if (item.kind === 'all' || item.kind === 'recent') {
       rememberSearch(item.kind === 'all' ? this.query().trim() : item.label);
     }
+    const query = this.query().trim();
     this.close();
-    void this.router.navigateByUrl(item.url);
+    void this.router.navigateByUrl(withSearchReturn(item, query));
   }
 
   protected indexOf(item: QuickItem): number {
@@ -381,6 +382,16 @@ export class QuickSearchComponent implements OnInit {
       })),
     );
   }
+}
+
+/** A scene, performer or studio opened from here goes Back to Search for the same words. */
+export function withSearchReturn(item: QuickItem, query: string): string {
+  const isResult = item.kind !== 'page' && item.kind !== 'recent' && item.kind !== 'all';
+  if (!isResult || !query) {
+    return item.url;
+  }
+  const returnTo = `/search?q=${encodeURIComponent(query)}`;
+  return `${item.url}${item.url.includes('?') ? '&' : '?'}returnTo=${encodeURIComponent(returnTo)}`;
 }
 
 function peopleItem(person: PersonResult, kind: 'performer' | 'studio', icon: string): QuickItem {

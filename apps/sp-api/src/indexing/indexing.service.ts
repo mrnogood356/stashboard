@@ -40,7 +40,7 @@ const LIBRARY_SYNC_GAP_MS = 20_000;
 const FOLLOW_UP_SYNC_TRIES = 5;
 /**
  * The every-5-minutes full sync is a safety net for changes the 30-second
- * check can't see (a performer renamed, a file rescanned). It skips while
+ * check can't see (mainly a file Stash rescanned on its own). It skips while
  * another library sync finished within this long, so a busy library isn't
  * read in full from Stash several times over. Kept well inside the 20-minute
  * freshness window (SNAPSHOT_FRESHNESS_MAX_AGE_MS) with one tick to spare.

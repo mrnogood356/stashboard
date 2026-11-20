@@ -1,4 +1,5 @@
 import { HistoryBackDirective } from '../../core/navigation/history-back.directive';
+import { backLabelFor } from '../../core/navigation/back-label';
 import { GlassArtService } from '../../core/theme/glass-art.service';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import {
@@ -268,7 +269,7 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
       const resolvedBackLink = this.parseReturnTo(queryParamMap.get('returnTo'), '/performers');
       this.backLinkPath.set(resolvedBackLink.path);
       this.backLinkQueryParams.set(resolvedBackLink.queryParams);
-      this.backLinkLabel.set(this.backLinkText(resolvedBackLink.path, 'Back to Performers'));
+      this.backLinkLabel.set(backLabelFor(resolvedBackLink.path, 'Back to Performers'));
 
       const nextPerformerId = params.get('performerId')?.trim() ?? '';
       if (!nextPerformerId) {
@@ -1159,29 +1160,6 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
     } catch {
       return { path: fallback, queryParams: {} };
     }
-  }
-
-  private backLinkText(returnTo: string, fallbackLabel: string): string {
-    if (returnTo.startsWith('/scenes')) {
-      return 'Back to Scenes';
-    }
-    if (returnTo.startsWith('/acquisition')) {
-      return 'Back to Wanted';
-    }
-    if (returnTo.startsWith('/processing')) {
-      return 'Back to Downloads';
-    }
-    if (returnTo.startsWith('/performers')) {
-      return 'Back to Performers';
-    }
-    if (returnTo.startsWith('/performer/')) {
-      return 'Back to Performer';
-    }
-    if (returnTo.startsWith('/scene/')) {
-      return 'Back to Scene';
-    }
-
-    return fallbackLabel;
   }
 
   private rebuildTagSelectOptions(searchResults: SceneTagOption[]): void {
