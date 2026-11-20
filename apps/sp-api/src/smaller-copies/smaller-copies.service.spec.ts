@@ -515,6 +515,24 @@ describe('SmallerCopiesService', () => {
     });
   });
 
+  it('grabs nothing when it can’t read what was tried before, and tries again later', async () => {
+    const tried = prisma.smallerCopyTry.findMany.getMockImplementation()!;
+    // Only the lookup of what was tried for the scene fails.
+    prisma.smallerCopyTry.findMany.mockImplementation(
+      (args: { select?: { releaseTitle?: boolean } } = {}) =>
+        args.select?.releaseTitle
+          ? Promise.reject(new Error('database down'))
+          : tried(args),
+    );
+    await service.tick();
+
+    expect(downloads.grabRelease).not.toHaveBeenCalled();
+    expect(attempts.get('2')).toMatchObject({
+      outcome: 'failed',
+      detail: 'database down',
+    });
+  });
+
   it('cleans up what it saves', async () => {
     await service.saveSettings({
       ...(await service.status()).settings,

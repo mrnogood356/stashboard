@@ -2071,6 +2071,14 @@ describe('OrganizerService', () => {
     const result = await service.syncWithWhisparr();
 
     expect(result.problems?.length).toBeGreaterThan(0);
+    // The activity log agrees: partial, not done.
+    const activity = { record: jest.fn(), registerUndo: jest.fn() };
+    Object.assign(service, { activity });
+    stash.waitForJob.mockResolvedValueOnce('TIMED_OUT');
+    await service.syncWithWhisparr();
+    expect(activity.record).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'partial' }),
+    );
     // Every problem is in the summary, not only the first.
     for (const problem of result.problems ?? []) {
       expect(result.message.toLowerCase()).toContain(

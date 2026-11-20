@@ -596,14 +596,14 @@ export class SmallerCopiesService {
       const taken = new Set(before?.grabbedGuids ?? []);
       // Some indexers give a release a new guid on every search, so the
       // ones tried before are known by title too.
+      // If it can't be read, this search fails and is tried again later:
+      // better than sending a release that was tried before.
       const triedTitles = new Set(
         (
-          await this.prisma.smallerCopyTry
-            .findMany({
-              where: { stashSceneId: file.sceneId },
-              select: { releaseTitle: true },
-            })
-            .catch(() => [])
+          await this.prisma.smallerCopyTry.findMany({
+            where: { stashSceneId: file.sceneId },
+            select: { releaseTitle: true },
+          })
         ).map((tried) => releaseKeyOf(tried.releaseTitle)),
       );
       const fresh = found.releases.filter(

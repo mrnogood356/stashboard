@@ -545,7 +545,12 @@ export abstract class OrganizerCore {
       await this.activity?.record({
         kind: activityKind(kind),
         title: message,
-        status: status === 'FAILED' ? 'failed' : 'done',
+        status:
+          status === 'FAILED'
+            ? 'failed'
+            : status === 'PARTIAL'
+              ? 'partial'
+              : 'done',
         ...activity,
       });
     }
