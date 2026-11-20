@@ -2231,6 +2231,69 @@ describe('IndexingService library change check', () => {
     expect(runWithLease).toHaveBeenCalledTimes(2);
   });
 
+  it('counts the safety gap from when a slow sync began, and ignores a skipped one', async () => {
+    jest.useFakeTimers();
+    try {
+      let finish: (value: unknown) => void = () => undefined;
+      const runWithLease = jest
+        .fn()
+        // A nine-minute read of a big library.
+        .mockImplementationOnce(
+          () => new Promise((resolve) => (finish = resolve)),
+        )
+        .mockResolvedValue({ processedCount: 1, updatedCount: 0 });
+      const service = new IndexingService(
+        {} as PrismaService,
+        {} as IntegrationsService,
+        {} as CatalogProviderService,
+        {} as WhisparrAdapter,
+        {} as StashAdapter,
+        {} as StashdbAdapter,
+        { runWithLease } as unknown as SyncStateService,
+      );
+
+      const slow = service.syncLibraryProjection('interval');
+      await jest.advanceTimersByTimeAsync(9 * 60_000);
+      finish({ processedCount: 3000, updatedCount: 0 });
+      await slow;
+
+      // Twelve minutes after it began, not after it finished, the next runs.
+      await jest.advanceTimersByTimeAsync(2 * 60_000);
+      await expect(
+        service.syncLibraryProjection('interval'),
+      ).resolves.toBeNull();
+      await jest.advanceTimersByTimeAsync(2 * 60_000);
+      await service.syncLibraryProjection('interval');
+      expect(runWithLease).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('runs the next safety sync after one skipped because Stash wasn’t set up', async () => {
+    const runWithLease = jest
+      .fn()
+      .mockResolvedValueOnce({
+        processedCount: 0,
+        updatedCount: 0,
+        skipped: true,
+      })
+      .mockResolvedValue({ processedCount: 1, updatedCount: 0 });
+    const service = new IndexingService(
+      {} as PrismaService,
+      {} as IntegrationsService,
+      {} as CatalogProviderService,
+      {} as WhisparrAdapter,
+      {} as StashAdapter,
+      {} as StashdbAdapter,
+      { runWithLease } as unknown as SyncStateService,
+    );
+
+    await service.syncLibraryProjection('interval');
+    await service.syncLibraryProjection('interval');
+    expect(runWithLease).toHaveBeenCalledTimes(2);
+  });
+
   it('runs the next safety sync after a sync failed, even soon after a success', async () => {
     jest.useFakeTimers();
     try {

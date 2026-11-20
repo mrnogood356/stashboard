@@ -61,7 +61,7 @@ export class IndexingService extends IndexingSync {
   private librarySyncOrder = 0;
   /** When the last library sync started, and a follow-up one waiting. */
   private lastLibrarySyncAt = 0;
-  /** When a library sync last finished reading Stash; the safety net skips soon after. */
+  /** When the last library sync that read Stash began; the safety net skips soon after. */
   private lastLibrarySyncDoneAt = 0;
   private followUpLibrarySync: ReturnType<typeof setTimeout> | null = null;
 
@@ -240,6 +240,9 @@ export class IndexingService extends IndexingSync {
     }
     this.lastLibrarySyncAt = Date.now();
     const started = ++this.librarySyncOrder;
+    // The safety gap counts from when this read of Stash began: what it saw
+    // is that old by the time it finishes.
+    const runStartedAt = Date.now();
     let result: SyncRunSummary | null;
     try {
       result = await this.syncStateService.runWithLease(
@@ -260,8 +263,9 @@ export class IndexingService extends IndexingSync {
       this.lastLibrarySyncDoneAt = 0;
       throw error;
     }
-    if (result !== null) {
-      this.lastLibrarySyncDoneAt = Date.now();
+    // Only a sync that read Stash counts; one skipped for want of Stash doesn't.
+    if (result !== null && !result.skipped) {
+      this.lastLibrarySyncDoneAt = runStartedAt;
     }
     // A sync that ran, having started after the change was owed, covers it;
     // one already going then may have read past it.

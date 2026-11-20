@@ -90,6 +90,8 @@ export interface SyncRunSummary {
   updatedCount: number;
   cursor?: string | null;
   diagnostics?: Record<string, SyncRunDiagnosticValue>;
+  /** Nothing was read: the service it needs isn't set up. */
+  skipped?: boolean;
 }
 
 export interface SceneIndexSummaryDelta {

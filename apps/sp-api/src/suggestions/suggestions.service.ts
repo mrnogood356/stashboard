@@ -92,7 +92,7 @@ export class SuggestionsService {
   private readonly running = new Map<string, Promise<SuggestionsDto>>();
   /** How many scenes each performer or studio has, learnt as they're asked about. */
   private readonly sourceTotals = new Map<string, number>();
-  /** Each category name's catalog id (or null), learnt once. */
+  /** Each category's id (or null) per catalog and name, learnt once. */
   private readonly tagIds = new Map<string, string | null>();
   /** What the last few lists put first, for a shuffle to move past. */
   private recentlyShown = new Set<string>();
@@ -241,14 +241,6 @@ export class SuggestionsService {
       STUDIO_POOL,
       this.random,
     );
-    if (performers.length === 0 && studios.length === 0) {
-      return {
-        items: [],
-        message:
-          'Watch a few scenes in Stash (with performers or studios linked to the catalog) and suggestions show up here.',
-      };
-    }
-
     const catalog = { baseUrl: provider.baseUrl, apiKey: provider.apiKey };
     const quietly = <T>(work: Promise<T>, what: string): Promise<T | null> =>
       work.catch((error: unknown) => {
@@ -290,6 +282,18 @@ export class SuggestionsService {
               this.random,
             ),
           );
+    // Categories alone are enough: performers and studios needn't be linked.
+    if (
+      performers.length === 0 &&
+      studios.length === 0 &&
+      tagSources.length === 0
+    ) {
+      return {
+        items: [],
+        message:
+          'Watch a few scenes in Stash (with performers or studios linked to the catalog, or tagged) and suggestions show up here.',
+      };
+    }
     const [performerResults, studioResults, tagResults] = await Promise.all([
       Promise.all(
         performers.map((entry) => performerScenes(entry.catalogId, entry.name)),
@@ -390,34 +394,35 @@ export class SuggestionsService {
       profile,
       dismissals,
     );
-    // Spread out, so a screenful isn't one studio's or one person's newest.
-    const ranked = diversify(
-      shuffled ? reshuffle(ordered, this.recentlyShown, this.random) : ordered,
-    );
+    const reordered = shuffled
+      ? reshuffle(ordered, this.recentlyShown, this.random)
+      : ordered;
     const statuses = await this.sceneStatus.resolveForScenes(
-      ranked.map((entry) => entry.scene.id),
+      reordered.map((entry) => entry.scene.id),
     );
-    const items = ranked
-      .filter((entry) => {
+    // Spread out what can be shown, so a screenful isn't one studio's or one
+    // person's newest; ones already asked for are left out first.
+    const ranked = diversify(
+      reordered.filter((entry) => {
         const status = statuses.get(entry.scene.id);
         return !status || isSceneStatusRequestable(status);
-      })
-      .slice(0, KEEP)
-      .map((entry): SuggestionDto => {
-        const status = statuses.get(entry.scene.id) ?? {
-          state: 'NOT_REQUESTED' as const,
-        };
-        return {
-          ...this.scenes.toScenesFeedItem(
-            entry.scene,
-            provider.integrationType,
-            status,
-            true,
-          ),
-          localSceneId: null,
-          reason: entry.reason,
-        };
-      });
+      }),
+    );
+    const items = ranked.slice(0, KEEP).map((entry): SuggestionDto => {
+      const status = statuses.get(entry.scene.id) ?? {
+        state: 'NOT_REQUESTED' as const,
+      };
+      return {
+        ...this.scenes.toScenesFeedItem(
+          entry.scene,
+          provider.integrationType,
+          status,
+          true,
+        ),
+        localSceneId: null,
+        reason: entry.reason,
+      };
+    });
     this.logger.debug(
       `You may enjoy: ${items.length} suggestion(s) from ${performers.length} performer(s) and ${studios.length} studio(s) you watch, ${tagSources.length} categor(ies) and ${profile.costars.length} co-star(s).`,
     );
@@ -456,14 +461,17 @@ export class SuggestionsService {
     catalog: { baseUrl: string; apiKey: string | null },
     picked: Array<{ catalogId: string; name: string; weight: number }>,
   ): Promise<Array<{ catalogId: string; name: string }>> {
+    // Ids belong to one catalog: switching catalogs asks again.
+    const cacheKey = (name: string) =>
+      `${catalog.baseUrl}|${name.toLowerCase()}`;
     const unknown = picked
       .map((entry) => entry.name)
-      .filter((name) => !this.tagIds.has(name.toLowerCase()));
+      .filter((name) => !this.tagIds.has(cacheKey(name)));
     if (unknown.length > 0) {
       try {
         const found = await this.stashdb.findTagIdsByNames(catalog, unknown);
-        for (const [key, id] of found) {
-          this.tagIds.set(key, id);
+        for (const [name, id] of found) {
+          this.tagIds.set(cacheKey(name), id);
         }
       } catch (error) {
         this.logger.debug(
@@ -472,7 +480,7 @@ export class SuggestionsService {
       }
     }
     return picked.flatMap((entry) => {
-      const id = this.tagIds.get(entry.name.toLowerCase());
+      const id = this.tagIds.get(cacheKey(entry.name));
       return id ? [{ catalogId: id, name: entry.name }] : [];
     });
   }
