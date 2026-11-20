@@ -263,25 +263,38 @@ export class SuggestionsService {
         }),
         `${name}'s scenes`,
       );
-    // Categories you watch most, for their popular scenes: only when no
-    // categories were picked, which already narrow the list.
-    const tagSources =
+    // Categories you watch most, for their popular scenes. With categories
+    // picked, it's their popular scenes instead, so the list still has
+    // something when no performer or studio you watch is linked.
+    const tagSources: Array<{
+      catalogId: string;
+      name: string;
+      tagIds: string[];
+    }> =
       tags.length > 0
-        ? []
-        : await this.catalogTagSources(
-            catalog,
-            pickSources(
-              (profile.tags ?? []).map((entry) => ({
-                catalogId: entry.key,
-                name: entry.name,
-                weight: entry.weight,
-              })),
-              TOP_TAGS,
-              EXTRA_TAGS,
-              TAG_POOL,
-              this.random,
-            ),
-          );
+        ? [
+            {
+              catalogId: tags.join(','),
+              name: 'the categories picked',
+              tagIds: tags,
+            },
+          ]
+        : (
+            await this.catalogTagSources(
+              catalog,
+              pickSources(
+                (profile.tags ?? []).map((entry) => ({
+                  catalogId: entry.key,
+                  name: entry.name,
+                  weight: entry.weight,
+                })),
+                TOP_TAGS,
+                EXTRA_TAGS,
+                TAG_POOL,
+                this.random,
+              ),
+            )
+          ).map((entry) => ({ ...entry, tagIds: [entry.catalogId] }));
     // Categories alone are enough: performers and studios needn't be linked.
     if (
       performers.length === 0 &&
@@ -330,7 +343,7 @@ export class SuggestionsService {
               sort: 'TRENDING',
               direction: 'DESC',
               includeTagNames: true,
-              tagFilter: { tagIds: [entry.catalogId], mode: 'OR' as const },
+              tagFilter: { tagIds: entry.tagIds, mode: 'OR' as const },
             }),
             `popular ${entry.name} scenes`,
           ),

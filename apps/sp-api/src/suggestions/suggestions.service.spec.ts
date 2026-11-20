@@ -336,4 +336,48 @@ describe('SuggestionsService', () => {
     await service.shuffle();
     expect(deps.stashdb.findTagIdsByNames).toHaveBeenCalledTimes(2);
   });
+
+  it('still suggests from picked categories when no performer or studio is linked', async () => {
+    const { service, deps } = setup();
+    const unlinked = {
+      playCount: 2,
+      oCounter: 0,
+      rating100: null,
+      lastPlayedAt: new Date().toISOString(),
+      performers: [],
+      studio: null,
+      tags: ['Outdoors', 'Kissing'],
+    };
+    deps.stash.listWatchHistory.mockResolvedValue([unlinked, unlinked]);
+    deps.stashdb.getScenesBySort.mockResolvedValue({
+      total: 1,
+      scenes: [
+        {
+          id: 'o1',
+          title: 'Trail',
+          details: null,
+          imageUrl: null,
+          studioId: null,
+          studioName: null,
+          studioImageUrl: null,
+          date: null,
+          releaseDate: '2026-10-01',
+          productionDate: null,
+          duration: 1800,
+          tagNames: ['Outdoors'],
+        },
+      ],
+    });
+
+    const result = await service.list(24, ['tag-out']);
+
+    expect(result.message).toBeNull();
+    expect(result.items.map((item) => item.id)).toEqual(['o1']);
+    expect(deps.stashdb.getScenesBySort).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sort: 'TRENDING',
+        tagFilter: { tagIds: ['tag-out'], mode: 'OR' },
+      }),
+    );
+  });
 });
