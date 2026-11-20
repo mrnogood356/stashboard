@@ -42,7 +42,11 @@ import {
   switchMap,
 } from 'rxjs';
 import { Message } from 'primeng/message';
-import { LibraryService } from '../../core/api/library.service';
+import {
+  LIBRARY_RESOLUTION_CHOICES,
+  LibraryResolution,
+  LibraryService,
+} from '../../core/api/library.service';
 import { LocalLibraryService } from '../../core/api/local-library.service';
 import { WatchLaterService } from '../../core/api/watch-later.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
@@ -323,6 +327,17 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly favoritePerformersOnly = signal(false);
   protected readonly favoriteStudiosOnly = signal(false);
   protected readonly favoriteTagsOnly = signal(false);
+  /** One quality only (from the Stats page's groups); null for all. */
+  protected readonly resolution = signal<LibraryResolution | null>(null);
+  protected readonly resolutionChoices: FilterOption[] = LIBRARY_RESOLUTION_CHOICES;
+  protected readonly resolutionValue = computed(
+    () =>
+      LIBRARY_RESOLUTION_CHOICES.find((choice) => choice.id === this.resolution())?.label ?? null,
+  );
+  protected readonly resolutionPicked = computed(() => {
+    const picked = this.resolution();
+    return picked ? [picked] : [];
+  });
   protected readonly selectedTagMode = signal<LibraryTagMatchMode>(
     LibraryPageComponent.DEFAULT_TAG_MODE,
   );
@@ -601,6 +616,7 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
       this.favoritePerformersOnly() ||
       this.favoriteStudiosOnly() ||
       this.favoriteTagsOnly() ||
+      this.resolution() !== null ||
       this.selectedTagMode() !== LibraryPageComponent.DEFAULT_TAG_MODE ||
       this.selectedTags().length > 0 ||
       this.selectedStudios().length > 0
@@ -622,6 +638,7 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.favoritePerformersOnly.set(false);
     this.favoriteStudiosOnly.set(false);
     this.favoriteTagsOnly.set(false);
+    this.resolution.set(null);
     this.selectedTagMode.set(LibraryPageComponent.DEFAULT_TAG_MODE);
     this.selectedTags.set([]);
     this.selectedTagIdsModel.set([]);
@@ -649,7 +666,8 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
       this.selectedTags().length +
       (this.favoritePerformersOnly() ? 1 : 0) +
       (this.favoriteStudiosOnly() ? 1 : 0) +
-      (this.favoriteTagsOnly() ? 1 : 0)
+      (this.favoriteTagsOnly() ? 1 : 0) +
+      (this.resolution() ? 1 : 0)
     );
   }
 
@@ -755,6 +773,16 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.favoriteStudiosOnly.set(nextValue);
+    this.syncUrlWithCurrentFilters(false);
+    this.resetFeedAndReload();
+  }
+
+  protected onResolutionPicked(ids: string[]): void {
+    const next = (ids[0] as LibraryResolution | undefined) ?? null;
+    if (this.resolution() === next) {
+      return;
+    }
+    this.resolution.set(next);
     this.syncUrlWithCurrentFilters(false);
     this.resetFeedAndReload();
   }
@@ -904,6 +932,7 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
         favoritePerformersOnly: this.favoritePerformersOnly(),
         favoriteStudiosOnly: this.favoriteStudiosOnly(),
         favoriteTagsOnly: this.favoriteTagsOnly(),
+        resolution: this.resolution() ?? undefined,
       })
       .pipe(
         finalize(() => {
@@ -1024,6 +1053,7 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
     favoritePerformersOnly: boolean;
     favoriteStudiosOnly: boolean;
     favoriteTagsOnly: boolean;
+    resolution: LibraryResolution | null;
     mode: LibraryTagMatchMode;
     tagIds: string[];
     tagNamesById: Map<string, string>;
@@ -1052,6 +1082,9 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
       queryParamMap.get('favoriteStudiosOnly') ?? '',
     );
     const favoriteTagsOnly = ['1', 'true'].includes(queryParamMap.get('favoriteTagsOnly') ?? '');
+    const resolutionParam = queryParamMap.get('resolution');
+    const resolution =
+      LIBRARY_RESOLUTION_CHOICES.find((choice) => choice.id === resolutionParam)?.id ?? null;
     const modeParam = queryParamMap.get('mode');
     const mode: LibraryTagMatchMode =
       modeParam === 'OR' || modeParam === 'AND' ? modeParam : LibraryPageComponent.DEFAULT_TAG_MODE;
@@ -1091,6 +1124,7 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
       favoritePerformersOnly,
       favoriteStudiosOnly,
       favoriteTagsOnly,
+      resolution: resolution as LibraryResolution | null,
       mode,
       tagIds: this.dedupeStrings(rawTagIds),
       tagNamesById,
@@ -1106,6 +1140,7 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
     favoritePerformersOnly: boolean;
     favoriteStudiosOnly: boolean;
     favoriteTagsOnly: boolean;
+    resolution: LibraryResolution | null;
     mode: LibraryTagMatchMode;
     tagIds: string[];
     tagNamesById: Map<string, string>;
@@ -1123,6 +1158,7 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
       this.favoritePerformersOnly() !== state.favoritePerformersOnly ||
       this.favoriteStudiosOnly() !== state.favoriteStudiosOnly ||
       this.favoriteTagsOnly() !== state.favoriteTagsOnly ||
+      this.resolution() !== state.resolution ||
       this.selectedTagMode() !== state.mode ||
       tagsChanged ||
       studiosChanged;
@@ -1137,6 +1173,7 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.favoritePerformersOnly.set(state.favoritePerformersOnly);
     this.favoriteStudiosOnly.set(state.favoriteStudiosOnly);
     this.favoriteTagsOnly.set(state.favoriteTagsOnly);
+    this.resolution.set(state.resolution);
     this.selectedTagMode.set(state.mode);
     this.selectedTagIdsModel.set(state.tagIds);
 
@@ -1179,6 +1216,7 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
       favoritePerformersOnly: this.favoritePerformersOnly() ? '1' : null,
       favoriteStudiosOnly: this.favoriteStudiosOnly() ? '1' : null,
       favoriteTagsOnly: this.favoriteTagsOnly() ? '1' : null,
+      resolution: this.resolution(),
       mode:
         this.selectedTagMode() === LibraryPageComponent.DEFAULT_TAG_MODE
           ? null
@@ -1205,6 +1243,7 @@ export class LibraryPageComponent implements OnInit, AfterViewInit, OnDestroy {
       (current.get('favoritePerformersOnly') ?? null) === next.favoritePerformersOnly &&
       (current.get('favoriteStudiosOnly') ?? null) === next.favoriteStudiosOnly &&
       (current.get('favoriteTagsOnly') ?? null) === next.favoriteTagsOnly &&
+      (current.get('resolution') ?? null) === next.resolution &&
       (current.get('mode') ?? null) === next.mode &&
       (current.get('tags') ?? null) === next.tags &&
       (current.get('tagNames') ?? null) === next.tagNames &&

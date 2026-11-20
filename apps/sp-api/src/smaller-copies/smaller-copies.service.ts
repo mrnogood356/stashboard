@@ -7,7 +7,10 @@ import {
 } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import type { SmallerCopyAttempt, SmallerCopySettings } from '@prisma/client';
-import { DownloadHandoffService } from '../download-handoff/download-handoff.service';
+import {
+  DownloadHandoffService,
+  releaseKeyOf,
+} from '../download-handoff/download-handoff.service';
 import { OPEN_HANDOFF_STATUSES } from '../download-handoff/download-handoff.model';
 import { DownloadsService } from '../downloads/downloads.service';
 import type { StatsFile } from '../playback/library-stats.util';
@@ -399,8 +402,39 @@ export class SmallerCopiesService {
     }
     const provider = (await this.catalog.getInstanceCatalogProvider())
       .providerKey;
-    // The grab needs a fresh search result to find the release by.
-    await this.downloads.searchReleases(index.linkedStashId, provider);
+    // The grab needs a fresh search result to find the release by. It also
+    // says whether the release failed in SABnzbd since it was listed.
+    const found = await this.downloads.searchReleases(
+      index.linkedStashId,
+      provider,
+    );
+    const listed = found.releases.find(
+      (release) =>
+        release.guid === row.releaseGuid ||
+        releaseKeyOf(release.title) === releaseKeyOf(row.releaseTitle),
+    );
+    // Not in the fresh search (the grab sends it from what was found
+    // before): its own history says whether it failed.
+    const failedBefore =
+      listed?.failedBefore ??
+      (row.releaseTitle
+        ? (await this.handoff.failedReleases([row.releaseTitle])).get(
+            releaseKeyOf(row.releaseTitle),
+          )
+        : undefined);
+    if (failedBefore) {
+      // Searched again on the next pass, for another release.
+      await this.note(stashSceneId, {
+        title: row.title,
+        oldSize: row.oldSize,
+        outcome: 'none-found',
+        detail: `The match SABnzbd couldn’t download before: ${failedBefore}`,
+        retryAfter: new Date(this.now()),
+      });
+      throw new BadRequestException(
+        `SABnzbd couldn’t download that release before (${failedBefore}), so it wasn’t sent again. It’ll look for another.`,
+      );
+    }
     const sent = await this.downloads.grabRelease(
       index.linkedStashId,
       {
@@ -560,8 +594,33 @@ export class SmallerCopiesService {
         .findUnique({ where: { stashSceneId: file.sceneId } })
         .catch(() => null);
       const taken = new Set(before?.grabbedGuids ?? []);
+      // Some indexers give a release a new guid on every search, so the
+      // ones tried before are known by title too.
+      // If it can't be read, this search fails and is tried again later:
+      // better than sending a release that was tried before.
+      const triedTitles = new Set(
+        (
+          await this.prisma.smallerCopyTry.findMany({
+            where: { stashSceneId: file.sceneId },
+            select: { releaseTitle: true },
+          })
+        ).map((tried) => releaseKeyOf(tried.releaseTitle)),
+      );
+      // Read here, not trusted from the search (which carries on without
+      // it): if it can't be read, this search fails and is tried later.
+      const failed = await this.handoff.failedReleases(
+        found.releases.map((candidate) => candidate.title),
+      );
+      const fresh = found.releases.filter(
+        (candidate) =>
+          !candidate.failedBefore &&
+          !failed.has(releaseKeyOf(candidate.title)) &&
+          !taken.has(candidate.guid) &&
+          !triedTitles.has(releaseKeyOf(candidate.title)),
+      );
+      const skipped = found.releases.length - fresh.length;
       const release = pickRelease(
-        found.releases.filter((candidate) => !taken.has(candidate.guid)),
+        fresh,
         { size: file.size ?? 0, duration: file.duration },
         reason,
         rules,
@@ -570,7 +629,7 @@ export class SmallerCopiesService {
         await this.note(file.sceneId, {
           ...base,
           outcome: 'none-found',
-          detail: `Nothing that fits the rules at ${rules.target} (${found.releases.length} releases looked at).`,
+          detail: `Nothing that fits the rules at ${rules.target} (${found.releases.length} releases looked at${skipped > 0 ? `, ${skipped} left out as tried or failed before` : ''}).`,
           retryAfter: new Date(this.now() + NONE_FOUND_WAIT),
         });
         return true;

@@ -100,7 +100,7 @@ export class AutomationWebhookController {
       return { ok: true, action: 'test' };
     }
     const action = this.automation.onWebhook(eventType, importedFolder(body));
-    this.logger.log(
+    this.logger.debug(
       `Received Whisparr webhook: ${eventType ?? 'unknown event'}${title ? ` for “${title}”` : ''} (${action}).`,
     );
     return { ok: true, action };

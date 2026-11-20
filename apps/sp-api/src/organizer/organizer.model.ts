@@ -167,6 +167,8 @@ export interface WhisparrSyncResult {
   linked: number;
   /** Extra copies that couldn't be removed. */
   failed: number;
+  /** What went wrong along the way (a Stash scan that timed out…). */
+  problems?: string[];
   /** Short lowercase steps, e.g. "removed 4 extra copies", for other summaries. */
   steps: string[];
   message: string;

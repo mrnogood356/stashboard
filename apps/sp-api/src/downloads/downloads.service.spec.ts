@@ -37,7 +37,11 @@ describe('DownloadsService', () => {
   const grab = jest.fn();
   const record = jest.fn();
   const fetchNzb = jest.fn();
-  const handoff = { isActive: jest.fn(), send: jest.fn() };
+  const handoff = {
+    isActive: jest.fn(),
+    send: jest.fn(),
+    failedReleases: jest.fn().mockResolvedValue(new Map()),
+  };
   let requestedProvider: string | null = null;
 
   const catalog = {
@@ -146,6 +150,26 @@ describe('DownloadsService', () => {
     expect(result.releases[0].match?.strength).toBe('strong');
     expect(result.releases[1].match?.strength).toBe('weak');
     expect(result.notice).toBeUndefined();
+  });
+
+  it('marks a release that failed in SABnzbd before, and lists it last', async () => {
+    search.mockResolvedValue([
+      release({ guid: 'b', title: 'Jane.Doe.24.03.15.Beach.Day' }),
+      release({ guid: 'a', title: 'Other.Creator.Random.Clip' }),
+    ]);
+    handoff.failedReleases.mockResolvedValueOnce(
+      new Map([['jane.doe.24.03.15.beach.day', 'RAR files failed to verify.']]),
+    );
+
+    const result = await service.searchReleases('scene-1', 'FANSDB');
+
+    // The strong match failed before: below the weak one that hasn't.
+    expect(
+      result.releases.map((entry) => [entry.guid, entry.failedBefore]),
+    ).toEqual([
+      ['a', undefined],
+      ['b', 'RAR files failed to verify.'],
+    ]);
   });
 
   it('searches your own words as typed, instead of the built queries', async () => {

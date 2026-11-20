@@ -2051,6 +2051,49 @@ describe('OrganizerService', () => {
     expect(settings.lastRunKind).toBe('sync');
   });
 
+  it('warns when Stash’s scan didn’t finish, even though the sync went on', async () => {
+    stash.findOrganizerScenes.mockResolvedValue({ total: 0, items: [] });
+    handoff.filesAsStashSees = jest.fn().mockResolvedValue([
+      {
+        stashId: 'sdb-9',
+        filePath: '/data/whisparr/New/new.mp4',
+        folder: '/data/whisparr/New',
+        movieId: 9,
+      },
+    ]);
+    prisma.sceneIndex.findMany.mockResolvedValue([{ stashId: 'sdb-9' }]);
+    jest.spyOn(service, 'linkWaitingScenes').mockResolvedValue([]);
+    stash.waitForJob.mockResolvedValueOnce('TIMED_OUT');
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+
+    const result = await service.syncWithWhisparr();
+
+    expect(result.problems?.length).toBeGreaterThan(0);
+    // The activity log agrees: partial, not done.
+    const activity = { record: jest.fn(), registerUndo: jest.fn() };
+    Object.assign(service, { activity });
+    stash.waitForJob.mockResolvedValueOnce('TIMED_OUT');
+    await service.syncWithWhisparr();
+    expect(activity.record).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'partial' }),
+    );
+    // Every problem is in the summary, not only the first.
+    for (const problem of result.problems ?? []) {
+      expect(result.message.toLowerCase()).toContain(
+        problem
+          .replace(/[.\s]+$/, '')
+          .toLowerCase()
+          .slice(0, 20),
+      );
+    }
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringMatching(/^Organizer sync: .*Stash’s scan/),
+    );
+    warn.mockRestore();
+  });
+
   it('says so when Stash and Whisparr already agree, and needs Whisparr', async () => {
     stash.findOrganizerScenes.mockResolvedValue({ total: 0, items: [] });
     await expect(service.syncWithWhisparr()).resolves.toMatchObject({

@@ -1,3 +1,4 @@
+import { logReachable, logUnreachable } from '../../logging/outage';
 import { BadGatewayException, Logger } from '@nestjs/common';
 import { RuntimeHealthServiceKey } from '@prisma/client';
 import { RuntimeHealthService } from '../../runtime-health/runtime-health.service';
@@ -277,7 +278,11 @@ export abstract class StashGraphqlClient {
         body: JSON.stringify({ query, variables }),
       });
     } catch (error) {
-      this.logger.warn(
+      // Once a warning while Stash is down; every retry after it is debug.
+      logUnreachable(
+        this.logger,
+        'stash',
+        endpoint,
         `Couldn't reach Stash (${operation}): ${this.errorMessage(error)}`,
       );
       if (trackRuntimeHealth) {
@@ -285,6 +290,7 @@ export abstract class StashGraphqlClient {
       }
       throw new BadGatewayException('Failed to reach Stash provider endpoint.');
     }
+    logReachable(this.logger, 'stash', endpoint, 'Stash');
 
     if (!response.ok) {
       const message = withStashAccessHint(

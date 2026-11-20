@@ -169,7 +169,10 @@
           @for (release of visible(); track trackKey($index, release)) {
             <li>
               @if (viaProwlarr()) {
-                <div class="release" [class.weak]="release.match?.strength === 'weak'">
+                <div
+                  class="release"
+                  [class.weak]="release.match?.strength === 'weak' || !!release.failedBefore"
+                >
                   <ng-container
                     [ngTemplateOutlet]="releaseCopy"
                     [ngTemplateOutletContext]="{ $implicit: release }"
@@ -238,6 +241,9 @@
   <span class="release-copy">
     <span class="release-title">{{ release.title }}</span>
     <span class="chips">
+      @if (release.failedBefore) {
+        <span class="chip poor" data-testid="failed-before">Failed before</span>
+      }
       @if (matchLabel(release); as label) {
         <span
           class="chip match"
@@ -277,6 +283,9 @@
     </span>
     @if (release.match && release.match.strength !== 'strong') {
       <span class="match-why">{{ matchDetail(release) }}</span>
+    }
+    @if (release.failedBefore; as why) {
+      <span class="why">SABnzbd couldn’t download this before: {{ why }}</span>
     }
     @if (release.rejected && release.rejections.length) {
       <span class="why">Whisparr would skip this: {{ release.rejections.join(' · ') }}</span>

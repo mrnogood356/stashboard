@@ -1,6 +1,6 @@
 import { ErrorHandler, Injectable } from '@angular/core';
 
-type Level = 'error' | 'warn' | 'info';
+type Level = 'error' | 'warn' | 'info' | 'debug';
 
 /** At most this many entries a page load, and the same one not again within a minute. */
 const MAX_PER_LOAD = 25;

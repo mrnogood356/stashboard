@@ -14,6 +14,8 @@ import type { StashAdapter } from '../providers/stash/stash.adapter';
 import {
   DownloadHandoffService,
   insideLibrary,
+  releaseKeyOf,
+  SAB_DOWNLOAD_FAILED,
 } from './download-handoff.service';
 
 describe('DownloadHandoffService', () => {
@@ -121,9 +123,21 @@ describe('DownloadHandoffService', () => {
     prisma = {
       downloadHandoff: {
         findMany: jest.fn(
-          ({ where }: { where: { status?: string | { in: string[] } } }) =>
+          ({
+            where,
+          }: {
+            where: {
+              status?: string | { in: string[] };
+              error?: { startsWith: string };
+            };
+          }) =>
             Promise.resolve(
-              rows.filter((entry) => matches(entry, where ?? {})),
+              rows.filter(
+                (entry) =>
+                  matches(entry, where ?? {}) &&
+                  (!where?.error ||
+                    (entry.error ?? '').startsWith(where.error.startsWith)),
+              ),
             ),
         ),
         findUnique: jest.fn(({ where }: { where: { id: string } }) =>
@@ -1412,6 +1426,41 @@ describe('DownloadHandoffService', () => {
       expect(outcome()).toMatchObject({ outcome: 'kept-both' });
       expect(outcome().detail).toContain('Stash said no');
     });
+  });
+
+  it('knows which releases SABnzbd failed before, whatever their case or spacing', async () => {
+    rows.push(
+      handoff({
+        id: 'h1',
+        releaseTitle: 'BangBus.25.06.11  XXX.1080p',
+        status: 'failed',
+        error: `${SAB_DOWNLOAD_FAILED} RAR files failed to verify.`,
+      }),
+      // Failed while being brought in, not in SABnzbd: the release is fine.
+      handoff({
+        id: 'h2',
+        releaseTitle: 'Fine.Release.1080p',
+        status: 'failed',
+        error: 'No destination is set, so it was left in SABnzbd’s folder.',
+      }),
+      handoff({
+        id: 'h3',
+        releaseTitle: 'Other.Release.1080p',
+        status: 'imported',
+      }),
+    );
+    const failed = await service.failedReleases([
+      'bangbus.25.06.11 XXX.1080p',
+      'Fine.Release.1080p',
+      'Other.Release.1080p',
+    ]);
+    expect([...failed]).toEqual([
+      ['bangbus.25.06.11 xxx.1080p', 'RAR files failed to verify.'],
+    ]);
+    expect(releaseKeyOf('  BangBus.25.06.11\tXXX.1080p ')).toBe(
+      'bangbus.25.06.11 xxx.1080p',
+    );
+    await expect(service.failedReleases([])).resolves.toEqual(new Map());
   });
 
   it('stops watching one download when asked, touching nothing else', async () => {

@@ -342,7 +342,7 @@ export class SuggestionsService {
           reason: entry.reason,
         };
       });
-    this.logger.log(
+    this.logger.debug(
       `You may enjoy: ${items.length} suggestion(s) from ${performers.length} performer(s) and ${studios.length} studio(s) you watch.`,
     );
     return {

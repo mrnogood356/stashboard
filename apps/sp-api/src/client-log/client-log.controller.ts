@@ -5,8 +5,8 @@ import { AllowWhenLocked } from '../auth/decorators/allow-when-locked.decorator'
 
 export class ClientLogDto {
   @IsOptional()
-  @IsIn(['error', 'warn', 'info'])
-  level?: 'error' | 'warn' | 'info';
+  @IsIn(['error', 'warn', 'info', 'debug'])
+  level?: 'error' | 'warn' | 'info' | 'debug';
 
   @IsString()
   @MaxLength(2000)
@@ -103,7 +103,9 @@ export class ClientLogController {
     const line = body.detail
       ? `${summary}\n${indentLogDetail(body.detail)}`
       : summary;
-    if (body.level === 'info') {
+    if (body.level === 'debug') {
+      this.logger.debug(line);
+    } else if (body.level === 'info') {
       this.logger.log(line);
     } else if (body.level === 'warn') {
       this.logger.warn(line);

@@ -1,4 +1,4 @@
-import { BadGatewayException, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, Logger, NotFoundException } from '@nestjs/common';
 import { OrganizerService } from '../organizer/organizer.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CatalogProviderService } from '../providers/catalog/catalog-provider.service';
@@ -189,6 +189,23 @@ describe('SetupCheckService', () => {
     expect(byId(checks, 'whisparr').summary).toBe(
       'Connected to Whisparr 3.0.1.',
     );
+  });
+
+  it('logs the summary at info only when it changes', async () => {
+    const info = jest
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined);
+    const debug = jest
+      .spyOn(Logger.prototype, 'debug')
+      .mockImplementation(() => undefined);
+    await service.run(ORIGIN);
+    await service.run(ORIGIN);
+    const summary = (calls: unknown[][]) =>
+      calls.filter(([line]) => String(line).startsWith('Setup check:'));
+    expect(summary(info.mock.calls)).toHaveLength(1);
+    expect(summary(debug.mock.calls)).toHaveLength(1);
+    info.mockRestore();
+    debug.mockRestore();
   });
 
   it('fails Stash when it isn’t set up and skips what needs it', async () => {

@@ -8,6 +8,7 @@ import {
   LibraryScenesFeedDto,
 } from './dto/library-scenes-feed.dto';
 import {
+  LibraryResolution,
   LibrarySceneSort,
   LibrarySortDirection,
   LibraryTagMatchMode,
@@ -47,6 +48,50 @@ interface LibrarySceneQueryFilters {
   favoritePerformersOnly?: boolean;
   favoriteStudiosOnly?: boolean;
   favoriteTagsOnly?: boolean;
+  resolution?: LibraryResolution;
+}
+
+type NormalizedFilters = Required<
+  Omit<LibrarySceneQueryFilters, 'resolution'>
+> & {
+  query: string;
+  resolution: LibraryResolution | null;
+};
+
+/**
+ * Scenes of one quality, grouped as the Stats page does (resolutionOf): by
+ * the main file's short side, so a portrait 1080×1920 video is 1080p.
+ */
+export function resolutionWhere(
+  resolution: LibraryResolution,
+): Prisma.LibrarySceneIndexWhereInput {
+  // Both sides at least this, and (for all but the top) one side below the next.
+  const band = (min: number, below: number | null) => ({
+    width: { gte: min },
+    height: { gte: min },
+    ...(below === null
+      ? {}
+      : { OR: [{ width: { lt: below } }, { height: { lt: below } }] }),
+  });
+  switch (resolution) {
+    case '4k':
+      return band(2000, null);
+    case '1080p':
+      return band(1000, 2000);
+    case '720p':
+      return band(700, 1000);
+    case 'sd':
+      return band(1, 700);
+    case 'unknown':
+      return {
+        OR: [
+          { width: null },
+          { height: null },
+          { width: { lte: 0 } },
+          { height: { lte: 0 } },
+        ],
+      };
+  }
 }
 
 @Injectable()
@@ -120,7 +165,7 @@ export class LibrarySceneQueryService {
 
   private normalizeFilters(
     filters: LibrarySceneQueryFilters,
-  ): Required<LibrarySceneQueryFilters> & { query: string } {
+  ): NormalizedFilters {
     return {
       sort: filters.sort ?? LibrarySceneQueryService.DEFAULT_SORT,
       direction:
@@ -132,11 +177,12 @@ export class LibrarySceneQueryService {
       favoritePerformersOnly: filters.favoritePerformersOnly ?? false,
       favoriteStudiosOnly: filters.favoriteStudiosOnly ?? false,
       favoriteTagsOnly: filters.favoriteTagsOnly ?? false,
+      resolution: filters.resolution ?? null,
     };
   }
 
   private buildWhere(
-    filters: Required<LibrarySceneQueryFilters> & { query: string },
+    filters: NormalizedFilters,
   ): Prisma.LibrarySceneIndexWhereInput {
     const andClauses: Prisma.LibrarySceneIndexWhereInput[] = [];
 
@@ -202,6 +248,10 @@ export class LibrarySceneQueryService {
 
     if (filters.favoriteTagsOnly) {
       andClauses.push({ hasFavoriteTag: true });
+    }
+
+    if (filters.resolution) {
+      andClauses.push(resolutionWhere(filters.resolution));
     }
 
     return andClauses.length > 0 ? { AND: andClauses } : {};

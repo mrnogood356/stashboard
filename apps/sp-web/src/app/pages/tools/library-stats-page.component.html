@@ -62,7 +62,13 @@
         <ul class="bars">
           @for (bucket of s.byResolution; track bucket.key) {
             <li class="bar-row">
-              <span class="bar-name">{{ bucket.label }}</span>
+              <a
+                class="bar-name"
+                routerLink="/library"
+                [queryParams]="{ resolution: bucket.key }"
+                [attr.data-testid]="'stats-resolution-' + bucket.key"
+                >{{ bucket.label }}</a
+              >
               <span class="bar-track" aria-hidden="true">
                 <span class="bar" [style.width.%]="share(bucket, s.byResolution)"></span>
               </span>

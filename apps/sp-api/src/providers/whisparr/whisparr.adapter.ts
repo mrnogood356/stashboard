@@ -1,4 +1,5 @@
 import type { ColonReplacement } from '../../organizer/whisparr-naming.util';
+import { logReachable, logUnreachable } from '../../logging/outage';
 import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import { RuntimeHealthServiceKey } from '@prisma/client';
 import { RuntimeHealthService } from '../../runtime-health/runtime-health.service';
@@ -1462,13 +1463,17 @@ export class WhisparrAdapter {
         options?.timeoutMs,
       );
     } catch (error) {
-      this.logger.warn(
+      logUnreachable(
+        this.logger,
+        'whisparr',
+        endpoint,
         `Couldn't reach Whisparr (${method} ${endpointPath(endpoint)}): ${this.errorMessage(error)}`,
       );
       throw new BadGatewayException(
         'Failed to reach Whisparr provider endpoint.',
       );
     }
+    logReachable(this.logger, 'whisparr', endpoint, 'Whisparr');
 
     if (!response.ok) {
       const message = await describeErrorResponse(

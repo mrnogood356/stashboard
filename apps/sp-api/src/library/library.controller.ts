@@ -30,6 +30,7 @@ export class LibraryController {
       query.favoritePerformersOnly,
       query.favoriteStudiosOnly,
       query.favoriteTagsOnly,
+      query.resolution,
     );
   }
 

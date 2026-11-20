@@ -362,11 +362,12 @@ export class AppLockService implements OnDestroy {
 
   /**
    * One line in Stashboard's log about what App Lock did on the phone, which
-   * has no console, so a lock that didn't happen can be traced.
+   * has no console, so a lock that didn't happen can be traced. Debug: it's
+   * for tracing a problem, not for every day.
    */
   private trace(what: string): void {
     // Every time: leaving twice within a minute is two lines, not one.
-    reportToServer('info', `App Lock on the phone: ${what}.`, undefined, { every: true });
+    reportToServer('debug', `App Lock on the phone: ${what}.`, undefined, { every: true });
   }
 
   private isStandalone(): boolean {

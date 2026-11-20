@@ -9,7 +9,10 @@ import {
 } from '@nestjs/common';
 import { IntegrationStatus, IntegrationType } from '@prisma/client';
 import { ActivityService } from '../activity/activity.service';
-import { DownloadHandoffService } from '../download-handoff/download-handoff.service';
+import {
+  DownloadHandoffService,
+  releaseKeyOf,
+} from '../download-handoff/download-handoff.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { CatalogProviderService } from '../providers/catalog/catalog-provider.service';
 import { runWithRequestedCatalogProvider } from '../providers/catalog/catalog-provider-context';
@@ -37,6 +40,8 @@ import { buildReleaseQueries } from './release-queries.util';
  */
 export type MatchedProwlarrRelease = Omit<ProwlarrRelease, 'downloadUrl'> & {
   match: ReleaseMatch | null;
+  /** Why it failed when SABnzbd downloaded it before; it would again. */
+  failedBefore?: string;
 };
 
 /** Prowlarr only remembers search results for about this long. */
@@ -88,6 +93,25 @@ export class DownloadsService {
   @Optional()
   @Inject(DownloadHandoffService)
   private readonly handoff?: DownloadHandoffService;
+
+  /** Which of these releases failed in SABnzbd before; none when unknown. */
+  private async failedBefore(
+    releases: Array<{ title: string }>,
+  ): Promise<Map<string, string>> {
+    if (!this.handoff) {
+      return new Map();
+    }
+    try {
+      return await this.handoff.failedReleases(
+        releases.map((release) => release.title),
+      );
+    } catch (error) {
+      this.logger.debug(
+        `Couldn't look up releases that failed before: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return new Map();
+    }
+  }
 
   /** Whether "Find downloads" can be offered. */
   async getStatus(): Promise<{ prowlarr: { configured: boolean } }> {
@@ -144,13 +168,18 @@ export class DownloadsService {
     }
 
     byGuid.forEach((release) => this.remember(release));
+    const failed = await this.failedBefore([...byGuid.values()]);
     const releases = sortProwlarrReleases(
-      [...byGuid.values()].map(({ downloadUrl: _link, ...release }) => ({
-        ...release,
-        match: matchRelease(release.title, scene),
-      })),
+      [...byGuid.values()].map(({ downloadUrl: _link, ...release }) => {
+        const why = failed.get(releaseKeyOf(release.title));
+        return {
+          ...release,
+          match: matchRelease(release.title, scene),
+          ...(why ? { failedBefore: why } : {}),
+        };
+      }),
     );
-    this.logger.log(
+    this.logger.debug(
       `Prowlarr found ${releases.length} release(s) for “${scene.title ?? scene.id}” (${scene.source}).`,
     );
     return releases.length > 0
@@ -362,9 +391,15 @@ function releaseKey(indexerId: number, guid: string): string {
 export function sortProwlarrReleases<
   T extends Omit<ProwlarrRelease, 'downloadUrl'> & {
     match: ReleaseMatch | null;
+    failedBefore?: string;
   },
 >(releases: T[]): T[] {
   return [...releases].sort((left, right) => {
+    // One that failed before would fail again: last, whatever it matches.
+    const failed = Number(!!left.failedBefore) - Number(!!right.failedBefore);
+    if (failed !== 0) {
+      return failed;
+    }
     const match = compareReleaseMatch(left.match, right.match);
     if (match !== 0) {
       return match;

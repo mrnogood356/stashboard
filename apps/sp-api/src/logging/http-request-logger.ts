@@ -9,7 +9,8 @@ export const SLOW_REQUEST_MS = 3_000;
  * Requests that wait on other services asking around, or read the whole
  * library, take a few seconds as a matter of course; only warn when one
  * takes really long:
- * - release searches (Prowlarr or Whisparr asking every indexer)
+ * - release searches (Prowlarr or Whisparr asking every indexer), Better
+ *   copies' Search one now among them
  * - Organizer lookups (every stash-box: StashDB, FansDB…) and scrapes
  * - looking for empty folders (every library folder on disk)
  */
@@ -17,6 +18,7 @@ export const SLOW_INDEXER_SEARCH_MS = 20_000;
 const LONG_BY_NATURE: Array<{ method: string; path: RegExp }> = [
   { method: 'GET', path: /^\/api\/downloads\/scenes\/[^/]+\/releases$/ },
   { method: 'GET', path: /^\/api\/requests\/[^/]+\/releases$/ },
+  { method: 'POST', path: /^\/api\/smaller-copies\/next$/ },
   { method: 'POST', path: /^\/api\/organizer\/lookup$/ },
   { method: 'POST', path: /^\/api\/organizer\/scrape$/ },
   { method: 'GET', path: /^\/api\/organizer\/folders\/empty$/ },
@@ -107,7 +109,16 @@ export function httpRequestLogger(
   };
 }
 
+/**
+ * Video streamed to the player: open for as long as it plays, so never
+ * slow. Its errors are still logged.
+ */
+const STREAMS = [/^\/api\/playback\/stream\//];
+
 function slowAfter(method: string, path: string): number {
+  if (STREAMS.some((pattern) => pattern.test(path))) {
+    return Number.POSITIVE_INFINITY;
+  }
   return LONG_BY_NATURE.some(
     (entry) => entry.method === method && entry.path.test(path),
   )

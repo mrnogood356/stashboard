@@ -37,12 +37,8 @@ export class SyncStateService {
 
     const startedAt = Date.now();
     const label = jobLabel(config.jobName);
-    // The frequent background jobs only say they started at debug.
-    if (FREQUENT_JOBS.has(config.jobName)) {
-      this.logger.debug(`Started ${label}.`);
-    } else {
-      this.logger.log(`Started ${label}.`);
-    }
+    // The finish line says how long it took; the start is only for tracing.
+    this.logger.debug(`Started ${label}.`);
 
     try {
       const result = await handler();
@@ -53,11 +49,12 @@ export class SyncStateService {
       };
       await this.markSuccess(config.jobName, success);
       const line = `Finished ${label}${success.runReason ? ` (${success.runReason})` : ''} in ${formatDuration(durationMs)}: ${success.processedCount ?? 0} checked, ${success.updatedCount ?? 0} updated.`;
-      // A frequent job that changed nothing would only be noise at info.
-      if (FREQUENT_JOBS.has(config.jobName) && !success.updatedCount) {
-        this.logger.debug(line);
-      } else {
+      // Info is for a run someone will look for: at startup, or one they
+      // asked for. The scheduled and follow-on runs are routine.
+      if (isNotableRun(success.runReason)) {
         this.logger.log(line);
+      } else {
+        this.logger.debug(line);
       }
       return result;
     } catch (error) {
@@ -213,13 +210,12 @@ export class SyncStateService {
 }
 
 /** Jobs that run every few seconds or minutes; they log at info only when they change something. */
-const FREQUENT_JOBS = new Set([
-  'scene-index-whisparr-queue',
-  'scene-index-library-projection',
-  'scene-index-metadata-backfill',
-  'scene-index-stash-availability',
-  'scene-index-request-rows',
-]);
+/** Runs worth an info line: at startup, or asked for. */
+const NOTABLE_RUN_REASONS = new Set(['startup', 'manual']);
+
+export function isNotableRun(runReason: string | null | undefined): boolean {
+  return !runReason || NOTABLE_RUN_REASONS.has(runReason);
+}
 
 const JOB_LABELS: Record<string, string> = {
   'scene-index-bootstrap': 'building the scene index',

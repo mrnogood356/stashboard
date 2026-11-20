@@ -121,7 +121,7 @@ export class AppLockService {
         where: { id: sessionId },
         data: { lockedAt: new Date(now) },
       });
-      this.logger.log(
+      this.logger.debug(
         `Locked a phone after ${Math.round((now - lastActive) / 1000)}s away.`,
       );
       return true;

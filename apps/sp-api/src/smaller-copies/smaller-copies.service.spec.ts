@@ -21,7 +21,11 @@ describe('SmallerCopiesService', () => {
   let prisma: Record<string, Record<string, jest.Mock>>;
   let transaction: jest.Mock;
   let downloads: { searchReleases: jest.Mock; grabRelease: jest.Mock };
-  let handoff: { stashConfig: jest.Mock; isActive: jest.Mock };
+  let handoff: {
+    stashConfig: jest.Mock;
+    isActive: jest.Mock;
+    failedReleases: jest.Mock;
+  };
   let stash: { listLibraryFiles: jest.Mock; getJobQueue: jest.Mock };
   let service: SmallerCopiesService;
   let now: number;
@@ -202,14 +206,20 @@ describe('SmallerCopiesService', () => {
           });
           return Promise.resolve();
         }),
-        findMany: jest.fn(({ where }: { where?: { outcome?: string } } = {}) =>
-          Promise.resolve(
-            [...tries]
-              .reverse()
-              .filter(
-                (row) => !where?.outcome || row.outcome === where.outcome,
-              ),
-          ),
+        findMany: jest.fn(
+          ({
+            where,
+          }: { where?: { outcome?: string; stashSceneId?: string } } = {}) =>
+            Promise.resolve(
+              [...tries]
+                .reverse()
+                .filter(
+                  (row) =>
+                    (!where?.outcome || row.outcome === where.outcome) &&
+                    (!where?.stashSceneId ||
+                      row.stashSceneId === where.stashSceneId),
+                ),
+            ),
         ),
         updateMany: jest.fn(
           ({
@@ -286,6 +296,7 @@ describe('SmallerCopiesService', () => {
         .fn()
         .mockResolvedValue({ baseUrl: 'http://stash:9999' }),
       isActive: jest.fn().mockResolvedValue(true),
+      failedReleases: jest.fn().mockResolvedValue(new Map()),
     };
     stash = {
       listLibraryFiles: jest.fn(() => Promise.resolve(files)),
@@ -417,6 +428,39 @@ describe('SmallerCopiesService', () => {
     expect(attempts.get('2')?.outcome).toBe('grabbed');
   });
 
+  it('won’t grab a listed match that failed in SABnzbd since, and looks again', async () => {
+    settings.autoGrab = false;
+    await service.tick();
+    downloads.searchReleases.mockResolvedValue({
+      releases: [release({ failedBefore: 'Out of retention.' })],
+    });
+
+    await expect(service.grabListed('2')).rejects.toThrow(
+      'SABnzbd couldn’t download that release before (Out of retention.)',
+    );
+    expect(downloads.grabRelease).not.toHaveBeenCalled();
+    expect(attempts.get('2')).toMatchObject({ outcome: 'none-found' });
+    const attempt = attempts.get('2') as { retryAfter: Date } | undefined;
+    expect(attempt?.retryAfter.getTime()).toBeLessThanOrEqual(now);
+  });
+
+  it('won’t grab a listed match the fresh search no longer finds if it failed since', async () => {
+    settings.autoGrab = false;
+    await service.tick();
+    downloads.searchReleases.mockResolvedValue({ releases: [] });
+    handoff.failedReleases.mockResolvedValueOnce(
+      new Map([['studio.scene.1080p.x265', 'Aborted.']]),
+    );
+
+    await expect(service.grabListed('2')).rejects.toThrow(
+      'SABnzbd couldn’t download that release before (Aborted.)',
+    );
+    expect(handoff.failedReleases).toHaveBeenCalledWith([
+      'Studio.Scene.1080p.x265',
+    ]);
+    expect(downloads.grabRelease).not.toHaveBeenCalled();
+  });
+
   it('only searches in the hours allowed, unless asked to now', async () => {
     settings.activeFromHour = 1;
     settings.activeToHour = 6;
@@ -471,6 +515,54 @@ describe('SmallerCopiesService', () => {
     });
   });
 
+  it('grabs nothing when it can’t read what was tried before, and tries again later', async () => {
+    const tried = prisma.smallerCopyTry.findMany.getMockImplementation()!;
+    // Only the lookup of what was tried for the scene fails.
+    prisma.smallerCopyTry.findMany.mockImplementation(
+      (args: { select?: { releaseTitle?: boolean } } = {}) =>
+        args.select?.releaseTitle
+          ? Promise.reject(new Error('database down'))
+          : tried(args),
+    );
+    await service.tick();
+
+    expect(downloads.grabRelease).not.toHaveBeenCalled();
+    expect(attempts.get('2')).toMatchObject({
+      outcome: 'failed',
+      detail: 'database down',
+    });
+  });
+
+  it('grabs nothing when it can’t read which releases failed in SABnzbd, and tries again later', async () => {
+    handoff.failedReleases.mockRejectedValueOnce(new Error('database down'));
+    await service.tick();
+
+    expect(downloads.grabRelease).not.toHaveBeenCalled();
+    expect(attempts.get('2')).toMatchObject({
+      outcome: 'failed',
+      detail: 'database down',
+    });
+  });
+
+  it('skips a release SABnzbd failed even when the search didn’t mark it', async () => {
+    downloads.searchReleases.mockResolvedValue({
+      releases: [
+        release({ guid: 'g1', title: 'Studio.Scene.1080p.x265' }),
+        release({ guid: 'g2', title: 'Studio.Scene.1080p.HEVC' }),
+      ],
+    });
+    handoff.failedReleases.mockResolvedValueOnce(
+      new Map([['studio.scene.1080p.x265', 'Aborted.']]),
+    );
+    await service.tick();
+    expect(downloads.grabRelease).toHaveBeenCalledWith(
+      'cat-2',
+      expect.objectContaining({ guid: 'g2' }),
+      'STASHDB',
+      { replacesStashSceneId: '2' },
+    );
+  });
+
   it('cleans up what it saves', async () => {
     await service.saveSettings({
       ...(await service.status()).settings,
@@ -516,6 +608,38 @@ describe('SmallerCopiesService', () => {
       outcome: 'grabbed',
       releaseGuid: 'g2',
     });
+  });
+
+  it('skips a release tried before under a new guid, or one that failed in SABnzbd', async () => {
+    tries.push({
+      id: 't0',
+      stashSceneId: '2',
+      title: 'Scene 2',
+      releaseTitle: 'Studio.Scene.1080p.x265',
+      outcome: 'failed',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    downloads.searchReleases.mockResolvedValue({
+      releases: [
+        // The same release the indexer now lists under another guid.
+        release({ guid: 'g9', title: 'studio.scene.1080p.X265' }),
+        release({
+          guid: 'g3',
+          title: 'Studio.Scene.1080p.AV1',
+          failedBefore: 'RAR files failed to verify.',
+        }),
+        release({ guid: 'g2', title: 'Studio.Scene.1080p.HEVC' }),
+      ],
+    });
+    await service.tick();
+    expect(downloads.grabRelease).toHaveBeenCalledTimes(1);
+    expect(downloads.grabRelease).toHaveBeenCalledWith(
+      'cat-2',
+      expect.objectContaining({ guid: 'g2' }),
+      'STASHDB',
+      { replacesStashSceneId: '2' },
+    );
   });
 
   it('remembers a grabbed release through later searches that find nothing', async () => {

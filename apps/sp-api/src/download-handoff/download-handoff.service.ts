@@ -333,6 +333,37 @@ export class DownloadHandoffService {
   // ---------- what's happening ----------
 
   /** The latest downloads sent to SABnzbd, newest first. */
+  /**
+   * Releases SABnzbd failed to download before (broken RARs, missing
+   * articles), by their title as {@link releaseKeyOf} writes it, with why. A
+   * release that failed there fails again: it's the same files on usenet. A
+   * download that failed later, while being brought in (no destination,
+   * Stash never found it), says nothing about the release, so isn't one.
+   */
+  async failedReleases(titles: string[]): Promise<Map<string, string>> {
+    const keys = new Set(titles.map(releaseKeyOf).filter(Boolean));
+    if (keys.size === 0) {
+      return new Map();
+    }
+    // Compared in full here, not in the query: the same release can be
+    // spaced differently from one indexer to the next. Every one is read
+    // (two short columns): a failure left unread would let it be sent again.
+    const rows = await this.prisma.downloadHandoff.findMany({
+      where: { status: 'failed', error: { startsWith: SAB_DOWNLOAD_FAILED } },
+      select: { releaseTitle: true, error: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+    const failed = new Map<string, string>();
+    for (const row of rows) {
+      const key = releaseKeyOf(row.releaseTitle);
+      if (keys.has(key) && !failed.has(key)) {
+        const why = (row.error ?? '').slice(SAB_DOWNLOAD_FAILED.length).trim();
+        failed.set(key, why || 'It failed to download.');
+      }
+    }
+    return failed;
+  }
+
   async recent(limit = RECENT_LIMIT): Promise<DownloadHandoffDto[]> {
     const rows = await this.prisma.downloadHandoff.findMany({
       orderBy: { createdAt: 'desc' },
@@ -699,7 +730,7 @@ export class DownloadHandoffService {
     if (status === 'failed') {
       await this.fail(
         row,
-        `SABnzbd couldn’t download it: ${entry.failMessage ?? 'it gave no reason'}.`,
+        `${SAB_DOWNLOAD_FAILED} ${entry.failMessage ?? 'it gave no reason'}.`,
       );
       // What it downloaded before failing stays behind otherwise, and
       // nothing ever picks it up.
@@ -758,7 +789,7 @@ export class DownloadHandoffService {
               reason: `SABnzbd didn’t say where its “${settings.category}” downloads go.`,
             };
         if (result.result === 'removed') {
-          this.logger.log(`Removed SABnzbd's folder ${folder}.`);
+          this.logger.debug(`Removed SABnzbd's folder ${folder}.`);
         } else if (result.result === 'kept') {
           problems.push(result.reason);
         }
@@ -961,7 +992,7 @@ export class DownloadHandoffService {
             videos: [],
           };
       if (result.result === 'removed') {
-        this.logger.log(`Removed SABnzbd's folder ${folder}.`);
+        this.logger.debug(`Removed SABnzbd's folder ${folder}.`);
       } else if (result.result === 'kept') {
         this.logger.log(
           `Left SABnzbd's folder ${folder} for “${name}”: ${result.reason}`,
@@ -1947,6 +1978,17 @@ export function placedLines(
     ...(placed.to !== from ? [`Put in its folder: ${placed.to}`] : []),
     ...(placed.reason ? [placed.reason] : []),
   ];
+}
+
+/** How a download SABnzbd itself failed starts its error. */
+export const SAB_DOWNLOAD_FAILED = 'SABnzbd couldn’t download it:';
+
+/**
+ * A release title as it's compared: case and spacing don't make a different
+ * release.
+ */
+export function releaseKeyOf(title: string | null | undefined): string {
+  return (title ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 export function toDto(row: DownloadHandoff): DownloadHandoffDto {

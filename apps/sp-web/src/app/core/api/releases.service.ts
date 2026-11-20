@@ -35,6 +35,8 @@ export interface WhisparrRelease {
   downloadAllowed: boolean;
   /** Null when Stashboard knows too little about the scene to tell. */
   match?: ReleaseMatch | null;
+  /** Prowlarr's only: why SABnzbd couldn't download it before. */
+  failedBefore?: string;
 }
 
 /** A release Prowlarr's indexers found, as the API sends it. */
@@ -51,6 +53,8 @@ export interface ProwlarrRelease {
   publishDate: string | null;
   infoUrl: string | null;
   match: ReleaseMatch | null;
+  /** Why SABnzbd couldn't download it before; it would fail again. */
+  failedBefore?: string;
 }
 
 /** Where a Find downloads grab went: Prowlarr's client, or SABnzbd (Finished downloads). */
@@ -149,7 +153,7 @@ export class ReleasesApiService {
 }
 
 /** Prowlarr has no quality profiles or rejections; everything can be downloaded. */
-function fromProwlarr(release: ProwlarrRelease): WhisparrRelease {
+export function fromProwlarr(release: ProwlarrRelease): WhisparrRelease {
   return {
     guid: release.guid,
     indexerId: release.indexerId,
@@ -169,5 +173,6 @@ function fromProwlarr(release: ProwlarrRelease): WhisparrRelease {
     infoUrl: release.infoUrl,
     downloadAllowed: true,
     match: release.match,
+    ...(release.failedBefore ? { failedBefore: release.failedBefore } : {}),
   };
 }

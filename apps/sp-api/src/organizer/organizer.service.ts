@@ -1220,7 +1220,8 @@ export class OrganizerService
     if (linked.length > 0) {
       this.scheduleRefresh();
     }
-    this.logger.log(
+    // Info only when it linked something; the regular check usually doesn't.
+    this.logger[linked.length > 0 ? 'log' : 'debug'](
       `Linked ${linked.length} of ${files.length} scene(s) waiting for import to their catalog scenes.`,
     );
     return linked;
@@ -1265,15 +1266,21 @@ export class OrganizerService
       total: 3,
       message: 'Checking what Stash is out of date on…',
     };
-    this.logger.log(
+    // Runs after every Whisparr import; the finish line says what it did.
+    this.logger.debug(
       `Organizer started (${this.runState.kind}): ${this.runState.message}`,
     );
     try {
       const result = await this.runWhisparrSync();
       this.finish(result.message);
+      // Problems along the way are a warning, even when the rest went fine.
       await this.record(
         'sync',
-        result.failed && !result.removed && !result.linked ? 'FAILED' : 'DONE',
+        result.failed && !result.removed && !result.linked
+          ? 'FAILED'
+          : result.failed || result.problems?.length
+            ? 'PARTIAL'
+            : 'DONE',
         result.message,
       );
       if (result.rescanned + result.removed + result.linked > 0) {
@@ -1353,8 +1360,8 @@ export class OrganizerService
     const after =
       toScan.length > 0
         ? await plan().catch((error: unknown) => {
-            this.logger.warn(
-              `Couldn't re-plan after the Stash scan; using the earlier plan: ${messageOf(error)}`,
+            problems.push(
+              `couldn't re-plan after the Stash scan, so the earlier plan was used (${messageOf(error)})`,
             );
             return before;
           })
@@ -1417,7 +1424,8 @@ export class OrganizerService
           `${removal.failed.length} ${removal.failed.length === 1 ? 'copy' : 'copies'} couldn’t be removed: ${removal.failed[0].reason}`,
         )
       : '';
-    const problemNote = problems.length ? sentence(problems[0]) : '';
+    // Every problem, so none is only in the debug log.
+    const problemNote = problems.map(sentence).join('');
     const summary = steps.length
       ? `${steps.join(', ').replace(/^./, (first) => first.toUpperCase())}.`
       : 'Stash and Whisparr already agree. Nothing to tidy up.';
@@ -1426,6 +1434,7 @@ export class OrganizerService
       removed: removal.removed,
       linked: linked.length,
       failed: removal.failed.length,
+      problems,
       steps,
       message: `${summary}${failedNote}${problemNote}`,
     };
@@ -1530,7 +1539,7 @@ export class OrganizerService
         left = await waiting(ids);
       }
     }
-    this.logger.log(
+    this.logger[before.length > left.length ? 'log' : 'debug'](
       `Checked ${before.length} scene(s) waiting for import: ${before.length - left.length} fixed, ${left.length} still waiting.`,
     );
     return {

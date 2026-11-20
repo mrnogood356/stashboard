@@ -60,7 +60,7 @@ export class AppLockController {
     const { user, sessionId } =
       await this.auth.requireAuthenticatedRequest(request);
     await this.appLock.lock(user.id, sessionId);
-    this.logger.log('Locked as the app went to the background.');
+    this.logger.debug('Locked as the app went to the background.');
   }
 
   @AllowWhenLocked()
@@ -83,7 +83,7 @@ export class AppLockController {
       this.logger.warn(`Unlock with PIN refused: ${messageOf(error)}`);
       throw error;
     }
-    this.logger.log('Unlocked with PIN.');
+    this.logger.debug('Unlocked with PIN.');
   }
 
   @AllowWhenLocked()
@@ -114,7 +114,7 @@ export class AppLockController {
       this.logger.warn(`Unlock with Face ID refused: ${messageOf(error)}`);
       throw error;
     }
-    this.logger.log('Unlocked with Face ID.');
+    this.logger.debug('Unlocked with Face ID.');
   }
 
   @Put('settings')
