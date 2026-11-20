@@ -5,59 +5,33 @@
 
 ### Features
 
-* catch up with Stash 0.32 (production date, subtitles) ([0961b19](https://github.com/mrnogood356/stashboard/commit/0961b1983d7a1a37040ea517a1a36fbdf85bb1da))
-* catch up with Stash 0.32 (production date, subtitles) ([d3c6859](https://github.com/mrnogood356/stashboard/commit/d3c6859983d004ce77aa1c198912ced83868562d))
-* **downloads:** show where a finished download will be filed ([dce87cc](https://github.com/mrnogood356/stashboard/commit/dce87cc2670f7fa2dd6615212e397727e82531f5))
-* **home:** "Scenes you already have" also leaves them out of Home's catalog rows ([016e18a](https://github.com/mrnogood356/stashboard/commit/016e18a12ef2653fa288baa673dbc555074e14e0))
-* **library:** add a performer or studio to Stash from the edit sheet ([6f06441](https://github.com/mrnogood356/stashboard/commit/6f064414fd1a8a0e8e691acb9a7e9c8755da4345))
-* **library:** bulk edit, Add to Stash, fill from StashDB, Studios paging fix, App Lock trace ([328216c](https://github.com/mrnogood356/stashboard/commit/328216ccdbddf2a63dc519861d9cfe19c4acde5e))
-* **library:** edit a library scene's details, like Stash's Edit tab ([1464d38](https://github.com/mrnogood356/stashboard/commit/1464d38758acf33241222c35f965b953cf63d7ce))
-* **library:** edit library scenes; fix: Generate speed, the eye and the switcher cover ([3baac89](https://github.com/mrnogood356/stashboard/commit/3baac89b11f965898c11bac6b3176aee45c59059))
-* **library:** edit many library scenes at once ([165a041](https://github.com/mrnogood356/stashboard/commit/165a0415175d8bda10683dcf4486df52d298f218))
-* **library:** fill in a library scene from StashDB in the edit sheet ([db7fe59](https://github.com/mrnogood356/stashboard/commit/db7fe59def60b1fa7fc502e1542c347f89f933c5))
-* **library:** filter by resolution; Stats links each one ([5577188](https://github.com/mrnogood356/stashboard/commit/5577188f00427f70fe9c4c9b4c313b588c9831aa))
-* **library:** one scene a row on phones ([4122aff](https://github.com/mrnogood356/stashboard/commit/4122aff092878e8de0983f4b938f37252fc86364))
-* **privacy:** an "On this device" check on the Privacy page ([6d559d5](https://github.com/mrnogood356/stashboard/commit/6d559d566be914343fca5607dba0bd28eb1e0897))
-* **studios:** In my library, like Performers ([3044ff1](https://github.com/mrnogood356/stashboard/commit/3044ff1b2bf5a53fc27815d9685b56058651b209))
-* **tools:** Broken files follows the Stash job it starts ([da69708](https://github.com/mrnogood356/stashboard/commit/da69708d4e5e3fa31090d751e4da6e9cf8afea39))
-
+* Edit a library scene's details like Stash's Edit tab: title, date, studio, people, tags, links and, on Stash 0.32, its production date
+* Edit many library scenes at once: set a studio, add or take off performers and tags
+* Add a performer or studio to Stash right from the edit sheet, and fill in an unmatched scene from StashDB
+* Subtitles in the player, picked under More, staying in your language from one scene to the next
+* The library can filter by resolution, and each row of Stats → By resolution opens it
+* Studios get "In my library", like Performers, and Home's catalog rows can leave out scenes you already have
+* One scene a row in the library on phones, if you like
+* Finished downloads show where they'll be filed
+* Find downloads marks a release SABnzbd couldn't download before, says why, and lists it last
+* An "On this device" check on the Privacy page
+* Broken files follows the Stash job it starts
 
 ### Bug Fixes
 
-* **about:** What's new shows once per update, and a release isn't "behind" main ([47a6bb2](https://github.com/mrnogood356/stashboard/commit/47a6bb2edb8cf9c32236f5e88d0fdeb8ec1667b7))
-* **api:** review fixes for What's new, update check, Home rows and the studios list ([bc438f3](https://github.com/mrnogood356/stashboard/commit/bc438f395783005dd7c14f88c30429e3681a76ac))
-* **app-lock:** log every App Lock leave and return, not one a minute ([2d72e9d](https://github.com/mrnogood356/stashboard/commit/2d72e9dd5c63c765b2d25d2808eac244ebf2dfbb))
-* **app-lock:** write what App Lock does on the phone to the log ([4531e8c](https://github.com/mrnogood356/stashboard/commit/4531e8c0bd03939c98fa7a2f2177e9543db76b9d))
-* **better-copies:** read failure history itself before picking a release ([3737f08](https://github.com/mrnogood356/stashboard/commit/3737f0867c0aa986dd0121988adf3dbdd4406e39))
-* Broken files waits for the preview rescan; App Lock logs every leave ([469471b](https://github.com/mrnogood356/stashboard/commit/469471bf1a6d90a23bb4f95f1b034ca2621685a6))
-* **broken-files:** answer once Generate starts, not after the preview rescan ([474ffc1](https://github.com/mrnogood356/stashboard/commit/474ffc1a3679275a9c3194f26f8d495a1133954b))
-* CodeRabbit review of [#108](https://github.com/mrnogood356/stashboard/issues/108) ([daf7ce2](https://github.com/mrnogood356/stashboard/commit/daf7ce269b24d5f7ab2f7d82468c74be7c04e092))
-* **deps:** lift effect to 3.22.x past its security fix ([6acb191](https://github.com/mrnogood356/stashboard/commit/6acb191b0f2c190820ecbe3906e4887f3e7ac4f6))
-* **deps:** lift effect to 3.22.x past its security fix ([a757c43](https://github.com/mrnogood356/stashboard/commit/a757c43102020bad9fa01d68a1f9dc4e97761c94))
-* **downloads:** don't grab a release that already failed ([4bcd283](https://github.com/mrnogood356/stashboard/commit/4bcd283599ad7a4362cb2818b31c99b6d97578bf))
-* health refresh never hangs; quieter outages for every service ([5dbc31b](https://github.com/mrnogood356/stashboard/commit/5dbc31b3f7db58cffb116a3a40224d3e1d6e157c))
-* **home:** rows show a match or other library change on the next visit ([b433328](https://github.com/mrnogood356/stashboard/commit/b43332894784bd6f43ef6a9776d4de1555a5881c))
-* **library:** CodeRabbit review fixes for [#102](https://github.com/mrnogood356/stashboard/issues/102) ([a3a1154](https://github.com/mrnogood356/stashboard/commit/a3a1154752deb4de7e491bdb31df34c94145340e))
-* **library:** early years count as themselves in the release date check ([11e4d20](https://github.com/mrnogood356/stashboard/commit/11e4d20ed0203e37f021d2b36d801fae10a347c4))
-* **library:** page In my library lists through one ranking ([2e2b215](https://github.com/mrnogood356/stashboard/commit/2e2b21509e8767238501708a5fc2adeec0adc9f4))
-* **library:** review fixes for scene editing ([87550c2](https://github.com/mrnogood356/stashboard/commit/87550c2d9d9cb3389614770ed0d4d0bc0fe4e306))
-* **logs:** keep routine background work out of the info log ([18a12ed](https://github.com/mrnogood356/stashboard/commit/18a12ed879b91daed933dcf12f87859c295daff8))
-* **player:** controls hide after any menu closes; Safari subtitles ([a52255a](https://github.com/mrnogood356/stashboard/commit/a52255a2a98c106b1a4252d67585d5c12739b9c5))
-* **player:** keep controls up while More or Chapters is open ([8aede69](https://github.com/mrnogood356/stashboard/commit/8aede69f85a43c9c978ba4130cdff50b754d462b))
-* **player:** smooth seek-bar scrubbing on phones ([ba32d54](https://github.com/mrnogood356/stashboard/commit/ba32d5439f2360bfb2234ba30854e1a2901290e3))
-* **privacy:** forget only the cancelled strip fingers ([bacdf2b](https://github.com/mrnogood356/stashboard/commit/bacdf2b91e7caa76df9e8b4751effa849b8305d6))
-* **privacy:** keep the switcher cover up until every strip finger lifts ([5d2a09a](https://github.com/mrnogood356/stashboard/commit/5d2a09acad6bc3c51b2ec954625fb100e2d584fe))
-* **privacy:** review fixes for the eye's server copy, the switcher cover and early dates ([316f55f](https://github.com/mrnogood356/stashboard/commit/316f55f367dcfd5d7f02a9c8d0c0b3e0c31475b7))
-* **privacy:** the phone app keeps the eye, and covers the screen sooner for the switcher ([5aa48c4](https://github.com/mrnogood356/stashboard/commit/5aa48c483b6e20872fa63f13b445172e6be46449))
-* quieter logs, no re-grabbing broken releases, faster when a service hangs; library resolution filter ([fb17432](https://github.com/mrnogood356/stashboard/commit/fb17432f67e673ca87ba53e2da124fb239f0e312))
-* second CodeRabbit review of [#108](https://github.com/mrnogood356/stashboard/issues/108) ([debbb24](https://github.com/mrnogood356/stashboard/commit/debbb24d171c9861304fb7ed4802375ec011dac6))
-* third CodeRabbit review of [#108](https://github.com/mrnogood356/stashboard/issues/108) ([cc89fcb](https://github.com/mrnogood356/stashboard/commit/cc89fcb9e2d2b61d7efae1b89fdae46d7a6a0252))
-* **tools:** Broken files waits for Generate's preview rescan to reach Stash ([aea946e](https://github.com/mrnogood356/stashboard/commit/aea946e23576d90d20bff05ff89240777e871e36))
-* **tools:** read the waiting count before Stash's job list ([d06ef6f](https://github.com/mrnogood356/stashboard/commit/d06ef6ff8466bdb4d0c9327e778d436d9b77ab7b))
-* **web:** back links return to the page as you left it ([e849129](https://github.com/mrnogood356/stashboard/commit/e84912954fb0da324805763c44710618728c101a))
-* **web:** read "Failed before" through a typed helper ([0bdf5ff](https://github.com/mrnogood356/stashboard/commit/0bdf5ff54439935b6242e6ff6d89afc93395f10d))
-* **web:** review fixes for back links, Search, Studios, Home and What's new ([d9b234e](https://github.com/mrnogood356/stashboard/commit/d9b234e1d17dd68d9784eed54e99b5fb7e4a9fef))
-* What's new, About, Home after a match, back links; feat: library options ([c5663e5](https://github.com/mrnogood356/stashboard/commit/c5663e5a09a03da7cbd1384dc334102dc38857bd))
+* Better copies no longer grabs a release that already failed, even when an indexer gives it a new name
+* Dragging the seek bar on phones is smooth: no flicker, no getting stuck, the preview stays on screen
+* The player's controls stay up while a menu is open and hide again after
+* The logs are much quieter: routine background work is at debug, and a service that's down is warned about once, with a line when it's back
+* A health refresh answers within seconds even when a service hangs
+* Generate answers as soon as Stash starts it, and the page follows the preview rescan after
+* The phone app keeps the eye (blur) setting, and covers the screen sooner in the app switcher
+* App Lock writes what it did on the phone to the log, for tracing a lock that didn't happen
+* What's new shows once per update, and About no longer calls a release "behind"
+* Back links return to the page as you left it
+* Home rows show a match or other library change on the next visit
+* In my library lists page through one ranking, so a studio or performer isn't missed or shown twice
+* Security: lifts the `effect` package (used by Prisma) to 3.22.x, past its security fix
 
 ## [1.7.0](https://github.com/mrnogood356/stashboard/compare/v1.6.0...v1.7.0) (2026-11-15)
 
