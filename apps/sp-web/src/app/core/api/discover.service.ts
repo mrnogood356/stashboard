@@ -13,6 +13,7 @@ import {
   PerformerStudioOption,
   SceneDetails,
   SceneFavoritesFilter,
+  PendingScenes,
   SceneFacets,
   SceneFeedSort,
   SceneRequestOptions,
@@ -207,6 +208,18 @@ export class DiscoverService {
   }
 
   /** The studio's own categories, with counts. */
+  /** New scenes sent to the catalog for this studio, not accepted yet. */
+  getStudioPendingScenes(studioId: string): Observable<PendingScenes> {
+    return this.http.get<PendingScenes>(`/api/studios/${encodeURIComponent(studioId)}/pending`);
+  }
+
+  /** New scenes sent to the catalog with this performer, not accepted yet. */
+  getPerformerPendingScenes(performerId: string): Observable<PendingScenes> {
+    return this.http.get<PendingScenes>(
+      `/api/performers/${encodeURIComponent(performerId)}/pending`,
+    );
+  }
+
   getStudioFacets(studioId: string): Observable<SceneFacets> {
     return this.http.get<SceneFacets>(`/api/studios/${encodeURIComponent(studioId)}/facets`);
   }

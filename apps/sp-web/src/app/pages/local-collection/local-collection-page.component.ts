@@ -1,4 +1,5 @@
 import { HistoryBackDirective } from '../../core/navigation/history-back.directive';
+import { backLabelFor } from '../../core/navigation/back-label';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
@@ -95,6 +96,7 @@ export class LocalCollectionPageComponent implements OnInit, OnDestroy {
   protected readonly detailsExpanded = signal(false);
   protected readonly backPath = signal('/library');
   protected readonly backQueryParams = signal<Params>({});
+  protected readonly backLabel = computed(() => backLabelFor(this.backPath(), 'Back'));
 
   /** Their own categories and studios in your library, the most used first. */
   private readonly tagFacets = signal<Array<{ id: string; name: string; count: number }>>([]);

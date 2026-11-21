@@ -1,4 +1,5 @@
 import { SceneFacetsService } from '../scene-facets/scene-facets.service';
+import { PendingScenesService } from '../pending-scenes/pending-scenes.service';
 import { Module } from '@nestjs/common';
 import { HiddenContentModule } from '../hidden-content/hidden-content.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
@@ -15,7 +16,7 @@ import { PerformersService } from './performers.service';
     HiddenContentModule,
   ],
   controllers: [PerformersController],
-  providers: [SceneFacetsService, PerformersService],
+  providers: [PendingScenesService, SceneFacetsService, PerformersService],
   exports: [PerformersService],
 })
 export class PerformersModule {}

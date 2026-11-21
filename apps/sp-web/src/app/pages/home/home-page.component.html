@@ -64,331 +64,336 @@
     </section>
   } @else {
     @if (editorOpen()) {
-      <app-home-rows-editor
-        [rows]="railConfigs()"
-        [previews]="railItemsById()"
-        [formOpen]="railFormOpen()"
-        (closed)="closeEditor()"
-        (rowsChanged)="onRowsChanged($event)"
-        (rowChanged)="onRowChanged($event)"
-        (editFilters)="openEditRailForm($event)"
-        (buildOwn)="openCreateRailForm()"
-      >
-        @if (railFormOpen() && railForm(); as form) {
-          <section class="rail-form-shell app-section-panel app-control-shell">
-            <div class="rail-form-head">
-              <p class="form-lede">
-                {{
-                  editingRailId()
-                    ? 'Change which scenes this row shows.'
-                    : 'Choose where the scenes come from and how they’re picked.'
-                }}
-              </p>
-              <div class="editor-actions app-action-row">
-                <button type="button" class="state-button secondary" (click)="closeRailForm()">
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  class="state-button"
-                  [disabled]="railFormSaving()"
-                  (click)="saveRailForm()"
-                >
-                  {{ railFormSaving() ? 'Saving…' : editingRailId() ? 'Save' : 'Add row' }}
-                </button>
-              </div>
-            </div>
-
-            @if (railFormError(); as railFormError) {
-              <p class="editor-error">{{ railFormError }}</p>
-            }
-
-            <div class="rail-form-grid">
-              <div class="control-field app-control-field">
-                <span id="home-rail-source-label" class="app-control-label">Source</span>
-                <p-select
-                  inputId="home-rail-source"
-                  ariaLabelledBy="home-rail-source-label"
-                  [ngModel]="form.source"
-                  (ngModelChange)="updateRailSource($event)"
-                  [options]="sourceOptions"
-                  optionLabel="label"
-                  optionValue="value"
-                  [appendTo]="'body'"
-                  panelStyleClass="app-overlay-panel"
-                  [disabled]="!!editingRailId()"
-                />
-              </div>
-
-              @if (editingRailId()) {
-                <p class="editor-note source-note">
-                  Where a row’s scenes come from can’t change. Make a new row to switch between
-                  Catalog and Stash.
+      <!-- The editor and its drag-and-drop load the first time Customize opens. -->
+      @defer (on immediate) {
+        <app-home-rows-editor
+          [rows]="railConfigs()"
+          [previews]="railItemsById()"
+          [formOpen]="railFormOpen()"
+          (closed)="closeEditor()"
+          (rowsChanged)="onRowsChanged($event)"
+          (rowChanged)="onRowChanged($event)"
+          (editFilters)="openEditRailForm($event)"
+          (buildOwn)="openCreateRailForm()"
+        >
+          @if (railFormOpen() && railForm(); as form) {
+            <section class="rail-form-shell app-section-panel app-control-shell">
+              <div class="rail-form-head">
+                <p class="form-lede">
+                  {{
+                    editingRailId()
+                      ? 'Change which scenes this row shows.'
+                      : 'Choose where the scenes come from and how they’re picked.'
+                  }}
                 </p>
+                <div class="editor-actions app-action-row">
+                  <button type="button" class="state-button secondary" (click)="closeRailForm()">
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    class="state-button"
+                    [disabled]="railFormSaving()"
+                    (click)="saveRailForm()"
+                  >
+                    {{ railFormSaving() ? 'Saving…' : editingRailId() ? 'Save' : 'Add row' }}
+                  </button>
+                </div>
+              </div>
+
+              @if (railFormError(); as railFormError) {
+                <p class="editor-error">{{ railFormError }}</p>
               }
 
-              <label class="control-field app-control-field">
-                <span class="app-control-label">Name</span>
-                <input
-                  class="app-control-input"
-                  type="text"
-                  [ngModel]="form.title"
-                  (ngModelChange)="updateRailForm('title', $event)"
-                  [placeholder]="
-                    form.source === 'STASH'
-                      ? 'Newest Library Scenes, Recently Updated Library...'
-                      : 'Weekend queue, New tags, Favorite studios...'
-                  "
-                />
-              </label>
-
-              <label class="control-field app-control-field">
-                <span class="app-control-label">Description</span>
-                <input
-                  class="app-control-input"
-                  type="text"
-                  [ngModel]="form.subtitle"
-                  (ngModelChange)="updateRailForm('subtitle', $event)"
-                  placeholder="Optional line under the name"
-                />
-              </label>
-
-              <label class="control-field checkbox-field compact-toggle app-control-field">
-                <span class="app-control-label">On Home</span>
-                <label class="toggle-inline">
-                  <input
-                    type="checkbox"
-                    [ngModel]="form.enabled"
-                    (ngModelChange)="updateRailForm('enabled', $event)"
-                  />
-                  <span>{{ form.enabled ? 'Enabled' : 'Disabled' }}</span>
-                </label>
-              </label>
-
-              <label class="control-field app-control-field">
-                <span class="app-control-label">Scenes</span>
-                <input
-                  class="app-control-input"
-                  type="number"
-                  min="6"
-                  max="30"
-                  step="1"
-                  [ngModel]="form.limit"
-                  (ngModelChange)="updateRailForm('limit', $event)"
-                />
-              </label>
-
-              <div class="control-field app-control-field">
-                <span id="home-rail-sort-label" class="app-control-label">Sort</span>
-                <p-select
-                  inputId="home-rail-sort"
-                  ariaLabelledBy="home-rail-sort-label"
-                  [ngModel]="form.sort"
-                  (ngModelChange)="updateRailForm('sort', $event)"
-                  [options]="railFormSortOptions()"
-                  optionLabel="label"
-                  optionValue="value"
-                  [appendTo]="'body'"
-                  panelStyleClass="app-overlay-panel"
-                />
-              </div>
-
-              <div class="control-field app-control-field">
-                <span id="home-rail-direction-label" class="app-control-label">Direction</span>
-                <p-select
-                  inputId="home-rail-direction"
-                  ariaLabelledBy="home-rail-direction-label"
-                  [ngModel]="form.direction"
-                  (ngModelChange)="updateRailForm('direction', $event)"
-                  [options]="directionOptions"
-                  optionLabel="label"
-                  optionValue="value"
-                  [appendTo]="'body'"
-                  panelStyleClass="app-overlay-panel"
-                />
-              </div>
-
-              @if (form.source === 'STASHDB') {
+              <div class="rail-form-grid">
                 <div class="control-field app-control-field">
-                  <span id="home-rail-favorites-label" class="app-control-label">Favorites</span>
+                  <span id="home-rail-source-label" class="app-control-label">Source</span>
                   <p-select
-                    inputId="home-rail-favorites"
-                    ariaLabelledBy="home-rail-favorites-label"
-                    [ngModel]="form.favorites"
-                    (ngModelChange)="updateRailForm('favorites', $event)"
-                    [options]="favoritesOptions"
+                    inputId="home-rail-source"
+                    ariaLabelledBy="home-rail-source-label"
+                    [ngModel]="form.source"
+                    (ngModelChange)="updateRailSource($event)"
+                    [options]="sourceOptions"
                     optionLabel="label"
                     optionValue="value"
                     [appendTo]="'body'"
                     panelStyleClass="app-overlay-panel"
+                    [disabled]="!!editingRailId()"
                   />
                 </div>
 
-                <div class="control-field app-control-field">
-                  <span id="home-rail-tag-mode-label" class="app-control-label">Tag Mode</span>
-                  <p-select
-                    inputId="home-rail-tag-mode"
-                    ariaLabelledBy="home-rail-tag-mode-label"
-                    [ngModel]="form.tagMode"
-                    (ngModelChange)="updateRailForm('tagMode', $event)"
-                    [options]="tagMatchOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                    [appendTo]="'body'"
-                    panelStyleClass="app-overlay-panel"
-                  />
-                </div>
-              } @else {
+                @if (editingRailId()) {
+                  <p class="editor-note source-note">
+                    Where a row’s scenes come from can’t change. Make a new row to switch between
+                    Catalog and Stash.
+                  </p>
+                }
+
                 <label class="control-field app-control-field">
-                  <span class="app-control-label">Title Contains</span>
+                  <span class="app-control-label">Name</span>
                   <input
                     class="app-control-input"
                     type="text"
-                    [ngModel]="form.titleQuery"
-                    (ngModelChange)="updateRailForm('titleQuery', $event)"
-                    placeholder="Newest scenes, anthology, archive..."
+                    [ngModel]="form.title"
+                    (ngModelChange)="updateRailForm('title', $event)"
+                    [placeholder]="
+                      form.source === 'STASH'
+                        ? 'Newest Library Scenes, Recently Updated Library...'
+                        : 'Weekend queue, New tags, Favorite studios...'
+                    "
+                  />
+                </label>
+
+                <label class="control-field app-control-field">
+                  <span class="app-control-label">Description</span>
+                  <input
+                    class="app-control-input"
+                    type="text"
+                    [ngModel]="form.subtitle"
+                    (ngModelChange)="updateRailForm('subtitle', $event)"
+                    placeholder="Optional line under the name"
+                  />
+                </label>
+
+                <label class="control-field checkbox-field compact-toggle app-control-field">
+                  <span class="app-control-label">On Home</span>
+                  <label class="toggle-inline">
+                    <input
+                      type="checkbox"
+                      [ngModel]="form.enabled"
+                      (ngModelChange)="updateRailForm('enabled', $event)"
+                    />
+                    <span>{{ form.enabled ? 'Enabled' : 'Disabled' }}</span>
+                  </label>
+                </label>
+
+                <label class="control-field app-control-field">
+                  <span class="app-control-label">Scenes</span>
+                  <input
+                    class="app-control-input"
+                    type="number"
+                    min="6"
+                    max="30"
+                    step="1"
+                    [ngModel]="form.limit"
+                    (ngModelChange)="updateRailForm('limit', $event)"
                   />
                 </label>
 
                 <div class="control-field app-control-field">
-                  <span id="home-rail-stash-tag-mode-label" class="app-control-label"
-                    >Tag Mode</span
-                  >
+                  <span id="home-rail-sort-label" class="app-control-label">Sort</span>
                   <p-select
-                    inputId="home-rail-stash-tag-mode"
-                    ariaLabelledBy="home-rail-stash-tag-mode-label"
-                    [ngModel]="form.tagMode"
-                    (ngModelChange)="updateRailForm('tagMode', $event)"
-                    [options]="tagMatchOptions"
+                    inputId="home-rail-sort"
+                    ariaLabelledBy="home-rail-sort-label"
+                    [ngModel]="form.sort"
+                    (ngModelChange)="updateRailForm('sort', $event)"
+                    [options]="railFormSortOptions()"
                     optionLabel="label"
                     optionValue="value"
                     [appendTo]="'body'"
                     panelStyleClass="app-overlay-panel"
-                  />
-                </div>
-              }
-            </div>
-
-            @if (form.source === 'STASHDB' || form.source === 'STASH') {
-              <div class="rail-form-pickers">
-                <div class="control-field app-control-field">
-                  <span id="home-rail-tags-label" class="app-control-label">Tags</span>
-                  <p-multiselect
-                    inputId="home-rail-tags"
-                    ariaLabelledBy="home-rail-tags-label"
-                    [ngModel]="formTagSelectedIdsModel()"
-                    (ngModelChange)="onRailFormTagSelectionChanged($event)"
-                    (onFilter)="onRailFormTagFilterChanged($event.filter)"
-                    (onPanelHide)="onRailFormTagPanelHide()"
-                    [filter]="true"
-                    [filterValue]="tagSearchTerm()"
-                    [filterPlaceHolder]="
-                      form.source === 'STASH' ? 'Search local tags' : 'Search tags'
-                    "
-                    [loading]="tagSearchLoading()"
-                    [options]="tagSelectOptions()"
-                    optionLabel="label"
-                    optionValue="value"
-                    [showToggleAll]="false"
-                    display="chip"
-                    [emptyMessage]="tagSelectEmptyMessage()"
-                    [emptyFilterMessage]="tagSelectEmptyMessage()"
-                    [resetFilterOnHide]="true"
-                    [appendTo]="'body'"
-                    panelStyleClass="app-overlay-panel"
-                    [placeholder]="
-                      form.source === 'STASH' ? 'Select local-library tags' : 'Select matching tags'
-                    "
-                    scrollHeight="16rem"
                   />
                 </div>
 
                 <div class="control-field app-control-field">
-                  <span id="home-rail-studios-label" class="app-control-label">Studios</span>
-                  <p-multiselect
-                    inputId="home-rail-studios"
-                    ariaLabelledBy="home-rail-studios-label"
-                    [ngModel]="formStudioSelectedIdsModel()"
-                    (ngModelChange)="onRailFormStudioSelectionChanged($event)"
-                    (onFilter)="onRailFormStudioFilterChanged($event.filter)"
-                    (onPanelHide)="onRailFormStudioPanelHide()"
-                    [filter]="true"
-                    [filterValue]="studioSearchTerm()"
-                    [filterPlaceHolder]="
-                      form.source === 'STASH' ? 'Search local studios' : 'Search studio networks'
-                    "
-                    [loading]="studioSearchLoading()"
-                    [options]="studioSelectOptions()"
-                    [group]="true"
-                    optionGroupLabel="label"
-                    optionGroupChildren="items"
+                  <span id="home-rail-direction-label" class="app-control-label">Direction</span>
+                  <p-select
+                    inputId="home-rail-direction"
+                    ariaLabelledBy="home-rail-direction-label"
+                    [ngModel]="form.direction"
+                    (ngModelChange)="updateRailForm('direction', $event)"
+                    [options]="directionOptions"
                     optionLabel="label"
                     optionValue="value"
-                    [showToggleAll]="false"
-                    display="chip"
-                    [emptyMessage]="studioSelectEmptyMessage()"
-                    [emptyFilterMessage]="studioSelectEmptyMessage()"
-                    [resetFilterOnHide]="true"
                     [appendTo]="'body'"
                     panelStyleClass="app-overlay-panel"
-                    [placeholder]="
-                      form.source === 'STASH'
-                        ? 'Choose local studios'
-                        : 'Choose studio networks or child studios'
-                    "
-                    scrollHeight="16rem"
                   />
                 </div>
+
+                @if (form.source === 'STASHDB') {
+                  <div class="control-field app-control-field">
+                    <span id="home-rail-favorites-label" class="app-control-label">Favorites</span>
+                    <p-select
+                      inputId="home-rail-favorites"
+                      ariaLabelledBy="home-rail-favorites-label"
+                      [ngModel]="form.favorites"
+                      (ngModelChange)="updateRailForm('favorites', $event)"
+                      [options]="favoritesOptions"
+                      optionLabel="label"
+                      optionValue="value"
+                      [appendTo]="'body'"
+                      panelStyleClass="app-overlay-panel"
+                    />
+                  </div>
+
+                  <div class="control-field app-control-field">
+                    <span id="home-rail-tag-mode-label" class="app-control-label">Tag Mode</span>
+                    <p-select
+                      inputId="home-rail-tag-mode"
+                      ariaLabelledBy="home-rail-tag-mode-label"
+                      [ngModel]="form.tagMode"
+                      (ngModelChange)="updateRailForm('tagMode', $event)"
+                      [options]="tagMatchOptions"
+                      optionLabel="label"
+                      optionValue="value"
+                      [appendTo]="'body'"
+                      panelStyleClass="app-overlay-panel"
+                    />
+                  </div>
+                } @else {
+                  <label class="control-field app-control-field">
+                    <span class="app-control-label">Title Contains</span>
+                    <input
+                      class="app-control-input"
+                      type="text"
+                      [ngModel]="form.titleQuery"
+                      (ngModelChange)="updateRailForm('titleQuery', $event)"
+                      placeholder="Newest scenes, anthology, archive..."
+                    />
+                  </label>
+
+                  <div class="control-field app-control-field">
+                    <span id="home-rail-stash-tag-mode-label" class="app-control-label"
+                      >Tag Mode</span
+                    >
+                    <p-select
+                      inputId="home-rail-stash-tag-mode"
+                      ariaLabelledBy="home-rail-stash-tag-mode-label"
+                      [ngModel]="form.tagMode"
+                      (ngModelChange)="updateRailForm('tagMode', $event)"
+                      [options]="tagMatchOptions"
+                      optionLabel="label"
+                      optionValue="value"
+                      [appendTo]="'body'"
+                      panelStyleClass="app-overlay-panel"
+                    />
+                  </div>
+                }
               </div>
 
-              @if (form.source === 'STASH') {
-                <div class="rail-form-grid stash-toggle-grid">
-                  <label class="control-field checkbox-field compact-toggle app-control-field">
-                    <span class="app-control-label">Only Favorite Performers</span>
-                    <label class="toggle-inline">
-                      <input
-                        type="checkbox"
-                        [ngModel]="form.favoritePerformersOnly"
-                        (ngModelChange)="updateRailForm('favoritePerformersOnly', $event)"
-                      />
-                      <span>{{ form.favoritePerformersOnly ? 'Enabled' : 'Disabled' }}</span>
-                    </label>
-                  </label>
+              @if (form.source === 'STASHDB' || form.source === 'STASH') {
+                <div class="rail-form-pickers">
+                  <div class="control-field app-control-field">
+                    <span id="home-rail-tags-label" class="app-control-label">Tags</span>
+                    <p-multiselect
+                      inputId="home-rail-tags"
+                      ariaLabelledBy="home-rail-tags-label"
+                      [ngModel]="formTagSelectedIdsModel()"
+                      (ngModelChange)="onRailFormTagSelectionChanged($event)"
+                      (onFilter)="onRailFormTagFilterChanged($event.filter)"
+                      (onPanelHide)="onRailFormTagPanelHide()"
+                      [filter]="true"
+                      [filterValue]="tagSearchTerm()"
+                      [filterPlaceHolder]="
+                        form.source === 'STASH' ? 'Search local tags' : 'Search tags'
+                      "
+                      [loading]="tagSearchLoading()"
+                      [options]="tagSelectOptions()"
+                      optionLabel="label"
+                      optionValue="value"
+                      [showToggleAll]="false"
+                      display="chip"
+                      [emptyMessage]="tagSelectEmptyMessage()"
+                      [emptyFilterMessage]="tagSelectEmptyMessage()"
+                      [resetFilterOnHide]="true"
+                      [appendTo]="'body'"
+                      panelStyleClass="app-overlay-panel"
+                      [placeholder]="
+                        form.source === 'STASH'
+                          ? 'Select local-library tags'
+                          : 'Select matching tags'
+                      "
+                      scrollHeight="16rem"
+                    />
+                  </div>
 
-                  <label class="control-field checkbox-field compact-toggle app-control-field">
-                    <span class="app-control-label">Only Favorite Studios</span>
-                    <label class="toggle-inline">
-                      <input
-                        type="checkbox"
-                        [ngModel]="form.favoriteStudiosOnly"
-                        (ngModelChange)="updateRailForm('favoriteStudiosOnly', $event)"
-                      />
-                      <span>{{ form.favoriteStudiosOnly ? 'Enabled' : 'Disabled' }}</span>
-                    </label>
-                  </label>
-
-                  <label class="control-field checkbox-field compact-toggle app-control-field">
-                    <span class="app-control-label">Only Favorite Tags</span>
-                    <label class="toggle-inline">
-                      <input
-                        type="checkbox"
-                        [ngModel]="form.favoriteTagsOnly"
-                        (ngModelChange)="updateRailForm('favoriteTagsOnly', $event)"
-                      />
-                      <span>{{ form.favoriteTagsOnly ? 'Enabled' : 'Disabled' }}</span>
-                    </label>
-                  </label>
+                  <div class="control-field app-control-field">
+                    <span id="home-rail-studios-label" class="app-control-label">Studios</span>
+                    <p-multiselect
+                      inputId="home-rail-studios"
+                      ariaLabelledBy="home-rail-studios-label"
+                      [ngModel]="formStudioSelectedIdsModel()"
+                      (ngModelChange)="onRailFormStudioSelectionChanged($event)"
+                      (onFilter)="onRailFormStudioFilterChanged($event.filter)"
+                      (onPanelHide)="onRailFormStudioPanelHide()"
+                      [filter]="true"
+                      [filterValue]="studioSearchTerm()"
+                      [filterPlaceHolder]="
+                        form.source === 'STASH' ? 'Search local studios' : 'Search studio networks'
+                      "
+                      [loading]="studioSearchLoading()"
+                      [options]="studioSelectOptions()"
+                      [group]="true"
+                      optionGroupLabel="label"
+                      optionGroupChildren="items"
+                      optionLabel="label"
+                      optionValue="value"
+                      [showToggleAll]="false"
+                      display="chip"
+                      [emptyMessage]="studioSelectEmptyMessage()"
+                      [emptyFilterMessage]="studioSelectEmptyMessage()"
+                      [resetFilterOnHide]="true"
+                      [appendTo]="'body'"
+                      panelStyleClass="app-overlay-panel"
+                      [placeholder]="
+                        form.source === 'STASH'
+                          ? 'Choose local studios'
+                          : 'Choose studio networks or child studios'
+                      "
+                      scrollHeight="16rem"
+                    />
+                  </div>
                 </div>
 
-                <p class="editor-note source-note">
-                  Library rows use your own library’s filters: title search, tags, studios and
-                  favorite performers, studios or tags.
-                </p>
+                @if (form.source === 'STASH') {
+                  <div class="rail-form-grid stash-toggle-grid">
+                    <label class="control-field checkbox-field compact-toggle app-control-field">
+                      <span class="app-control-label">Only Favorite Performers</span>
+                      <label class="toggle-inline">
+                        <input
+                          type="checkbox"
+                          [ngModel]="form.favoritePerformersOnly"
+                          (ngModelChange)="updateRailForm('favoritePerformersOnly', $event)"
+                        />
+                        <span>{{ form.favoritePerformersOnly ? 'Enabled' : 'Disabled' }}</span>
+                      </label>
+                    </label>
+
+                    <label class="control-field checkbox-field compact-toggle app-control-field">
+                      <span class="app-control-label">Only Favorite Studios</span>
+                      <label class="toggle-inline">
+                        <input
+                          type="checkbox"
+                          [ngModel]="form.favoriteStudiosOnly"
+                          (ngModelChange)="updateRailForm('favoriteStudiosOnly', $event)"
+                        />
+                        <span>{{ form.favoriteStudiosOnly ? 'Enabled' : 'Disabled' }}</span>
+                      </label>
+                    </label>
+
+                    <label class="control-field checkbox-field compact-toggle app-control-field">
+                      <span class="app-control-label">Only Favorite Tags</span>
+                      <label class="toggle-inline">
+                        <input
+                          type="checkbox"
+                          [ngModel]="form.favoriteTagsOnly"
+                          (ngModelChange)="updateRailForm('favoriteTagsOnly', $event)"
+                        />
+                        <span>{{ form.favoriteTagsOnly ? 'Enabled' : 'Disabled' }}</span>
+                      </label>
+                    </label>
+                  </div>
+
+                  <p class="editor-note source-note">
+                    Library rows use your own library’s filters: title search, tags, studios and
+                    favorite performers, studios or tags.
+                  </p>
+                }
               }
-            }
-          </section>
-        }
-      </app-home-rows-editor>
+            </section>
+          }
+        </app-home-rows-editor>
+      }
     }
 
     @if (isNoRailsEnabledState()) {

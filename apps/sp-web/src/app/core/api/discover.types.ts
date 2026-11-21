@@ -418,3 +418,23 @@ export interface SceneFacets {
   tags: SceneFacet[];
   studios: SceneFacet[];
 }
+
+/** A new scene sent to the catalog that isn't accepted yet. */
+export interface PendingScene {
+  editId: string;
+  title: string;
+  date: string | null;
+  duration: number | null;
+  studioName: string | null;
+  performers: string[];
+  imageUrl: string | null;
+  votes: number;
+  submittedAt: string | null;
+  /** The edit on the catalog's own site. */
+  url: string;
+}
+
+export interface PendingScenes {
+  total: number;
+  items: PendingScene[];
+}

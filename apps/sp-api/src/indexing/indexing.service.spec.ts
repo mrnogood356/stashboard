@@ -12,7 +12,11 @@ import { CatalogProviderService } from '../providers/catalog/catalog-provider.se
 import { StashAdapter } from '../providers/stash/stash.adapter';
 import { StashdbAdapter } from '../providers/stashdb/stashdb.adapter';
 import { WhisparrAdapter } from '../providers/whisparr/whisparr.adapter';
-import { INDEXING_JOB_NAMES, IndexingService } from './indexing.service';
+import {
+  INDEXING_JOB_NAMES,
+  IndexingService,
+  LIBRARY_SAFETY_SYNC_MS,
+} from './indexing.service';
 import { SyncStateService } from './sync-state.service';
 
 type SceneIndexRow = Record<string, unknown>;
@@ -2154,6 +2158,169 @@ describe('IndexingService library change check', () => {
       await jest.advanceTimersByTimeAsync(20_000);
       expect(runWithLease).toHaveBeenCalledTimes(3);
       await jest.advanceTimersByTimeAsync(60_000);
+      expect(runWithLease).toHaveBeenCalledTimes(3);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('skips the 5-minute safety sync soon after another library sync', async () => {
+    jest.useFakeTimers();
+    try {
+      const runWithLease = jest
+        .fn()
+        .mockResolvedValue({ processedCount: 1, updatedCount: 0 });
+      const service = new IndexingService(
+        {} as PrismaService,
+        {} as IntegrationsService,
+        {} as CatalogProviderService,
+        {} as WhisparrAdapter,
+        {} as StashAdapter,
+        {} as StashdbAdapter,
+        { runWithLease } as unknown as SyncStateService,
+      );
+
+      // Nothing synced yet: the safety sync runs.
+      await service.syncLibraryProjection('interval');
+      expect(runWithLease).toHaveBeenCalledTimes(1);
+
+      // A new scene synced the library a minute later.
+      await jest.advanceTimersByTimeAsync(60_000);
+      await service.syncLibraryProjection('library-changed');
+      expect(runWithLease).toHaveBeenCalledTimes(2);
+
+      // The next ticks find the library fresh and leave Stash alone.
+      await jest.advanceTimersByTimeAsync(5 * 60_000);
+      await expect(
+        service.syncLibraryProjection('interval'),
+      ).resolves.toBeNull();
+      await jest.advanceTimersByTimeAsync(5 * 60_000);
+      await expect(
+        service.syncLibraryProjection('interval'),
+      ).resolves.toBeNull();
+      expect(runWithLease).toHaveBeenCalledTimes(2);
+
+      // Past the gap, it reads the whole library again.
+      await jest.advanceTimersByTimeAsync(LIBRARY_SAFETY_SYNC_MS);
+      await service.syncLibraryProjection('interval');
+      expect(runWithLease).toHaveBeenCalledTimes(3);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('runs the safety sync again when the last library sync failed', async () => {
+    const runWithLease = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('Stash is down'))
+      .mockResolvedValue({ processedCount: 1, updatedCount: 0 });
+    const service = new IndexingService(
+      {} as PrismaService,
+      {} as IntegrationsService,
+      {} as CatalogProviderService,
+      {} as WhisparrAdapter,
+      {} as StashAdapter,
+      {} as StashdbAdapter,
+      { runWithLease } as unknown as SyncStateService,
+    );
+
+    await expect(service.syncLibraryProjection('interval')).rejects.toThrow(
+      'Stash is down',
+    );
+    await service.syncLibraryProjection('interval');
+    expect(runWithLease).toHaveBeenCalledTimes(2);
+  });
+
+  it('counts the safety gap from when a slow sync began, and ignores a skipped one', async () => {
+    jest.useFakeTimers();
+    try {
+      let finish: (value: unknown) => void = () => undefined;
+      const runWithLease = jest
+        .fn()
+        // A nine-minute read of a big library.
+        .mockImplementationOnce(
+          () => new Promise((resolve) => (finish = resolve)),
+        )
+        .mockResolvedValue({ processedCount: 1, updatedCount: 0 });
+      const service = new IndexingService(
+        {} as PrismaService,
+        {} as IntegrationsService,
+        {} as CatalogProviderService,
+        {} as WhisparrAdapter,
+        {} as StashAdapter,
+        {} as StashdbAdapter,
+        { runWithLease } as unknown as SyncStateService,
+      );
+
+      const slow = service.syncLibraryProjection('interval');
+      await jest.advanceTimersByTimeAsync(9 * 60_000);
+      finish({ processedCount: 3000, updatedCount: 0 });
+      await slow;
+
+      // Twelve minutes after it began, not after it finished, the next runs.
+      await jest.advanceTimersByTimeAsync(2 * 60_000);
+      await expect(
+        service.syncLibraryProjection('interval'),
+      ).resolves.toBeNull();
+      await jest.advanceTimersByTimeAsync(2 * 60_000);
+      await service.syncLibraryProjection('interval');
+      expect(runWithLease).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('runs the next safety sync after one skipped because Stash wasn’t set up', async () => {
+    const runWithLease = jest
+      .fn()
+      .mockResolvedValueOnce({
+        processedCount: 0,
+        updatedCount: 0,
+        skipped: true,
+      })
+      .mockResolvedValue({ processedCount: 1, updatedCount: 0 });
+    const service = new IndexingService(
+      {} as PrismaService,
+      {} as IntegrationsService,
+      {} as CatalogProviderService,
+      {} as WhisparrAdapter,
+      {} as StashAdapter,
+      {} as StashdbAdapter,
+      { runWithLease } as unknown as SyncStateService,
+    );
+
+    await service.syncLibraryProjection('interval');
+    await service.syncLibraryProjection('interval');
+    expect(runWithLease).toHaveBeenCalledTimes(2);
+  });
+
+  it('runs the next safety sync after a sync failed, even soon after a success', async () => {
+    jest.useFakeTimers();
+    try {
+      const runWithLease = jest
+        .fn()
+        .mockResolvedValueOnce({ processedCount: 1, updatedCount: 0 })
+        .mockRejectedValueOnce(new Error('Stash is down'))
+        .mockResolvedValue({ processedCount: 1, updatedCount: 0 });
+      const service = new IndexingService(
+        {} as PrismaService,
+        {} as IntegrationsService,
+        {} as CatalogProviderService,
+        {} as WhisparrAdapter,
+        {} as StashAdapter,
+        {} as StashdbAdapter,
+        { runWithLease } as unknown as SyncStateService,
+      );
+
+      await service.syncLibraryProjection('library-changed');
+      await jest.advanceTimersByTimeAsync(60_000);
+      await expect(
+        service.syncLibraryProjection('library-changed'),
+      ).rejects.toThrow('Stash is down');
+
+      // Not held back by the success two minutes earlier.
+      await jest.advanceTimersByTimeAsync(60_000);
+      await service.syncLibraryProjection('interval');
       expect(runWithLease).toHaveBeenCalledTimes(3);
     } finally {
       jest.useRealTimers();

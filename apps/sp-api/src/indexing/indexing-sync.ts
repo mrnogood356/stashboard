@@ -536,6 +536,7 @@ export abstract class IndexingSync extends IndexingCore {
       return {
         processedCount: 0,
         updatedCount: 0,
+        skipped: true,
       };
     }
 

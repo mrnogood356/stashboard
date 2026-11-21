@@ -147,7 +147,9 @@ describe('QuickSearchComponent', () => {
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
     fixture.detectChanges();
 
-    expect(navigate).toHaveBeenCalledWith('/library/performer/p1');
+    expect(navigate).toHaveBeenCalledWith(
+      `/library/performer/p1?returnTo=${encodeURIComponent('/search?q=gold')}`,
+    );
     expect(fixture.nativeElement.querySelector('[data-testid="quick-search"]')).toBeNull();
   });
 

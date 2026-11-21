@@ -1,14 +1,30 @@
 import { Injectable } from '@angular/core';
-import { Subject } from 'rxjs';
+import { Observable } from 'rxjs';
 
 /** Lets a page (About) open the "What's new" note on demand. */
 @Injectable({ providedIn: 'root' })
 export class WhatsNewService {
-  private readonly asks = new Subject<void>();
-  readonly requests = this.asks.asObservable();
+  private listener: (() => void) | null = null;
+  /** Asked before the note's (deferred) code had loaded; shown once it has. */
+  private pending = false;
+
+  readonly requests = new Observable<void>((subscriber) => {
+    this.listener = () => subscriber.next();
+    if (this.pending) {
+      this.pending = false;
+      queueMicrotask(() => subscriber.next());
+    }
+    return () => {
+      this.listener = null;
+    };
+  });
 
   /** Shows the running release's notes. */
   show(): void {
-    this.asks.next();
+    if (this.listener) {
+      this.listener();
+    } else {
+      this.pending = true;
+    }
   }
 }

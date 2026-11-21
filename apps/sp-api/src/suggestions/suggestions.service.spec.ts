@@ -56,7 +56,8 @@ describe('SuggestionsService', () => {
         getScenesForPerformer: jest
           .fn()
           .mockResolvedValue({ total: 2, scenes: [scene('a'), scene('b')] }),
-        getScenesBySort: jest.fn(),
+        getScenesBySort: jest.fn().mockResolvedValue({ total: 0, scenes: [] }),
+        findTagIdsByNames: jest.fn().mockResolvedValue(new Map()),
       },
       sceneStatus: {
         resolveForScenes: jest.fn((ids: string[]) =>
@@ -179,5 +180,204 @@ describe('SuggestionsService', () => {
     expect(
       deps.stashdb.getScenesForPerformer.mock.calls[0][0],
     ).not.toHaveProperty('tagIds');
+  });
+
+  it('asks for popular scenes in the categories you watch, and for co-stars’ scenes', async () => {
+    const { service, deps } = setup();
+    const watched = (tags: string[]) => ({
+      playCount: 3,
+      oCounter: 1,
+      rating100: null,
+      lastPlayedAt: new Date().toISOString(),
+      performers: [{ catalogId: 'p-k', name: 'Kaitlyn', favorite: false }],
+      studio: null,
+      tags,
+    });
+    deps.stash.listWatchHistory.mockResolvedValue([
+      watched(['Anal', 'Outdoors']),
+      watched(['Anal']),
+      watched(['Outdoors']),
+    ]);
+    deps.stashdb.findTagIdsByNames.mockResolvedValue(
+      new Map([
+        ['anal', 'tag-anal'],
+        ['outdoors', 'tag-out'],
+      ]),
+    );
+    const withCostar = (id: string) => ({
+      id,
+      title: id,
+      details: null,
+      imageUrl: null,
+      studioId: null,
+      studioName: null,
+      studioImageUrl: null,
+      date: null,
+      releaseDate: '2026-10-01',
+      productionDate: null,
+      duration: 1800,
+      performers: [
+        { id: 'p-k', name: 'Kaitlyn' },
+        { id: 'p-new', name: 'Nova' },
+      ],
+    });
+    deps.stashdb.getScenesForPerformer.mockImplementation(
+      ({ performerId }: { performerId: string }) =>
+        Promise.resolve(
+          performerId === 'p-new'
+            ? {
+                total: 1,
+                scenes: [
+                  {
+                    ...withCostar('n1'),
+                    performers: [{ id: 'p-new', name: 'Nova' }],
+                  },
+                ],
+              }
+            : { total: 2, scenes: [withCostar('a'), withCostar('b')] },
+        ),
+    );
+
+    const result = await service.list();
+
+    // Popular scenes in each category you watch, by its catalog id.
+    const tagCalls = deps.stashdb.getScenesBySort.mock.calls.map(
+      (call: Array<{ sort: string; tagFilter?: { tagIds: string[] } }>) =>
+        call[0],
+    );
+    expect(tagCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sort: 'TRENDING',
+          tagFilter: { tagIds: ['tag-anal'], mode: 'OR' },
+        }),
+      ]),
+    );
+    // Nova is in two of Kaitlyn's scenes: her own scenes are asked for too.
+    expect(deps.stashdb.getScenesForPerformer).toHaveBeenCalledWith(
+      expect.objectContaining({ performerId: 'p-new' }),
+    );
+    const nova = result.items.find((item) => item.id === 'n1');
+    expect(nova?.reason.text).toBe('With Nova, often seen with Kaitlyn');
+  });
+
+  it('suggests from categories alone when no performer or studio is linked', async () => {
+    const { service, deps } = setup();
+    const unlinked = {
+      playCount: 2,
+      oCounter: 0,
+      rating100: null,
+      lastPlayedAt: new Date().toISOString(),
+      performers: [{ catalogId: null, name: 'Someone', favorite: false }],
+      studio: null,
+      tags: ['Outdoors', 'Kissing'],
+    };
+    deps.stash.listWatchHistory.mockResolvedValue([unlinked, unlinked]);
+    deps.stashdb.findTagIdsByNames.mockResolvedValue(
+      new Map([
+        ['outdoors', 'tag-out'],
+        ['kissing', 'tag-kiss'],
+      ]),
+    );
+    deps.stashdb.getScenesBySort.mockResolvedValue({
+      total: 1,
+      scenes: [
+        {
+          id: 't1',
+          title: 'Trail',
+          details: null,
+          imageUrl: null,
+          studioId: null,
+          studioName: null,
+          studioImageUrl: null,
+          date: null,
+          releaseDate: '2026-10-01',
+          productionDate: null,
+          duration: 1800,
+          tagNames: ['Outdoors'],
+        },
+      ],
+    });
+
+    const result = await service.list();
+
+    expect(result.message).toBeNull();
+    expect(result.items.map((item) => item.id)).toEqual(['t1']);
+    expect(deps.stashdb.getScenesForPerformer).not.toHaveBeenCalled();
+  });
+
+  it('looks category ids up again for another catalog', async () => {
+    const { service, deps } = setup();
+    const tagged = {
+      playCount: 2,
+      oCounter: 0,
+      rating100: null,
+      lastPlayedAt: new Date().toISOString(),
+      performers: [{ catalogId: 'p-k', name: 'Kaitlyn', favorite: false }],
+      studio: null,
+      tags: ['Outdoors'],
+    };
+    deps.stash.listWatchHistory.mockResolvedValue([tagged, tagged]);
+    deps.stashdb.findTagIdsByNames.mockResolvedValue(
+      new Map([['outdoors', 'tag-out']]),
+    );
+
+    await service.list();
+    await service.shuffle();
+    // Same catalog: asked once.
+    expect(deps.stashdb.findTagIdsByNames).toHaveBeenCalledTimes(1);
+
+    deps.catalogProvider.getInstanceCatalogProvider.mockResolvedValue({
+      providerKey: 'FANSDB',
+      integrationType: 'FANSDB',
+      baseUrl: 'https://fansdb.cc/graphql',
+      apiKey: 'y',
+    });
+    await service.shuffle();
+    expect(deps.stashdb.findTagIdsByNames).toHaveBeenCalledTimes(2);
+  });
+
+  it('still suggests from picked categories when no performer or studio is linked', async () => {
+    const { service, deps } = setup();
+    const unlinked = {
+      playCount: 2,
+      oCounter: 0,
+      rating100: null,
+      lastPlayedAt: new Date().toISOString(),
+      performers: [],
+      studio: null,
+      tags: ['Outdoors', 'Kissing'],
+    };
+    deps.stash.listWatchHistory.mockResolvedValue([unlinked, unlinked]);
+    deps.stashdb.getScenesBySort.mockResolvedValue({
+      total: 1,
+      scenes: [
+        {
+          id: 'o1',
+          title: 'Trail',
+          details: null,
+          imageUrl: null,
+          studioId: null,
+          studioName: null,
+          studioImageUrl: null,
+          date: null,
+          releaseDate: '2026-10-01',
+          productionDate: null,
+          duration: 1800,
+          tagNames: ['Outdoors'],
+        },
+      ],
+    });
+
+    const result = await service.list(24, ['tag-out']);
+
+    expect(result.message).toBeNull();
+    expect(result.items.map((item) => item.id)).toEqual(['o1']);
+    expect(deps.stashdb.getScenesBySort).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sort: 'TRENDING',
+        tagFilter: { tagIds: ['tag-out'], mode: 'OR' },
+      }),
+    );
   });
 });

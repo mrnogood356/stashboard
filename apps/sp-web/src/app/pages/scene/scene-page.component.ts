@@ -1,4 +1,5 @@
 import { sameUrl } from '../../core/navigation/history-back.directive';
+import { backLabelFor } from '../../core/navigation/back-label';
 import { StageTrackComponent } from '../../shared/stage-track/stage-track.component';
 import { GlassArtService } from '../../core/theme/glass-art.service';
 import { Stage, stagesForStatus } from '../../shared/stage-track/stage-track';
@@ -117,7 +118,7 @@ export class ScenePageComponent implements OnInit, OnDestroy {
       );
       this.backLinkPath.set(resolvedBackLink.path);
       this.backLinkQueryParams.set(resolvedBackLink.queryParams);
-      this.backLinkLabel.set(this.backLinkText(resolvedBackLink.path, 'Back to Scenes'));
+      this.backLinkLabel.set(backLabelFor(resolvedBackLink.path, 'Back to Scenes'));
 
       const stashIdParam = paramMap.get('stashId')?.trim();
       if (!stashIdParam) {
@@ -667,56 +668,6 @@ export class ScenePageComponent implements OnInit, OnDestroy {
     } catch {
       return { path: fallback, queryParams: {} };
     }
-  }
-
-  private backLinkText(returnTo: string, fallbackLabel: string): string {
-    if (returnTo.startsWith('/home')) {
-      return 'Back to Home';
-    }
-    if (returnTo.startsWith('/scenes')) {
-      return 'Back to Scenes';
-    }
-    if (returnTo.startsWith('/you-may-enjoy')) {
-      return 'Back to You may enjoy';
-    }
-    if (returnTo.startsWith('/search')) {
-      return 'Back to Search';
-    }
-    if (returnTo.startsWith('/following')) {
-      return 'Back to Following';
-    }
-    if (returnTo.startsWith('/calendar')) {
-      return 'Back to Calendar';
-    }
-    if (returnTo.startsWith('/history')) {
-      return 'Back to History';
-    }
-    if (returnTo.startsWith('/acquisition')) {
-      return 'Back to Wanted';
-    }
-    if (returnTo.startsWith('/processing')) {
-      return 'Back to Downloads';
-    }
-    if (returnTo.startsWith('/library')) {
-      return 'Back to Library';
-    }
-    if (returnTo.startsWith('/performers')) {
-      return 'Back to Performers';
-    }
-    if (returnTo.startsWith('/performer/')) {
-      return 'Back to Performer';
-    }
-    if (returnTo.startsWith('/studios')) {
-      return 'Back to Studios';
-    }
-    if (returnTo.startsWith('/studio/')) {
-      return 'Back to Studio';
-    }
-    if (returnTo.startsWith('/scene/')) {
-      return 'Back to Scene';
-    }
-
-    return fallbackLabel;
   }
 
   private setPerformerFavoriteBusy(performerId: string, busy: boolean): void {

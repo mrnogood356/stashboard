@@ -1,4 +1,5 @@
 import { SceneEditSheetComponent } from './scene-edit-sheet.component';
+import { backLabelFor } from '../../core/navigation/back-label';
 import { HistoryBackDirective } from '../../core/navigation/history-back.directive';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { GlassArtService } from '../../core/theme/glass-art.service';
@@ -472,20 +473,4 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
     this.backQueryParams.set(target.params);
     this.backLabel.set(backLabelFor(target.path));
   }
-}
-
-function backLabelFor(path: string): string {
-  const labels: Array<[string, string]> = [
-    ['/home', 'Back to Home'],
-    ['/library', 'Back to Library'],
-    ['/scenes', 'Back to Scenes'],
-    ['/scene/', 'Back to Scene'],
-    ['/performer/', 'Back to Performer'],
-    ['/performers', 'Back to Performers'],
-    ['/studio/', 'Back to Studio'],
-    ['/studios', 'Back to Studios'],
-    ['/acquisition', 'Back to Wanted'],
-    ['/processing', 'Back to Downloads'],
-  ];
-  return labels.find(([prefix]) => path.startsWith(prefix))?.[1] ?? 'Back';
 }

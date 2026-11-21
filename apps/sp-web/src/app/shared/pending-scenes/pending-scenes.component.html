@@ -1,0 +1,54 @@
+@if (scenes().length > 0) {
+  <section class="pending-scenes app-section-panel" aria-label="Scenes waiting to be added">
+    <h2 class="head">
+      <button
+        type="button"
+        class="toggle"
+        data-testid="pending-scenes-toggle"
+        aria-controls="pending-scenes-body"
+        [attr.aria-expanded]="open()"
+        (click)="open.set(!open())"
+      >
+        <span>Waiting to be added</span>
+        <span class="count">{{ total() }}</span>
+        <i class="pi pi-chevron-down" [class.is-open]="open()" aria-hidden="true"></i>
+      </button>
+    </h2>
+    <div id="pending-scenes-body" class="body" [hidden]="!open()">
+      <p class="muted">
+        Sent to the catalog and waiting for its editors to accept them. Once accepted, they show up
+        with the rest and can be requested.
+      </p>
+      <ul class="row">
+        @for (scene of scenes(); track scene.editId) {
+          <li>
+            <a
+              class="card"
+              data-testid="pending-scene"
+              [href]="scene.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              [attr.aria-label]="scene.title + ', open the edit in a new tab'"
+            >
+              @if (scene.imageUrl) {
+                <img class="image" [src]="scene.imageUrl" alt="" loading="lazy" />
+              } @else {
+                <div class="image placeholder" aria-hidden="true">
+                  <i class="pi pi-clock"></i>
+                </div>
+              }
+              <span class="title">{{ scene.title }}</span>
+              @if (details(scene); as line) {
+                <span class="meta">{{ line }}</span>
+              }
+              <span class="meta">{{ votes(scene) }} · View edit</span>
+            </a>
+          </li>
+        }
+      </ul>
+      @if (total() > scenes().length) {
+        <p class="muted">The newest {{ scenes().length }} of {{ total() }}.</p>
+      }
+    </div>
+  </section>
+}

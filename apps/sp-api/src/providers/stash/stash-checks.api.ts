@@ -65,6 +65,7 @@ export abstract class StashChecksApi extends StashFilesApi {
               id play_count o_counter rating100 last_played_at
               performers { name favorite stash_ids { endpoint stash_id } }
               studio { name favorite stash_ids { endpoint stash_id } }
+              tags { name }
             }
           }
         }`,
@@ -113,6 +114,12 @@ export abstract class StashChecksApi extends StashFilesApi {
                 catalogId: catalogId(studio?.stash_ids),
               }
             : null,
+          tags: (Array.isArray(scene.tags) ? scene.tags : []).flatMap((raw) => {
+            const name = this.normalizeOptionalString(
+              (raw as Record<string, unknown>)?.name,
+            );
+            return name ? [name] : [];
+          }),
         });
       }
     }

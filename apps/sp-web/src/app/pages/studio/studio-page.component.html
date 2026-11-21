@@ -201,6 +201,7 @@
 
     @if (studioId(); as currentStudioId) {
       <app-studio-performers [studioId]="currentStudioId" [returnTo]="currentRouteUrl()" />
+      <app-pending-scenes kind="studio" [targetId]="currentStudioId" />
     }
 
     <section class="section scenes-section" aria-label="Studio scene filters">

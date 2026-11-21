@@ -38,6 +38,14 @@ const EVENT_SYNC_REASONS = new Set([
 const LIBRARY_SYNC_GAP_MS = 20_000;
 /** How often a held-back library sync tries before the full sync covers it. */
 const FOLLOW_UP_SYNC_TRIES = 5;
+/**
+ * The every-5-minutes full sync is a safety net for changes the 30-second
+ * check can't see (mainly a file Stash rescanned on its own). It skips while
+ * another library sync finished within this long, so a busy library isn't
+ * read in full from Stash several times over. Kept well inside the 20-minute
+ * freshness window (SNAPSHOT_FRESHNESS_MAX_AGE_MS) with one tick to spare.
+ */
+export const LIBRARY_SAFETY_SYNC_MS = 12 * 60_000;
 
 @Injectable()
 export class IndexingService extends IndexingSync {
@@ -53,6 +61,8 @@ export class IndexingService extends IndexingSync {
   private librarySyncOrder = 0;
   /** When the last library sync started, and a follow-up one waiting. */
   private lastLibrarySyncAt = 0;
+  /** When the last library sync that read Stash began; the safety net skips soon after. */
+  private lastLibrarySyncDoneAt = 0;
   private followUpLibrarySync: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
@@ -217,6 +227,12 @@ export class IndexingService extends IndexingSync {
     // A new scene sets off several asks within seconds (Stash changed, the
     // organizer, automation): one sync shortly after covers them all, rather
     // than reading the whole library from Stash for each.
+    if (
+      reason === 'interval' &&
+      Date.now() - this.lastLibrarySyncDoneAt < LIBRARY_SAFETY_SYNC_MS
+    ) {
+      return null;
+    }
     const since = Date.now() - this.lastLibrarySyncAt;
     if (EVENT_SYNC_REASONS.has(reason) && since < LIBRARY_SYNC_GAP_MS) {
       this.scheduleFollowUpSync(reason, LIBRARY_SYNC_GAP_MS - since, 1);
@@ -224,19 +240,33 @@ export class IndexingService extends IndexingSync {
     }
     this.lastLibrarySyncAt = Date.now();
     const started = ++this.librarySyncOrder;
-    const result = await this.syncStateService.runWithLease(
-      {
-        jobName: INDEXING_JOB_NAMES.LIBRARY_PROJECTION,
-        leaseMs: INDEXING_LIMITS.LIBRARY_LEASE_MS,
-        onSuccess: (result, context) => ({
-          processedCount: result.processedCount,
-          updatedCount: result.updatedCount,
-          durationMs: context.durationMs,
-          runReason: reason,
-        }),
-      },
-      async () => this.performLibraryProjectionSync(reason),
-    );
+    // The safety gap counts from when this read of Stash began: what it saw
+    // is that old by the time it finishes.
+    const runStartedAt = Date.now();
+    let result: SyncRunSummary | null;
+    try {
+      result = await this.syncStateService.runWithLease(
+        {
+          jobName: INDEXING_JOB_NAMES.LIBRARY_PROJECTION,
+          leaseMs: INDEXING_LIMITS.LIBRARY_LEASE_MS,
+          onSuccess: (result, context) => ({
+            processedCount: result.processedCount,
+            updatedCount: result.updatedCount,
+            durationMs: context.durationMs,
+            runReason: reason,
+          }),
+        },
+        async () => this.performLibraryProjectionSync(reason),
+      );
+    } catch (error) {
+      // A failed sync leaves the library stale: the next safety sync runs.
+      this.lastLibrarySyncDoneAt = 0;
+      throw error;
+    }
+    // Only a sync that read Stash counts; one skipped for want of Stash doesn't.
+    if (result !== null && !result.skipped) {
+      this.lastLibrarySyncDoneAt = runStartedAt;
+    }
     // A sync that ran, having started after the change was owed, covers it;
     // one already going then may have read past it.
     if (

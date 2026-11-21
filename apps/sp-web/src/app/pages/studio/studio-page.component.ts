@@ -1,4 +1,5 @@
 import { HistoryBackDirective } from '../../core/navigation/history-back.directive';
+import { backLabelFor } from '../../core/navigation/back-label';
 import { GlassArtService } from '../../core/theme/glass-art.service';
 import { SkeletonComponent } from '../../shared/skeleton/skeleton.component';
 import {
@@ -61,6 +62,7 @@ import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.com
 import { HideToggleComponent } from '../../shared/hide-toggle/hide-toggle.component';
 import { FollowButtonComponent } from '../../shared/follow-button/follow-button.component';
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
+import { PendingScenesComponent } from '../../shared/pending-scenes/pending-scenes.component';
 import { StudioPerformersComponent } from '../../shared/studio-performers/studio-performers.component';
 
 type FavoritesFilterOption = 'NONE' | SceneFavoritesFilter;
@@ -75,6 +77,7 @@ interface MultiSelectOption {
   imports: [
     HistoryBackDirective,
     StudioPerformersComponent,
+    PendingScenesComponent,
     SkeletonComponent,
     HideToggleComponent,
     FollowButtonComponent,
@@ -272,7 +275,7 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
       const resolvedBackLink = this.parseReturnTo(queryParamMap.get('returnTo'), '/studios');
       this.backLinkPath.set(resolvedBackLink.path);
       this.backLinkQueryParams.set(resolvedBackLink.queryParams);
-      this.backLinkLabel.set(this.backLinkText(resolvedBackLink.path, 'Back to Studios'));
+      this.backLinkLabel.set(backLabelFor(resolvedBackLink.path, 'Back to Studios'));
 
       const nextStudioId = paramMap.get('studioId')?.trim() ?? '';
       if (!nextStudioId) {
@@ -1017,29 +1020,6 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
     } catch {
       return { path: fallback, queryParams: {} };
     }
-  }
-
-  private backLinkText(returnTo: string, fallbackLabel: string): string {
-    if (returnTo.startsWith('/studios')) {
-      return 'Back to Studios';
-    }
-    if (returnTo.startsWith('/studio/')) {
-      return 'Back to Studio';
-    }
-    if (returnTo.startsWith('/scenes')) {
-      return 'Back to Scenes';
-    }
-    if (returnTo.startsWith('/acquisition')) {
-      return 'Back to Wanted';
-    }
-    if (returnTo.startsWith('/processing')) {
-      return 'Back to Downloads';
-    }
-    if (returnTo.startsWith('/performer/')) {
-      return 'Back to Performer';
-    }
-
-    return fallbackLabel;
   }
 
   private rebuildTagSelectOptions(searchResults: SceneTagOption[]): void {

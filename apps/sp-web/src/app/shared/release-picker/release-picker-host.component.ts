@@ -8,15 +8,18 @@ import { ReleasePickerComponent } from './release-picker.component';
   imports: [ReleasePickerComponent],
   template: `
     @if (search.target(); as target) {
-      <app-release-picker
-        [open]="true"
-        [stashId]="target.stashId"
-        [sceneTitle]="target.title"
-        [source]="target.source"
-        [provider]="target.provider ?? null"
-        (closed)="search.close()"
-        (grabbed)="search.done()"
-      />
+      <!-- Its code loads the first time a picker opens, not with the app. -->
+      @defer (on immediate) {
+        <app-release-picker
+          [open]="true"
+          [stashId]="target.stashId"
+          [sceneTitle]="target.title"
+          [source]="target.source"
+          [provider]="target.provider ?? null"
+          (closed)="search.close()"
+          (grabbed)="search.done()"
+        />
+      }
     }
   `,
 })

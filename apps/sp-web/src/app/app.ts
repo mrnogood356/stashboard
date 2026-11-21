@@ -7,11 +7,12 @@ import { AppStatusComponent } from './shared/app-status/app-status.component';
 import { AppLockScreenComponent } from './shared/app-lock-screen/app-lock-screen.component';
 import { QuickHideCoverComponent } from './shared/quick-hide-cover/quick-hide-cover.component';
 import { QuickHideService } from './core/quick-hide/quick-hide.service';
-import { ConfirmDialog } from 'primeng/confirmdialog';
 import { Toast } from 'primeng/toast';
 import { ImageObscurationToggleComponent } from './shared/image-obscuration-toggle/image-obscuration-toggle.component';
 import { ThemeToggleComponent } from './shared/theme-toggle/theme-toggle.component';
 import { ReleasePickerHostComponent } from './shared/release-picker/release-picker-host.component';
+import { ConfirmHostComponent } from './shared/confirm-host/confirm-host.component';
+import { EarlyConfirmations } from './shared/confirm-host/early-confirmations.service';
 
 @Component({
   selector: 'app-root',
@@ -20,7 +21,7 @@ import { ReleasePickerHostComponent } from './shared/release-picker/release-pick
     ThemeToggleComponent,
     ImageObscurationToggleComponent,
     Toast,
-    ConfirmDialog,
+    ConfirmHostComponent,
     AppLockScreenComponent,
     QuickHideCoverComponent,
     ReleasePickerHostComponent,
@@ -38,5 +39,7 @@ export class App {
     inject(AppUpdatesService).start();
     // Scene details start loading when you point at a scene, not when you open it.
     inject(PrefetchService).start();
+    // Keeps a confirmation asked for before the dialog's code has loaded.
+    inject(EarlyConfirmations).start();
   }
 }
