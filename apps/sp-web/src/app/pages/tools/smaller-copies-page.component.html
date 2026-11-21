@@ -261,13 +261,13 @@
                     }
                   }
                 </p>
-                @if (row.outcome === 'failed') {
+                @if (row.outcome === 'failed' && latestTryIds().has(row.id)) {
                   <button
                     type="button"
                     class="btn small"
                     [attr.data-testid]="'try-again-' + row.id"
                     [disabled]="isRechecking(row.stashSceneId)"
-                    (click)="recheck(row.stashSceneId)"
+                    (click)="recheck(row.stashSceneId, true)"
                   >
                     {{ isRechecking(row.stashSceneId) ? 'Working…' : 'Look for another' }}
                   </button>

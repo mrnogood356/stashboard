@@ -189,7 +189,32 @@ describe('SmallerCopiesPageComponent', () => {
     expect(root.querySelector('[data-testid="try-t2"]')).toBeNull();
     // A failed one can look for another now, rather than waiting its turn.
     (root.querySelector('[data-testid="try-again-t1"]') as HTMLButtonElement).click();
-    expect(api.recheck).toHaveBeenCalledWith('4');
+    expect(api.recheck).toHaveBeenCalledWith('4', true);
+  });
+
+  it('offers no "Look for another" on a failure a later try for the scene moved past', async () => {
+    const { root, openTab } = await render({
+      ...DATA,
+      tries: [
+        {
+          id: 't9',
+          stashSceneId: '4',
+          title: 'Lake',
+          releaseTitle: 'Jane.Lake.1080p.good',
+          outcome: 'kept-both',
+          detail: 'Both were kept to check by hand.',
+          oldSize: null,
+          newSize: null,
+          at: '2026-11-06T10:00:00.000Z',
+        },
+        ...DATA.tries,
+      ],
+      tryCounts: { failed: 1, replaced: 1, 'kept-both': 1 },
+    });
+    openTab('tried');
+    // The old failure for scene 4 is still listed, without the button.
+    expect(root.querySelector('[data-testid="try-t1"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="try-again-t1"]')).toBeNull();
   });
 
   it('offers no "Look for another" on a scene where both copies were kept', async () => {

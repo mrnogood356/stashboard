@@ -821,6 +821,26 @@ describe('SmallerCopiesService', () => {
     );
   });
 
+  it('looks again from a failed try only while that failure is the scene’s latest', async () => {
+    downloads.grabRelease.mockRejectedValueOnce(new Error('indexer said no'));
+    await service.tick(true);
+    const failed = [...attempts.values()].find(
+      (row) => row.outcome === 'failed',
+    )!;
+    const id = failed.stashSceneId as string;
+    await service.recheck(id, true);
+    expect((failed.retryAfter as Date).getTime()).toBe(now);
+
+    // A later try kept both copies: the old failed row mustn't undo that.
+    failed.outcome = 'kept-both';
+    const later = new Date(now + 86_400_000);
+    failed.retryAfter = later;
+    await expect(service.recheck(id, true)).rejects.toThrow(
+      'latest try didn’t fail (kept-both)',
+    );
+    expect(failed.retryAfter).toBe(later);
+  });
+
   it('looks again at only the scenes whose last try failed, when asked', async () => {
     // The first scene searched has its grab fail; the next finds nothing.
     downloads.grabRelease.mockRejectedValueOnce(new Error('indexer said no'));

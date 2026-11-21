@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -356,12 +357,28 @@ export class SmallerCopiesService {
    * Looks at a scene again on the next search, whatever it found last time.
    * Releases already grabbed for it stay skipped.
    */
-  async recheck(stashSceneId: string): Promise<SmallerCopiesDto> {
+  async recheck(
+    stashSceneId: string,
+    /** From a failed try: only while the scene's latest try is still the failed one. */
+    onlyIfFailed = false,
+  ): Promise<SmallerCopiesDto> {
     const updated = await this.prisma.smallerCopyAttempt.updateMany({
-      where: { stashSceneId },
+      where: { stashSceneId, ...(onlyIfFailed ? { outcome: 'failed' } : {}) },
       data: { retryAfter: new Date(this.now()) },
     });
     if (updated.count === 0) {
+      const row = onlyIfFailed
+        ? await this.prisma.smallerCopyAttempt.findUnique({
+            where: { stashSceneId },
+          })
+        : null;
+      if (row) {
+        // A later try for the scene ended another way (kept both, replaced,
+        // on its way): looking again would undo that.
+        throw new ConflictException(
+          `That scene’s latest try didn’t fail (${row.outcome}), so it’s left as it is.`,
+        );
+      }
       throw new NotFoundException('That scene hasn’t been looked at yet.');
     }
     return this.status();

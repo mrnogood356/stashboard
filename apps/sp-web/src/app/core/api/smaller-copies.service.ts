@@ -94,10 +94,12 @@ export class SmallerCopiesApiService {
   }
 
   /** Look at a scene again on the next search. */
-  recheck(stashSceneId: string): Observable<SmallerCopies> {
+  /** `onlyIfFailed`: from a failed try, refused if a later try ended another way. */
+  recheck(stashSceneId: string, onlyIfFailed = false): Observable<SmallerCopies> {
     return this.http.post<SmallerCopies>(
       `/api/smaller-copies/scenes/${encodeURIComponent(stashSceneId)}/recheck`,
       {},
+      onlyIfFailed ? { params: { ifFailed: 'true' } } : {},
     );
   }
 

@@ -207,7 +207,21 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
     return this.rechecking().has(stashSceneId);
   }
 
-  protected recheck(stashSceneId: string): void {
+  /** Each scene's newest try: only that one can be a failure still worth retrying. */
+  protected readonly latestTryIds = computed(() => {
+    const seen = new Set<string>();
+    const latest = new Set<string>();
+    // Newest first, as the server lists them.
+    for (const row of this.data()?.tries ?? []) {
+      if (!seen.has(row.stashSceneId)) {
+        seen.add(row.stashSceneId);
+        latest.add(row.id);
+      }
+    }
+    return latest;
+  });
+
+  protected recheck(stashSceneId: string, onlyIfFailed = false): void {
     if (this.rechecking().has(stashSceneId)) {
       return;
     }
@@ -220,7 +234,10 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
     this.rechecking.update((set) => new Set(set).add(stashSceneId));
     this.changes += 1;
     const started = this.changes;
-    this.api.recheck(stashSceneId).subscribe({
+    (onlyIfFailed
+      ? this.api.recheck(stashSceneId, true)
+      : this.api.recheck(stashSceneId)
+    ).subscribe({
       next: (data) => {
         // Another change started since: its answer is the newer one.
         const current = this.changes === started;

@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -159,8 +160,10 @@ export class SmallerCopiesController {
   @HttpCode(200)
   recheck(
     @Param('stashSceneId') stashSceneId: string,
+    /** From a failed try: only while the scene's latest try is that failure. */
+    @Query('ifFailed') ifFailed?: string,
   ): Promise<SmallerCopiesDto> {
-    return this.smaller.recheck(stashSceneId);
+    return this.smaller.recheck(stashSceneId, ifFailed === 'true');
   }
 
   /** Look at every scene again, a few an hour as usual. */
