@@ -285,6 +285,15 @@ describe('smaller copies', () => {
           minNewGbPerHour: 8,
         }),
       ).toMatch(/under the 8 GB floor/);
+      // Just under is shown as just under, not as the floor itself.
+      expect(
+        checkNewCopy(
+          old,
+          { ...good, size: 0.735 * GB, duration: 1800 },
+          'above-target',
+          { ...rules, minNewGbPerHour: 1.5 },
+        ),
+      ).toMatch(/is 1\.47 GB an hour, under the 1\.5 GB floor/);
     });
 
     it('takes an upgrade only when it really is higher', () => {
@@ -341,6 +350,89 @@ describe('smaller copies', () => {
           rules,
         )?.title,
       ).toBe('Right.26.10.21.Jane.Doe.1080p');
+    });
+
+    it('wants the title, or the studio and the day, not a studio and a performer', () => {
+      const release = (title: string, matched: string[]) => ({
+        guid: title,
+        indexerId: 1,
+        title,
+        size: 1 * 1024 ** 3,
+        protocol: 'usenet' as const,
+        match: { strength: 'strong' as const, matched },
+      });
+      const rules = { ...DEFAULT_RULES, target: '1080p' as const };
+      const file = { size: 6 * 1024 ** 3, duration: 1800 };
+      // Every clip she put up on ManyVids has these two.
+      expect(
+        pickRelease(
+          [
+            release('ManyVids.2023.Jane.Doe.Another.Clip.1080p', [
+              'studio',
+              'performer',
+            ]),
+          ],
+          file,
+          'too-big',
+          rules,
+        ),
+      ).toBeNull();
+      expect(
+        pickRelease(
+          [release('Jane.Doe.Sunset.Rendezvous.1080p', ['performer', 'title'])],
+          file,
+          'too-big',
+          rules,
+        )?.title,
+      ).toBe('Jane.Doe.Sunset.Rendezvous.1080p');
+    });
+
+    it('never takes a pack or site rip', () => {
+      const pack = {
+        guid: 'p',
+        indexerId: 1,
+        title: 'Jane.Doe.The.Model.SERIES.MegaPACK.Sunset.Rendezvous.1080p',
+        size: 1 * 1024 ** 3,
+        protocol: 'usenet' as const,
+        match: { strength: 'strong' as const, matched: ['performer', 'title'] },
+      };
+      const rules = { ...DEFAULT_RULES, target: '1080p' as const };
+      const file = { size: 6 * 1024 ** 3, duration: 1800 };
+      expect(pickRelease([pack], file, 'too-big', rules)).toBeNull();
+      for (const title of [
+        'Studio.SiteRip.2023.1080p',
+        'Studio.Site-Rip.2023.1080p',
+        'Studio.24.03.15.Jane.Doe.Sunset.Rendezvous.Pack.1080p',
+      ]) {
+        expect(
+          pickRelease([{ ...pack, title }], file, 'too-big', rules),
+        ).toBeNull();
+      }
+      // A word with "pack" in it isn't a pack.
+      expect(
+        pickRelease(
+          [{ ...pack, title: 'Studio.24.03.15.Jane.Doe.Backpacking.1080p' }],
+          file,
+          'too-big',
+          rules,
+        )?.title,
+      ).toBe('Studio.24.03.15.Jane.Doe.Backpacking.1080p');
+    });
+
+    it('leaves room above the floor, since a release weighs more than its video', () => {
+      const rules = {
+        ...DEFAULT_RULES,
+        target: '1080p' as const,
+        minNewGbPerHour: 1.5,
+      };
+      const file = { size: 6 * GB, duration: 3600 };
+      expect(
+        pickRelease([release('A.1080p', 1.52 * GB)], file, 'too-big', rules),
+      ).toBeNull();
+      expect(
+        pickRelease([release('A.1080p', 1.6 * GB)], file, 'too-big', rules)
+          ?.title,
+      ).toBe('A.1080p');
     });
   });
 });

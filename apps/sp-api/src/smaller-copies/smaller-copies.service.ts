@@ -89,12 +89,22 @@ export interface SmallerCopiesDto {
     stashSceneId: string;
     title: string;
     releaseTitle: string | null;
-    /** grabbed (on its way) | replaced | kept-both | failed */
+    /** grabbed (on its way) | replaced | kept-both | removed | failed */
     outcome: string;
     detail: string | null;
     oldSize: number | null;
     newSize: number | null;
     at: string;
+    /**
+     * Kept both: the Stash scene the download landed on, apart from the old
+     * one, to look at or remove. Null when there's none to show.
+     */
+    newSceneId: string | null;
+    /**
+     * Whether "Remove it" is offered: the new scene holds just the one file.
+     * Checked again when asked, since that can change.
+     */
+    canRemoveNew: boolean;
   }>;
   /** How many tries ended each way, over all of them. */
   tryCounts: Record<string, number>;
@@ -128,10 +138,18 @@ type Note = Pick<SmallerCopyAttempt, 'title' | 'outcome' | 'retryAfter'> &
  * Finished downloads puts it on the scene and deletes (or keeps) the old
  * file. Off until switched on.
  */
+/** How long a new scene's file count is trusted for the Tried list (the page asks every 30s). */
+const FILE_COUNT_TTL = 60 * 1000;
+
 @Injectable()
 export class SmallerCopiesService {
   private readonly logger = new Logger(SmallerCopiesService.name);
   private running = false;
+  /** Files on each kept-both download's scene, by scene, for the Tried list. */
+  private readonly fileCounts = new Map<
+    string,
+    { at: number; count: number }
+  >();
   private files: { at: number; baseUrl: string; value: StatsFile[] } | null =
     null;
   private lastSearchAt: number | null = null;
@@ -226,6 +244,10 @@ export class SmallerCopiesService {
         .count({ where: this.failedWaitingWhere() })
         .catch(() => 0),
     ]);
+    const newScenes = await this.newScenesOf(tries).catch(
+      () => new Map<string, string>(),
+    );
+    const fileCounts = await this.fileCountsOf([...newScenes.values()]);
     return {
       settings: settingsOf(settings),
       blocked,
@@ -256,12 +278,158 @@ export class SmallerCopiesService {
         oldSize: row.oldSize,
         newSize: row.newSize,
         at: row.updatedAt.toISOString(),
+        newSceneId: newScenes.get(row.id) ?? null,
+        // Only when Stash says just the one file: not when it couldn't be read.
+        canRemoveNew:
+          newScenes.has(row.id) && fileCounts.get(newScenes.get(row.id)!) === 1,
       })),
       tryCounts: Object.fromEntries(
         counts.map((row) => [row.outcome, row._count._all]),
       ),
       failedWaiting,
     };
+  }
+
+  /**
+   * Kept-both tries whose download is on a Stash scene of its own, by try:
+   * that scene. Not when it joined the old scene, nor when the old scene is
+   * gone (the new copy is then the only one).
+   */
+  private async newScenesOf(
+    tries: Array<{
+      id: string;
+      stashSceneId: string;
+      outcome: string;
+      handoffId: string | null;
+    }>,
+  ): Promise<Map<string, string>> {
+    const kept = tries.filter(
+      (row) => row.outcome === 'kept-both' && row.handoffId,
+    );
+    if (kept.length === 0) {
+      return new Map();
+    }
+    const [handoffs, present] = await Promise.all([
+      this.prisma.downloadHandoff.findMany({
+        where: { id: { in: kept.map((row) => row.handoffId!) } },
+        select: { id: true, stashSceneId: true },
+      }),
+      this.prisma.librarySceneIndex.findMany({
+        where: { stashSceneId: { in: kept.map((row) => row.stashSceneId) } },
+        select: { stashSceneId: true },
+      }),
+    ]);
+    const sceneOf = new Map(handoffs.map((row) => [row.id, row.stashSceneId]));
+    const oldThere = new Set(present.map((row) => row.stashSceneId));
+    const found = new Map<string, string>();
+    for (const row of kept) {
+      const scene = sceneOf.get(row.handoffId!);
+      if (
+        scene &&
+        scene !== row.stashSceneId &&
+        oldThere.has(row.stashSceneId)
+      ) {
+        found.set(row.id, scene);
+      }
+    }
+    return found;
+  }
+
+  /**
+   * How many files each of these Stash scenes holds, kept for a minute
+   * (the page asks every 30 seconds). A scene that can't be read is left
+   * out, so it's offered no removal; the removal checks again anyway.
+   */
+  private async fileCountsOf(sceneIds: string[]): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    if (sceneIds.length === 0 || !this.stash) {
+      return counts;
+    }
+    const config = await this.handoff.stashConfig().catch(() => null);
+    if (!config) {
+      return counts;
+    }
+    const now = this.now();
+    await Promise.all(
+      [...new Set(sceneIds)].map(async (id) => {
+        const cached = this.fileCounts.get(id);
+        if (cached && now - cached.at < FILE_COUNT_TTL) {
+          counts.set(id, cached.count);
+          return;
+        }
+        const scene = await this.stash!.getOrganizerScene(config, id).catch(
+          () => undefined,
+        );
+        if (scene !== undefined) {
+          const count = scene?.files.length ?? 0;
+          this.fileCounts.set(id, { at: now, count });
+          counts.set(id, count);
+        }
+      }),
+    );
+    return counts;
+  }
+
+  /**
+   * Deletes a kept-both try's new copy (its scene and file) from Stash, for
+   * when it turned out to be another video or not wanted. The old file stays.
+   */
+  async removeNewCopy(tryId: string): Promise<SmallerCopiesDto> {
+    const row = await this.prisma.smallerCopyTry.findUnique({
+      where: { id: tryId },
+    });
+    if (!row) {
+      throw new NotFoundException('That try isn’t in the list any more.');
+    }
+    const newSceneId = (await this.newScenesOf([row])).get(row.id);
+    if (!newSceneId) {
+      throw new ConflictException(
+        'There’s no separate new copy to remove for that try.',
+      );
+    }
+    const config = await this.handoff.stashConfig();
+    if (!config || !this.stash) {
+      throw new BadRequestException('Stash isn’t set up.');
+    }
+    const [scene, old] = await Promise.all([
+      this.stash.getOrganizerScene(config, newSceneId),
+      this.stash.getOrganizerScene(config, row.stashSceneId),
+    ]);
+    if (!old || old.files.length === 0) {
+      throw new ConflictException(
+        'The old scene is gone from Stash, so the new copy is the only one; it’s left as it is.',
+      );
+    }
+    if (scene) {
+      if (scene.files.length > 1) {
+        throw new ConflictException(
+          `The new copy’s scene has ${scene.files.length} files now, so it’s left for you to sort out in Stash.`,
+        );
+      }
+      await this.stash.deleteScene(config, newSceneId, true);
+    }
+    this.fileCounts.delete(newSceneId);
+    await this.prisma.librarySceneIndex
+      .deleteMany({ where: { stashSceneId: newSceneId } })
+      .catch(() => undefined);
+    const path = scene?.files[0]?.path;
+    await this.prisma.smallerCopyTry.update({
+      where: { id: row.id },
+      data: {
+        outcome: 'removed',
+        detail:
+          `${row.detail ? `${row.detail} ` : ''}You removed the new copy${path ? ` (${path})` : ''}; the old file stays.`.slice(
+            0,
+            600,
+          ),
+      },
+    });
+    this.logger.log(
+      scene
+        ? `Better copies: deleted Stash scene ${newSceneId}${path ? ` and ${path}` : ''}, the new copy kept beside Stash scene ${row.stashSceneId}.`
+        : `Better copies: the new copy beside Stash scene ${row.stashSceneId} (scene ${newSceneId}) was already gone from Stash.`,
+    );
+    return this.status();
   }
 
   /**

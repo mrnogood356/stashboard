@@ -51,6 +51,36 @@ describe('matchRelease', () => {
     }
   });
 
+  it('doesn’t count a performer’s name as the title', () => {
+    // A scene called just "Jenna Ivory": another of her scenes isn't it.
+    expect(
+      matchRelease('The.Seduction.Of.Jenna.Ivory.XXX.1080p.WEBRip.MP4-OHRLY', {
+        title: 'Jenna Ivory',
+        studio: null,
+        releaseDate: null,
+        performers: ['Jenna Ivory'],
+      }),
+    ).toEqual({ strength: 'partial', matched: ['performer'] });
+    // Nor run together as one word.
+    expect(
+      matchRelease('JennaIvory.Other.Scene.1080p', {
+        title: 'JennaIvory',
+        studio: null,
+        releaseDate: null,
+        performers: ['Jenna Ivory'],
+      }),
+    ).toEqual({ strength: 'partial', matched: ['performer'] });
+    // The title's own words still count.
+    expect(
+      matchRelease('Jenna.Ivory.Sunset.Rendezvous.1080p', {
+        title: 'Jenna Ivory Sunset Rendezvous',
+        studio: null,
+        releaseDate: null,
+        performers: ['Jenna Ivory'],
+      }),
+    ).toEqual({ strength: 'strong', matched: ['performer', 'title'] });
+  });
+
   it('doesn’t count the studio’s name as the title', () => {
     expect(
       matchRelease('Evil.Angel.25.03.19.Khloe.Kingsley.XXX.1080p', {

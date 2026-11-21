@@ -97,6 +97,7 @@ async function render(
     recheck: vi.fn(() => of(data)),
     recheckAll: vi.fn(() => of(data)),
     recheckFailed: vi.fn(() => of(data)),
+    removeNewCopy: vi.fn(() => of(data)),
   };
   const notifications = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
   await TestBed.configureTestingModule({
@@ -237,6 +238,103 @@ describe('SmallerCopiesPageComponent', () => {
     });
     openTab('tried');
     expect(root.querySelector('[data-testid="try-t3"] button')).toBeNull();
+  });
+
+  it('links to the scene a kept-both download landed on, and removes it on a second tap', async () => {
+    const kept = {
+      id: 't4',
+      stashSceneId: '6',
+      title: 'Hill',
+      releaseTitle: 'Other.Clip.1080p',
+      outcome: 'kept-both',
+      detail: 'The new file runs 14 min and the old one 20 min.',
+      oldSize: null,
+      newSize: null,
+      at: '2026-11-05T08:00:00.000Z',
+      newSceneId: '50',
+      canRemoveNew: true,
+    };
+    const { root, api, fixture, openTab } = await render({
+      ...DATA,
+      tries: [kept, { ...kept, id: 't5', newSceneId: null }],
+      tryCounts: { 'kept-both': 2 },
+    });
+    openTab('tried');
+    const link = root.querySelector('[data-testid="see-new-t4"]') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/library/scene/50');
+    // Joined to the old scene: nothing separate to show or remove.
+    expect(root.querySelector('[data-testid="see-new-t5"]')).toBeNull();
+    expect(root.querySelector('[data-testid="remove-new-t5"]')).toBeNull();
+
+    const remove = () => root.querySelector('[data-testid="remove-new-t4"]') as HTMLButtonElement;
+    remove().click();
+    fixture.detectChanges();
+    expect(api.removeNewCopy).not.toHaveBeenCalled();
+    expect(remove().textContent).toContain('Delete it from disk?');
+    remove().click();
+    expect(api.removeNewCopy).toHaveBeenCalledWith('t4');
+  });
+
+  it('takes back a first "Remove it" tap on leaving the filter or the button', async () => {
+    const kept = {
+      id: 't4',
+      stashSceneId: '6',
+      title: 'Hill',
+      releaseTitle: 'Other.Clip.1080p',
+      outcome: 'kept-both',
+      detail: null,
+      oldSize: null,
+      newSize: null,
+      at: '2026-11-05T08:00:00.000Z',
+      newSceneId: '50',
+      canRemoveNew: true,
+    };
+    const { root, api, fixture, openTab } = await render({
+      ...DATA,
+      tries: [kept],
+      tryCounts: { 'kept-both': 1 },
+    });
+    openTab('tried');
+    const remove = () => root.querySelector('[data-testid="remove-new-t4"]') as HTMLButtonElement;
+    remove().click();
+    fixture.detectChanges();
+    (root.querySelector('[data-testid="tried-filter-kept-both"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    (root.querySelector('[data-testid="tried-filter-all"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(remove().textContent).toContain('Remove it');
+    remove().click();
+    fixture.detectChanges();
+    remove().dispatchEvent(new Event('blur'));
+    fixture.detectChanges();
+    expect(remove().textContent).toContain('Remove it');
+    remove().click();
+    expect(api.removeNewCopy).not.toHaveBeenCalled();
+  });
+
+  it('links to a new scene holding other files but offers no removal', async () => {
+    const { root, openTab } = await render({
+      ...DATA,
+      tries: [
+        {
+          id: 't6',
+          stashSceneId: '6',
+          title: 'Hill',
+          releaseTitle: 'Other.Clip.1080p',
+          outcome: 'kept-both',
+          detail: null,
+          oldSize: null,
+          newSize: null,
+          at: '2026-11-05T08:00:00.000Z',
+          newSceneId: '51',
+          canRemoveNew: false,
+        },
+      ],
+      tryCounts: { 'kept-both': 1 },
+    });
+    openTab('tried');
+    expect(root.querySelector('[data-testid="see-new-t6"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="remove-new-t6"]')).toBeNull();
   });
 
   it('checks only the failed scenes again, in one tap, when some are waiting', async () => {

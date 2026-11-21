@@ -272,8 +272,15 @@
   cursor: pointer;
 }
 
-.badge[data-outcome='kept-both'] {
+.badge[data-outcome='kept-both'],
+.badge[data-outcome='removed'] {
   color: var(--text-muted);
+}
+
+.attempt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .status-actions {

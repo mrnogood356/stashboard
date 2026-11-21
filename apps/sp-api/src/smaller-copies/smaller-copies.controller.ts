@@ -166,6 +166,13 @@ export class SmallerCopiesController {
     return this.smaller.recheck(stashSceneId, ifFailed === 'true');
   }
 
+  /** Kept both: delete the new copy's scene and file; the old file stays. */
+  @Post('tries/:tryId/remove-new')
+  @HttpCode(200)
+  removeNewCopy(@Param('tryId') tryId: string): Promise<SmallerCopiesDto> {
+    return this.smaller.removeNewCopy(tryId);
+  }
+
   /** Look at every scene again, a few an hour as usual. */
   @Post('recheck')
   @HttpCode(200)

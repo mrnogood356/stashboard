@@ -261,6 +261,35 @@
                     }
                   }
                 </p>
+                @if (row.outcome === 'kept-both' && row.newSceneId) {
+                  <div class="attempt-actions">
+                    <a
+                      class="btn small"
+                      [routerLink]="['/library/scene', row.newSceneId]"
+                      [attr.data-testid]="'see-new-' + row.id"
+                      >See what it grabbed</a
+                    >
+                    @if (row.canRemoveNew) {
+                      <button
+                        type="button"
+                        class="btn small"
+                        [class.danger]="confirmingRemove() === row.id"
+                        [attr.data-testid]="'remove-new-' + row.id"
+                        [disabled]="removing() !== null"
+                        (click)="removeNewCopy(row.id)"
+                        (blur)="cancelRemove(row.id)"
+                      >
+                        {{
+                          removing() === row.id
+                            ? 'Removing…'
+                            : confirmingRemove() === row.id
+                              ? 'Delete it from disk?'
+                              : 'Remove it'
+                        }}
+                      </button>
+                    }
+                  </div>
+                }
                 @if (row.outcome === 'failed' && latestTryIds().has(row.id)) {
                   <button
                     type="button"
