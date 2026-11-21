@@ -196,7 +196,7 @@ describe('SmallerCopiesService', () => {
             where: {
               stashSceneId?: string;
               retryAfter?: { gt: Date };
-              outcome?: { not: string } | string;
+              outcome?: { not: string } | { notIn: string[] } | string;
               handoffId?: string;
             };
             data: Record<string, unknown>;
@@ -212,7 +212,9 @@ describe('SmallerCopiesService', () => {
                 (outcome === undefined ||
                   (typeof outcome === 'string'
                     ? row.outcome === outcome
-                    : row.outcome !== outcome.not)) &&
+                    : 'notIn' in outcome
+                      ? !outcome.notIn.includes(row.outcome as string)
+                      : row.outcome !== outcome.not)) &&
                 (where.handoffId === undefined ||
                   row.handoffId === where.handoffId)
               ) {
@@ -873,16 +875,44 @@ describe('SmallerCopiesService', () => {
     expect(status.due).toBe(before + 1);
     expect((failed.retryAfter as Date).getTime()).toBe(now);
     expect((nothing.retryAfter as Date).getTime()).toBeGreaterThan(now);
+  });
 
-    // And it's the next one searched, ahead of scenes not tried yet.
-    downloads.searchReleases.mockClear();
+  it('searches a failed scene before a bigger one not tried yet', async () => {
+    // Scene 2 (9 GB) would go first; scene 1 (8 GB) failed, so it goes first.
+    attempts.set('1', {
+      stashSceneId: '1',
+      title: 'Scene 1',
+      outcome: 'failed',
+      searchedAt: new Date(now - 86_400_000),
+      retryAfter: new Date(now),
+    });
+    downloads.searchReleases.mockResolvedValue({ releases: [] });
     await service.tick(true);
-    const searchedFirst = downloads.searchReleases.mock.calls[0]?.[0];
-    expect(searchedFirst).toBe(linked[failed.stashSceneId as string]);
-    expect(attempts.get(failed.stashSceneId as string)?.outcome).toBe(
-      'none-found',
-    );
-    expect((await service.status()).failed).toBe(0);
+    expect(downloads.searchReleases.mock.calls[0]?.[0]).toBe('cat-1');
+    expect(attempts.get('1')?.outcome).toBe('none-found');
+    // Then the usual order: the bigger one.
+    await service.tick(true);
+    expect(downloads.searchReleases.mock.calls[1]?.[0]).toBe('cat-2');
+  });
+
+  it('leaves a match found in the meantime as it is', async () => {
+    tries.push({
+      id: 'f3',
+      stashSceneId: '1',
+      title: 'Scene 1',
+      outcome: 'failed',
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    });
+    attempts.set('1', {
+      stashSceneId: '1',
+      title: 'Scene 1',
+      outcome: 'found',
+      searchedAt: new Date(now),
+      retryAfter: new Date(now + 86_400_000),
+    });
+    await service.recheckFailed();
+    expect(attempts.get('1')?.outcome).toBe('found');
   });
 
   it('checks again a scene on the Failed list even after a search since found nothing', async () => {

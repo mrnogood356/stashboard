@@ -583,7 +583,9 @@ export class SmallerCopiesService {
     const updated = await Promise.all(
       ids.map((stashSceneId) =>
         this.prisma.smallerCopyAttempt.updateMany({
-          where: { stashSceneId, outcome: { not: 'grabbed' } },
+          // Checked again at the write: a search between may have found a
+          // match waiting for you, or grabbed one.
+          where: { stashSceneId, outcome: { notIn: ['grabbed', 'found'] } },
           data: {
             outcome: 'failed',
             detail:
