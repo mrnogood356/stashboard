@@ -136,6 +136,17 @@
                     : 'Check all again'
               }}
             </button>
+            @if (failedWaiting() > 0) {
+              <button
+                type="button"
+                class="btn small"
+                data-testid="better-recheck-failed"
+                [disabled]="recheckingFailed()"
+                (click)="recheckFailed()"
+              >
+                {{ recheckingFailed() ? 'Working…' : 'Check ' + failedWaiting() + ' failed again' }}
+              </button>
+            }
           </div>
           @if (confirmingRecheckAll()) {
             <p class="muted small" data-testid="better-recheck-all-note">
@@ -250,12 +261,13 @@
                     }
                   }
                 </p>
-                @if (row.outcome === 'kept-both') {
+                @if (row.outcome === 'failed' && latestTryIds().has(row.id)) {
                   <button
                     type="button"
                     class="btn small"
+                    [attr.data-testid]="'try-again-' + row.id"
                     [disabled]="isRechecking(row.stashSceneId)"
-                    (click)="recheck(row.stashSceneId)"
+                    (click)="recheck(row.stashSceneId, true)"
                   >
                     {{ isRechecking(row.stashSceneId) ? 'Working…' : 'Look for another' }}
                   </button>

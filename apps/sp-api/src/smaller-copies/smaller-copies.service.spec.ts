@@ -153,6 +153,22 @@ describe('SmallerCopiesService', () => {
         findUnique: jest.fn(({ where }: { where: { stashSceneId: string } }) =>
           Promise.resolve(attempts.get(where.stashSceneId) ?? null),
         ),
+        count: jest.fn(
+          ({
+            where,
+          }: {
+            where: { outcome?: string; retryAfter?: { gt: Date } };
+          }) =>
+            Promise.resolve(
+              [...attempts.values()].filter(
+                (row) =>
+                  (where.outcome === undefined ||
+                    row.outcome === where.outcome) &&
+                  (!where.retryAfter ||
+                    (row.retryAfter as Date) > where.retryAfter.gt),
+              ).length,
+            ),
+        ),
         findFirst: jest.fn(({ where }: { where: { handoffId: string } }) =>
           Promise.resolve(
             [...attempts.values()].find(
@@ -803,6 +819,49 @@ describe('SmallerCopiesService', () => {
     expect((attempts.get('1')!.retryAfter as Date).getTime()).toBeGreaterThan(
       now,
     );
+  });
+
+  it('looks again from a failed try only while that failure is the scene’s latest', async () => {
+    downloads.grabRelease.mockRejectedValueOnce(new Error('indexer said no'));
+    await service.tick(true);
+    const failed = [...attempts.values()].find(
+      (row) => row.outcome === 'failed',
+    )!;
+    const id = failed.stashSceneId as string;
+    await service.recheck(id, true);
+    expect((failed.retryAfter as Date).getTime()).toBe(now);
+
+    // A later try kept both copies: the old failed row mustn't undo that.
+    failed.outcome = 'kept-both';
+    const later = new Date(now + 86_400_000);
+    failed.retryAfter = later;
+    await expect(service.recheck(id, true)).rejects.toThrow(
+      'latest try didn’t fail (kept-both)',
+    );
+    expect(failed.retryAfter).toBe(later);
+  });
+
+  it('looks again at only the scenes whose last try failed, when asked', async () => {
+    // The first scene searched has its grab fail; the next finds nothing.
+    downloads.grabRelease.mockRejectedValueOnce(new Error('indexer said no'));
+    await service.tick(true);
+    downloads.searchReleases.mockResolvedValue({ releases: [] });
+    await service.tick(true);
+    const rows = [...attempts.values()];
+    const failed = rows.find((row) => row.outcome === 'failed')!;
+    const nothing = rows.find((row) => row.outcome === 'none-found')!;
+    expect(failed).toBeDefined();
+    expect(nothing).toBeDefined();
+    expect((await service.status()).failedWaiting).toBe(1);
+    const before = (await service.status()).due;
+
+    const status = await service.recheckFailed();
+
+    // Only the failed one is due again; the other keeps its wait.
+    expect(status.due).toBe(before + 1);
+    expect(status.failedWaiting).toBe(0);
+    expect((failed.retryAfter as Date).getTime()).toBe(now);
+    expect((nothing.retryAfter as Date).getTime()).toBeGreaterThan(now);
   });
 
   it('searches no more for a scene while its replacement is still downloading', async () => {

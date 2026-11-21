@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -159,8 +160,10 @@ export class SmallerCopiesController {
   @HttpCode(200)
   recheck(
     @Param('stashSceneId') stashSceneId: string,
+    /** From a failed try: only while the scene's latest try is that failure. */
+    @Query('ifFailed') ifFailed?: string,
   ): Promise<SmallerCopiesDto> {
-    return this.smaller.recheck(stashSceneId);
+    return this.smaller.recheck(stashSceneId, ifFailed === 'true');
   }
 
   /** Look at every scene again, a few an hour as usual. */
@@ -168,6 +171,13 @@ export class SmallerCopiesController {
   @HttpCode(200)
   recheckAll(): Promise<SmallerCopiesDto> {
     return this.smaller.recheckAll();
+  }
+
+  /** Look at only the scenes whose last try failed again, a few an hour. */
+  @Post('recheck/failed')
+  @HttpCode(200)
+  recheckFailed(): Promise<SmallerCopiesDto> {
+    return this.smaller.recheckFailed();
   }
 
   /** Look for the next scene now, without waiting for the hourly spacing. */

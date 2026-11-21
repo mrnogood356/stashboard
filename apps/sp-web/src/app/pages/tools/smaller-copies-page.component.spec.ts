@@ -96,6 +96,7 @@ async function render(
     grab: vi.fn(() => of(data)),
     recheck: vi.fn(() => of(data)),
     recheckAll: vi.fn(() => of(data)),
+    recheckFailed: vi.fn(() => of(data)),
   };
   const notifications = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
   await TestBed.configureTestingModule({
@@ -186,9 +187,70 @@ describe('SmallerCopiesPageComponent', () => {
     (root.querySelector('[data-testid="tried-filter-failed"]') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(root.querySelector('[data-testid="try-t2"]')).toBeNull();
-    // A failed one looks for another by itself: nothing to tap.
-    expect(root.querySelector('[data-testid="try-t1"] button')).toBeNull();
-    expect(api.recheck).not.toHaveBeenCalled();
+    // A failed one can look for another now, rather than waiting its turn.
+    (root.querySelector('[data-testid="try-again-t1"]') as HTMLButtonElement).click();
+    expect(api.recheck).toHaveBeenCalledWith('4', true);
+  });
+
+  it('offers no "Look for another" on a failure a later try for the scene moved past', async () => {
+    const { root, openTab } = await render({
+      ...DATA,
+      tries: [
+        {
+          id: 't9',
+          stashSceneId: '4',
+          title: 'Lake',
+          releaseTitle: 'Jane.Lake.1080p.good',
+          outcome: 'kept-both',
+          detail: 'Both were kept to check by hand.',
+          oldSize: null,
+          newSize: null,
+          at: '2026-11-06T10:00:00.000Z',
+        },
+        ...DATA.tries,
+      ],
+      tryCounts: { failed: 1, replaced: 1, 'kept-both': 1 },
+    });
+    openTab('tried');
+    // The old failure for scene 4 is still listed, without the button.
+    expect(root.querySelector('[data-testid="try-t1"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="try-again-t1"]')).toBeNull();
+  });
+
+  it('offers no "Look for another" on a scene where both copies were kept', async () => {
+    const { root, openTab } = await render({
+      ...DATA,
+      tries: [
+        {
+          id: 't3',
+          stashSceneId: '6',
+          title: 'Hill',
+          releaseTitle: 'Jane.Hill.1080p',
+          outcome: 'kept-both',
+          detail: 'Both files are on the scene now, as the rules ask.',
+          oldSize: null,
+          newSize: null,
+          at: '2026-11-05T08:00:00.000Z',
+        },
+      ],
+      tryCounts: { 'kept-both': 1 },
+    });
+    openTab('tried');
+    expect(root.querySelector('[data-testid="try-t3"] button')).toBeNull();
+  });
+
+  it('checks only the failed scenes again, in one tap, when some are waiting', async () => {
+    const { root, api } = await render({ ...DATA, failedWaiting: 3 });
+    const button = root.querySelector('[data-testid="better-recheck-failed"]') as HTMLButtonElement;
+    expect(button.textContent).toContain('Check 3 failed again');
+    button.click();
+    expect(api.recheckFailed).toHaveBeenCalledTimes(1);
+    expect(api.recheckAll).not.toHaveBeenCalled();
+  });
+
+  it('hides "check failed again" when no failed scene is waiting', async () => {
+    const { root } = await render();
+    expect(root.querySelector('[data-testid="better-recheck-failed"]')).toBeNull();
   });
 
   it('shows the space given back in whole GB until it’s past 10 TB, so each swap shows', async () => {
