@@ -142,12 +142,23 @@ describe('SmallerCopiesService', () => {
           },
         ),
         findMany: jest.fn(
-          ({ where }: { where?: { retryAfter?: { gt: Date } } } = {}) =>
+          ({
+            where,
+          }: {
+            where?: {
+              retryAfter?: { gt: Date };
+              outcome?: string | { in: string[] };
+            };
+          } = {}) =>
             Promise.resolve(
               [...attempts.values()].filter(
                 (row) =>
-                  !where?.retryAfter ||
-                  (row.retryAfter as Date) > where.retryAfter.gt,
+                  (!where?.retryAfter ||
+                    (row.retryAfter as Date) > where.retryAfter.gt) &&
+                  (where?.outcome === undefined ||
+                    (typeof where.outcome === 'string'
+                      ? row.outcome === where.outcome
+                      : where.outcome.in.includes(row.outcome as string))),
               ),
             ),
         ),
@@ -853,16 +864,71 @@ describe('SmallerCopiesService', () => {
     const nothing = rows.find((row) => row.outcome === 'none-found')!;
     expect(failed).toBeDefined();
     expect(nothing).toBeDefined();
-    expect((await service.status()).failedWaiting).toBe(1);
+    expect((await service.status()).failed).toBe(1);
     const before = (await service.status()).due;
 
     const status = await service.recheckFailed();
 
     // Only the failed one is due again; the other keeps its wait.
     expect(status.due).toBe(before + 1);
-    expect(status.failedWaiting).toBe(0);
     expect((failed.retryAfter as Date).getTime()).toBe(now);
     expect((nothing.retryAfter as Date).getTime()).toBeGreaterThan(now);
+
+    // And it's the next one searched, ahead of scenes not tried yet.
+    downloads.searchReleases.mockClear();
+    await service.tick(true);
+    const searchedFirst = downloads.searchReleases.mock.calls[0]?.[0];
+    expect(searchedFirst).toBe(linked[failed.stashSceneId as string]);
+    expect(attempts.get(failed.stashSceneId as string)?.outcome).toBe(
+      'none-found',
+    );
+    expect((await service.status()).failed).toBe(0);
+  });
+
+  it('checks again a scene on the Failed list even after a search since found nothing', async () => {
+    // Its download failed (the latest try), then a search found nothing.
+    tries.push({
+      id: 'f1',
+      stashSceneId: '1',
+      title: 'Scene 1',
+      outcome: 'failed',
+      detail: 'The download failed.',
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    });
+    attempts.set('1', {
+      stashSceneId: '1',
+      title: 'Scene 1',
+      outcome: 'none-found',
+      searchedAt: new Date(now),
+      retryAfter: new Date(now + 7 * 86_400_000),
+    });
+    expect((await service.status()).failed).toBe(1);
+
+    await service.recheckFailed();
+
+    const row = attempts.get('1')!;
+    expect(row.outcome).toBe('failed');
+    expect((row.retryAfter as Date).getTime()).toBe(now);
+  });
+
+  it('leaves a scene whose copy is on its way off the failed count', async () => {
+    tries.push({
+      id: 'f2',
+      stashSceneId: '1',
+      title: 'Scene 1',
+      outcome: 'failed',
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    });
+    attempts.set('1', {
+      stashSceneId: '1',
+      title: 'Scene 1',
+      outcome: 'grabbed',
+      searchedAt: new Date(now),
+      retryAfter: new Date(now + 86_400_000),
+    });
+    expect((await service.status()).failed).toBe(0);
   });
 
   it('searches no more for a scene while its replacement is still downloading', async () => {

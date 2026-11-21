@@ -146,7 +146,7 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
   protected readonly confirmingRemove = signal<string | null>(null);
   protected readonly removing = signal<string | null>(null);
   /** Scenes whose last try failed, still waiting to be looked at again. */
-  protected readonly failedWaiting = computed(() => this.data()?.failedWaiting ?? 0);
+  protected readonly failed = computed(() => this.data()?.failed ?? 0);
   protected readonly triedFilter = signal<TriedFilter>('all');
   /** Leaving the tab or the filter takes back a first "Remove it" tap. */
   private readonly forgetRemove = effect(() => {
@@ -372,8 +372,8 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
           this.data.set(data);
         }
         this.notifications.success(
-          'Trying the failed ones again',
-          'Each is looked at again soon, a few an hour; the releases that failed are skipped.',
+          'Checking the failed ones first',
+          'They’re searched before any other scene, at your usual pace (or tap Search one now); releases that failed are skipped.',
         );
       },
       error: () => {

@@ -136,7 +136,7 @@
                     : 'Check all again'
               }}
             </button>
-            @if (failedWaiting() > 0) {
+            @if (failed() > 0) {
               <button
                 type="button"
                 class="btn small"
@@ -144,7 +144,7 @@
                 [disabled]="recheckingFailed()"
                 (click)="recheckFailed()"
               >
-                {{ recheckingFailed() ? 'Working…' : 'Check ' + failedWaiting() + ' failed again' }}
+                {{ recheckingFailed() ? 'Working…' : 'Check only the ' + failed() + ' failed' }}
               </button>
             }
           </div>
