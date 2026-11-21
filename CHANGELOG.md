@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.7.2](https://github.com/mrnogood356/stashboard/compare/v1.7.1...v1.7.2) (2026-11-21)
+
+
+### Features
+
+* You may enjoy is smarter: it learns the categories you watch, adds popular scenes in them, finds performers who often appear with the ones you watch, and spreads the list so no studio or person fills a screen
+* Studio and performer pages show scenes sent to StashDB that aren't accepted yet, under "Waiting to be added", each opening its edit on StashDB
+* Renaming a performer or studio, or editing a tag, in Stash shows up in Stashboard within about 30 seconds
+
+### Bug Fixes
+
+* Scenes you add yourself are renamed once matched again: a scene you'd requested (so Whisparr had it as wanted, with no file yet) was skipped by "Rename after matching" and Rename files. Only scenes Whisparr has a file for are left alone now, and the log says why when a rename changes nothing
+* A performer, studio or scene opened from Search goes "Back to Search", and results opened from the search box go back to Search for the same words
+* Library performer and studio pages say where their back link goes
+
+### Performance Improvements
+
+* Faster first load on phones: about 28% less to download before the first page shows, and Home's own code is half the size
+* Pages preload in quiet moments, and not at all on Data Saver or 2G
+* The full re-read of your Stash library runs about 60% less often, skipping itself while another sync ran recently
+
 ## [1.7.1](https://github.com/mrnogood356/stashboard/compare/v1.7.0...v1.7.1) (2026-11-20)
 
 
