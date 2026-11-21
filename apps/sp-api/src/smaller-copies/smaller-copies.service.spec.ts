@@ -15,6 +15,7 @@ describe('SmallerCopiesService', () => {
     status: string;
     error: string | null;
     replacesStashSceneId?: string;
+    stashSceneId?: string;
   }>;
   let files: Array<Record<string, unknown>>;
   let linked: Record<string, string | null>;
@@ -885,5 +886,111 @@ describe('SmallerCopiesService', () => {
     prisma.downloadHandoff.findMany.mockRejectedValue(new Error('db down'));
     await service.tick(true);
     expect(downloads.searchReleases).not.toHaveBeenCalled();
+  });
+
+  describe('the new copy kept beside the old one', () => {
+    let scenes: Record<string, { files: Array<{ path: string }> } | null>;
+    let deleteScene: jest.Mock;
+
+    beforeEach(() => {
+      tries.push({
+        id: 'k1',
+        stashSceneId: '7',
+        title: 'Scene 7',
+        outcome: 'kept-both',
+        detail: 'The new file runs 14 min and the old one 20 min.',
+        handoffId: 'h5',
+        createdAt: new Date(now),
+        updatedAt: new Date(now),
+      });
+      handoffRows.push({
+        id: 'h5',
+        status: 'imported',
+        error: null,
+        stashSceneId: '50',
+      });
+      scenes = {
+        '7': { files: [{ path: '/old.mp4' }] },
+        '50': { files: [{ path: '/new.mp4' }] },
+      };
+      deleteScene = jest.fn().mockResolvedValue(undefined);
+      Object.assign(stash, {
+        getOrganizerScene: jest.fn((_config: unknown, id: string) =>
+          Promise.resolve(scenes[id] ?? null),
+        ),
+        deleteScene,
+      });
+      Object.assign(prisma.librarySceneIndex, {
+        findMany: jest.fn(
+          ({ where }: { where: { stashSceneId: { in: string[] } } }) =>
+            Promise.resolve(
+              where.stashSceneId.in
+                .filter((id) => scenes[id])
+                .map((stashSceneId) => ({ stashSceneId })),
+            ),
+        ),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+      });
+      Object.assign(prisma.smallerCopyTry, {
+        findUnique: jest.fn(({ where }: { where: { id: string } }) =>
+          Promise.resolve(tries.find((row) => row.id === where.id) ?? null),
+        ),
+        update: jest.fn(
+          ({
+            where,
+            data,
+          }: {
+            where: { id: string };
+            data: Record<string, unknown>;
+          }) => {
+            const row = tries.find((entry) => entry.id === where.id)!;
+            Object.assign(row, data);
+            return Promise.resolve(row);
+          },
+        ),
+      });
+    });
+
+    it('says which scene the download landed on', async () => {
+      const status = await service.status();
+      expect(status.tries.find((row) => row.id === 'k1')?.newSceneId).toBe(
+        '50',
+      );
+    });
+
+    it('deletes that scene and its file, keeping the old one', async () => {
+      const status = await service.removeNewCopy('k1');
+      expect(deleteScene).toHaveBeenCalledWith(
+        { baseUrl: 'http://stash:9999' },
+        '50',
+        true,
+      );
+      const row = status.tries.find((entry) => entry.id === 'k1');
+      expect(row?.outcome).toBe('removed');
+      expect(row?.detail).toMatch(/removed the new copy \(\/new\.mp4\)/);
+      expect(row?.newSceneId).toBeNull();
+    });
+
+    it('never deletes the only copy, or a scene holding other files', async () => {
+      scenes['50'] = { files: [{ path: '/new.mp4' }, { path: '/b.mp4' }] };
+      await expect(service.removeNewCopy('k1')).rejects.toThrow(/2 files/);
+      scenes['50'] = { files: [{ path: '/new.mp4' }] };
+      scenes['7'] = null;
+      await expect(service.removeNewCopy('k1')).rejects.toThrow(
+        /no separate new copy/,
+      );
+      expect(deleteScene).not.toHaveBeenCalled();
+    });
+
+    it('offers nothing when the new file joined the old scene', async () => {
+      handoffRows[0].stashSceneId = '7';
+      const status = await service.status();
+      expect(status.tries.find((row) => row.id === 'k1')?.newSceneId).toBe(
+        null,
+      );
+      await expect(service.removeNewCopy('k1')).rejects.toThrow(
+        /no separate new copy/,
+      );
+    });
   });
 });

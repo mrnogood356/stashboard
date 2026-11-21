@@ -16,6 +16,7 @@ const OUTCOMES: Record<string, string> = {
   failed: 'Failed',
   replaced: 'Replaced',
   'kept-both': 'Kept both',
+  removed: 'New copy removed',
 };
 
 export type BetterCopiesTab = 'overview' | 'matches' | 'tried' | 'rules';
@@ -132,6 +133,9 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
   protected readonly confirmingRecheckAll = signal(false);
   protected readonly recheckingAll = signal(false);
   protected readonly recheckingFailed = signal(false);
+  /** The try whose "Remove it" was tapped once, waiting for the second tap. */
+  protected readonly confirmingRemove = signal<string | null>(null);
+  protected readonly removing = signal<string | null>(null);
   /** Scenes whose last try failed, still waiting to be looked at again. */
   protected readonly failedWaiting = computed(() => this.data()?.failedWaiting ?? 0);
   protected readonly triedFilter = signal<TriedFilter>('all');
@@ -253,6 +257,44 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
         done();
         this.notifications.error(
           "Couldn't do that",
+          error.error?.message ?? 'Try again in a moment.',
+        );
+      },
+    });
+  }
+
+  /** Kept both: the new copy is deleted from disk, so it takes a second tap. */
+  protected removeNewCopy(tryId: string): void {
+    if (this.removing()) {
+      return;
+    }
+    if (this.confirmingRemove() !== tryId) {
+      this.confirmingRemove.set(tryId);
+      return;
+    }
+    this.confirmingRemove.set(null);
+    this.removing.set(tryId);
+    this.changes += 1;
+    const started = this.changes;
+    this.api.removeNewCopy(tryId).subscribe({
+      next: (data) => {
+        // Another change started since: its answer is the newer one.
+        const current = this.changes === started;
+        this.changes += 1;
+        this.removing.set(null);
+        if (current) {
+          this.data.set(data);
+        }
+        this.notifications.success(
+          'New copy removed',
+          'Its scene and file are gone; the old file stays.',
+        );
+      },
+      error: (error: { error?: { message?: string } }) => {
+        this.changes += 1;
+        this.removing.set(null);
+        this.notifications.error(
+          "Couldn't remove it",
           error.error?.message ?? 'Try again in a moment.',
         );
       },

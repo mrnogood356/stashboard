@@ -31,7 +31,14 @@ export interface SmallerCopySettings {
 }
 
 export type SmallerCopyOutcome =
-  'grabbed' | 'found' | 'none-found' | 'no-catalog-id' | 'failed' | 'replaced' | 'kept-both';
+  | 'grabbed'
+  | 'found'
+  | 'none-found'
+  | 'no-catalog-id'
+  | 'failed'
+  | 'replaced'
+  | 'kept-both'
+  | 'removed';
 
 export interface SmallerCopyAttempt {
   stashSceneId: string;
@@ -64,7 +71,7 @@ export interface SmallerCopies {
   failedWaiting?: number;
 }
 
-/** A release grabbed for a scene: grabbed (on its way), replaced, kept-both or failed. */
+/** A release grabbed for a scene: grabbed (on its way), replaced, kept-both, removed or failed. */
 export interface SmallerCopyTry {
   id: string;
   stashSceneId: string;
@@ -75,6 +82,8 @@ export interface SmallerCopyTry {
   oldSize: number | null;
   newSize: number | null;
   at: string;
+  /** Kept both: the Stash scene the download landed on, apart from the old one. */
+  newSceneId?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -111,6 +120,14 @@ export class SmallerCopiesApiService {
   /** Look again at only the scenes whose last try failed. */
   recheckFailed(): Observable<SmallerCopies> {
     return this.http.post<SmallerCopies>('/api/smaller-copies/recheck/failed', {});
+  }
+
+  /** Kept both: delete the new copy's scene and file; the old file stays. */
+  removeNewCopy(tryId: string): Observable<SmallerCopies> {
+    return this.http.post<SmallerCopies>(
+      `/api/smaller-copies/tries/${encodeURIComponent(tryId)}/remove-new`,
+      {},
+    );
   }
 
   grab(stashSceneId: string): Observable<SmallerCopies> {
