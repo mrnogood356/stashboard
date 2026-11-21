@@ -131,6 +131,9 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
   /** "Check all again" asks once more before it goes. */
   protected readonly confirmingRecheckAll = signal(false);
   protected readonly recheckingAll = signal(false);
+  protected readonly recheckingFailed = signal(false);
+  /** Scenes whose last try failed, still waiting to be looked at again. */
+  protected readonly failedWaiting = computed(() => this.data()?.failedWaiting ?? 0);
   protected readonly triedFilter = signal<TriedFilter>('all');
   protected readonly triedFilters: Array<{ id: TriedFilter; label: string }> = [
     { id: 'all', label: 'All' },
@@ -265,6 +268,36 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
       error: () => {
         this.changes += 1;
         this.recheckingAll.set(false);
+        this.notifications.error("Couldn't do that", 'Try again in a moment.');
+      },
+    });
+  }
+
+  /** Only the scenes whose last try failed: no need to ask twice, it's narrow. */
+  protected recheckFailed(): void {
+    if (this.recheckingFailed()) {
+      return;
+    }
+    this.recheckingFailed.set(true);
+    this.changes += 1;
+    const started = this.changes;
+    this.api.recheckFailed().subscribe({
+      next: (data) => {
+        // Another change started since: its answer is the newer one.
+        const current = this.changes === started;
+        this.changes += 1;
+        this.recheckingFailed.set(false);
+        if (current) {
+          this.data.set(data);
+        }
+        this.notifications.success(
+          'Trying the failed ones again',
+          'Each is looked at again soon, a few an hour; the releases that failed are skipped.',
+        );
+      },
+      error: () => {
+        this.changes += 1;
+        this.recheckingFailed.set(false);
         this.notifications.error("Couldn't do that", 'Try again in a moment.');
       },
     });

@@ -97,6 +97,8 @@ export interface SmallerCopiesDto {
   }>;
   /** How many tries ended each way, over all of them. */
   tryCounts: Record<string, number>;
+  /** Scenes whose last try failed and that aren't due again yet. */
+  failedWaiting: number;
 }
 
 interface Candidate {
@@ -212,13 +214,16 @@ export class SmallerCopiesService {
       orderBy: { searchedAt: 'desc' },
       take: 50,
     });
-    const [tries, counts] = await Promise.all([
+    const [tries, counts, failedWaiting] = await Promise.all([
       this.prisma.smallerCopyTry
         .findMany({ orderBy: { createdAt: 'desc' }, take: TRIES_SHOWN })
         .catch(() => []),
       this.prisma.smallerCopyTry
         .groupBy({ by: ['outcome'], _count: { _all: true } })
         .catch(() => []),
+      this.prisma.smallerCopyAttempt
+        .count({ where: this.failedWaitingWhere() })
+        .catch(() => 0),
     ]);
     return {
       settings: settingsOf(settings),
@@ -254,6 +259,7 @@ export class SmallerCopiesService {
       tryCounts: Object.fromEntries(
         counts.map((row) => [row.outcome, row._count._all]),
       ),
+      failedWaiting,
     };
   }
 
@@ -377,6 +383,28 @@ export class SmallerCopiesService {
       `Better copies: ${updated.count} scene${updated.count === 1 ? '' : 's'} will be looked at again.`,
     );
     return this.status();
+  }
+
+  /**
+   * Only the scenes whose last try failed are due again now; the rest keep
+   * their wait. Releases that failed stay skipped, so another is looked for.
+   */
+  async recheckFailed(): Promise<SmallerCopiesDto> {
+    const updated = await this.prisma.smallerCopyAttempt.updateMany({
+      where: this.failedWaitingWhere(),
+      data: { retryAfter: new Date(this.now()) },
+    });
+    this.logger.log(
+      `Better copies: ${updated.count} failed scene${updated.count === 1 ? '' : 's'} will be looked at again.`,
+    );
+    return this.status();
+  }
+
+  private failedWaitingWhere() {
+    return {
+      outcome: 'failed',
+      retryAfter: { gt: new Date(this.now()) },
+    };
   }
 
   /** Grabs a match that was listed for you (when grabbing by itself is off). */

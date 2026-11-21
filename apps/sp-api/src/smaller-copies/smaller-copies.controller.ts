@@ -170,6 +170,13 @@ export class SmallerCopiesController {
     return this.smaller.recheckAll();
   }
 
+  /** Look at only the scenes whose last try failed again, a few an hour. */
+  @Post('recheck/failed')
+  @HttpCode(200)
+  recheckFailed(): Promise<SmallerCopiesDto> {
+    return this.smaller.recheckFailed();
+  }
+
   /** Look for the next scene now, without waiting for the hourly spacing. */
   @Post('next')
   @HttpCode(200)

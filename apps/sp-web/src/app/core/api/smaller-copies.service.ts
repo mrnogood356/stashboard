@@ -60,6 +60,8 @@ export interface SmallerCopies {
   tries: SmallerCopyTry[];
   /** How many tries ended each way, over all of them. */
   tryCounts: Record<string, number>;
+  /** Scenes whose last try failed and that aren't due again yet. */
+  failedWaiting?: number;
 }
 
 /** A release grabbed for a scene: grabbed (on its way), replaced, kept-both or failed. */
@@ -102,6 +104,11 @@ export class SmallerCopiesApiService {
   /** Look at every scene again, a few an hour as usual. */
   recheckAll(): Observable<SmallerCopies> {
     return this.http.post<SmallerCopies>('/api/smaller-copies/recheck', {});
+  }
+
+  /** Look again at only the scenes whose last try failed. */
+  recheckFailed(): Observable<SmallerCopies> {
+    return this.http.post<SmallerCopies>('/api/smaller-copies/recheck/failed', {});
   }
 
   grab(stashSceneId: string): Observable<SmallerCopies> {
