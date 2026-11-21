@@ -5,18 +5,17 @@
 
 ### Features
 
-* **better-copies:** look for another on failed tries; check only failed ones again ([f0ecb25](https://github.com/mrnogood356/stashboard/commit/f0ecb25f0c8a51be771a21593efcd9eb8958bbf1))
-* **better-copies:** look for another on failed tries; check only failed ones again ([6dab996](https://github.com/mrnogood356/stashboard/commit/6dab9962473804030dc14c5b1a9fbb3da09236bc))
-* **better-copies:** see and remove a kept-both download ([8f55280](https://github.com/mrnogood356/stashboard/commit/8f552801ba3d2e6bc6bb38a978e362ea7d8c10e9))
-* **better-copies:** stop grabbing the wrong scene; see and remove kept-both downloads ([e6547a4](https://github.com/mrnogood356/stashboard/commit/e6547a493ad1a3a6cc45f13f669a088266a29b19))
-
+* Better copies: "Look for another" now sits on failed tries, where it's wanted, and no longer on "Kept both" ones
+* Better copies: "Check N failed again" looks again at only the scenes whose last try failed, next to "Check all again"
+* Better copies: a "Kept both" try whose download landed on its own scene has "See what it grabbed", to open that scene, and "Remove it", which deletes that scene and its file after a second tap. Your old file always stays
 
 ### Bug Fixes
 
-* **better-copies:** offer Remove it only for a known single file ([fe08990](https://github.com/mrnogood356/stashboard/commit/fe08990986ebc4af1399368009a3a6234556afb9))
-* **better-copies:** stop grabbing the wrong scene ([a727213](https://github.com/mrnogood356/stashboard/commit/a7272133938c48939b0d1485c06e9cb3bff08d52))
-* **better-copies:** tighter pack and performer checks; safer Remove it ([8875810](https://github.com/mrnogood356/stashboard/commit/887581030c1661109f20a0c90c323cb7fb723200))
-* CodeRabbit review of [#113](https://github.com/mrnogood356/stashboard/issues/113) ([93f4b81](https://github.com/mrnogood356/stashboard/commit/93f4b8164f1bbb1fb672d18c5a42a626197c10aa))
+* Better copies grabs the wrong scene far less often:
+  * a release must name the scene's title, or its studio and day; a studio and a performer alone (like "ManyVids.2023.Performer…") fits every clip they put up
+  * packs, site rips and compilations are never grabbed
+  * a performer's name no longer counts as the title, so a scene called "Jenna Ivory" no longer matches "The Seduction Of Jenna Ivory"; this also sharpens matching for requests and downloads
+* Better copies leaves room above your size floor, so a release right at it no longer comes in just under, and the floor and cap messages show two decimals (1.47, not "1.5, under the 1.5 floor")
 
 ## [1.7.2](https://github.com/mrnogood356/stashboard/compare/v1.7.1...v1.7.2) (2026-11-21)
 
