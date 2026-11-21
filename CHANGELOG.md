@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.7.3](https://github.com/mrnogood356/stashboard/compare/v1.7.2...v1.7.3) (2026-11-21)
+
+
+### Features
+
+* **better-copies:** look for another on failed tries; check only failed ones again ([f0ecb25](https://github.com/mrnogood356/stashboard/commit/f0ecb25f0c8a51be771a21593efcd9eb8958bbf1))
+* **better-copies:** look for another on failed tries; check only failed ones again ([6dab996](https://github.com/mrnogood356/stashboard/commit/6dab9962473804030dc14c5b1a9fbb3da09236bc))
+* **better-copies:** see and remove a kept-both download ([8f55280](https://github.com/mrnogood356/stashboard/commit/8f552801ba3d2e6bc6bb38a978e362ea7d8c10e9))
+* **better-copies:** stop grabbing the wrong scene; see and remove kept-both downloads ([e6547a4](https://github.com/mrnogood356/stashboard/commit/e6547a493ad1a3a6cc45f13f669a088266a29b19))
+
+
+### Bug Fixes
+
+* **better-copies:** offer Remove it only for a known single file ([fe08990](https://github.com/mrnogood356/stashboard/commit/fe08990986ebc4af1399368009a3a6234556afb9))
+* **better-copies:** stop grabbing the wrong scene ([a727213](https://github.com/mrnogood356/stashboard/commit/a7272133938c48939b0d1485c06e9cb3bff08d52))
+* **better-copies:** tighter pack and performer checks; safer Remove it ([8875810](https://github.com/mrnogood356/stashboard/commit/887581030c1661109f20a0c90c323cb7fb723200))
+* CodeRabbit review of [#113](https://github.com/mrnogood356/stashboard/issues/113) ([93f4b81](https://github.com/mrnogood356/stashboard/commit/93f4b8164f1bbb1fb672d18c5a42a626197c10aa))
+
 ## [1.7.2](https://github.com/mrnogood356/stashboard/compare/v1.7.1...v1.7.2) (2026-11-21)
 
 
