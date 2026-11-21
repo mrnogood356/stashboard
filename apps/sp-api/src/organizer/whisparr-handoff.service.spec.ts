@@ -190,6 +190,19 @@ describe('WhisparrHandoffService', () => {
     await expect(service.leavesCopies(settings)).resolves.toBeNull();
   });
 
+  it('protects only the scenes Whisparr has a file for, not ones it just tracks', async () => {
+    whisparr.listMovies = jest.fn().mockResolvedValue([
+      { id: 1, title: 'Has', stashId: 'sdb-1', path: '/a', hasFile: true },
+      // Asked for, nothing downloaded: a copy you add is yours to rename.
+      { id: 2, title: 'Wanted', stashId: 'sdb-2', path: '/b', hasFile: false },
+      { id: 3, title: 'No id', stashId: null, path: '/c', hasFile: true },
+    ]);
+
+    await expect(service.trackedStashIds()).resolves.toEqual(
+      new Set(['sdb-1']),
+    );
+  });
+
   it('lists Whisparr’s files as Stash sees them', async () => {
     whisparr.listMovies = jest.fn().mockResolvedValue([
       {

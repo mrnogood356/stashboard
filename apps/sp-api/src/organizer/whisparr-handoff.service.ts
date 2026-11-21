@@ -879,7 +879,11 @@ export class WhisparrHandoffService {
     );
   }
 
-  /** StashDB ids of every scene Whisparr tracks (with or without a file). */
+  /**
+   * StashDB ids of the scenes Whisparr has a file for. One it only tracks
+   * (asked for, nothing downloaded yet) has no file of Whisparr's to protect:
+   * a copy you add yourself is yours to rename.
+   */
   async trackedStashIds(): Promise<Set<string>> {
     const whisparrConfig = await this.whisparrConfig();
     if (!whisparrConfig) {
@@ -888,7 +892,9 @@ export class WhisparrHandoffService {
     // No catch: an empty answer would let the renamer move Whisparr's files.
     const movies = await this.whisparr.listMovies(whisparrConfig);
     return new Set(
-      movies.flatMap((movie) => (movie.stashId ? [movie.stashId] : [])),
+      movies.flatMap((movie) =>
+        movie.stashId && movie.hasFile ? [movie.stashId] : [],
+      ),
     );
   }
 

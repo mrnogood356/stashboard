@@ -1251,6 +1251,12 @@ export abstract class OrganizerFiles extends OrganizerCore {
     const batchId = randomUUID();
     const result = await this.renameScenes(sceneIds, batchId);
     const { moved, failed } = result;
+    if (moved.length === 0 && failed.length === 0 && how) {
+      // Nothing moved: say why, so a scene left unrenamed isn't a mystery.
+      this.logger.log(
+        `Nothing to rename${how} (${describeSkipped(result.skipped)}).`,
+      );
+    }
     if (moved.length > 0 || failed.length > 0) {
       const line = `Renamed ${moved.length} file(s)${how}, ${failed.length} failed.`;
       if (failed.length > 0) {
@@ -1738,13 +1744,8 @@ export abstract class OrganizerFiles extends OrganizerCore {
     if (!settings.renameAfterMatch) {
       return 0;
     }
+    // Nothing to do is said by renameAndNote too, with why.
     const result = await this.renameAndNote(sceneIds, ' after import');
-    if (result.moved.length === 0 && result.failed.length === 0) {
-      // Nothing to do is a result too: say why, so it doesn't look broken.
-      this.logger.log(
-        `Rename after import: nothing to rename for ${sceneIds.length} new ${sceneIds.length === 1 ? 'scene' : 'scenes'} (${describeSkipped(result.skipped)}).`,
-      );
-    }
     return result.moved.length;
   }
 
