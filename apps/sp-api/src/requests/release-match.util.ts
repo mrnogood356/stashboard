@@ -54,15 +54,19 @@ export function matchRelease(
   const performers = scene.performers
     .map((name) => words(name).filter((word) => word.length >= 2))
     .filter((parts) => parts.length > 0);
-  // The studio's own name in the release says nothing about the title.
+  // The studio's own name in the release says nothing about the title, and
+  // nor do the performers' names: a scene called "Jenna Ivory" would
+  // otherwise match every release with her in it twice over.
   const studioWords = new Set(words(scene.studio ?? ''));
+  const performerWords = new Set(performers.flat());
   const titleWords = [
     ...new Set(
       words(scene.title ?? '').filter(
         (word) =>
           word.length >= 3 &&
           !TITLE_STOPWORDS.has(word) &&
-          !studioWords.has(word),
+          !studioWords.has(word) &&
+          !performerWords.has(word),
       ),
     ),
   ];

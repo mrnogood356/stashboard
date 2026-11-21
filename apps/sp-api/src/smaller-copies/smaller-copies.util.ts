@@ -39,6 +39,9 @@ const RANK: Record<Resolution, number> = {
 const GB = 1024 ** 3;
 
 /** A release's resolution from its title ("…2160p…", "…4K…", "…1080p…"); null when it doesn't say. */
+/** How far above the floor a release must be, for its size counting more than the video. */
+const FLOOR_HEADROOM = 1.05;
+
 export function releaseResolution(title: string): Resolution | null {
   if (/\b(2160p|4k|uhd)\b/i.test(title)) {
     return '2160p';
@@ -201,9 +204,18 @@ export function pickRelease(
       return false;
     }
     // It replaces a file you have: the name must say which scene, by its
-    // studio or title, not just a performer and a day.
+    // title or by the studio and day. A studio and a performer isn't enough
+    // ("ManyVids.2023.Performer…" fits every clip she put up there).
     const matched = release.match.matched;
-    if (matched && !matched.includes('studio') && !matched.includes('title')) {
+    if (
+      matched &&
+      !matched.includes('title') &&
+      !(matched.includes('studio') && matched.includes('date'))
+    ) {
+      return false;
+    }
+    // A pack or site rip holds many scenes, not this one.
+    if (isBundle(release.title)) {
       return false;
     }
     if (release.protocol !== 'usenet' || !release.size) {
@@ -227,10 +239,12 @@ export function pickRelease(
     ) {
       return false;
     }
+    // A release's size counts more than the video (other files, overhead),
+    // so one right at the floor comes out under it: leave some room.
     if (
       rules.minNewGbPerHour &&
       density !== null &&
-      density < rules.minNewGbPerHour
+      density < rules.minNewGbPerHour * FLOOR_HEADROOM
     ) {
       return false;
     }
@@ -261,6 +275,13 @@ export function pickRelease(
       }
       return bySize(a, b);
     })[0] ?? null
+  );
+}
+
+/** Release names that hold many scenes: packs, site rips, compilations. */
+export function isBundle(title: string): boolean {
+  return /(^|[^a-z])(mega ?pack|site ?rip|compilation)([^a-z]|$)/i.test(
+    title.replace(/[._]/g, ' '),
   );
 }
 
@@ -376,13 +397,18 @@ export function checkNewCopy(
   const density = gbPerHour(next.size, next.duration);
   if (density !== null) {
     if (rules.minNewGbPerHour && density < rules.minNewGbPerHour) {
-      return `The new file is ${density.toFixed(1)} GB an hour, under the ${rules.minNewGbPerHour} GB floor.`;
+      return `The new file is ${gbText(density)} GB an hour, under the ${rules.minNewGbPerHour} GB floor.`;
     }
     if (rules.maxNewGbPerHour && density > rules.maxNewGbPerHour) {
-      return `The new file is ${density.toFixed(1)} GB an hour, over the ${rules.maxNewGbPerHour} GB cap.`;
+      return `The new file is ${gbText(density)} GB an hour, over the ${rules.maxNewGbPerHour} GB cap.`;
     }
   }
   return null;
+}
+
+/** Two places, so 1.47 isn't shown as "1.5, under the 1.5 floor". */
+function gbText(value: number): string {
+  return value.toFixed(2).replace(/0$/, '');
 }
 
 function minutes(seconds: number): string {
