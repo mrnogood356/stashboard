@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.7.3](https://github.com/mrnogood356/stashboard/compare/v1.7.2...v1.7.3) (2026-11-21)
+
+
+### Features
+
+* Better copies: "Look for another" now sits on failed tries, where it's wanted, and no longer on "Kept both" ones
+* Better copies: "Check N failed again" looks again at only the scenes whose last try failed, next to "Check all again"
+* Better copies: a "Kept both" try whose download landed on its own scene has "See what it grabbed", to open that scene, and "Remove it", which deletes that scene and its file after a second tap. Your old file always stays
+
+### Bug Fixes
+
+* Better copies grabs the wrong scene far less often:
+  * a release must name the scene's title, or its studio and day; a studio and a performer alone (like "ManyVids.2023.Performer…") fits every clip they put up
+  * packs, site rips and compilations are never grabbed
+  * a performer's name no longer counts as the title, so a scene called "Jenna Ivory" no longer matches "The Seduction Of Jenna Ivory"; this also sharpens matching for requests and downloads
+* Better copies leaves room above your size floor, so a release right at it no longer comes in just under, and the floor and cap messages show two decimals (1.47, not "1.5, under the 1.5 floor")
+
 ## [1.7.2](https://github.com/mrnogood356/stashboard/compare/v1.7.1...v1.7.2) (2026-11-21)
 
 
