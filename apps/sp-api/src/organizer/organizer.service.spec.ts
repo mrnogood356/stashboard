@@ -1487,6 +1487,29 @@ describe('OrganizerService', () => {
     expect(preview.counts.ready).toBe(0);
   });
 
+  it('trusts Whisparr’s own answer over an index that’s a sync behind, and the index when Whisparr isn’t set up', async () => {
+    stash.findOrganizerScenes.mockResolvedValue({
+      total: 1,
+      items: [
+        localScene({
+          title: 'T',
+          studio: { id: 's', name: 'S' },
+          stashIds: [{ endpoint: 'e', stashId: 'x' }],
+        }),
+      ],
+    });
+    // The index still says Whisparr has a file; Whisparr says it hasn't.
+    prisma.sceneIndex.findMany.mockResolvedValue([{ stashId: 'x' }]);
+    handoff.trackedStashIds.mockResolvedValue(new Set());
+    let preview = await service.renamePreview();
+    expect(preview.counts.whisparr).toBe(0);
+
+    // No Whisparr to ask: what the index last knew still protects it.
+    handoff.trackedStashIds.mockResolvedValue(null);
+    preview = await service.renamePreview();
+    expect(preview.counts.whisparr).toBe(1);
+  });
+
   it('renames with Whisparr’s own naming when Whisparr is set up, not your pattern', async () => {
     settings.renamePattern = '{title}';
     handoff.namingConfig.mockResolvedValue({
