@@ -435,8 +435,10 @@ export abstract class OrganizerCore {
         .then((settings) => this.handoff.trackedFolders(settings))
         .catch(fail),
     ]);
+    // Whisparr's own answer, asked just now, when it's set up; the scene
+    // index (which can be a sync behind) only when it isn't.
     return {
-      ids: new Set([...rows.map((row) => row.stashId), ...tracked]),
+      ids: tracked ?? new Set(rows.map((row) => row.stashId)),
       folders,
     };
   }

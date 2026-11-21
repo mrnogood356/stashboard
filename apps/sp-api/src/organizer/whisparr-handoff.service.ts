@@ -882,12 +882,13 @@ export class WhisparrHandoffService {
   /**
    * StashDB ids of the scenes Whisparr has a file for. One it only tracks
    * (asked for, nothing downloaded yet) has no file of Whisparr's to protect:
-   * a copy you add yourself is yours to rename.
+   * a copy you add yourself is yours to rename. Null when Whisparr isn't
+   * set up, so the caller can fall back to what it last knew.
    */
-  async trackedStashIds(): Promise<Set<string>> {
+  async trackedStashIds(): Promise<Set<string> | null> {
     const whisparrConfig = await this.whisparrConfig();
     if (!whisparrConfig) {
-      return new Set();
+      return null;
     }
     // No catch: an empty answer would let the renamer move Whisparr's files.
     const movies = await this.whisparr.listMovies(whisparrConfig);

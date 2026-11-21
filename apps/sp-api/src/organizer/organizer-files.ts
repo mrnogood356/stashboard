@@ -1252,9 +1252,14 @@ export abstract class OrganizerFiles extends OrganizerCore {
     const result = await this.renameScenes(sceneIds, batchId);
     const { moved, failed } = result;
     if (moved.length === 0 && failed.length === 0 && how) {
-      // Nothing moved: say why, so a scene left unrenamed isn't a mystery.
+      // Nothing moved: say why, and for which scenes, so a scene left
+      // unrenamed isn't a mystery.
+      const which =
+        sceneIds && sceneIds.length <= 5
+          ? ` for Stash ${sceneIds.length === 1 ? 'scene' : 'scenes'} ${sceneIds.join(', ')}`
+          : '';
       this.logger.log(
-        `Nothing to rename${how} (${describeSkipped(result.skipped)}).`,
+        `Nothing to rename${how}${which} (${describeSkipped(result.skipped)}).`,
       );
     }
     if (moved.length > 0 || failed.length > 0) {
