@@ -967,6 +967,26 @@ describe('SmallerCopiesService', () => {
       expect(row?.canRemoveNew).toBe(false);
     });
 
+    it('offers no removal when Stash can’t say how many files the new scene holds', async () => {
+      (
+        stash as unknown as { getOrganizerScene: jest.Mock }
+      ).getOrganizerScene.mockRejectedValue(new Error('stash down'));
+      const row = (await service.status()).tries.find(
+        (entry) => entry.id === 'k1',
+      );
+      expect(row?.newSceneId).toBe('50');
+      expect(row?.canRemoveNew).toBe(false);
+      // Gone from Stash: no files, nothing to remove.
+      (
+        stash as unknown as { getOrganizerScene: jest.Mock }
+      ).getOrganizerScene.mockResolvedValue(null);
+      now += 2 * 60 * 1000;
+      const gone = (await service.status()).tries.find(
+        (entry) => entry.id === 'k1',
+      );
+      expect(gone?.canRemoveNew).toBe(false);
+    });
+
     it('deletes that scene and its file, keeping the old one', async () => {
       const status = await service.removeNewCopy('k1');
       expect(deleteScene).toHaveBeenCalledWith(

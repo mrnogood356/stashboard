@@ -138,8 +138,8 @@ type Note = Pick<SmallerCopyAttempt, 'title' | 'outcome' | 'retryAfter'> &
  * Finished downloads puts it on the scene and deletes (or keeps) the old
  * file. Off until switched on.
  */
-/** How long a new scene's file count is trusted for the Tried list. */
-const FILE_COUNT_TTL = 5 * 60 * 1000;
+/** How long a new scene's file count is trusted for the Tried list (the page asks every 30s). */
+const FILE_COUNT_TTL = 60 * 1000;
 
 @Injectable()
 export class SmallerCopiesService {
@@ -279,9 +279,9 @@ export class SmallerCopiesService {
         newSize: row.newSize,
         at: row.updatedAt.toISOString(),
         newSceneId: newScenes.get(row.id) ?? null,
+        // Only when Stash says just the one file: not when it couldn't be read.
         canRemoveNew:
-          newScenes.has(row.id) &&
-          (fileCounts.get(newScenes.get(row.id)!) ?? 1) <= 1,
+          newScenes.has(row.id) && fileCounts.get(newScenes.get(row.id)!) === 1,
       })),
       tryCounts: Object.fromEntries(
         counts.map((row) => [row.outcome, row._count._all]),
@@ -336,9 +336,9 @@ export class SmallerCopiesService {
   }
 
   /**
-   * How many files each of these Stash scenes holds, kept for a few minutes
+   * How many files each of these Stash scenes holds, kept for a minute
    * (the page asks every 30 seconds). A scene that can't be read is left
-   * out, and the removal checks it again anyway.
+   * out, so it's offered no removal; the removal checks again anyway.
    */
   private async fileCountsOf(sceneIds: string[]): Promise<Map<string, number>> {
     const counts = new Map<string, number>();
