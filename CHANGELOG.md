@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.7.2](https://github.com/mrnogood356/stashboard/compare/v1.7.1...v1.7.2) (2026-11-21)
+
+
+### Features
+
+* faster phone loads, smarter You may enjoy, scenes waiting on StashDB ([56edd1b](https://github.com/mrnogood356/stashboard/commit/56edd1b2d72432527f2e3fa0420d9e72a4d9d7dd))
+* smarter You may enjoy; scenes waiting to be added on StashDB ([1862fba](https://github.com/mrnogood356/stashboard/commit/1862fba6d41e65b60ae9bd933f9575c88790cc2c))
+
+
+### Bug Fixes
+
+* CodeRabbit review of [#110](https://github.com/mrnogood356/stashboard/issues/110) ([5a721be](https://github.com/mrnogood356/stashboard/commit/5a721be0855cae9f0d1908be1c1022b6db065ff9))
+* CodeRabbit review of [#112](https://github.com/mrnogood356/stashboard/issues/112) ([99c86f5](https://github.com/mrnogood356/stashboard/commit/99c86f570d3a43b8446bbb739250f1d458fb9c24))
+* performer and studio renames show up in seconds; Back to Search ([d8d75ac](https://github.com/mrnogood356/stashboard/commit/d8d75ac5fde6732b7452d747e9b4ff67655b00a1))
+* **rename:** rename scenes Whisparr only tracks, and say why when nothing moves ([04f999f](https://github.com/mrnogood356/stashboard/commit/04f999f2a6c5f51b789b84f1a638e47cfad22dd8))
+* **rename:** rename scenes Whisparr only tracks, and say why when nothing moves ([dbb9b56](https://github.com/mrnogood356/stashboard/commit/dbb9b56e36d549cffaac370c44a8368b18be86b0))
+* second CodeRabbit review of [#110](https://github.com/mrnogood356/stashboard/issues/110) ([e91788b](https://github.com/mrnogood356/stashboard/commit/e91788b4fb5f09fa20a9db0748c19a2ffa199eae))
+* You may enjoy uses picked categories' popular scenes too ([c607c7b](https://github.com/mrnogood356/stashboard/commit/c607c7ba863ee4e19a3009fab386a5d901c26349))
+
+
+### Performance Improvements
+
+* faster first load on phones, fewer full library reads ([971b57a](https://github.com/mrnogood356/stashboard/commit/971b57ae94cb480f238e8bfc6bfe2a133ef11b12))
+
 ## [1.7.1](https://github.com/mrnogood356/stashboard/compare/v1.7.0...v1.7.1) (2026-11-20)
 
 
