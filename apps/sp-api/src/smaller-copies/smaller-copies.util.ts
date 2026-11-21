@@ -280,8 +280,9 @@ export function pickRelease(
 
 /** Release names that hold many scenes: packs, site rips, compilations. */
 export function isBundle(title: string): boolean {
-  return /(^|[^a-z])(mega ?pack|site ?rip|compilation)([^a-z]|$)/i.test(
-    title.replace(/[._]/g, ' '),
+  // Whole words only: "Pack" and "Site-Rip", not "Backpacking".
+  return /(^|[^a-z])(mega ?pack|pack|site ?rip|compilation)([^a-z]|$)/i.test(
+    title.replace(/[._-]/g, ' '),
   );
 }
 

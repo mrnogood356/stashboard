@@ -58,7 +58,11 @@ export function matchRelease(
   // nor do the performers' names: a scene called "Jenna Ivory" would
   // otherwise match every release with her in it twice over.
   const studioWords = new Set(words(scene.studio ?? ''));
-  const performerWords = new Set(performers.flat());
+  // Both "Jenna" and "Ivory", and "jennaivory" for a title run together.
+  const performerWords = new Set([
+    ...performers.flat(),
+    ...performers.map((parts) => parts.join('')),
+  ]);
   const titleWords = [
     ...new Set(
       words(scene.title ?? '').filter(

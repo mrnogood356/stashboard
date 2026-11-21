@@ -84,6 +84,8 @@ export interface SmallerCopyTry {
   at: string;
   /** Kept both: the Stash scene the download landed on, apart from the old one. */
   newSceneId?: string | null;
+  /** Whether "Remove it" is offered: the new scene holds just the one file. */
+  canRemoveNew?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })

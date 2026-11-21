@@ -953,9 +953,18 @@ describe('SmallerCopiesService', () => {
 
     it('says which scene the download landed on', async () => {
       const status = await service.status();
-      expect(status.tries.find((row) => row.id === 'k1')?.newSceneId).toBe(
-        '50',
+      const row = status.tries.find((entry) => entry.id === 'k1');
+      expect(row?.newSceneId).toBe('50');
+      expect(row?.canRemoveNew).toBe(true);
+    });
+
+    it('links a new scene holding other files, but offers no removal', async () => {
+      scenes['50'] = { files: [{ path: '/new.mp4' }, { path: '/b.mp4' }] };
+      const row = (await service.status()).tries.find(
+        (entry) => entry.id === 'k1',
       );
+      expect(row?.newSceneId).toBe('50');
+      expect(row?.canRemoveNew).toBe(false);
     });
 
     it('deletes that scene and its file, keeping the old one', async () => {

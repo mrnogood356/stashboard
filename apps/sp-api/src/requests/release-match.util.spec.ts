@@ -61,6 +61,24 @@ describe('matchRelease', () => {
         performers: ['Jenna Ivory'],
       }),
     ).toEqual({ strength: 'partial', matched: ['performer'] });
+    // Nor run together as one word.
+    expect(
+      matchRelease('JennaIvory.Other.Scene.1080p', {
+        title: 'JennaIvory',
+        studio: null,
+        releaseDate: null,
+        performers: ['Jenna Ivory'],
+      }),
+    ).toEqual({ strength: 'partial', matched: ['performer'] });
+    // The title's own words still count.
+    expect(
+      matchRelease('Jenna.Ivory.Sunset.Rendezvous.1080p', {
+        title: 'Jenna Ivory Sunset Rendezvous',
+        studio: null,
+        releaseDate: null,
+        performers: ['Jenna Ivory'],
+      }),
+    ).toEqual({ strength: 'strong', matched: ['performer', 'title'] });
   });
 
   it('doesn’t count the studio’s name as the title', () => {

@@ -100,6 +100,11 @@ export interface SmallerCopiesDto {
      * one, to look at or remove. Null when there's none to show.
      */
     newSceneId: string | null;
+    /**
+     * Whether "Remove it" is offered: the new scene holds just the one file.
+     * Checked again when asked, since that can change.
+     */
+    canRemoveNew: boolean;
   }>;
   /** How many tries ended each way, over all of them. */
   tryCounts: Record<string, number>;
@@ -133,10 +138,18 @@ type Note = Pick<SmallerCopyAttempt, 'title' | 'outcome' | 'retryAfter'> &
  * Finished downloads puts it on the scene and deletes (or keeps) the old
  * file. Off until switched on.
  */
+/** How long a new scene's file count is trusted for the Tried list. */
+const FILE_COUNT_TTL = 5 * 60 * 1000;
+
 @Injectable()
 export class SmallerCopiesService {
   private readonly logger = new Logger(SmallerCopiesService.name);
   private running = false;
+  /** Files on each kept-both download's scene, by scene, for the Tried list. */
+  private readonly fileCounts = new Map<
+    string,
+    { at: number; count: number }
+  >();
   private files: { at: number; baseUrl: string; value: StatsFile[] } | null =
     null;
   private lastSearchAt: number | null = null;
@@ -234,6 +247,7 @@ export class SmallerCopiesService {
     const newScenes = await this.newScenesOf(tries).catch(
       () => new Map<string, string>(),
     );
+    const fileCounts = await this.fileCountsOf([...newScenes.values()]);
     return {
       settings: settingsOf(settings),
       blocked,
@@ -265,6 +279,9 @@ export class SmallerCopiesService {
         newSize: row.newSize,
         at: row.updatedAt.toISOString(),
         newSceneId: newScenes.get(row.id) ?? null,
+        canRemoveNew:
+          newScenes.has(row.id) &&
+          (fileCounts.get(newScenes.get(row.id)!) ?? 1) <= 1,
       })),
       tryCounts: Object.fromEntries(
         counts.map((row) => [row.outcome, row._count._all]),
@@ -319,6 +336,41 @@ export class SmallerCopiesService {
   }
 
   /**
+   * How many files each of these Stash scenes holds, kept for a few minutes
+   * (the page asks every 30 seconds). A scene that can't be read is left
+   * out, and the removal checks it again anyway.
+   */
+  private async fileCountsOf(sceneIds: string[]): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    if (sceneIds.length === 0 || !this.stash) {
+      return counts;
+    }
+    const config = await this.handoff.stashConfig().catch(() => null);
+    if (!config) {
+      return counts;
+    }
+    const now = this.now();
+    await Promise.all(
+      [...new Set(sceneIds)].map(async (id) => {
+        const cached = this.fileCounts.get(id);
+        if (cached && now - cached.at < FILE_COUNT_TTL) {
+          counts.set(id, cached.count);
+          return;
+        }
+        const scene = await this.stash!.getOrganizerScene(config, id).catch(
+          () => undefined,
+        );
+        if (scene !== undefined) {
+          const count = scene?.files.length ?? 0;
+          this.fileCounts.set(id, { at: now, count });
+          counts.set(id, count);
+        }
+      }),
+    );
+    return counts;
+  }
+
+  /**
    * Deletes a kept-both try's new copy (its scene and file) from Stash, for
    * when it turned out to be another video or not wanted. The old file stays.
    */
@@ -356,6 +408,7 @@ export class SmallerCopiesService {
       }
       await this.stash.deleteScene(config, newSceneId, true);
     }
+    this.fileCounts.delete(newSceneId);
     await this.prisma.librarySceneIndex
       .deleteMany({ where: { stashSceneId: newSceneId } })
       .catch(() => undefined);

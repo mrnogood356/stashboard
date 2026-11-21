@@ -399,14 +399,24 @@ describe('smaller copies', () => {
       const rules = { ...DEFAULT_RULES, target: '1080p' as const };
       const file = { size: 6 * 1024 ** 3, duration: 1800 };
       expect(pickRelease([pack], file, 'too-big', rules)).toBeNull();
+      for (const title of [
+        'Studio.SiteRip.2023.1080p',
+        'Studio.Site-Rip.2023.1080p',
+        'Studio.24.03.15.Jane.Doe.Sunset.Rendezvous.Pack.1080p',
+      ]) {
+        expect(
+          pickRelease([{ ...pack, title }], file, 'too-big', rules),
+        ).toBeNull();
+      }
+      // A word with "pack" in it isn't a pack.
       expect(
         pickRelease(
-          [{ ...pack, title: 'Studio.SiteRip.2023.1080p' }],
+          [{ ...pack, title: 'Studio.24.03.15.Jane.Doe.Backpacking.1080p' }],
           file,
           'too-big',
           rules,
-        ),
-      ).toBeNull();
+        )?.title,
+      ).toBe('Studio.24.03.15.Jane.Doe.Backpacking.1080p');
     });
 
     it('leaves room above the floor, since a release weighs more than its video', () => {

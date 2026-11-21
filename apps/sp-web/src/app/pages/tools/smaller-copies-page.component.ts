@@ -1,4 +1,13 @@
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  OnDestroy,
+  OnInit,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import {
@@ -139,6 +148,12 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
   /** Scenes whose last try failed, still waiting to be looked at again. */
   protected readonly failedWaiting = computed(() => this.data()?.failedWaiting ?? 0);
   protected readonly triedFilter = signal<TriedFilter>('all');
+  /** Leaving the tab or the filter takes back a first "Remove it" tap. */
+  private readonly forgetRemove = effect(() => {
+    this.tab();
+    this.triedFilter();
+    untracked(() => this.confirmingRemove.set(null));
+  });
   protected readonly triedFilters: Array<{ id: TriedFilter; label: string }> = [
     { id: 'all', label: 'All' },
     { id: 'failed', label: 'Failed' },
@@ -261,6 +276,13 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
         );
       },
     });
+  }
+
+  /** Moving off the button takes back its first tap. */
+  protected cancelRemove(tryId: string): void {
+    if (this.confirmingRemove() === tryId) {
+      this.confirmingRemove.set(null);
+    }
   }
 
   /** Kept both: the new copy is deleted from disk, so it takes a second tap. */
