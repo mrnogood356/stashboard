@@ -142,12 +142,23 @@ describe('SmallerCopiesService', () => {
           },
         ),
         findMany: jest.fn(
-          ({ where }: { where?: { retryAfter?: { gt: Date } } } = {}) =>
+          ({
+            where,
+          }: {
+            where?: {
+              retryAfter?: { gt: Date };
+              outcome?: string | { in: string[] };
+            };
+          } = {}) =>
             Promise.resolve(
               [...attempts.values()].filter(
                 (row) =>
-                  !where?.retryAfter ||
-                  (row.retryAfter as Date) > where.retryAfter.gt,
+                  (!where?.retryAfter ||
+                    (row.retryAfter as Date) > where.retryAfter.gt) &&
+                  (where?.outcome === undefined ||
+                    (typeof where.outcome === 'string'
+                      ? row.outcome === where.outcome
+                      : where.outcome.in.includes(row.outcome as string))),
               ),
             ),
         ),
@@ -185,7 +196,7 @@ describe('SmallerCopiesService', () => {
             where: {
               stashSceneId?: string;
               retryAfter?: { gt: Date };
-              outcome?: { not: string } | string;
+              outcome?: { not: string } | { notIn: string[] } | string;
               handoffId?: string;
             };
             data: Record<string, unknown>;
@@ -201,7 +212,9 @@ describe('SmallerCopiesService', () => {
                 (outcome === undefined ||
                   (typeof outcome === 'string'
                     ? row.outcome === outcome
-                    : row.outcome !== outcome.not)) &&
+                    : 'notIn' in outcome
+                      ? !outcome.notIn.includes(row.outcome as string)
+                      : row.outcome !== outcome.not)) &&
                 (where.handoffId === undefined ||
                   row.handoffId === where.handoffId)
               ) {
@@ -853,16 +866,99 @@ describe('SmallerCopiesService', () => {
     const nothing = rows.find((row) => row.outcome === 'none-found')!;
     expect(failed).toBeDefined();
     expect(nothing).toBeDefined();
-    expect((await service.status()).failedWaiting).toBe(1);
+    expect((await service.status()).failed).toBe(1);
     const before = (await service.status()).due;
 
     const status = await service.recheckFailed();
 
     // Only the failed one is due again; the other keeps its wait.
     expect(status.due).toBe(before + 1);
-    expect(status.failedWaiting).toBe(0);
     expect((failed.retryAfter as Date).getTime()).toBe(now);
     expect((nothing.retryAfter as Date).getTime()).toBeGreaterThan(now);
+  });
+
+  it('searches a failed scene before a bigger one not tried yet', async () => {
+    // Scene 2 (9 GB) would go first; scene 1 (8 GB) failed, so it goes first.
+    attempts.set('1', {
+      stashSceneId: '1',
+      title: 'Scene 1',
+      outcome: 'failed',
+      searchedAt: new Date(now - 86_400_000),
+      retryAfter: new Date(now),
+    });
+    downloads.searchReleases.mockResolvedValue({ releases: [] });
+    await service.tick(true);
+    expect(downloads.searchReleases.mock.calls[0]?.[0]).toBe('cat-1');
+    expect(attempts.get('1')?.outcome).toBe('none-found');
+    // Then the usual order: the bigger one.
+    await service.tick(true);
+    expect(downloads.searchReleases.mock.calls[1]?.[0]).toBe('cat-2');
+  });
+
+  it('leaves a match found in the meantime as it is', async () => {
+    tries.push({
+      id: 'f3',
+      stashSceneId: '1',
+      title: 'Scene 1',
+      outcome: 'failed',
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    });
+    attempts.set('1', {
+      stashSceneId: '1',
+      title: 'Scene 1',
+      outcome: 'found',
+      searchedAt: new Date(now),
+      retryAfter: new Date(now + 86_400_000),
+    });
+    await service.recheckFailed();
+    expect(attempts.get('1')?.outcome).toBe('found');
+  });
+
+  it('checks again a scene on the Failed list even after a search since found nothing', async () => {
+    // Its download failed (the latest try), then a search found nothing.
+    tries.push({
+      id: 'f1',
+      stashSceneId: '1',
+      title: 'Scene 1',
+      outcome: 'failed',
+      detail: 'The download failed.',
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    });
+    attempts.set('1', {
+      stashSceneId: '1',
+      title: 'Scene 1',
+      outcome: 'none-found',
+      searchedAt: new Date(now),
+      retryAfter: new Date(now + 7 * 86_400_000),
+    });
+    expect((await service.status()).failed).toBe(1);
+
+    await service.recheckFailed();
+
+    const row = attempts.get('1')!;
+    expect(row.outcome).toBe('failed');
+    expect((row.retryAfter as Date).getTime()).toBe(now);
+  });
+
+  it('leaves a scene whose copy is on its way off the failed count', async () => {
+    tries.push({
+      id: 'f2',
+      stashSceneId: '1',
+      title: 'Scene 1',
+      outcome: 'failed',
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    });
+    attempts.set('1', {
+      stashSceneId: '1',
+      title: 'Scene 1',
+      outcome: 'grabbed',
+      searchedAt: new Date(now),
+      retryAfter: new Date(now + 86_400_000),
+    });
+    expect((await service.status()).failed).toBe(0);
   });
 
   it('searches no more for a scene while its replacement is still downloading', async () => {

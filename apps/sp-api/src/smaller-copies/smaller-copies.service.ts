@@ -108,8 +108,8 @@ export interface SmallerCopiesDto {
   }>;
   /** How many tries ended each way, over all of them. */
   tryCounts: Record<string, number>;
-  /** Scenes whose last try failed and that aren't due again yet. */
-  failedWaiting: number;
+  /** Scenes on the Failed list (latest try failed) or whose last search failed: what "Check failed again" looks at. */
+  failed: number;
 }
 
 interface Candidate {
@@ -233,15 +233,15 @@ export class SmallerCopiesService {
       orderBy: { searchedAt: 'desc' },
       take: 50,
     });
-    const [tries, counts, failedWaiting] = await Promise.all([
+    const [tries, counts, failed] = await Promise.all([
       this.prisma.smallerCopyTry
         .findMany({ orderBy: { createdAt: 'desc' }, take: TRIES_SHOWN })
         .catch(() => []),
       this.prisma.smallerCopyTry
         .groupBy({ by: ['outcome'], _count: { _all: true } })
         .catch(() => []),
-      this.prisma.smallerCopyAttempt
-        .count({ where: this.failedWaitingWhere() })
+      this.failedSceneIds()
+        .then((ids) => ids.size)
         .catch(() => 0),
     ]);
     const newScenes = await this.newScenesOf(tries).catch(
@@ -286,7 +286,7 @@ export class SmallerCopiesService {
       tryCounts: Object.fromEntries(
         counts.map((row) => [row.outcome, row._count._all]),
       ),
-      failedWaiting,
+      failed,
     };
   }
 
@@ -572,24 +572,74 @@ export class SmallerCopiesService {
 
   /**
    * Only the scenes whose last try failed are due again now; the rest keep
-   * their wait. Releases that failed stay skipped, so another is looked for.
+   * their wait. Failed scenes are always searched before the others, so the
+   * next searches are these. Releases that failed stay skipped, so another
+   * is looked for.
    */
   async recheckFailed(): Promise<SmallerCopiesDto> {
-    const updated = await this.prisma.smallerCopyAttempt.updateMany({
-      where: this.failedWaitingWhere(),
-      data: { retryAfter: new Date(this.now()) },
-    });
+    const ids = [...(await this.failedSceneIds())];
+    // Marked failed again (one searched since may read "nothing found"), so
+    // they go first; a scene whose copy is on its way is left alone.
+    const updated = await Promise.all(
+      ids.map((stashSceneId) =>
+        this.prisma.smallerCopyAttempt.updateMany({
+          // Checked again at the write: a search between may have found a
+          // match waiting for you, or grabbed one.
+          where: { stashSceneId, outcome: { notIn: ['grabbed', 'found'] } },
+          data: {
+            outcome: 'failed',
+            detail:
+              'You asked to check it again: it’s looked at before other scenes, skipping releases that failed.',
+            retryAfter: new Date(this.now()),
+          },
+        }),
+      ),
+    );
+    const count = updated.reduce((sum, row) => sum + row.count, 0);
     this.logger.log(
-      `Better copies: ${updated.count} failed scene${updated.count === 1 ? '' : 's'} will be looked at again.`,
+      `Better copies: the ${count} failed scene${count === 1 ? '' : 's'} will be looked at next.`,
     );
     return this.status();
   }
 
-  private failedWaitingWhere() {
-    return {
-      outcome: 'failed',
-      retryAfter: { gt: new Date(this.now()) },
-    };
+  /**
+   * The scenes on the Tried tab's Failed list (their latest try failed),
+   * and those whose last search failed; not one whose copy is on its way
+   * or whose match is waiting for you.
+   */
+  private async failedSceneIds(): Promise<Set<string>> {
+    const [tries, attempts] = await Promise.all([
+      this.prisma.smallerCopyTry.findMany({
+        orderBy: { createdAt: 'desc' },
+        select: { stashSceneId: true, outcome: true },
+      }),
+      this.prisma.smallerCopyAttempt.findMany({
+        where: { outcome: { in: ['failed', 'grabbed', 'found'] } },
+        select: { stashSceneId: true, outcome: true },
+      }),
+    ]);
+    const latest = new Map<string, string>();
+    for (const row of tries) {
+      if (!latest.has(row.stashSceneId)) {
+        latest.set(row.stashSceneId, row.outcome);
+      }
+    }
+    const busy = new Set(
+      attempts
+        .filter((row) => row.outcome !== 'failed')
+        .map((row) => row.stashSceneId),
+    );
+    const ids = new Set(
+      attempts
+        .filter((row) => row.outcome === 'failed')
+        .map((row) => row.stashSceneId),
+    );
+    for (const [stashSceneId, outcome] of latest) {
+      if (outcome === 'failed' && !busy.has(stashSceneId)) {
+        ids.add(stashSceneId);
+      }
+    }
+    return ids;
   }
 
   /** Grabs a match that was listed for you (when grabbing by itself is off). */
@@ -721,7 +771,9 @@ export class SmallerCopiesService {
       if (waiting) {
         return waiting;
       }
-      const due = await this.dueOf(await this.candidates(settings));
+      const due = await this.failedFirst(
+        await this.dueOf(await this.candidates(settings)),
+      );
       if (due.length === 0) {
         return 'Nothing is due a search right now.';
       }
@@ -1030,6 +1082,30 @@ export class SmallerCopiesService {
   }
 
   /** Those not searched lately and not already on their way. */
+  /**
+   * Scenes whose last try failed go first: a try that went wrong is looked
+   * at again before scenes not tried yet. Otherwise the order is kept.
+   */
+  private async failedFirst(due: Candidate[]): Promise<Candidate[]> {
+    const failed = new Set(
+      (
+        await this.prisma.smallerCopyAttempt
+          .findMany({
+            where: { outcome: 'failed' },
+            select: { stashSceneId: true },
+          })
+          .catch(() => [])
+      ).map((row) => row.stashSceneId),
+    );
+    if (failed.size === 0) {
+      return due;
+    }
+    return [
+      ...due.filter((candidate) => failed.has(candidate.file.sceneId)),
+      ...due.filter((candidate) => !failed.has(candidate.file.sceneId)),
+    ];
+  }
+
   private async dueOf(candidates: Candidate[]): Promise<Candidate[]> {
     if (candidates.length === 0) {
       return [];

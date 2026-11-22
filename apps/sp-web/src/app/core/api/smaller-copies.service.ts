@@ -67,8 +67,8 @@ export interface SmallerCopies {
   tries: SmallerCopyTry[];
   /** How many tries ended each way, over all of them. */
   tryCounts: Record<string, number>;
-  /** Scenes whose last try failed and that aren't due again yet. */
-  failedWaiting?: number;
+  /** Scenes on the Failed list (latest try failed) or whose last search failed. */
+  failed?: number;
 }
 
 /** A release grabbed for a scene: grabbed (on its way), replaced, kept-both, removed or failed. */

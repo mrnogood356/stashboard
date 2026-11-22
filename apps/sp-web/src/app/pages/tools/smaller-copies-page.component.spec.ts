@@ -338,9 +338,9 @@ describe('SmallerCopiesPageComponent', () => {
   });
 
   it('checks only the failed scenes again, in one tap, when some are waiting', async () => {
-    const { root, api } = await render({ ...DATA, failedWaiting: 3 });
+    const { root, api } = await render({ ...DATA, failed: 3 });
     const button = root.querySelector('[data-testid="better-recheck-failed"]') as HTMLButtonElement;
-    expect(button.textContent).toContain('Check 3 failed again');
+    expect(button.textContent).toContain('Check only the 3 failed');
     button.click();
     expect(api.recheckFailed).toHaveBeenCalledTimes(1);
     expect(api.recheckAll).not.toHaveBeenCalled();
