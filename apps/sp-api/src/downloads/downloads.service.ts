@@ -308,6 +308,11 @@ export class DownloadsService {
     });
   }
 
+  /** The name of a release found by a recent search, as it would be sent. */
+  rememberedTitle(indexerId: number, guid: string): string | null {
+    return this.recall(indexerId, guid)?.title ?? null;
+  }
+
   private recall(indexerId: number, guid: string): ProwlarrRelease | null {
     const key = releaseKey(indexerId, guid);
     const entry = this.releases.get(key);

@@ -142,6 +142,8 @@ describe('StashdbAdapter', () => {
     ]);
     await adapter.getScenesSortedByDate(config);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    // A kept answer isn't a sign the catalog is up: only live ones count.
+    expect(runtimeHealthService.recordSuccess).toHaveBeenCalledTimes(2);
 
     // Three minutes on, it's asked again.
     now += 3 * 60_000;
@@ -154,6 +156,43 @@ describe('StashdbAdapter', () => {
       .catch(() => undefined);
     await adapter.getScenesSortedByDate(config);
     expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('doesn’t keep an answer that was on its way while a change was made', async () => {
+    let release: () => void = () => undefined;
+    let calls = 0;
+    fetchMock.mockImplementation(() => {
+      calls += 1;
+      const response = new Response(
+        JSON.stringify({ data: { queryScenes: { count: 0, scenes: [] } } }),
+        { headers: { 'content-type': 'application/json' } },
+      );
+      // The first look-up answers only after the change was made.
+      return calls === 1
+        ? new Promise<Response>((resolve) => {
+            release = () => resolve(response);
+          })
+        : Promise.resolve(response);
+    });
+    const config = {
+      baseUrl: 'https://stashdb.org/graphql',
+      page: 1,
+      perPage: 24,
+    };
+
+    const before = adapter.getScenesSortedByDate(config);
+    await adapter
+      .favoritePerformer('p1', true, { baseUrl: config.baseUrl })
+      .catch(() => undefined);
+    // Asked after the change: not joined to the one asked before it.
+    const after = adapter.getScenesSortedByDate(config);
+    release();
+    await Promise.all([before, after]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    // The answer from after the change is kept; the older one isn't.
+    await adapter.getScenesSortedByDate(config);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('retries a query whose value another request learned meanwhile', async () => {

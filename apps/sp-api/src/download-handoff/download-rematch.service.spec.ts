@@ -28,6 +28,23 @@ function table(rows: Row[]) {
             .map((row) => ({ ...row })),
         ),
     ),
+    updateMany: jest.fn(
+      ({
+        where,
+        data,
+      }: {
+        where: { id: { in: string[] }; matchedBy: { in: string[] } };
+        data: Partial<Row>;
+      }) => {
+        const hit = rows.filter(
+          (row) =>
+            where.id.in.includes(row.id) &&
+            where.matchedBy.in.includes(row['matchedBy'] as string),
+        );
+        hit.forEach((row) => Object.assign(row, data));
+        return Promise.resolve({ count: hit.length });
+      },
+    ),
     update: jest.fn(
       ({ where, data }: { where: { id: string }; data: Partial<Row> }) => {
         const row = rows.find((entry) => entry.id === where.id)!;
@@ -58,6 +75,7 @@ describe('DownloadRematchService', () => {
     finishedAt: new Date(at),
     rematchTriedAt: null,
     placePending: false,
+    matchedBy: 'none',
   });
   const linkedScene = (path: string) => ({
     files: [{ path }],
@@ -246,6 +264,30 @@ describe('DownloadRematchService', () => {
     expect(dropIns.rows[0]).toMatchObject({
       placePending: false,
       finalPath: '/lib/Studio/2024-03-15 - Title.mp4',
+    });
+  });
+
+  it('says one linked since some other way is matched, keeping how one was matched', async () => {
+    dropIns.rows[1].matchedBy = 'proposed';
+    downloads.rows[0].matchedBy = 'name';
+    index.findMany.mockResolvedValue([
+      { stashSceneId: '11' },
+      { stashSceneId: '12' },
+      { stashSceneId: '13' },
+    ]);
+    await service.run();
+    expect(dropIns.rows[0].matchedBy).toBe('stash');
+    expect(dropIns.rows[1].matchedBy).toBe('stash');
+    expect(downloads.rows[0].matchedBy).toBe('name');
+  });
+
+  it('says one is matched when a look-up linked it but stopped before saying so', async () => {
+    // Linked, then stopped: the next run only places it.
+    dropIns.rows[0].placePending = true;
+    await service.run();
+    expect(dropIns.rows[0]).toMatchObject({
+      placePending: false,
+      matchedBy: 'stash',
     });
   });
 

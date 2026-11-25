@@ -81,8 +81,8 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
   protected readonly editingTags = signal(false);
   /** The Edit sheet (title, date, studio, performers…) is open. */
   protected readonly editing = signal(false);
-  /** Asked for by the link (edit=1): opened once the scene is in. */
-  private editOnLoad = false;
+  /** The scene whose Edit sheet the link asked for (edit=1): opened once it's in. */
+  private editFor: string | null = null;
   protected readonly tagQuery = signal('');
   protected readonly tagResults = signal<Array<{ id: string; name: string }>>([]);
   protected readonly watched = computed(() => (this.scene()?.playCount ?? 0) > 0);
@@ -138,9 +138,12 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
     this.subscription = combineLatest([this.route.paramMap, this.route.queryParamMap]).subscribe(
       ([params, query]) => {
         this.applyReturnTo(query.get('returnTo'));
-        // From Downloads' "Find a match": the edit sheet, with Fill from StashDB.
-        this.editOnLoad = query.get('edit') === '1';
         const sceneId = params.get('sceneId')?.trim() ?? '';
+        // From Downloads' "Find a match": the edit sheet, with Fill from StashDB.
+        // Kept until that scene is in (dropping edit=1 doesn't cancel it).
+        if (query.get('edit') === '1' && sceneId) {
+          this.editFor = sceneId;
+        }
         if (!sceneId) {
           this.error.set('Scene id is missing from the link.');
           this.loading.set(false);
@@ -149,7 +152,7 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
         if (sceneId !== this.sceneId) {
           this.sceneId = sceneId;
           this.load();
-        } else if (this.editOnLoad && this.scene()) {
+        } else if (this.editFor === sceneId && this.scene()?.id === sceneId) {
           this.openEditFromLink();
         }
       },
@@ -159,6 +162,8 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.subscription?.unsubscribe();
     this.tagSearchSubscription?.unsubscribe();
+    // A late answer after you left mustn't open it (or change the address).
+    this.editFor = null;
   }
 
   // ---------- organizing (saved to Stash) ----------
@@ -286,7 +291,7 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
 
   /** Opens the edit sheet once, then drops edit=1 so Back doesn't reopen it. */
   private openEditFromLink(): void {
-    this.editOnLoad = false;
+    this.editFor = null;
     this.editing.set(true);
     void this.router.navigate([], {
       relativeTo: this.route,
@@ -317,7 +322,7 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
         }
         this.scene.set(scene);
         this.loading.set(false);
-        if (this.editOnLoad) {
+        if (this.editFor === scene.id) {
           this.openEditFromLink();
         }
         this.library.related(scene.id).subscribe({

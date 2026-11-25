@@ -131,6 +131,10 @@ export abstract class StashdbGraphqlClient {
   >();
   /** The same question asked while it's being answered waits for that answer. */
   private readonly asking = new Map<string, Promise<StashdbGraphqlResponse>>();
+  /** Per catalog endpoint: bumped by each change, so older answers aren't kept. */
+  private readonly changes = new Map<string, number>();
+  /** Answers given from what was kept: not a sign the catalog is up. */
+  private readonly fromKept = new WeakSet<StashdbGraphqlResponse>();
 
   /** Exposed for tests. */
   protected now(): number {
@@ -171,7 +175,7 @@ export abstract class StashdbGraphqlClient {
       throw new BadGatewayException(message);
     }
 
-    if (trackRuntimeHealth) {
+    if (trackRuntimeHealth && !this.fromKept.has(payload)) {
       await this.reportRuntimeSuccess();
     }
 
@@ -236,18 +240,29 @@ export abstract class StashdbGraphqlClient {
     variables?: Record<string, unknown>,
     trackRuntimeHealth = true,
   ): Promise<StashdbGraphqlResponse> {
-    const host = hostOf(this.resolveGraphqlEndpoint(config.baseUrl));
-    // A change (a favorite) makes this catalog's kept answers out of date.
+    const endpoint = this.resolveGraphqlEndpoint(config.baseUrl);
+    // A change (a favorite) makes this catalog's kept answers out of date,
+    // and any answer still on its way, which may predate the change.
     if (/^\s*mutation\b/.test(query)) {
-      this.forgetAnswers(host);
-      return this.askCatalog(config, query, variables, trackRuntimeHealth);
+      this.forgetAnswers(endpoint);
+      try {
+        return await this.askCatalog(
+          config,
+          query,
+          variables,
+          trackRuntimeHealth,
+        );
+      } finally {
+        // Also anything asked while the change was being made.
+        this.forgetAnswers(endpoint);
+      }
     }
     // Connection checks (not counted toward health) always ask afresh.
     if (!trackRuntimeHealth) {
       return this.askCatalog(config, query, variables, trackRuntimeHealth);
     }
     const key = [
-      host,
+      endpoint,
       config.apiKey?.trim() ?? '',
       query,
       JSON.stringify(variables ?? {}),
@@ -255,16 +270,32 @@ export abstract class StashdbGraphqlClient {
     const kept = this.answers.get(key);
     if (kept && this.now() - kept.at < ANSWER_TTL_MS) {
       // A copy: callers may change what they're given.
-      return structuredClone(kept.payload);
+      const copy = structuredClone(kept.payload);
+      this.fromKept.add(copy);
+      return copy;
     }
-    const asked =
-      this.asking.get(key) ??
-      this.askCatalog(config, query, variables, trackRuntimeHealth).finally(
-        () => this.asking.delete(key),
-      );
-    this.asking.set(key, asked);
+    const change = this.changes.get(endpoint) ?? 0;
+    let asked = this.asking.get(key);
+    if (!asked) {
+      const asking = this.askCatalog(
+        config,
+        query,
+        variables,
+        trackRuntimeHealth,
+      ).finally(() => {
+        if (this.asking.get(key) === asking) {
+          this.asking.delete(key);
+        }
+      });
+      asked = asking;
+      this.asking.set(key, asking);
+    }
     const payload = await asked;
-    if (!payload.errors?.length) {
+    // Kept only when no change was made to the catalog while it was asked.
+    if (
+      !payload.errors?.length &&
+      (this.changes.get(endpoint) ?? 0) === change
+    ) {
       this.answers.delete(key);
       this.answers.set(key, { at: this.now(), payload });
       while (this.answers.size > MAX_ANSWERS) {
@@ -274,11 +305,15 @@ export abstract class StashdbGraphqlClient {
     return structuredClone(payload);
   }
 
-  /** Drops every kept answer from a catalog. */
-  private forgetAnswers(host: string): void {
-    for (const key of [...this.answers.keys()]) {
-      if (key.startsWith(`${host}\u0000`)) {
-        this.answers.delete(key);
+  /** Drops every kept answer from a catalog endpoint, and any on its way. */
+  private forgetAnswers(endpoint: string): void {
+    this.changes.set(endpoint, (this.changes.get(endpoint) ?? 0) + 1);
+    const prefix = `${endpoint}\u0000`;
+    for (const map of [this.answers, this.asking]) {
+      for (const key of [...map.keys()]) {
+        if (key.startsWith(prefix)) {
+          map.delete(key);
+        }
       }
     }
   }

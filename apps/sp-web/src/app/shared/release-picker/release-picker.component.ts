@@ -169,6 +169,8 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
       }
       // Replacing a file you have: there's no copy to warn about.
       if (this.source === 'replacement') {
+        // Another scene's check still on its way mustn't bring its copies back.
+        this.ownedSubscription?.unsubscribe();
         this.ownedCopies.set([]);
       } else {
         this.checkOwnedCopies(this.stashId);

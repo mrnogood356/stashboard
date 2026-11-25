@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -137,6 +137,16 @@ describe('LocalScenePageComponent', () => {
       returnTo: '/processing',
     });
     expect(document.querySelector('[data-testid="scene-edit-sheet"]')).not.toBeNull();
+  });
+
+  it('doesn’t open Edit, or go back to the scene, when it comes in after you left', async () => {
+    const answer = new Subject<ReturnType<typeof sceneDetails>>();
+    const { fixture } = await render(vi.fn().mockReturnValue(answer), { edit: '1' });
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate');
+    fixture.destroy();
+    answer.next(sceneDetails());
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('opens Edit, and shows what Stash saved from it', async () => {

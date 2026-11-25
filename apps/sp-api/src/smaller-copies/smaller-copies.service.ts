@@ -166,6 +166,8 @@ const FILE_COUNT_TTL = 60 * 1000;
 export class SmallerCopiesService {
   private readonly logger = new Logger(SmallerCopiesService.name);
   private running = false;
+  /** Scenes a release you chose is being sent for (see grabChosen). */
+  private readonly choosing = new Set<string>();
   /** Files on each kept-both download's scene, by scene, for the Tried list. */
   private readonly fileCounts = new Map<
     string,
@@ -732,9 +734,34 @@ export class SmallerCopiesService {
     stashSceneId: string,
     release: { guid: string; indexerId: number; title: string; size?: number },
   ): Promise<SmallerCopiesDto> {
+    // One at a time per scene, from the check until it's in Finished
+    // downloads: two taps at once can't both send a replacement.
+    if (this.choosing.has(stashSceneId)) {
+      throw new ConflictException(
+        'A replacement for this scene is already being sent.',
+      );
+    }
+    this.choosing.add(stashSceneId);
+    try {
+      await this.sendChosen(stashSceneId, release);
+    } finally {
+      this.choosing.delete(stashSceneId);
+    }
+    return this.status();
+  }
+
+  private async sendChosen(
+    stashSceneId: string,
+    release: { guid: string; indexerId: number; title: string; size?: number },
+  ): Promise<void> {
     const { file, catalogId, provider } = await this.chosenScene(stashSceneId);
-    const failed = (await this.handoff.failedReleases([release.title])).get(
-      releaseKeyOf(release.title),
+    // The release that's sent is the one the search found, by its id: its
+    // own name is checked and noted, whatever name came with the request.
+    const title =
+      this.downloads.rememberedTitle(release.indexerId, release.guid) ??
+      release.title;
+    const failed = (await this.handoff.failedReleases([title])).get(
+      releaseKeyOf(title),
     );
     if (failed) {
       throw new BadRequestException(
@@ -754,26 +781,21 @@ export class SmallerCopiesService {
     }
     const sent = await this.downloads.grabRelease(
       catalogId,
-      {
-        guid: release.guid,
-        indexerId: release.indexerId,
-        title: release.title,
-      },
+      { guid: release.guid, indexerId: release.indexerId, title },
       provider,
       { replacesStashSceneId: stashSceneId },
     );
     await this.markGrabbed(stashSceneId, {
       title: file.title ?? `Scene ${stashSceneId}`,
-      releaseTitle: release.title,
+      releaseTitle: title,
       releaseGuid: release.guid,
       newSize: release.size ?? null,
       oldSize: file.size ?? null,
       handoffId: sent.handoffId ?? null,
     });
     this.logger.log(
-      `Better copies: you chose “${release.title}” to replace Stash scene ${stashSceneId}.`,
+      `Better copies: you chose “${title}” to replace Stash scene ${stashSceneId}.`,
     );
-    return this.status();
   }
 
   /** A library scene's biggest file and catalog link, for choosing a release. */

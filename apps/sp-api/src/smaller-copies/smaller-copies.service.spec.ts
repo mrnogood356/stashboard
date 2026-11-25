@@ -21,7 +21,11 @@ describe('SmallerCopiesService', () => {
   let linked: Record<string, string | null>;
   let prisma: Record<string, Record<string, jest.Mock>>;
   let transaction: jest.Mock;
-  let downloads: { searchReleases: jest.Mock; grabRelease: jest.Mock };
+  let downloads: {
+    searchReleases: jest.Mock;
+    grabRelease: jest.Mock;
+    rememberedTitle: jest.Mock;
+  };
   let handoff: {
     stashConfig: jest.Mock;
     isActive: jest.Mock;
@@ -320,6 +324,7 @@ describe('SmallerCopiesService', () => {
         sentTo: 'sabnzbd',
         handoffId: 'h9',
       }),
+      rememberedTitle: jest.fn().mockReturnValue(null),
     };
     handoff = {
       stashConfig: jest
@@ -1211,6 +1216,40 @@ describe('SmallerCopiesService', () => {
         service.grabChosen('2', { guid: 'y', indexerId: 3, title: 'Other' }),
       ).rejects.toThrow(/already on its way/);
       expect(downloads.grabRelease).not.toHaveBeenCalled();
+    });
+
+    it('checks the release that would be sent, not the name that came with it', async () => {
+      downloads.rememberedTitle.mockReturnValue('Studio.Scene.1080p');
+      handoff.failedReleases.mockResolvedValueOnce(
+        new Map([['studio.scene.1080p', 'Missing articles']]),
+      );
+      await expect(
+        service.grabChosen('2', { guid: 'x', indexerId: 3, title: 'Renamed' }),
+      ).rejects.toThrow(/couldn’t download that release before/);
+      expect(downloads.grabRelease).not.toHaveBeenCalled();
+    });
+
+    it('sends only one of two replacements chosen at once', async () => {
+      let finish: () => void = () => undefined;
+      downloads.grabRelease.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = () =>
+              resolve({ accepted: true, sentTo: 'sabnzbd', handoffId: 'h9' });
+          }),
+      );
+      const first = service.grabChosen('2', {
+        guid: 'big',
+        indexerId: 3,
+        title: 'Studio.Scene.1080p',
+      });
+      await new Promise((resolve) => setImmediate(resolve));
+      await expect(
+        service.grabChosen('2', { guid: 'y', indexerId: 3, title: 'Other' }),
+      ).rejects.toThrow(/already being sent/);
+      finish();
+      await first;
+      expect(downloads.grabRelease).toHaveBeenCalledTimes(1);
     });
   });
 });
