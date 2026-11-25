@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -411,5 +412,59 @@ describe('LocalScenePageComponent', () => {
 
     expect(root.textContent).toContain('Fourteen');
     expect(root.textContent).not.toContain('Thirteen');
+  });
+});
+
+// With the real router: it reuses the page, moves its snapshot, then emits
+// the new query before the new path.
+describe('LocalScenePageComponent with the router', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('opens Edit for scene 13 once it loads, after coming from scene 12', async () => {
+    const thirteen = new Subject<LocalSceneDetails>();
+    const getSceneDetails = vi.fn((id: string) => (id === '12' ? of(sceneDetails()) : thirteen));
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([{ path: 'library/scene/:sceneId', component: LocalScenePageComponent }]),
+        { provide: PlaybackService, useValue: { getSceneDetails } },
+        {
+          provide: LocalLibraryService,
+          useValue: {
+            related: vi.fn().mockReturnValue(of([])),
+            searchTags: vi.fn().mockReturnValue(of([])),
+          },
+        },
+        {
+          provide: WatchLaterService,
+          useValue: { ensureLoaded: () => undefined, has: () => false, toggle: vi.fn() },
+        },
+        {
+          provide: DiagnosticsApiService,
+          useValue: { catalogScene: vi.fn(), localScene: vi.fn() },
+        },
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    const page = (await harness.navigateByUrl(
+      '/library/scene/12',
+      LocalScenePageComponent,
+    )) as unknown as { editing: () => boolean; openEditFromLink: () => void };
+    const router = TestBed.inject(Router);
+    const opened = vi.spyOn(page, 'openEditFromLink');
+
+    // The same page is reused for 13: nothing opens while 13 loads.
+    await harness.navigateByUrl('/library/scene/13?edit=1');
+    expect(harness.routeDebugElement?.componentInstance).toBe(page);
+    // Not opened for 12 when the new query came in ahead of the new path.
+    expect(opened).not.toHaveBeenCalled();
+    expect(page.editing()).toBe(false);
+
+    thirteen.next(sceneDetails({ id: '13' }));
+    harness.detectChanges();
+    await harness.fixture.whenStable();
+    expect(page.editing()).toBe(true);
+    expect(opened).toHaveBeenCalledTimes(1);
+    // edit=1 is dropped from the address, which stays on 13.
+    expect(router.url).toBe('/library/scene/13');
   });
 });
