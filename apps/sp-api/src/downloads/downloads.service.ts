@@ -222,13 +222,16 @@ export class DownloadsService {
   }> {
     const config = await this.requireConfig();
     const replacing = !!options.replacesStashSceneId;
-    if (replacing && !(this.handoff && (await this.handoff.isActive()))) {
+    // Asked once: a replacement must never fall through to Prowlarr because
+    // the answer changed between two asks.
+    const handoffActive = !!this.handoff && (await this.handoff.isActive());
+    if (replacing && !handoffActive) {
       // Only Finished downloads can swap the file in; Prowlarr's client can't.
       throw new ConflictException(
         'Turn on Finished downloads (with SABnzbd) to replace a file with a smaller copy.',
       );
     }
-    if (this.handoff && (await this.handoff.isActive())) {
+    if (this.handoff && handoffActive) {
       const found = this.recall(release.indexerId, release.guid);
       if (!found) {
         this.logger.warn(
