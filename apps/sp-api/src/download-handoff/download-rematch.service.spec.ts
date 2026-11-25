@@ -192,6 +192,16 @@ describe('DownloadRematchService', () => {
     expect(downloads.rows[0].placePending).toBe(false);
   });
 
+  it('looks up only the ones it could mark first', async () => {
+    downloads.update.mockRejectedValueOnce(new Error('database busy'));
+    await service.run();
+    // h1 couldn't be marked: left for another day, not looked up.
+    expect(organizer.identifyNewScenes).toHaveBeenCalledWith(['11'], {
+      trustNames: true,
+    });
+    expect(downloads.rows[0].rematchTriedAt).toBeNull();
+  });
+
   it('places a matched file on a later run when it couldn’t be placed', async () => {
     stash.getOrganizerScene.mockRejectedValueOnce(new Error('Stash is down'));
     await service.run();

@@ -91,16 +91,20 @@ export class DownloadRematchService {
 
   /** One run: how many were matched. */
   async run(): Promise<number> {
-    const { toLookUp, toPlace } = await this.select();
+    const { toLookUp: selected, toPlace } = await this.select();
     let matchedCount = 0;
     let proposed = 0;
-    if (toLookUp.length > 0) {
-      // Marked to place before the look-up, which may save a link: should
-      // anything stop it from finishing, a later run checks each one (an
-      // unlinked one is just unmarked) rather than leave a match unplaced.
-      for (const entry of toLookUp) {
-        await this.save(entry, { placePending: true });
+    // Marked to place before the look-up, which may save a link: should
+    // anything stop it from finishing, a later run checks each one (an
+    // unlinked one is just unmarked) rather than leave a match unplaced.
+    // One that couldn't be marked waits for another day.
+    const toLookUp: Entry[] = [];
+    for (const entry of selected) {
+      if (await this.save(entry, { placePending: true })) {
+        toLookUp.push(entry);
       }
+    }
+    if (toLookUp.length > 0) {
       const result = await this.organizer.identifyNewScenes(
         toLookUp.map((entry) => entry.sceneId),
         { trustNames: true },
@@ -287,16 +291,20 @@ export class DownloadRematchService {
       placePending?: boolean;
       finalPath?: string;
     },
-  ): Promise<void> {
+  ): Promise<boolean> {
     const update = { where: { id: entry.id }, data };
-    await (
+    return (
       entry.kind === 'drop-in'
         ? this.prisma.downloadDropIn.update(update)
         : this.prisma.downloadHandoff.update(update)
-    ).catch((error: unknown) =>
-      this.logger.warn(
-        `Couldn't note the later look at “${entry.name}”: ${messageOf(error)}`,
-      ),
+    ).then(
+      () => true,
+      (error: unknown) => {
+        this.logger.warn(
+          `Couldn't note the later look at “${entry.name}”: ${messageOf(error)}`,
+        );
+        return false;
+      },
     );
   }
 }
