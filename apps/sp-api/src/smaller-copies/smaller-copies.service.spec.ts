@@ -407,6 +407,26 @@ describe('SmallerCopiesService', () => {
     expect(downloads.searchReleases).not.toHaveBeenCalled();
   });
 
+  it('writes nothing over a replacement on its way, even unlinked or when it can’t check', async () => {
+    files = [file('2', { size: 9e9 })];
+    linked = {};
+    prisma.downloadHandoff.count.mockImplementation(
+      ({ where }: { where: { replacesStashSceneId?: unknown } }) =>
+        Promise.resolve(where.replacesStashSceneId === '2' ? 1 : 0),
+    );
+    await service.tick(true);
+    expect(prisma.smallerCopyAttempt.upsert).not.toHaveBeenCalled();
+
+    prisma.downloadHandoff.count.mockImplementation(
+      ({ where }: { where: { replacesStashSceneId?: unknown } }) =>
+        where.replacesStashSceneId === '2'
+          ? Promise.reject(new Error('db down'))
+          : Promise.resolve(0),
+    );
+    await service.tick(true);
+    expect(prisma.smallerCopyAttempt.upsert).not.toHaveBeenCalled();
+  });
+
   it('doesn’t send a replacement in the background for a scene you’re replacing', async () => {
     // Scene 2 is the one the background search would pick.
     files = [file('2', { size: 9e9 })];
