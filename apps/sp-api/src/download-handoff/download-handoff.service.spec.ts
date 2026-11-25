@@ -57,6 +57,8 @@ describe('DownloadHandoffService', () => {
     finalPath: null,
     stashSceneId: null,
     replacesStashSceneId: null,
+    rematchTriedAt: null,
+    placePending: false,
     error: null,
     attempts: 0,
     finishedAt: null,

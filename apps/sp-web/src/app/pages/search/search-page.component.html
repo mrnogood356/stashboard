@@ -237,7 +237,7 @@
         showing('scenes') &&
         ((showsLibrary() && result.library.length > 0) ||
           (showsCatalog() &&
-            (catalogScenes().length > 0 || result.catalogHidden > 0 || showHidden())))
+            (result.catalogScenes.length > 0 || result.catalogHidden > 0 || showHidden())))
       ) {
         <section class="block" data-testid="search-scenes">
           <h2>Scenes</h2>
@@ -281,7 +281,7 @@
             }
             @if (
               source === 'catalog' &&
-              (catalogScenes().length > 0 || result.catalogHidden > 0 || showHidden())
+              (result.catalogScenes.length > 0 || result.catalogHidden > 0 || showHidden())
             ) {
               <div class="source">
                 <div class="block-head">

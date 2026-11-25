@@ -6,6 +6,7 @@ import { DiscoverService } from '../../core/api/discover.service';
 import { LibraryService } from '../../core/api/library.service';
 import { LocalLibraryService } from '../../core/api/local-library.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
+import { HideOwnedService } from '../../core/preferences/hide-owned.service';
 import { SearchPageComponent } from './search-page.component';
 
 describe('SearchPageComponent', () => {
@@ -168,6 +169,56 @@ describe('SearchPageComponent', () => {
     expect(library['getScenesFeed']).not.toHaveBeenCalled();
     expect(document.activeElement).not.toBe(root.querySelector('input[type="search"]'));
     (root as HTMLElement).remove();
+  });
+
+  it('shows the scope the link asks for when coming back to the same words', async () => {
+    vi.useFakeTimers();
+    discover['searchScenes'].mockReturnValue(of({ items: [], total: 0, hidden: 0 }));
+    const first = await render();
+    const input = first.root.querySelector<HTMLInputElement>('input[type="search"]')!;
+    input.value = 'pier';
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(350);
+    first.fixture.detectChanges();
+    (first.root.querySelector('[data-testid="search-scope-library"]') as HTMLButtonElement).click();
+    first.fixture.detectChanges();
+    first.fixture.destroy();
+    TestBed.resetTestingModule();
+
+    await TestBed.configureTestingModule({
+      imports: [SearchPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: DiscoverService, useValue: discover },
+        { provide: LibraryService, useValue: library },
+        { provide: LocalLibraryService, useValue: local },
+        {
+          provide: AppNotificationsService,
+          useValue: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+        },
+      ],
+    }).compileComponents();
+    await TestBed.inject(Router).navigateByUrl('/?q=pier&in=catalog');
+    const fixture = TestBed.createComponent(SearchPageComponent);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(
+      root.querySelector('[data-testid="search-scope-catalog"]')?.getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(root.textContent).not.toContain('Pier Scene');
+  });
+
+  it('still explains an empty catalog list when every scene there is one you have', async () => {
+    const owned = { ...catalogScene('a'), localSceneId: 'l1', status: { state: 'AVAILABLE' } };
+    discover['searchScenes'] = vi.fn(() =>
+      of({ total: 1, page: 1, perPage: 12, hasMore: false, hidden: 0, items: [owned] }),
+    );
+    TestBed.overrideProvider(HideOwnedService, {
+      useValue: { filter: () => [], hideOwned: () => true },
+    });
+    const { root } = await search('ana');
+    expect(root.querySelector('[data-testid="search-see-all-catalog"]')).not.toBeNull();
+    expect(root.querySelector('app-owned-note')).not.toBeNull();
   });
 
   it('searches again on coming back when a source failed, and keeps the kind you picked', async () => {
@@ -479,13 +530,13 @@ describe('SearchPageComponent', () => {
 
     chip('performers').click();
     fixture.detectChanges();
-    expect(root.querySelector('#search-scenes-title')).toBeNull();
+    expect(root.querySelector('[data-testid="search-scenes"]')).toBeNull();
     expect(root.querySelectorAll('[data-testid="search-performer"]').length).toBe(2);
     expect(root.querySelector('.people')?.classList).toContain('expanded');
 
     chip('scenes').click();
     fixture.detectChanges();
-    expect(root.querySelector('#search-performers-title')).toBeNull();
+    expect(root.querySelector('[data-testid="search-performers"]')).toBeNull();
     expect(root.textContent).toContain('Pier Scene');
   });
 

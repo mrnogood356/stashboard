@@ -177,7 +177,12 @@ export class OrganizerService
         ids.map((id) => this.stash.getOrganizerScene(context.config, id)),
       )
     ).filter((scene): scene is StashOrganizerScene => scene !== null);
-    return this.findMatches(context, scenes, query?.trim() || undefined);
+    const results = await this.findMatches(
+      context,
+      scenes,
+      query?.trim() || undefined,
+    );
+    return results.map(({ sure: _sure, ...result }) => result);
   }
 
   /** Fills in a scene from the chosen StashDB match, then renames it if that's switched on. */
@@ -778,11 +783,16 @@ export class OrganizerService
    * other stash-boxes. Fingerprint matches win; otherwise the file name is
    * searched everywhere and the results are scored together.
    */
+  /**
+   * Each scene's best catalog matches (the first six), and the sure one if
+   * any, judged against all of them: a close rival from the same site
+   * that didn't make the six still keeps a name match from being sure.
+   */
   private async findMatches(
     context: Context,
     scenes: StashOrganizerScene[],
     query?: string,
-  ): Promise<SceneMatchesDto[]> {
+  ): Promise<Array<SceneMatchesDto & { sure: MatchCandidateDto | null }>> {
     const groups = query
       ? scenes.map(() => [])
       : scenes.map((scene) => fingerprintGroup(scene.files));
@@ -818,7 +828,8 @@ export class OrganizerService
       }
     }
 
-    const results: SceneMatchesDto[] = [];
+    const results: Array<SceneMatchesDto & { sure: MatchCandidateDto | null }> =
+      [];
     for (const [index, scene] of scenes.entries()) {
       const file = scene.files[0] ?? null;
       const duration = file?.duration ?? null;
@@ -925,7 +936,13 @@ export class OrganizerService
           this.remember(scene.id, candidate.id, entry.scene, entry.source);
         }
       }
-      results.push({ sceneId: scene.id, searchedFor, candidates: top });
+      results.push({
+        sceneId: scene.id,
+        searchedFor,
+        candidates: top,
+        // The surest is first, so it's among the six remembered above.
+        sure: pickSure(candidates),
+      });
     }
     return results;
   }
@@ -1163,14 +1180,14 @@ export class OrganizerService
       const results = await this.findMatches(context, chunk).catch(
         (error: unknown) => {
           this.logger.warn(`Match lookup failed: ${messageOf(error)}`);
-          return [] as SceneMatchesDto[];
+          return [];
         },
       );
       for (const result of results) {
         // The same video fingerprint is saved unseen; a name match only when
         // asked to and it's sure (see trustNames). Others wait in the
         // found-matches list for you to check.
-        const sure = pickSure(result.candidates);
+        const sure = result.sure;
         const pick =
           sure?.confidence === 'exact' ||
           (options.trustNames && sure && isSureByName(sure))

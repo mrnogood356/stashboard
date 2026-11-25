@@ -202,11 +202,20 @@ export class SearchPageComponent implements OnInit, OnDestroy {
   ] as const;
   /** Query params for the full results pages "See all" opens. */
   protected readonly libraryParams = computed(() => ({ query: this.query().trim() }));
+  /**
+   * The catalog search used (the instance's): pinned on its "See all", so
+   * those pages don't open the other one you last browsed.
+   */
+  private readonly catalogProvider = computed(() => this.browse.instanceKey());
   protected readonly catalogParams = computed(() => ({
     q: this.query().trim(),
     showHidden: this.showHidden() ? '1' : null,
+    provider: this.catalogProvider(),
   }));
-  protected readonly nameParams = computed(() => ({ q: this.query().trim() }));
+  protected readonly nameParams = computed(() => ({
+    q: this.query().trim(),
+    provider: this.catalogProvider(),
+  }));
   protected readonly searched = computed(() => this.query().trim().length >= MIN_QUERY);
   protected readonly catalogFailed = catalogFailed;
   protected readonly nothingFound = computed(() => {
@@ -271,9 +280,14 @@ export class SearchPageComponent implements OnInit, OnDestroy {
         this.query.set(initial);
         this.answered = lastSearch.query;
         this.results.set(lastSearch.results);
+        // The scope is the URL's (set above): the same words in another
+        // scope reuse the results, but show what the link asked for.
         this.filter.set(lastSearch.filter);
-        this.scope.set(lastSearch.scope);
         this.showHidden.set(lastSearch.showHidden);
+        const selected = this.filter();
+        if (selected !== 'all' && this.counts()[selected] === 0) {
+          this.filter.set('all');
+        }
       } else {
         this.setQuery(initial);
       }

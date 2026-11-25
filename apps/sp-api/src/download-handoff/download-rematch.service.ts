@@ -16,28 +16,37 @@ import { MANUAL_HANDOFF_SOURCE } from './download-handoff.model';
 const REMATCH_EVERY_MS = 24 * 3600_000;
 /** For how long after coming in: past that, a match is unlikely to appear. */
 const REMATCH_FOR_MS = 14 * 24 * 3600_000;
-/** Scenes looked up per run, newest first; the rest wait for the next day. */
+/** Scenes looked up per run: those waiting longest since their last look. */
 const REMATCH_PER_RUN = 40;
 /** How often it's checked whether a run is due. */
 const TICK_MS = 15 * 60_000;
 /** Recent imports read per run, before leaving out those already matched. */
 const READ_LIMIT = 300;
 
-/** A file you brought in yourself that wasn't matched when it came in. */
-interface Unmatched {
+/** A file you brought in yourself, unmatched when it came in. */
+interface Entry {
   kind: 'drop-in' | 'download';
   id: string;
   sceneId: string;
   finalPath: string | null;
   name: string;
+  /** When it came in. */
+  at: number;
+  /** When it was last looked up again; 0 for never. */
+  triedAt: number;
+  /** Matched on a later look but not put in its folder yet. */
+  placePending: boolean;
 }
 
 /**
  * StashDB keeps adding scenes, so a drop-in (or a download you added in
  * SABnzbd yourself) that wasn't matched when it came in is looked up again
- * once a day for two weeks: a fingerprint, or a sure name match, is saved,
- * and the file goes into its folder, named by your rename pattern, as it
- * would have on the day. Likely matches wait in "Check these matches".
+ * once a day for two weeks, those waiting longest first: a fingerprint, or a
+ * sure name match, is saved, and the file goes into its folder, named by
+ * your rename pattern, as it would have on the day. One matched but not put
+ * in its folder (Stash couldn't be asked, or something was in the way) is
+ * tried again each day until it is. Likely matches wait in "Check these
+ * matches".
  */
 @Injectable()
 export class DownloadRematchService {
@@ -82,89 +91,121 @@ export class DownloadRematchService {
 
   /** One run: how many were matched. */
   async run(): Promise<number> {
-    const unmatched = await this.unmatched();
-    if (unmatched.length === 0) {
-      return 0;
-    }
-    const result = await this.organizer.identifyNewScenes(
-      unmatched.map((entry) => entry.sceneId),
-      { trustNames: true },
-    );
-    const matched = new Set([...result.linked, ...result.matched]);
-    const config = await this.handoff.stashConfig();
-    let placedCount = 0;
-    for (const entry of unmatched.filter((item) => matched.has(item.sceneId))) {
-      // Where Stash has the file now: it may have been moved since.
-      const scene = config
-        ? await this.stash
-            .getOrganizerScene(config, entry.sceneId)
-            .catch(() => null)
-        : null;
-      const file =
-        scene?.files.find(
-          (candidate) =>
-            entry.finalPath !== null &&
-            samePath(candidate.path, entry.finalPath),
-        ) ??
-        scene?.files[0] ??
-        null;
-      const placed = file
-        ? await this.handoff.placeInFolder(entry.sceneId, file.path)
-        : { to: entry.finalPath ?? '', reason: null };
-      if (file) {
-        placedCount += 1;
-        await this.remember(entry, placed.to);
-      }
-      if (placed.reason) {
-        this.logger.warn(placed.reason);
-      }
-      this.logger.log(
-        `Matched “${entry.name}” (Stash scene ${entry.sceneId}) on a later look${file && placed.to !== file.path ? `, placed in ${placed.to}` : ''}.`,
+    const { toLookUp, toPlace } = await this.select();
+    let matchedCount = 0;
+    let proposed = 0;
+    if (toLookUp.length > 0) {
+      const result = await this.organizer.identifyNewScenes(
+        toLookUp.map((entry) => entry.sceneId),
+        { trustNames: true },
       );
-      await this.activity?.record({
-        kind: 'download',
-        title: `Matched “${entry.name}” on a later look`,
-        detail: [
-          'StashDB has it now, so it was linked to its catalog scene.',
-          ...(file ? placedLines(file.path, placed) : []),
-        ].join('\n'),
-        ...(placed.reason ? { status: 'partial' as const } : {}),
-      });
+      const matched = new Set([...result.linked, ...result.matched]);
+      matchedCount = matched.size;
+      proposed = result.proposed.length;
+      for (const entry of toLookUp) {
+        const isMatched = matched.has(entry.sceneId);
+        await this.save(entry, {
+          rematchTriedAt: new Date(this.now()),
+          // Placed below; marked first so a crash in between still retries it.
+          ...(isMatched ? { placePending: true } : {}),
+        });
+        if (isMatched) {
+          toPlace.push({ ...entry, placePending: true });
+          this.logger.log(
+            `Matched “${entry.name}” (Stash scene ${entry.sceneId}) on a later look.`,
+          );
+        }
+      }
     }
-    this.logger.log(
-      `Looked up ${unmatched.length} unmatched file${unmatched.length === 1 ? '' : 's'} you brought in again: ${matched.size} matched (${placedCount} put in their folder), ${result.proposed.length} waiting in “Check these matches”.`,
-    );
-    return matched.size;
+    let placedCount = 0;
+    for (const entry of toPlace) {
+      if (await this.place(entry)) {
+        placedCount += 1;
+      }
+    }
+    if (toLookUp.length + toPlace.length > 0) {
+      this.logger.log(
+        `Looked up ${toLookUp.length} unmatched file${toLookUp.length === 1 ? '' : 's'} you brought in again: ${matchedCount} matched, ${proposed} waiting in “Check these matches”; ${placedCount} of ${toPlace.length} matched put in their folder.`,
+      );
+    }
+    return matchedCount;
   }
 
   /**
-   * Drop-ins and your own SABnzbd downloads that came in over the last two
-   * weeks and aren't linked to the catalog yet, newest first.
+   * Puts a matched file into its folder, named by your rename pattern. True
+   * when it's done (or there's nothing left to place); false leaves it
+   * marked, to try again on the next run.
    */
-  private async unmatched(): Promise<Unmatched[]> {
+  private async place(entry: Entry): Promise<boolean> {
+    const config = await this.handoff.stashConfig();
+    // Where Stash has the file now: it may have been moved since.
+    const scene = config
+      ? await this.stash
+          .getOrganizerScene(config, entry.sceneId)
+          .catch((error: unknown) => {
+            this.logger.warn(
+              `Couldn't read Stash scene ${entry.sceneId} to place “${entry.name}”: ${messageOf(error)}. Tried again tomorrow.`,
+            );
+            return undefined;
+          })
+      : undefined;
+    if (scene === undefined) {
+      return false;
+    }
+    const file =
+      scene?.files.find(
+        (candidate) =>
+          entry.finalPath !== null && samePath(candidate.path, entry.finalPath),
+      ) ??
+      scene?.files[0] ??
+      null;
+    if (!file) {
+      // The scene or its file is gone from Stash: nothing left to place.
+      await this.save(entry, { placePending: false });
+      return true;
+    }
+    const placed = await this.handoff.placeInFolder(entry.sceneId, file.path);
+    if (placed.reason) {
+      this.logger.warn(`${placed.reason} Tried again tomorrow.`);
+      return false;
+    }
+    await this.save(entry, { placePending: false, finalPath: placed.to });
+    await this.activity?.record({
+      kind: 'download',
+      title: `Matched “${entry.name}” on a later look`,
+      detail: [
+        'StashDB has it now, so it was linked to its catalog scene.',
+        ...placedLines(file.path, placed),
+      ].join('\n'),
+    });
+    return true;
+  }
+
+  /**
+   * From the drop-ins and your own SABnzbd downloads of the last two weeks:
+   * the unlinked ones waiting longest since their last look (then the
+   * newest), and every one matched but not yet placed.
+   */
+  private async select(): Promise<{ toLookUp: Entry[]; toPlace: Entry[] }> {
     const since = new Date(this.now() - REMATCH_FOR_MS);
+    const where = {
+      status: 'imported',
+      stashSceneId: { not: null },
+      finishedAt: { gte: since },
+    };
     const [dropIns, downloads] = await Promise.all([
       this.prisma.downloadDropIn.findMany({
-        where: {
-          status: 'imported',
-          stashSceneId: { not: null },
-          finishedAt: { gte: since },
-        },
+        where,
         orderBy: { finishedAt: 'desc' },
         take: READ_LIMIT,
       }),
       this.prisma.downloadHandoff.findMany({
-        where: {
-          source: MANUAL_HANDOFF_SOURCE,
-          status: 'imported',
-          stashSceneId: { not: null },
-          finishedAt: { gte: since },
-        },
+        where: { ...where, source: MANUAL_HANDOFF_SOURCE },
         orderBy: { finishedAt: 'desc' },
         take: READ_LIMIT,
       }),
     ]);
-    const all: Array<Unmatched & { at: number }> = [
+    const all: Entry[] = [
       ...dropIns.map((row) => ({
         kind: 'drop-in' as const,
         id: row.id,
@@ -172,6 +213,8 @@ export class DownloadRematchService {
         finalPath: row.finalPath,
         name: path.basename(row.sourcePath),
         at: row.finishedAt?.getTime() ?? 0,
+        triedAt: row.rematchTriedAt?.getTime() ?? 0,
+        placePending: row.placePending,
       })),
       ...downloads.map((row) => ({
         kind: 'download' as const,
@@ -180,46 +223,58 @@ export class DownloadRematchService {
         finalPath: row.finalPath,
         name: row.releaseTitle,
         at: row.finishedAt?.getTime() ?? 0,
+        triedAt: row.rematchTriedAt?.getTime() ?? 0,
+        placePending: row.placePending,
       })),
-    ].sort((left, right) => right.at - left.at);
-    if (all.length === 0) {
-      return [];
+    ];
+    const toPlace = all.filter((entry) => entry.placePending);
+    const rest = all.filter((entry) => !entry.placePending);
+    if (rest.length === 0) {
+      return { toLookUp: [], toPlace };
     }
     // Linked by the library index: not looked up (Identify would skip them anyway).
     const linked = new Set(
       (
         await this.prisma.librarySceneIndex.findMany({
           where: {
-            stashSceneId: { in: all.map((entry) => entry.sceneId) },
+            stashSceneId: { in: rest.map((entry) => entry.sceneId) },
             linkedStashId: { not: null },
           },
           select: { stashSceneId: true },
         })
       ).map((row) => row.stashSceneId),
     );
-    const seen = new Set<string>();
-    return all
+    const seen = new Set(toPlace.map((entry) => entry.sceneId));
+    const toLookUp = rest
+      .filter((entry) => !linked.has(entry.sceneId))
+      .sort((left, right) => left.triedAt - right.triedAt || right.at - left.at)
       .filter((entry) => {
-        if (linked.has(entry.sceneId) || seen.has(entry.sceneId)) {
+        if (seen.has(entry.sceneId)) {
           return false;
         }
         seen.add(entry.sceneId);
         return true;
       })
-      .slice(0, REMATCH_PER_RUN)
-      .map(({ at: _at, ...entry }) => entry);
+      .slice(0, REMATCH_PER_RUN);
+    return { toLookUp, toPlace };
   }
 
-  /** Where the file is now, so the Downloads page shows it. */
-  private async remember(entry: Unmatched, finalPath: string): Promise<void> {
-    const update = { where: { id: entry.id }, data: { finalPath } };
+  private async save(
+    entry: Entry,
+    data: {
+      rematchTriedAt?: Date;
+      placePending?: boolean;
+      finalPath?: string;
+    },
+  ): Promise<void> {
+    const update = { where: { id: entry.id }, data };
     await (
       entry.kind === 'drop-in'
         ? this.prisma.downloadDropIn.update(update)
         : this.prisma.downloadHandoff.update(update)
     ).catch((error: unknown) =>
-      this.logger.debug(
-        `Couldn't note where “${entry.name}” went: ${messageOf(error)}`,
+      this.logger.warn(
+        `Couldn't note the later look at “${entry.name}”: ${messageOf(error)}`,
       ),
     );
   }
