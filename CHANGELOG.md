@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.7.4](https://github.com/mrnogood356/stashboard/compare/v1.7.3...v1.7.4) (2026-11-25)
+
+
+### New
+
+* **Better copies: choose a release yourself.** Recent scenes, and tried ones that failed, were kept alongside or were removed, have a **Choose a release** button. It lists what Prowlarr finds for the scene, lets you search your own way, and says why your rules would skip each one. **Replace with this** sends your pick to SABnzbd as the scene's replacement. ([#120](https://github.com/mrnogood356/stashboard/pull/120))
+* **Downloads shows how each file you brought in was matched:** by its fingerprint, by its name, from Whisparr, or on a later look. One that's **Not matched yet** has **Find a match**, which opens the scene's edit sheet with Fill from StashDB. A likely match has **Check it**. ([#120](https://github.com/mrnogood356/stashboard/pull/120))
+* **Search says where each result is from.** A switch for Everywhere, My library or StashDB. Quick search groups results as "In your library" and "On StashDB", and **See all** is always there. ([#119](https://github.com/mrnogood356/stashboard/pull/119))
+* **Files you drop in are matched by their name too,** when the name, date and length agree. Ones not matched yet are looked up again each day for two weeks, and put in their folder, named by your rename pattern, once matched. ([#119](https://github.com/mrnogood356/stashboard/pull/119))
+
+
+### Faster
+
+* **StashDB pages load faster.** An answer is reused for three minutes, and anything you change there (a follow or favourite) clears it straight away. ([#120](https://github.com/mrnogood356/stashboard/pull/120))
+
+
+### Fixed
+
+* **Better copies:** "Check only the failed" now checks the scenes in the Failed list. ([#116](https://github.com/mrnogood356/stashboard/pull/116))
+* **Better copies:** only one replacement is sent per scene, whether you choose it, grab a listed match or the background search finds one. A release that failed before can't be sent again under another name, and a replacement never goes through Prowlarr. ([#120](https://github.com/mrnogood356/stashboard/pull/120))
+* **Better copies:** the background search leaves a scene alone while its replacement is downloading, so its record isn't written over. ([#120](https://github.com/mrnogood356/stashboard/pull/120))
+* **Drop-ins:** a file matched later, or by you, is still put in its folder, even when that's interrupted or many newer files have come in since. Its match note is kept through each step. ([#119](https://github.com/mrnogood356/stashboard/pull/119), [#120](https://github.com/mrnogood356/stashboard/pull/120))
+* **Find a match** opens Edit for the scene it's for, even when you were on another scene. It won't open when you've already left, or for a scene you moved away from before it loaded. ([#120](https://github.com/mrnogood356/stashboard/pull/120))
+
+
 ## [1.7.3](https://github.com/mrnogood356/stashboard/compare/v1.7.2...v1.7.3) (2026-11-21)
 
 
