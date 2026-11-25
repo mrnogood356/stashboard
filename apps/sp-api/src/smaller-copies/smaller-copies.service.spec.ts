@@ -386,9 +386,40 @@ describe('SmallerCopiesService', () => {
     await service.tick();
     expect(downloads.searchReleases).not.toHaveBeenCalled();
 
-    prisma.downloadHandoff.count.mockResolvedValue(1);
+    // One coming in, for another scene than the one searched.
+    prisma.downloadHandoff.count.mockImplementation(
+      ({ where }: { where: { replacesStashSceneId?: unknown } }) =>
+        Promise.resolve(typeof where.replacesStashSceneId === 'string' ? 0 : 1),
+    );
     await service.tick();
     expect(downloads.searchReleases).toHaveBeenCalledTimes(1);
+  });
+
+  it('doesn’t send a replacement in the background for a scene you’re replacing', async () => {
+    // Scene 2 is the one the background search would pick.
+    files = [file('2', { size: 9e9 })];
+    // You chose a release for scene 2; it's still being sent.
+    let finish: () => void = () => undefined;
+    downloads.grabRelease.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () =>
+            resolve({ accepted: true, sentTo: 'sabnzbd', handoffId: 'h9' });
+        }),
+    );
+    const chosen = service.grabChosen('2', {
+      guid: 'big',
+      indexerId: 3,
+      title: 'Studio.Scene.1080p',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    await service.tick(true);
+    finish();
+    await chosen;
+    // Only yours was sent.
+    expect(downloads.grabRelease).toHaveBeenCalledTimes(1);
+    await expect(service.grabListed('2')).rejects.toThrow();
   });
 
   it('Search now still searches while Stash is busy, and says why when it can’t', async () => {

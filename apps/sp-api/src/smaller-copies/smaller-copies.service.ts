@@ -162,6 +162,14 @@ type Note = Pick<SmallerCopyAttempt, 'title' | 'outcome' | 'retryAfter'> &
 /** How long a new scene's file count is trusted for the Tried list (the page asks every 30s). */
 const FILE_COUNT_TTL = 60 * 1000;
 
+const ON_ITS_WAY = 'A replacement for this scene is already on its way.';
+
+function refuseBusy(): never {
+  throw new ConflictException(
+    'A replacement for this scene is already being sent.',
+  );
+}
+
 @Injectable()
 export class SmallerCopiesService {
   private readonly logger = new Logger(SmallerCopiesService.name);
@@ -734,20 +742,43 @@ export class SmallerCopiesService {
     stashSceneId: string,
     release: { guid: string; indexerId: number; title: string; size?: number },
   ): Promise<SmallerCopiesDto> {
-    // One at a time per scene, from the check until it's in Finished
-    // downloads: two taps at once can't both send a replacement.
+    await this.holdScene(stashSceneId, refuseBusy, () =>
+      this.sendChosen(stashSceneId, release),
+    );
+    return this.status();
+  }
+
+  /**
+   * One replacement at a time per scene, from its checks until it's in
+   * Finished downloads: you choosing, you grabbing a listed match and the
+   * background search can't both send one. A scene already held gets
+   * busy() instead.
+   */
+  private async holdScene<T>(
+    stashSceneId: string,
+    busy: () => T,
+    work: () => Promise<T>,
+  ): Promise<T> {
     if (this.choosing.has(stashSceneId)) {
-      throw new ConflictException(
-        'A replacement for this scene is already being sent.',
-      );
+      return busy();
     }
     this.choosing.add(stashSceneId);
     try {
-      await this.sendChosen(stashSceneId, release);
+      return await work();
     } finally {
       this.choosing.delete(stashSceneId);
     }
-    return this.status();
+  }
+
+  /** A replacement for this scene sent and not yet in the library. */
+  private async replacementOnTheWay(stashSceneId: string): Promise<boolean> {
+    const open = await this.prisma.downloadHandoff.count({
+      where: {
+        replacesStashSceneId: stashSceneId,
+        status: { in: OPEN_HANDOFF_STATUSES },
+      },
+    });
+    return open > 0;
   }
 
   private async sendChosen(
@@ -776,16 +807,8 @@ export class SmallerCopiesService {
         `SABnzbd couldn’t download that release before (${failed}), so it wasn’t sent again. Pick another.`,
       );
     }
-    const onTheWay = await this.prisma.downloadHandoff.count({
-      where: {
-        replacesStashSceneId: stashSceneId,
-        status: { in: OPEN_HANDOFF_STATUSES },
-      },
-    });
-    if (onTheWay > 0) {
-      throw new ConflictException(
-        'A replacement for this scene is already on its way.',
-      );
+    if (await this.replacementOnTheWay(stashSceneId)) {
+      throw new ConflictException(ON_ITS_WAY);
     }
     const sent = await this.downloads.grabRelease(
       catalogId,
@@ -835,6 +858,12 @@ export class SmallerCopiesService {
 
   /** Grabs a match that was listed for you (when grabbing by itself is off). */
   async grabListed(stashSceneId: string): Promise<SmallerCopiesDto> {
+    return this.holdScene(stashSceneId, refuseBusy, () =>
+      this.grabListedNow(stashSceneId),
+    );
+  }
+
+  private async grabListedNow(stashSceneId: string): Promise<SmallerCopiesDto> {
     const row = await this.prisma.smallerCopyAttempt.findUnique({
       where: { stashSceneId },
     });
@@ -888,6 +917,9 @@ export class SmallerCopiesService {
       throw new BadRequestException(
         `SABnzbd couldn’t download that release before (${failedBefore}), so it wasn’t sent again. It’ll look for another.`,
       );
+    }
+    if (await this.replacementOnTheWay(stashSceneId)) {
+      throw new ConflictException(ON_ITS_WAY);
     }
     const sent = await this.downloads.grabRelease(
       index.linkedStashId,
@@ -1020,6 +1052,18 @@ export class SmallerCopiesService {
     candidate: Candidate,
     settings: SmallerCopySettings,
   ): Promise<boolean> {
+    // Being replaced by you right now: left for a later pass.
+    return this.holdScene(
+      candidate.file.sceneId,
+      () => false,
+      () => this.tryOneNow(candidate, settings),
+    );
+  }
+
+  private async tryOneNow(
+    candidate: Candidate,
+    settings: SmallerCopySettings,
+  ): Promise<boolean> {
     const { file, reason } = candidate;
     const rules = rulesOf(settings);
     const index = await this.prisma.librarySceneIndex
@@ -1102,6 +1146,10 @@ export class SmallerCopiesService {
           retryAfter: new Date(this.now() + LONG_WAIT),
         });
         return true;
+      }
+      // Sent since this pass began (by you): not sent twice.
+      if (await this.replacementOnTheWay(file.sceneId)) {
+        return false;
       }
       const sent = await this.downloads.grabRelease(
         catalogId,

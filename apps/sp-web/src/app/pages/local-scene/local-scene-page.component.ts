@@ -138,7 +138,10 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
     this.subscription = combineLatest([this.route.paramMap, this.route.queryParamMap]).subscribe(
       ([params, query]) => {
         this.applyReturnTo(query.get('returnTo'));
-        const sceneId = params.get('sceneId')?.trim() ?? '';
+        // The snapshot is current when either emits: on a move to another
+        // scene, the new query arrives before the new path, and mustn't be
+        // taken for the old scene's.
+        const sceneId = (this.route.snapshot?.paramMap ?? params).get('sceneId')?.trim() ?? '';
         // From Downloads' "Find a match": the edit sheet, with Fill from StashDB.
         // Kept until that scene is in (dropping edit=1 doesn't cancel it).
         if (query.get('edit') === '1' && sceneId) {

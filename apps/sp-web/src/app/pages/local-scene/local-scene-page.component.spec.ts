@@ -57,6 +57,14 @@ describe('LocalScenePageComponent', () => {
   };
   const diagnosticsApi = { catalogScene: vi.fn(), localScene: vi.fn() };
 
+  let route: {
+    paramMap: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+    queryParamMap: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+    snapshot: { readonly paramMap: ReturnType<typeof convertToParamMap> };
+  };
+  /** A path the router has moved to before telling its subscribers. */
+  let ahead: ReturnType<typeof convertToParamMap> | null = null;
+
   async function render(
     getSceneDetails: ReturnType<typeof vi.fn>,
     queryParams: Record<string, string> = { returnTo: '/home' },
@@ -77,6 +85,16 @@ describe('LocalScenePageComponent', () => {
     };
     const params = new BehaviorSubject(convertToParamMap({ sceneId: '12' }));
     const query = new BehaviorSubject(convertToParamMap(queryParams));
+    // Like the router: the snapshot moves first, then query, then path.
+    route = {
+      paramMap: params,
+      queryParamMap: query,
+      snapshot: {
+        get paramMap() {
+          return ahead ?? params.value;
+        },
+      },
+    };
     await TestBed.configureTestingModule({
       imports: [LocalScenePageComponent],
       providers: [
@@ -92,14 +110,14 @@ describe('LocalScenePageComponent', () => {
           },
         },
         { provide: DiagnosticsApiService, useValue: diagnosticsApi },
-        { provide: ActivatedRoute, useValue: { paramMap: params, queryParamMap: query } },
+        { provide: ActivatedRoute, useValue: route },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(LocalScenePageComponent);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
-    return { fixture, root: fixture.nativeElement as HTMLElement, params };
+    return { fixture, root: fixture.nativeElement as HTMLElement, params, query };
   }
 
   it('shows the scene with a Play button that opens the built-in player', async () => {
@@ -147,6 +165,34 @@ describe('LocalScenePageComponent', () => {
     fixture.destroy();
     answer.next(sceneDetails());
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('opens Edit for the scene the link is for, not the one you were on', async () => {
+    const next = new Subject<ReturnType<typeof sceneDetails>>();
+    const getSceneDetails = vi
+      .fn()
+      .mockImplementation((id: string) => (id === '12' ? of(sceneDetails()) : next));
+    const { fixture, params, query } = await render(getSceneDetails, {});
+    const page = fixture.componentInstance as unknown as {
+      editing: () => boolean;
+      openEditFromLink: () => void;
+    };
+    const opened = vi.spyOn(page, 'openEditFromLink');
+
+    // Scene 12 → scene 13 with edit=1, in the router's order.
+    const to = convertToParamMap({ sceneId: '13' });
+    ahead = to;
+    query.next(convertToParamMap({ edit: '1' }));
+    params.next(to);
+    ahead = null;
+    fixture.detectChanges();
+    expect(opened).not.toHaveBeenCalled();
+    expect(page.editing()).toBe(false);
+
+    next.next(sceneDetails({ id: '13' }));
+    fixture.detectChanges();
+    expect(opened).toHaveBeenCalledTimes(1);
+    expect(page.editing()).toBe(true);
   });
 
   it('opens Edit, and shows what Stash saved from it', async () => {
