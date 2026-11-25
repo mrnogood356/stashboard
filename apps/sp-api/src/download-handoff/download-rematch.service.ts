@@ -112,15 +112,20 @@ export class DownloadRematchService {
       const matched = new Set([...result.linked, ...result.matched]);
       matchedCount = matched.size;
       proposed = result.proposed.length;
+      const unmatched = new Set(result.left);
       for (const entry of toLookUp) {
-        const isMatched = matched.has(entry.sceneId);
+        // Only one the look-up says is still unmatched is unmarked. Matched
+        // ones, and one linked meanwhile some other way (the look-up skips
+        // those), stay marked and are placed below.
+        const stillUnmatched = unmatched.has(entry.sceneId);
         await this.save(entry, {
           rematchTriedAt: new Date(this.now()),
-          // Matched ones stay marked until placed (below).
-          placePending: isMatched,
+          placePending: !stillUnmatched,
         });
-        if (isMatched) {
+        if (!stillUnmatched) {
           toPlace.push({ ...entry, placePending: true });
+        }
+        if (matched.has(entry.sceneId)) {
           this.logger.log(
             `Matched “${entry.name}” (Stash scene ${entry.sceneId}) on a later look.`,
           );

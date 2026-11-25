@@ -192,6 +192,26 @@ describe('DownloadRematchService', () => {
     expect(downloads.rows[0].placePending).toBe(false);
   });
 
+  it('places one linked meanwhile some other way, which the look-up skips', async () => {
+    // Scene 11 was linked by another path; the look-up skips it entirely.
+    organizer.identifyNewScenes.mockResolvedValue({
+      linked: [],
+      matched: [],
+      proposed: [],
+      byName: [],
+      left: ['13'],
+    });
+    await service.run();
+    expect(handoff.placeInFolder).toHaveBeenCalledWith(
+      '11',
+      '/lib/in/Studio.24.03.15.Jane.Doe.mp4',
+    );
+    expect(dropIns.rows[0].placePending).toBe(false);
+    // 13 is still unmatched: unmarked, not placed.
+    expect(downloads.rows[0].placePending).toBe(false);
+    expect(handoff.placeInFolder).toHaveBeenCalledTimes(1);
+  });
+
   it('looks up only the ones it could mark first', async () => {
     downloads.update.mockRejectedValueOnce(new Error('database busy'));
     await service.run();
