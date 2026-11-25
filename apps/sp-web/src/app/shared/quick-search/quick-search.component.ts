@@ -24,12 +24,14 @@ import { LibraryService } from '../../core/api/library.service';
 import { LocalLibraryService } from '../../core/api/local-library.service';
 import { PlaybackSettingsService } from '../../core/playback/playback-settings.service';
 import { HideOwnedService } from '../../core/preferences/hide-owned.service';
+import { CatalogBrowseService } from '../../core/catalog/catalog-browse.service';
 import { QuickItem, isEditable, matchPages, startPages } from './quick-search.model';
 import {
   PersonResult,
   addFound,
-  mergePerformers,
-  mergeStudios,
+  catalogPerformers,
+  catalogStudios,
+  libraryPeople,
   missedNames,
 } from '../../pages/search/search-merge';
 
@@ -42,14 +44,13 @@ interface QuickGroup {
   items: QuickItem[];
 }
 
+/** What was found, by where it's from: your library, or the catalog. */
 interface Found {
   library: QuickItem[];
-  performers: QuickItem[];
-  studios: QuickItem[];
   catalog: QuickItem[];
 }
 
-const NOTHING: Found = { library: [], performers: [], studios: [], catalog: [] };
+const NOTHING: Found = { library: [], catalog: [] };
 
 /**
  * Search everything from anywhere: Ctrl+K (⌘K on a Mac), or "/" when you're
@@ -71,6 +72,7 @@ export class QuickSearchComponent implements OnInit {
   private readonly discover = inject(DiscoverService);
   private readonly playback = inject(PlaybackSettingsService);
   private readonly hideOwned = inject(HideOwnedService);
+  private readonly browse = inject(CatalogBrowseService);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly input = viewChild<ElementRef<HTMLInputElement>>('input');
@@ -105,10 +107,8 @@ export class QuickSearchComponent implements OnInit {
     const found = this.found();
     return [
       { title: 'Pages', items: matchPages(query, feed) },
-      { title: 'Your library', items: found.library },
-      { title: 'Performers', items: found.performers },
-      { title: 'Studios', items: found.studios },
-      { title: 'From the catalog', items: found.catalog },
+      { title: 'In your library', items: found.library },
+      { title: `On ${this.browse.instanceLabel()}`, items: found.catalog },
       {
         title: '',
         items: [
@@ -160,6 +160,7 @@ export class QuickSearchComponent implements OnInit {
     }
     this.returnFocus =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    this.browse.ensureLoaded();
     this.open.set(true);
     this.active.set(0);
     setTimeout(() => this.input()?.nativeElement.focus());
@@ -347,38 +348,48 @@ export class QuickSearchComponent implements OnInit {
         );
       }),
       map((result): Found => ({
-        library: (result.library?.items ?? []).map((scene) => ({
-          id: `library:${scene.id}`,
-          kind: 'library',
-          label: scene.title,
-          detail: [scene.studio, scene.performerNames.slice(0, 2).join(', ')]
-            .filter(Boolean)
-            .join(' · '),
-          imageUrl: scene.cardImageUrl ?? scene.imageUrl,
-          icon: 'pi-video',
-          url: `/library/scene/${encodeURIComponent(scene.id)}`,
-        })),
-        // Library and catalog together, each once (as on Search).
-        performers: mergePerformers(
-          result.local.performers,
-          result.catalogPerformers?.items ?? [],
-          value,
-        )
-          .slice(0, 4)
-          .map((person) => peopleItem(person, 'performer', 'pi-user')),
-        studios: mergeStudios(result.local.studios, result.catalogStudios?.items ?? [], value)
-          .slice(0, 4)
-          .map((studio) => peopleItem(studio, 'studio', 'pi-building')),
-        // "Hide ones I have" applies here too, as on Scenes and Search.
-        catalog: this.hideOwned.filter(result.catalog?.items ?? []).map((scene) => ({
-          id: `catalog:${scene.id}`,
-          kind: 'catalog',
-          label: scene.title,
-          detail: [scene.studio, scene.releaseDate?.slice(0, 4)].filter(Boolean).join(' · '),
-          imageUrl: scene.cardImageUrl ?? scene.imageUrl,
-          icon: 'pi-video',
-          url: `/scene/${encodeURIComponent(scene.id)}`,
-        })),
+        // Each source on its own, so it's clear which page a row opens.
+        library: [
+          ...libraryPeople(result.local.performers, 'performer', value)
+            .slice(0, 3)
+            .map((person) => peopleItem(person, 'pi-user')),
+          ...libraryPeople(result.local.studios, 'studio', value)
+            .slice(0, 3)
+            .map((studio) => peopleItem(studio, 'pi-building')),
+          ...(result.library?.items ?? []).map((scene): QuickItem => ({
+            id: `library:${scene.id}`,
+            kind: 'library',
+            label: scene.title,
+            detail: [scene.studio, scene.performerNames.slice(0, 2).join(', ')]
+              .filter(Boolean)
+              .join(' · '),
+            imageUrl: scene.cardImageUrl ?? scene.imageUrl,
+            icon: 'pi-video',
+            url: `/library/scene/${encodeURIComponent(scene.id)}`,
+          })),
+        ],
+        catalog: [
+          ...catalogPerformers(
+            result.local.performers,
+            result.catalogPerformers?.items ?? [],
+            value,
+          )
+            .slice(0, 3)
+            .map((person) => peopleItem(person, 'pi-user')),
+          ...catalogStudios(result.local.studios, result.catalogStudios?.items ?? [], value)
+            .slice(0, 3)
+            .map((studio) => peopleItem(studio, 'pi-building')),
+          // "Hide ones I have" applies here too, as on Scenes and Search.
+          ...this.hideOwned.filter(result.catalog?.items ?? []).map((scene): QuickItem => ({
+            id: `catalog:${scene.id}`,
+            kind: 'catalog',
+            label: scene.title,
+            detail: [scene.studio, scene.releaseDate?.slice(0, 4)].filter(Boolean).join(' · '),
+            imageUrl: scene.cardImageUrl ?? scene.imageUrl,
+            icon: 'pi-video',
+            url: `/scene/${encodeURIComponent(scene.id)}`,
+          })),
+        ],
       })),
     );
   }
@@ -394,17 +405,25 @@ export function withSearchReturn(item: QuickItem, query: string): string {
   return `${item.url}${item.url.includes('?') ? '&' : '?'}returnTo=${encodeURIComponent(returnTo)}`;
 }
 
-function peopleItem(person: PersonResult, kind: 'performer' | 'studio', icon: string): QuickItem {
+/**
+ * A performer or studio row: "Performer · 12 scenes"; a catalog one also
+ * says when you have them.
+ */
+function peopleItem(person: PersonResult, icon: string): QuickItem {
+  const kind = person.kind;
+  const fromLibrary = person.key.startsWith('library:');
+  const count = fromLibrary ? person.libraryScenes : person.catalogScenes;
   return {
     id: `${kind}:${person.key}`,
     kind,
     label: person.name,
-    detail:
-      person.libraryScenes !== null
-        ? `In your library · ${sceneCount(person.libraryScenes)}`
-        : person.catalogScenes !== null
-          ? `On the catalog · ${sceneCount(person.catalogScenes)}`
-          : 'On the catalog',
+    detail: [
+      kind === 'studio' ? 'Studio' : 'Performer',
+      count !== null ? sceneCount(count) : null,
+      !fromLibrary && person.libraryScenes !== null ? 'in your library' : null,
+    ]
+      .filter(Boolean)
+      .join(' · '),
     imageUrl: person.imageUrl,
     icon,
     url: person.link.map((part) => encodeURIComponent(part).replace(/%2F/g, '/')).join('/'),

@@ -9,6 +9,7 @@ import { DownloadHandoffController } from './download-handoff.controller';
 import { DownloadHandoffService } from './download-handoff.service';
 import { DownloadProcessingController } from './download-processing.controller';
 import { DownloadProcessingService } from './download-processing.service';
+import { DownloadRematchService } from './download-rematch.service';
 
 /** Finished downloads: SABnzbd → your Stash library, linked and renamed. */
 @Module({
@@ -24,6 +25,7 @@ import { DownloadProcessingService } from './download-processing.service';
     DownloadHandoffService,
     DownloadDropInService,
     DownloadProcessingService,
+    DownloadRematchService,
   ],
   exports: [DownloadHandoffService],
 })

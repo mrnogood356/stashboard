@@ -40,6 +40,7 @@ import {
   CANDIDATE_TTL_MS,
   IDLE_RUN,
   LOOKUP_LIMIT,
+  MAX_NAME_SEARCHES,
   MAX_BACKLOG,
   MAX_CACHED_CANDIDATES,
   PAGE_SIZE,
@@ -66,6 +67,7 @@ import {
   looksTheSame,
   messageOf,
   listDetail,
+  isSureByName,
   pickSure,
   whisparrExtraCopies,
 } from './organizer-plan.util';
@@ -175,7 +177,12 @@ export class OrganizerService
         ids.map((id) => this.stash.getOrganizerScene(context.config, id)),
       )
     ).filter((scene): scene is StashOrganizerScene => scene !== null);
-    return this.findMatches(context, scenes, query?.trim() || undefined);
+    const results = await this.findMatches(
+      context,
+      scenes,
+      query?.trim() || undefined,
+    );
+    return results.map(({ sure: _sure, ...result }) => result);
   }
 
   /** Fills in a scene from the chosen StashDB match, then renames it if that's switched on. */
@@ -776,11 +783,16 @@ export class OrganizerService
    * other stash-boxes. Fingerprint matches win; otherwise the file name is
    * searched everywhere and the results are scored together.
    */
+  /**
+   * Each scene's best catalog matches (the first six), and the sure one if
+   * any, judged against all of them: a close rival from the same site
+   * that didn't make the six still keeps a name match from being sure.
+   */
   private async findMatches(
     context: Context,
     scenes: StashOrganizerScene[],
     query?: string,
-  ): Promise<SceneMatchesDto[]> {
+  ): Promise<Array<SceneMatchesDto & { sure: MatchCandidateDto | null }>> {
     const groups = query
       ? scenes.map(() => [])
       : scenes.map((scene) => fingerprintGroup(scene.files));
@@ -816,7 +828,8 @@ export class OrganizerService
       }
     }
 
-    const results: SceneMatchesDto[] = [];
+    const results: Array<SceneMatchesDto & { sure: MatchCandidateDto | null }> =
+      [];
     for (const [index, scene] of scenes.entries()) {
       const file = scene.files[0] ?? null;
       const duration = file?.duration ?? null;
@@ -860,35 +873,45 @@ export class OrganizerService
               tokens: [...new Set([...typed.tokens, ...fromFile.tokens])],
               date: typed.date ?? fromFile.date,
               compact: `${typed.compact} ${fromFile.compact}`,
+              // Your own words are searched as you typed them, nothing else.
+              alternatives: [],
             }
           : fromFile;
         searchedFor = parsed.text || null;
         if (parsed.text) {
+          // The whole name first, then other ways of putting it (see
+          // alternatives), until one finds a strong match: a long name
+          // full of extras often finds nothing, or the wrong scene.
+          const searches = [parsed.text, ...parsed.alternatives].slice(
+            0,
+            MAX_NAME_SEARCHES,
+          );
           for (const source of context.sources) {
-            let found = await this.stashdb
-              .searchScenesByText(source.api, parsed.text, 8, source.primary)
-              .catch(() => [] as StashdbMatchScene[]);
-            if (found.length === 0 && parsed.tokens.length > 4) {
-              await this.pause(250);
-              found = await this.stashdb
-                .searchScenesByText(
-                  source.api,
-                  parsed.tokens.slice(0, 4).join(' '),
-                  8,
-                  source.primary,
-                )
+            const seen = new Set<string>();
+            for (const words of searches) {
+              const found = await this.stashdb
+                .searchScenesByText(source.api, words, 8, source.primary)
                 .catch(() => [] as StashdbMatchScene[]);
-            }
-            await this.pause(250);
-            for (const match of found) {
-              pool.set(candidateId(source, match), { scene: match, source });
-              candidates.push(
-                this.toCandidate(
+              await this.pause(250);
+              let strong = false;
+              for (const match of found) {
+                const id = candidateId(source, match);
+                if (seen.has(id)) {
+                  continue;
+                }
+                seen.add(id);
+                pool.set(id, { scene: match, source });
+                const candidate = this.toCandidate(
                   match,
                   source,
                   scoreByName(parsed, duration, match),
-                ),
-              );
+                );
+                strong ||= candidate.confidence === 'strong';
+                candidates.push(candidate);
+              }
+              if (strong) {
+                break;
+              }
             }
           }
         }
@@ -913,7 +936,13 @@ export class OrganizerService
           this.remember(scene.id, candidate.id, entry.scene, entry.source);
         }
       }
-      results.push({ sceneId: scene.id, searchedFor, candidates: top });
+      results.push({
+        sceneId: scene.id,
+        searchedFor,
+        candidates: top,
+        // The surest is first, so it's among the six remembered above.
+        sure: pickSure(candidates),
+      });
     }
     return results;
   }
@@ -1094,17 +1123,31 @@ export class OrganizerService
    * likely name match joins the found-matches list for you to check. Scenes
    * already linked to the catalog are left alone.
    */
-  async identifyNewScenes(sceneIds: string[]): Promise<{
+  async identifyNewScenes(
+    sceneIds: string[],
+    options: {
+      /**
+       * Also save a sure match by name: the title or the date, and the
+       * length, agree, and nothing from the same site comes close. For
+       * files you brought in yourself (drop-ins), whose names usually say
+       * which scene they are.
+       */
+      trustNames?: boolean;
+    } = {},
+  ): Promise<{
     linked: string[];
     matched: string[];
     /** Found a likely match, waiting for you to check it. */
     proposed: string[];
+    /** Of the matched, those saved by their name (see trustNames), not a fingerprint. */
+    byName: string[];
     left: string[];
   }> {
     const done = {
       linked: [] as string[],
       matched: [] as string[],
       proposed: [] as string[],
+      byName: [] as string[],
     };
     if (sceneIds.length === 0) {
       return { ...done, left: [] };
@@ -1137,14 +1180,19 @@ export class OrganizerService
       const results = await this.findMatches(context, chunk).catch(
         (error: unknown) => {
           this.logger.warn(`Match lookup failed: ${messageOf(error)}`);
-          return [] as SceneMatchesDto[];
+          return [];
         },
       );
       for (const result of results) {
-        // Only the same video fingerprint is saved unseen; a name match
-        // waits in the found-matches list for you to check.
-        const sure = pickSure(result.candidates);
-        const pick = sure?.confidence === 'exact' ? sure : null;
+        // The same video fingerprint is saved unseen; a name match only when
+        // asked to and it's sure (see trustNames). Others wait in the
+        // found-matches list for you to check.
+        const sure = result.sure;
+        const pick =
+          sure?.confidence === 'exact' ||
+          (options.trustNames && sure && isSureByName(sure))
+            ? sure
+            : null;
         const scene = chunk.find((entry) => entry.id === result.sceneId);
         const best = result.candidates[0];
         if (scene && !pick && best && best.confidence !== 'weak') {
@@ -1161,6 +1209,9 @@ export class OrganizerService
         try {
           await this.applyMatch(context, scene, cached.scene, cached.source);
           done.matched.push(scene.id);
+          if (pick?.confidence !== 'exact') {
+            done.byName.push(scene.id);
+          }
         } catch (error) {
           this.logger.warn(
             `Couldn't save match for scene ${scene.id}: ${messageOf(error)}`,
@@ -1173,7 +1224,7 @@ export class OrganizerService
       this.scheduleRefresh();
     }
     this.logger.log(
-      `Identified new scenes: ${sceneIds.length} checked, ${done.linked.length} linked from Whisparr, ${done.matched.length} matched by fingerprint, ${done.proposed.length} waiting for you to check, ${alreadyLinked.size} already linked.`,
+      `Identified new scenes: ${sceneIds.length} checked, ${done.linked.length} linked from Whisparr, ${done.matched.length - done.byName.length} matched by fingerprint, ${done.byName.length} by name, ${done.proposed.length} waiting for you to check, ${alreadyLinked.size} already linked.`,
     );
     const identified = new Set([...done.linked, ...done.matched]);
     return {

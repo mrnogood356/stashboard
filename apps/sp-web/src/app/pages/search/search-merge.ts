@@ -1,18 +1,13 @@
-import {
-  PerformerFeedItem,
-  SceneExplorerItem,
-  StudioFeedItem,
-} from '../../core/api/discover.types';
-import { LibrarySceneItem } from '../../core/api/library.types';
+import { PerformerFeedItem, StudioFeedItem } from '../../core/api/discover.types';
 import { LocalSearchResults } from '../../core/api/local-library.service';
 
-/** A performer or studio, once, whether it's in your library, the catalog or both. */
+/** A performer or studio from one source: your library or the catalog. */
 export interface PersonResult {
   key: string;
   kind: 'performer' | 'studio';
   name: string;
   imageUrl: string | null;
-  /** The catalog page (StashDB/FansDB) when it's on the catalog, else your library's. */
+  /** Its page: on the catalog (StashDB/FansDB) for a catalog entry, else in your library. */
   link: string[];
   /** In your library, with this many scenes there. */
   libraryScenes: number | null;
@@ -22,10 +17,6 @@ export interface PersonResult {
   /** Its name is exactly what you searched for. */
   exact: boolean;
 }
-
-/** A scene once: the catalog's card (marked when you own it), or your library's when the catalog doesn't have it. */
-export type SceneResult =
-  { from: 'catalog'; item: SceneExplorerItem } | { from: 'library'; item: LibrarySceneItem };
 
 type LocalPerformer = LocalSearchResults['performers'][number];
 type LocalStudio = LocalSearchResults['studios'][number];
@@ -40,110 +31,81 @@ export function nameKey(name: string): string {
 }
 
 /**
- * Library and catalog performers as one list: someone you have is matched
- * to their catalog entry by its id (or, failing that, the same name) and
- * listed once. An exact name match comes first, then ones you have.
+ * Catalog performers, in the catalog's order (an exact name first), each
+ * marked with how many scenes you have of them: matched to your library by
+ * its catalog id, or failing that the same name.
  */
-export function mergePerformers(
+export function catalogPerformers(
   local: LocalPerformer[],
   catalog: PerformerFeedItem[],
   query: string,
 ): PersonResult[] {
-  const { matches, used } = matchLocal(local, catalog);
-  const results: PersonResult[] = catalog.map((performer, index) => {
-    const mine = matches[index];
-    return {
-      key: `catalog:${performer.id}`,
-      kind: 'performer',
-      name: performer.name,
-      imageUrl: performer.cardImageUrl ?? performer.imageUrl ?? mine?.imageUrl ?? null,
-      link: ['/performer', performer.id],
-      libraryScenes: mine ? mine.sceneCount : null,
-      catalogScenes: performer.sceneCount,
-      favorite: performer.isFavorite || (mine?.favorite ?? false),
-      exact: false,
-    };
-  });
-  for (const performer of local) {
-    if (!used.has(performer.id)) {
-      results.push({
-        key: `library:${performer.id}`,
-        kind: 'performer',
+  const { matches } = matchLocal(local, catalog);
+  return ranked(
+    catalog.map((performer, index) => {
+      const mine = matches[index];
+      return {
+        key: `catalog:${performer.id}`,
+        kind: 'performer' as const,
         name: performer.name,
-        imageUrl: performer.imageUrl,
-        link: ['/library/performer', performer.id],
-        libraryScenes: performer.sceneCount,
-        catalogScenes: null,
-        favorite: performer.favorite,
+        imageUrl: performer.cardImageUrl ?? performer.imageUrl ?? mine?.imageUrl ?? null,
+        link: ['/performer', performer.id],
+        libraryScenes: mine ? mine.sceneCount : null,
+        catalogScenes: performer.sceneCount,
+        favorite: performer.isFavorite || (mine?.favorite ?? false),
         exact: false,
-      });
-    }
-  }
-  return ranked(results, query);
+      };
+    }),
+    query,
+  );
 }
 
-/** The same for studios. */
-export function mergeStudios(
+/** The same for catalog studios. */
+export function catalogStudios(
   local: LocalStudio[],
   catalog: StudioFeedItem[],
   query: string,
 ): PersonResult[] {
-  const { matches, used } = matchLocal(local, catalog);
-  const results: PersonResult[] = catalog.map((studio, index) => {
-    const mine = matches[index];
-    return {
-      key: `catalog:${studio.id}`,
-      kind: 'studio',
-      name: studio.name,
-      imageUrl: studio.cardImageUrl ?? studio.imageUrl ?? mine?.imageUrl ?? null,
-      link: ['/studio', studio.id],
-      libraryScenes: mine ? mine.sceneCount : null,
-      catalogScenes: null,
-      favorite: studio.isFavorite,
-      exact: false,
-    };
-  });
-  for (const studio of local) {
-    if (!used.has(studio.id)) {
-      results.push({
-        key: `library:${studio.id}`,
-        kind: 'studio',
+  const { matches } = matchLocal(local, catalog);
+  return ranked(
+    catalog.map((studio, index) => {
+      const mine = matches[index];
+      return {
+        key: `catalog:${studio.id}`,
+        kind: 'studio' as const,
         name: studio.name,
-        imageUrl: studio.imageUrl,
-        link: ['/library/studio', studio.id],
-        libraryScenes: studio.sceneCount,
+        imageUrl: studio.cardImageUrl ?? studio.imageUrl ?? mine?.imageUrl ?? null,
+        link: ['/studio', studio.id],
+        libraryScenes: mine ? mine.sceneCount : null,
         catalogScenes: null,
-        favorite: false,
+        favorite: studio.isFavorite,
         exact: false,
-      });
-    }
-  }
-  return ranked(results, query);
+      };
+    }),
+    query,
+  );
 }
 
-/**
- * Catalog and library scenes as one list: a library scene the catalog
- * results already have (you own it) isn't listed again; the rest of your
- * library's matches follow the catalog's.
- */
-export function mergeScenes(
-  catalog: SceneExplorerItem[],
-  library: LibrarySceneItem[],
-): SceneResult[] {
-  const catalogIds = new Set(catalog.map((scene) => scene.id));
-  const localIds = new Set(
-    catalog.flatMap((scene) => (scene.localSceneId ? [scene.localSceneId] : [])),
+/** Performers or studios in your library, each opening its library page; an exact name first. */
+export function libraryPeople(
+  local: Array<LocalPerformer | LocalStudio>,
+  kind: 'performer' | 'studio',
+  query: string,
+): PersonResult[] {
+  return ranked(
+    local.map((entry) => ({
+      key: `library:${entry.id}`,
+      kind,
+      name: entry.name,
+      imageUrl: entry.imageUrl,
+      link: [kind === 'performer' ? '/library/performer' : '/library/studio', entry.id],
+      libraryScenes: entry.sceneCount,
+      catalogScenes: null,
+      favorite: 'favorite' in entry ? entry.favorite : false,
+      exact: false,
+    })),
+    query,
   );
-  return [
-    ...catalog.map((item): SceneResult => ({ from: 'catalog', item })),
-    ...library
-      .filter(
-        (item) =>
-          !localIds.has(item.id) &&
-          !(item.activeCatalogSceneId && catalogIds.has(item.activeCatalogSceneId)),
-      )
-      .map((item): SceneResult => ({ from: 'library', item })),
-  ];
 }
 
 /**
@@ -181,7 +143,7 @@ function matchLocal<T extends { id: string; name: string; catalogIds?: string[] 
   return { matches, used };
 }
 
-/** Exact name first, then ones in your library; otherwise as the sources ranked them. */
+/** An exact name first; otherwise as the source ranked them. */
 function ranked(results: PersonResult[], query: string): PersonResult[] {
   const wanted = nameKey(query);
   return results
@@ -191,9 +153,7 @@ function ranked(results: PersonResult[], query: string): PersonResult[] {
     }))
     .sort(
       (left, right) =>
-        Number(right.result.exact) - Number(left.result.exact) ||
-        Number(right.result.libraryScenes !== null) - Number(left.result.libraryScenes !== null) ||
-        left.index - right.index,
+        Number(right.result.exact) - Number(left.result.exact) || left.index - right.index,
     )
     .map((entry) => entry.result);
 }

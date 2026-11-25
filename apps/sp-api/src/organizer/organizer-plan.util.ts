@@ -398,6 +398,22 @@ export function dedupeTargets(plans: RenamePlanDto[]): RenamePlanDto[] {
 }
 
 /** A sure enough match to save without asking. */
+/**
+ * A name match sure enough to save without asking: strong (the title or
+ * the date agree, see scoreByName) and the same length, give or take a
+ * few seconds. A cut or a different scene from the same day is longer
+ * or shorter.
+ */
+export function isSureByName(candidate: MatchCandidateDto): boolean {
+  return (
+    candidate.confidence === 'strong' &&
+    candidate.reasons.some(
+      (reason) =>
+        reason === 'Same length' || reason === 'Almost the same length',
+    )
+  );
+}
+
 export function pickSure(
   candidates: MatchCandidateDto[],
 ): MatchCandidateDto | null {

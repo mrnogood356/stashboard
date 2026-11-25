@@ -554,6 +554,10 @@ model DownloadHandoff {
   /// Tries at linking it once moved; gives up after a few.
   attempts             Int       @default(0)
   finishedAt           DateTime?
+  /// Unmatched when it came in: when it was last looked up again (see DownloadRematchService).
+  rematchTriedAt       DateTime?
+  /// Matched on a later look, but not yet put in its folder: tried again.
+  placePending         Boolean   @default(false)
   /// Cleared from Downloads by you. Kept, so it's never brought in twice.
   clearedAt            DateTime?
   createdAt            DateTime  @default(now())
@@ -568,24 +572,28 @@ model DownloadHandoff {
 /// downloads), brought into the library. Kept so a copied file isn't
 /// brought in twice.
 model DownloadDropIn {
-  id           String    @id @default(cuid())
+  id             String    @id @default(cuid())
   /// Where it was found, as Stashboard sees it.
-  sourcePath   String    @unique
+  sourcePath     String    @unique
   /// Its size when it was brought in; a different file at the same path is new.
-  size         BigInt
+  size           BigInt
   /// placed | imported | failed
-  status       String    @default("placed")
+  status         String    @default("placed")
   /// Where it went (as Stash and Stashboard see it).
-  finalPath    String?
-  stashSceneId String?
-  error        String?
+  finalPath      String?
+  stashSceneId   String?
+  error          String?
   /// Tries at having Stash pick it up; gives up after a few.
-  attempts     Int       @default(0)
-  finishedAt   DateTime?
+  attempts       Int       @default(0)
+  finishedAt     DateTime?
+  /// Unmatched when it came in: when it was last looked up again (see DownloadRematchService).
+  rematchTriedAt DateTime?
+  /// Matched on a later look, but not yet put in its folder: tried again.
+  placePending   Boolean   @default(false)
   /// Cleared from Downloads by you. Kept, so it's never brought in twice.
-  clearedAt    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  clearedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([status])
   @@index([createdAt])
@@ -664,13 +672,13 @@ model SuggestionDismissal {
 /// The release this server ran last, and the one before it: "What's new"
 /// covers the update for a browser that remembers no version of its own.
 model AppVersionState {
-  key             String   @id @default("GLOBAL")
-  lastVersion     String
-  previousVersion String?
+  key              String   @id @default("GLOBAL")
+  lastVersion      String
+  previousVersion  String?
   /// The newest release whose "What's new" was closed in any browser: shown
   /// once per update, even when a browser forgets (Safari clears its storage).
   notesSeenVersion String?
-  updatedAt       DateTime @updatedAt
+  updatedAt        DateTime @updatedAt
 }
 
 /// One check of a service Stashboard depends on, every 5 minutes, kept for
@@ -831,29 +839,29 @@ enum FollowKind {
 
 /// A performer or studio you follow: its new catalog scenes are looked for on a schedule.
 model Follow {
-  id            String          @id @default(cuid())
-  kind          FollowKind
+  id             String          @id @default(cuid())
+  kind           FollowKind
   /// The catalog it was followed on (STASHDB or FANSDB); only the main one is checked.
-  provider      String
-  entityId      String
-  name          String
-  imageUrl      String?
+  provider       String
+  entityId       String
+  name           String
+  imageUrl       String?
   /// Only scenes released on or after this day (YYYY-MM-DD).
-  since         String
+  since          String
   /// Send new scenes straight to Whisparr instead of listing them for review.
-  autoRequest   Boolean         @default(false)
+  autoRequest    Boolean         @default(false)
   /// Scenes released on or before this day (YYYY-MM-DD) are listed for review even when requesting automatically. Set on follows a restore adds: what was passed on before isn't in the backup.
-  reviewThrough String?
+  reviewThrough  String?
   /// Only scenes with at least one of these catalog tags: [{ id, name }]. Empty is every scene.
-  tags          Json            @default("[]")
-  lastCheckedAt DateTime?
+  tags           Json            @default("[]")
+  lastCheckedAt  DateTime?
   /// When a check last read all the way back to `since` with these tags; later checks only look back from shortly before it.
   fullyCheckedAt DateTime?
   /// Why the last check of this follow didn't work, when it didn't.
-  lastError     String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  scenes        FollowedScene[]
+  lastError      String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  scenes         FollowedScene[]
 
   @@unique([provider, kind, entityId])
 }

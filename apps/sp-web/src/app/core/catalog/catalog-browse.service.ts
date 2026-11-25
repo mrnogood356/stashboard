@@ -32,6 +32,14 @@ export class CatalogBrowseService {
 
   readonly options = computed(() => this.providers()?.available ?? []);
   readonly hasChoice = computed(() => this.options().length > 1);
+  /** The catalog requests and search go to; null until known. */
+  readonly instanceKey = computed(() => this.providers()?.instance ?? null);
+  /** The name of the catalog requests and search go to ("StashDB" until known). */
+  readonly instanceLabel = computed(() => {
+    const providers = this.providers();
+    const instance = providers?.available.find((option) => option.key === providers.instance);
+    return instance?.label ?? (providers?.instance === 'FANSDB' ? 'FansDB' : 'StashDB');
+  });
 
   /** The provider browse pages should use right now. */
   readonly selected = computed<CatalogProviderKey | null>(() => {

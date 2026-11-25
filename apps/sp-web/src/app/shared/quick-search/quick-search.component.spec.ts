@@ -127,8 +127,16 @@ describe('QuickSearchComponent', () => {
     const labels = [...fixture.nativeElement.querySelectorAll('.row .label')].map((row: Element) =>
       row.textContent?.trim(),
     );
-    // A studio only the catalog has is found too.
-    expect(labels).toEqual(['Golden Hour', 'Goldie', 'Gold Studio', 'See all results for “gold”']);
+    // Your library's first (people, then scenes), then the catalog's: each under its source.
+    expect(labels).toEqual(['Goldie', 'Golden Hour', 'Gold Studio', 'See all results for “gold”']);
+    const titles = [...fixture.nativeElement.querySelectorAll('.group-title')].map(
+      (title: Element) => title.textContent?.trim(),
+    );
+    expect(titles).toEqual(['In your library', 'On StashDB']);
+    const details = [...fixture.nativeElement.querySelectorAll('.row .detail')].map(
+      (row: Element) => row.textContent?.trim(),
+    );
+    expect(details[0]).toBe('Performer · 2 scenes');
   });
 
   it('opens the highlighted row with Enter, after moving with the arrows', async () => {
@@ -148,7 +156,7 @@ describe('QuickSearchComponent', () => {
     fixture.detectChanges();
 
     expect(navigate).toHaveBeenCalledWith(
-      `/library/performer/p1?returnTo=${encodeURIComponent('/search?q=gold')}`,
+      `/library/scene/l1?returnTo=${encodeURIComponent('/search?q=gold')}`,
     );
     expect(fixture.nativeElement.querySelector('[data-testid="quick-search"]')).toBeNull();
   });
