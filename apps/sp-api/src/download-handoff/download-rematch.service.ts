@@ -95,6 +95,12 @@ export class DownloadRematchService {
     let matchedCount = 0;
     let proposed = 0;
     if (toLookUp.length > 0) {
+      // Marked to place before the look-up, which may save a link: should
+      // anything stop it from finishing, a later run checks each one (an
+      // unlinked one is just unmarked) rather than leave a match unplaced.
+      for (const entry of toLookUp) {
+        await this.save(entry, { placePending: true });
+      }
       const result = await this.organizer.identifyNewScenes(
         toLookUp.map((entry) => entry.sceneId),
         { trustNames: true },
@@ -106,8 +112,8 @@ export class DownloadRematchService {
         const isMatched = matched.has(entry.sceneId);
         await this.save(entry, {
           rematchTriedAt: new Date(this.now()),
-          // Placed below; marked first so a crash in between still retries it.
-          ...(isMatched ? { placePending: true } : {}),
+          // Matched ones stay marked until placed (below).
+          placePending: isMatched,
         });
         if (isMatched) {
           toPlace.push({ ...entry, placePending: true });
@@ -152,6 +158,11 @@ export class DownloadRematchService {
     if (scene === undefined) {
       return false;
     }
+    if (scene && scene.stashIds.length === 0) {
+      // Not linked after all (a run stopped part way): looked up again instead.
+      await this.save(entry, { placePending: false });
+      return true;
+    }
     const file =
       scene?.files.find(
         (candidate) =>
@@ -193,20 +204,30 @@ export class DownloadRematchService {
       stashSceneId: { not: null },
       finishedAt: { gte: since },
     };
-    const [dropIns, downloads] = await Promise.all([
-      this.prisma.downloadDropIn.findMany({
-        where,
-        orderBy: { finishedAt: 'desc' },
-        take: READ_LIMIT,
-      }),
-      this.prisma.downloadHandoff.findMany({
-        where: { ...where, source: MANUAL_HANDOFF_SOURCE },
-        orderBy: { finishedAt: 'desc' },
-        take: READ_LIMIT,
-      }),
-    ]);
+    const downloadWhere = { ...where, source: MANUAL_HANDOFF_SOURCE };
+    // Every one waiting to be placed, however many came in since, and the
+    // newest of the rest to look up.
+    const [dropIns, downloads, pendingDropIns, pendingDownloads] =
+      await Promise.all([
+        this.prisma.downloadDropIn.findMany({
+          where: { ...where, placePending: false },
+          orderBy: { finishedAt: 'desc' },
+          take: READ_LIMIT,
+        }),
+        this.prisma.downloadHandoff.findMany({
+          where: { ...downloadWhere, placePending: false },
+          orderBy: { finishedAt: 'desc' },
+          take: READ_LIMIT,
+        }),
+        this.prisma.downloadDropIn.findMany({
+          where: { ...where, placePending: true },
+        }),
+        this.prisma.downloadHandoff.findMany({
+          where: { ...downloadWhere, placePending: true },
+        }),
+      ]);
     const all: Entry[] = [
-      ...dropIns.map((row) => ({
+      ...[...pendingDropIns, ...dropIns].map((row) => ({
         kind: 'drop-in' as const,
         id: row.id,
         sceneId: row.stashSceneId!,
@@ -216,7 +237,7 @@ export class DownloadRematchService {
         triedAt: row.rematchTriedAt?.getTime() ?? 0,
         placePending: row.placePending,
       })),
-      ...downloads.map((row) => ({
+      ...[...pendingDownloads, ...downloads].map((row) => ({
         kind: 'download' as const,
         id: row.id,
         sceneId: row.stashSceneId!,
