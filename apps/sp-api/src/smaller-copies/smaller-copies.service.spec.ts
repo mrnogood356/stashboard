@@ -1224,7 +1224,7 @@ describe('SmallerCopiesService', () => {
         'cat-2',
         { guid: 'big', indexerId: 3, title: 'Studio.Scene.1080p' },
         'STASHDB',
-        { replacesStashSceneId: '2' },
+        { replacesStashSceneId: '2', expectedTitle: 'Studio.Scene.1080p' },
       );
       expect(status.tries[0]).toMatchObject({
         stashSceneId: '2',

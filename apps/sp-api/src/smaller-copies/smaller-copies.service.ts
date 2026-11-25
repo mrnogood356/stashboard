@@ -814,7 +814,8 @@ export class SmallerCopiesService {
       catalogId,
       { guid: release.guid, indexerId: release.indexerId, title },
       provider,
-      { replacesStashSceneId: stashSceneId },
+      // Sent only if it's still the release checked above.
+      { replacesStashSceneId: stashSceneId, expectedTitle: title },
     );
     await this.markGrabbed(stashSceneId, {
       title: file.title ?? `Scene ${stashSceneId}`,

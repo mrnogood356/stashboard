@@ -205,7 +205,15 @@ export class DownloadsService {
     },
     provider?: CatalogProviderKey,
     /** Smaller copies: the Stash scene whose file this replaces once imported. */
-    options: { replacesStashSceneId?: string } = {},
+    options: {
+      replacesStashSceneId?: string;
+      /**
+       * The name the caller checked: refused if the remembered release now
+       * has another (a search replaced it meanwhile), so what's sent is
+       * what was checked.
+       */
+      expectedTitle?: string;
+    } = {},
   ): Promise<{
     accepted: true;
     sentTo: 'prowlarr' | 'sabnzbd';
@@ -228,6 +236,14 @@ export class DownloadsService {
         );
         throw new ConflictException(
           'That search result has expired. Search again and pick it once more.',
+        );
+      }
+      if (
+        options.expectedTitle !== undefined &&
+        found.title !== options.expectedTitle
+      ) {
+        throw new ConflictException(
+          'That search result changed. Search again and pick it once more.',
         );
       }
       // Torrents still go through Prowlarr's own download client.

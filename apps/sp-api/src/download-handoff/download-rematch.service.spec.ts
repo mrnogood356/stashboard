@@ -319,6 +319,23 @@ describe('DownloadRematchService', () => {
     });
   });
 
+  it('saves how it was matched with the placing, when every note before it failed', async () => {
+    // Only the save that places it gets through.
+    const update = dropIns.update.getMockImplementation()!;
+    dropIns.update.mockImplementation((args) =>
+      'finalPath' in args.data ||
+      ('placePending' in args.data && !('rematchTriedAt' in args.data))
+        ? update(args)
+        : Promise.reject(new Error('busy')),
+    );
+    await service.run();
+    expect(dropIns.rows[0]).toMatchObject({
+      placePending: false,
+      finalPath: '/lib/Studio/2024-03-15 - Title.mp4',
+      matchedBy: 'later',
+    });
+  });
+
   it('keeps it marked when something is in the way of its folder', async () => {
     handoff.placeInFolder.mockResolvedValue({
       to: '/lib/in/Studio.24.03.15.Jane.Doe.mp4',

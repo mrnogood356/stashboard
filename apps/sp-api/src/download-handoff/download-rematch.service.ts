@@ -198,16 +198,17 @@ export class DownloadRematchService {
       await this.save(entry, { placePending: false });
       return true;
     }
-    if (scene) {
-      // Linked: how is noted now, whether or not it can be placed. A note
-      // the look-up couldn't save is saved here; one still saying "not
-      // matched" (a look-up that stopped part way) says matched.
-      const matchedBy: MatchedBy | undefined = isUnresolved(entry.matchedBy)
+    // Linked: how is noted now, whether or not it can be placed (and again
+    // with the placing, should this save fail). A note the look-up couldn't
+    // save is saved here; one still saying "not matched" (a look-up that
+    // stopped part way) says matched.
+    const matchedBy: MatchedBy | undefined = !scene
+      ? undefined
+      : isUnresolved(entry.matchedBy)
         ? 'stash'
         : (matchedByOf(entry.matchedBy) ?? undefined);
-      if (matchedBy) {
-        await this.save(entry, { matchedBy });
-      }
+    if (matchedBy) {
+      await this.save(entry, { matchedBy });
     }
     const file =
       scene?.files.find(
@@ -226,7 +227,11 @@ export class DownloadRematchService {
       this.logger.warn(`${placed.reason} Tried again tomorrow.`);
       return false;
     }
-    await this.save(entry, { placePending: false, finalPath: placed.to });
+    await this.save(entry, {
+      placePending: false,
+      finalPath: placed.to,
+      ...(matchedBy ? { matchedBy } : {}),
+    });
     await this.activity?.record({
       kind: 'download',
       title: `Matched “${entry.name}” on a later look`,
