@@ -81,6 +81,8 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
   protected readonly editingTags = signal(false);
   /** The Edit sheet (title, date, studio, performers…) is open. */
   protected readonly editing = signal(false);
+  /** Asked for by the link (edit=1): opened once the scene is in. */
+  private editOnLoad = false;
   protected readonly tagQuery = signal('');
   protected readonly tagResults = signal<Array<{ id: string; name: string }>>([]);
   protected readonly watched = computed(() => (this.scene()?.playCount ?? 0) > 0);
@@ -136,6 +138,8 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
     this.subscription = combineLatest([this.route.paramMap, this.route.queryParamMap]).subscribe(
       ([params, query]) => {
         this.applyReturnTo(query.get('returnTo'));
+        // From Downloads' "Find a match": the edit sheet, with Fill from StashDB.
+        this.editOnLoad = query.get('edit') === '1';
         const sceneId = params.get('sceneId')?.trim() ?? '';
         if (!sceneId) {
           this.error.set('Scene id is missing from the link.');
@@ -145,6 +149,8 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
         if (sceneId !== this.sceneId) {
           this.sceneId = sceneId;
           this.load();
+        } else if (this.editOnLoad && this.scene()) {
+          this.openEditFromLink();
         }
       },
     );
@@ -278,6 +284,18 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Opens the edit sheet once, then drops edit=1 so Back doesn't reopen it. */
+  private openEditFromLink(): void {
+    this.editOnLoad = false;
+    this.editing.set(true);
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }
+
   protected load(): void {
     const sceneId = this.sceneId;
     if (!sceneId) {
@@ -299,6 +317,9 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
         }
         this.scene.set(scene);
         this.loading.set(false);
+        if (this.editOnLoad) {
+          this.openEditFromLink();
+        }
         this.library.related(scene.id).subscribe({
           next: (items) => {
             if (this.sceneId === scene.id) {

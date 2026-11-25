@@ -85,6 +85,29 @@ export const DROP_IN_STATUSES = [
 ] as const;
 export type DropInStatus = (typeof DROP_IN_STATUSES)[number];
 
+/**
+ * How a file you brought in yourself was matched to its catalog scene:
+ * by its video fingerprint, by its name, from Whisparr, already matched in
+ * Stash (or by you), on a later look, a likely match waiting for you to
+ * check, or not matched yet.
+ */
+export const MATCHED_BY = [
+  'fingerprint',
+  'name',
+  'whisparr',
+  'stash',
+  'later',
+  'proposed',
+  'none',
+] as const;
+export type MatchedBy = (typeof MATCHED_BY)[number];
+
+export function matchedByOf(value: string | null): MatchedBy | null {
+  return value && (MATCHED_BY as readonly string[]).includes(value)
+    ? (value as MatchedBy)
+    : null;
+}
+
 /** A video put straight into SABnzbd's category folder and brought in. */
 export interface DownloadDropInDto {
   id: string;
@@ -94,6 +117,8 @@ export interface DownloadDropInDto {
   error: string | null;
   finalPath: string | null;
   stashSceneId: string | null;
+  /** How it was matched once in Stash; null before, or when not known. */
+  matchedBy: MatchedBy | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -258,6 +283,8 @@ export interface DownloadHandoffDto {
   error: string | null;
   finalPath: string | null;
   stashSceneId: string | null;
+  /** How it was matched once in Stash; null before, or when not known. */
+  matchedBy: MatchedBy | null;
   createdAt: string;
   updatedAt: string;
 }

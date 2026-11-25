@@ -57,7 +57,10 @@ describe('LocalScenePageComponent', () => {
   };
   const diagnosticsApi = { catalogScene: vi.fn(), localScene: vi.fn() };
 
-  async function render(getSceneDetails: ReturnType<typeof vi.fn>) {
+  async function render(
+    getSceneDetails: ReturnType<typeof vi.fn>,
+    queryParams: Record<string, string> = { returnTo: '/home' },
+  ) {
     library = {
       related: vi.fn().mockReturnValue(of([])),
       updateScene: vi.fn((_id: string, update: Record<string, unknown>) =>
@@ -73,7 +76,7 @@ describe('LocalScenePageComponent', () => {
       searchTags: vi.fn().mockReturnValue(of([{ id: '50', name: 'Beach' }])),
     };
     const params = new BehaviorSubject(convertToParamMap({ sceneId: '12' }));
-    const query = new BehaviorSubject(convertToParamMap({ returnTo: '/home' }));
+    const query = new BehaviorSubject(convertToParamMap(queryParams));
     await TestBed.configureTestingModule({
       imports: [LocalScenePageComponent],
       providers: [
@@ -126,6 +129,14 @@ describe('LocalScenePageComponent', () => {
       vi.fn().mockReturnValue(of(sceneDetails({ productionDate: '2026-01-02' }))),
     );
     expect(same.root.querySelector('.meta-row')?.textContent).not.toContain('Filmed');
+  });
+
+  it('opens Edit straight away from Downloads’ Find a match link', async () => {
+    await render(vi.fn().mockReturnValue(of(sceneDetails())), {
+      edit: '1',
+      returnTo: '/processing',
+    });
+    expect(document.querySelector('[data-testid="scene-edit-sheet"]')).not.toBeNull();
   });
 
   it('opens Edit, and shows what Stash saved from it', async () => {

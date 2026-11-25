@@ -64,6 +64,8 @@ import {
   type HandoffImportMode,
   type HandoffSource,
   type HandoffStatus,
+  type MatchedBy,
+  matchedByOf,
 } from './download-handoff.model';
 import { trimTrailingSeparators } from '../path-separators';
 
@@ -1423,6 +1425,7 @@ export class DownloadHandoffService {
         status: 'imported',
         stashSceneId: sceneId,
         finalPath: placed.to,
+        matchedBy: result.matchedBy,
         error: null,
         finishedAt: new Date(),
       },
@@ -1453,6 +1456,8 @@ export class DownloadHandoffService {
   async identifyScene(sceneId: string): Promise<{
     identified: boolean;
     outcome: string;
+    /** How it was matched, shown on Downloads (see MatchedBy). */
+    matchedBy: MatchedBy | null;
     error: string | null;
   }> {
     try {
@@ -1462,8 +1467,20 @@ export class DownloadHandoffService {
         trustNames: true,
       });
       const identified = !result.left.includes(sceneId);
+      const matchedBy: MatchedBy = result.linked.includes(sceneId)
+        ? 'whisparr'
+        : result.byName.includes(sceneId)
+          ? 'name'
+          : result.matched.includes(sceneId)
+            ? 'fingerprint'
+            : identified
+              ? 'stash'
+              : result.proposed.includes(sceneId)
+                ? 'proposed'
+                : 'none';
       return {
         identified,
+        matchedBy,
         outcome: identified
           ? result.matched.includes(sceneId) && result.byName.includes(sceneId)
             ? 'Matched to its catalog scene by its name, date and length.'
@@ -1477,6 +1494,7 @@ export class DownloadHandoffService {
       return {
         identified: false,
         outcome: `Couldn’t identify it: ${messageOf(error)}`,
+        matchedBy: null,
         error: messageOf(error),
       };
     }
@@ -2008,6 +2026,7 @@ export function toDto(row: DownloadHandoff): DownloadHandoffDto {
     error: row.error,
     finalPath: row.finalPath,
     stashSceneId: row.stashSceneId,
+    matchedBy: matchedByOf(row.matchedBy),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

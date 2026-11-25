@@ -27,6 +27,7 @@ function handoff(overrides: Partial<ProcessingHandoff> = {}): ProcessingHandoff 
     error: null,
     finalPath: null,
     stashSceneId: null,
+    matchedBy: null,
     createdAt: NOW,
     updatedAt: NOW,
     stage: 'downloading',
@@ -48,6 +49,7 @@ function dropIn(overrides: Partial<ProcessingDropIn> = {}): ProcessingDropIn {
     error: null,
     finalPath: '/data/fansdb/Clip.mp4',
     stashSceneId: '88',
+    matchedBy: null,
     createdAt: NOW,
     updatedAt: NOW,
     canRetry: false,
@@ -407,6 +409,44 @@ describe('ProcessingPageComponent', () => {
     (failed?.querySelector('button') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(api.retryDropIn).toHaveBeenCalledWith('d2');
+  });
+
+  it('says how each file you brought in was matched, with a way to match one that wasn’t', async () => {
+    const { root } = await render(
+      processing({
+        recentHandoffs: [
+          handoff({
+            id: 'h5',
+            source: 'sabnzbd-manual',
+            status: 'imported',
+            stage: 'done',
+            stashSceneId: '91',
+            matchedBy: 'proposed',
+          }),
+        ],
+        dropIns: {
+          watch: watch(),
+          active: [],
+          recent: [
+            dropIn({ id: 'd1', name: 'Known.mp4', matchedBy: 'name' }),
+            dropIn({ id: 'd2', name: 'Mystery.mp4', stashSceneId: '89', matchedBy: 'none' }),
+          ],
+        },
+      }),
+    );
+
+    const rows = Array.from(root.querySelectorAll('[data-testid="drop-in-done"]'));
+    expect(text(rows[0])).toContain('Matched by its name');
+    expect(rows[0].querySelector('[data-testid="find-match"]')).toBeNull();
+    expect(text(rows[1])).toContain('Not matched yet');
+    const find = rows[1].querySelector('[data-testid="find-match"]') as HTMLAnchorElement;
+    expect(find.getAttribute('href')).toBe('/library/scene/89?edit=1&returnTo=%2Fprocessing');
+
+    const manual = root.querySelector('[data-testid="recent-handoff"]');
+    expect(text(manual)).toContain('Check this match');
+    expect(manual?.querySelector('[data-testid="check-match"]')?.getAttribute('href')).toBe(
+      '/tools/match',
+    );
   });
 
   it('checks the folder now on request', async () => {

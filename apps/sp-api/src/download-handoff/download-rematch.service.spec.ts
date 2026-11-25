@@ -154,11 +154,13 @@ describe('DownloadRematchService', () => {
       placePending: false,
       rematchTriedAt: new Date(now),
       finalPath: '/lib/Studio/2024-03-15 - Title.mp4',
+      matchedBy: 'later',
     });
-    // Not matched: noted as tried, not to place.
+    // Not matched: noted as tried, not to place; a likely match to check.
     expect(downloads.rows[0]).toMatchObject({
       placePending: false,
       rematchTriedAt: new Date(now),
+      matchedBy: 'proposed',
     });
     expect(activity.record).toHaveBeenCalledWith(
       expect.objectContaining({

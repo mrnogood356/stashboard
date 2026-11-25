@@ -179,6 +179,11 @@
                   }
                   {{ ago(entry.updatedAt) }}
                 </p>
+                @if (entry.stage === 'done' && matchNote(entry.matchedBy); as note) {
+                  <p class="match-tag" [attr.data-tone]="note.tone" data-testid="matched-by">
+                    {{ note.label }}
+                  </p>
+                }
                 @if (entry.detail) {
                   <p class="detail" [class.bad]="entry.stage === 'failed'">{{ entry.detail }}</p>
                 }
@@ -187,6 +192,15 @@
                 <span class="pill" [attr.data-stage]="entry.stage">{{
                   stageLabel(entry.stage)
                 }}</span>
+                @if (entry.stage === 'done') {
+                  <ng-container
+                    [ngTemplateOutlet]="findMatch"
+                    [ngTemplateOutletContext]="{
+                      $implicit: entry,
+                      name: entry.scene?.title ?? entry.releaseTitle,
+                    }"
+                  />
+                }
                 @if (entry.canRetry) {
                   <button
                     type="button"
@@ -485,9 +499,18 @@
                     }
                     {{ ago(entry.updatedAt) }}
                   </p>
+                  @if (matchNote(entry.matchedBy); as note) {
+                    <p class="match-tag" [attr.data-tone]="note.tone" data-testid="matched-by">
+                      {{ note.label }}
+                    </p>
+                  }
                 </div>
                 <div class="row-end">
                   <span class="pill" data-stage="done">In your library</span>
+                  <ng-container
+                    [ngTemplateOutlet]="findMatch"
+                    [ngTemplateOutletContext]="{ $implicit: entry, name: entry.name }"
+                  />
                   @if (entry.canClear) {
                     <button
                       type="button"
@@ -529,3 +552,25 @@
     </p>
   }
 </main>
+
+<!-- Brought in but not matched: match it by hand, or check the likely match. -->
+<ng-template #findMatch let-entry let-name="name">
+  @if (entry.matchedBy === 'none' && entry.stashSceneId) {
+    <a
+      class="btn small primary"
+      data-testid="find-match"
+      [routerLink]="['/library/scene', entry.stashSceneId]"
+      [queryParams]="findMatchQuery"
+      [attr.aria-label]="'Find a match for ' + name"
+      >Find a match</a
+    >
+  } @else if (entry.matchedBy === 'proposed') {
+    <a
+      class="btn small"
+      data-testid="check-match"
+      routerLink="/tools/match"
+      [attr.aria-label]="'Check the match for ' + name"
+      >Check it</a
+    >
+  }
+</ng-template>

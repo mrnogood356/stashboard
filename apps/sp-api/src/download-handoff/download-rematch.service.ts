@@ -10,7 +10,10 @@ import {
   DownloadHandoffService,
   placedLines,
 } from './download-handoff.service';
-import { MANUAL_HANDOFF_SOURCE } from './download-handoff.model';
+import {
+  MANUAL_HANDOFF_SOURCE,
+  type MatchedBy,
+} from './download-handoff.model';
 
 /** How often unmatched files you brought in are looked up again. */
 const REMATCH_EVERY_MS = 24 * 3600_000;
@@ -113,6 +116,7 @@ export class DownloadRematchService {
       matchedCount = matched.size;
       proposed = result.proposed.length;
       const unmatched = new Set(result.left);
+      const waiting = new Set(result.proposed);
       for (const entry of toLookUp) {
         // Only one the look-up says is still unmatched is unmarked. Matched
         // ones, and one linked meanwhile some other way (the look-up skips
@@ -121,6 +125,14 @@ export class DownloadRematchService {
         await this.save(entry, {
           rematchTriedAt: new Date(this.now()),
           placePending: !stillUnmatched,
+          // Linked meanwhile some other way: by you, most likely.
+          matchedBy: !stillUnmatched
+            ? matched.has(entry.sceneId)
+              ? 'later'
+              : 'stash'
+            : waiting.has(entry.sceneId)
+              ? 'proposed'
+              : undefined,
         });
         if (!stillUnmatched) {
           toPlace.push({ ...entry, placePending: true });
@@ -295,6 +307,7 @@ export class DownloadRematchService {
       rematchTriedAt?: Date;
       placePending?: boolean;
       finalPath?: string;
+      matchedBy?: MatchedBy;
     },
   ): Promise<boolean> {
     const update = { where: { id: entry.id }, data };

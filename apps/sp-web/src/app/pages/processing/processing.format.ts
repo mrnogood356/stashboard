@@ -1,4 +1,4 @@
-import { HandoffStage } from '../../core/api/download-handoff.service';
+import { HandoffStage, MatchedBy } from '../../core/api/download-handoff.service';
 
 const STAGE_LABELS: Record<HandoffStage, string> = {
   queued: 'Queued',
@@ -53,4 +53,25 @@ export function fileSize(bytes: number | null): string | null {
     unit += 1;
   }
   return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+}
+
+/** How a file you brought in was matched, in a few words. */
+export interface MatchNote {
+  label: string;
+  /** Matched, or worth a look from you. */
+  tone: 'good' | 'check';
+}
+
+const MATCH_NOTES: Record<MatchedBy, MatchNote> = {
+  fingerprint: { label: 'Matched by its fingerprint', tone: 'good' },
+  name: { label: 'Matched by its name', tone: 'good' },
+  whisparr: { label: 'Matched from Whisparr', tone: 'good' },
+  stash: { label: 'Matched', tone: 'good' },
+  later: { label: 'Matched on a later look', tone: 'good' },
+  proposed: { label: 'Check this match', tone: 'check' },
+  none: { label: 'Not matched yet', tone: 'check' },
+};
+
+export function matchNote(matchedBy: MatchedBy | null | undefined): MatchNote | null {
+  return matchedBy ? (MATCH_NOTES[matchedBy] ?? null) : null;
 }
