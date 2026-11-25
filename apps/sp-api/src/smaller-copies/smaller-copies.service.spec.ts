@@ -324,7 +324,12 @@ describe('SmallerCopiesService', () => {
         sentTo: 'sabnzbd',
         handoffId: 'h9',
       }),
-      rememberedTitle: jest.fn().mockReturnValue(null),
+      rememberedTitle: jest.fn(
+        (_indexerId: number, guid: string) =>
+          ({ big: 'Studio.Scene.1080p', x: 'Studio.Scene.1080p', y: 'Other' })[
+            guid
+          ] ?? null,
+      ),
     };
     handoff = {
       stashConfig: jest
@@ -1219,13 +1224,19 @@ describe('SmallerCopiesService', () => {
     });
 
     it('checks the release that would be sent, not the name that came with it', async () => {
-      downloads.rememberedTitle.mockReturnValue('Studio.Scene.1080p');
       handoff.failedReleases.mockResolvedValueOnce(
         new Map([['studio.scene.1080p', 'Missing articles']]),
       );
       await expect(
         service.grabChosen('2', { guid: 'x', indexerId: 3, title: 'Renamed' }),
       ).rejects.toThrow(/couldn’t download that release before/);
+      expect(downloads.grabRelease).not.toHaveBeenCalled();
+    });
+
+    it('won’t send one whose search result has expired', async () => {
+      await expect(
+        service.grabChosen('2', { guid: 'gone', indexerId: 3, title: 'Any' }),
+      ).rejects.toThrow(/expired/);
       expect(downloads.grabRelease).not.toHaveBeenCalled();
     });
 

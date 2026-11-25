@@ -757,9 +757,17 @@ export class SmallerCopiesService {
     const { file, catalogId, provider } = await this.chosenScene(stashSceneId);
     // The release that's sent is the one the search found, by its id: its
     // own name is checked and noted, whatever name came with the request.
-    const title =
-      this.downloads.rememberedTitle(release.indexerId, release.guid) ??
-      release.title;
+    const title = this.downloads.rememberedTitle(
+      release.indexerId,
+      release.guid,
+    );
+    // Not remembered: sending would refuse it too, and checking a name that
+    // came with the request could let a failed release through.
+    if (!title) {
+      throw new ConflictException(
+        'That search result has expired. Search again and pick it once more.',
+      );
+    }
     const failed = (await this.handoff.failedReleases([title])).get(
       releaseKeyOf(title),
     );
