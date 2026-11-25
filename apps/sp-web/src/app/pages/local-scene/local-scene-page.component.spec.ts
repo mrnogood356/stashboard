@@ -195,6 +195,23 @@ describe('LocalScenePageComponent', () => {
     expect(page.editing()).toBe(true);
   });
 
+  it('forgets an Edit asked for a scene you left before it loaded', async () => {
+    const slow = new Subject<ReturnType<typeof sceneDetails>>();
+    const getSceneDetails = vi
+      .fn()
+      .mockImplementation((id: string) => (id === '12' ? slow : of(sceneDetails({ id }))));
+    const { fixture, params, query } = await render(getSceneDetails, { edit: '1' });
+    const page = fixture.componentInstance as unknown as { editing: () => boolean };
+
+    // Off to scene 13 (no Edit asked) before 12 loads, then back to 12.
+    query.next(convertToParamMap({}));
+    params.next(convertToParamMap({ sceneId: '13' }));
+    getSceneDetails.mockImplementation((id: string) => of(sceneDetails({ id })));
+    params.next(convertToParamMap({ sceneId: '12' }));
+    fixture.detectChanges();
+    expect(page.editing()).toBe(false);
+  });
+
   it('opens Edit, and shows what Stash saved from it', async () => {
     const { fixture, root } = await render(vi.fn().mockReturnValue(of(sceneDetails())));
     root.querySelector<HTMLButtonElement>('[data-testid="edit-scene"]')!.click();

@@ -161,18 +161,20 @@ describe('StashdbAdapter', () => {
   it('doesn’t keep an answer that was on its way while a change was made', async () => {
     let release: () => void = () => undefined;
     let calls = 0;
-    fetchMock.mockImplementation(() => {
-      calls += 1;
-      const response = new Response(
-        JSON.stringify({ data: { queryScenes: { count: 0, scenes: [] } } }),
+    // Told apart by their totals: 1 from before the change, 2 after.
+    const answer = (count: number) =>
+      new Response(
+        JSON.stringify({ data: { queryScenes: { count, scenes: [] } } }),
         { headers: { 'content-type': 'application/json' } },
       );
+    fetchMock.mockImplementation(() => {
+      calls += 1;
       // The first look-up answers only after the change was made.
       return calls === 1
         ? new Promise<Response>((resolve) => {
-            release = () => resolve(response);
+            release = () => resolve(answer(1));
           })
-        : Promise.resolve(response);
+        : Promise.resolve(answer(2));
     });
     const config = {
       baseUrl: 'https://stashdb.org/graphql',
@@ -184,14 +186,20 @@ describe('StashdbAdapter', () => {
     await adapter
       .favoritePerformer('p1', true, { baseUrl: config.baseUrl })
       .catch(() => undefined);
-    // Asked after the change: not joined to the one asked before it.
-    const after = adapter.getScenesSortedByDate(config);
+    // Asked after the change: not joined to the one asked before it, and
+    // answered (and kept) before the older one comes back.
+    await expect(adapter.getScenesSortedByDate(config)).resolves.toMatchObject({
+      total: 2,
+    });
     release();
-    await Promise.all([before, after]);
+    await expect(before).resolves.toMatchObject({ total: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(3);
 
-    // The answer from after the change is kept; the older one isn't.
-    await adapter.getScenesSortedByDate(config);
+    // The answer from after the change is what's kept; the late older one
+    // didn't replace it.
+    await expect(adapter.getScenesSortedByDate(config)).resolves.toMatchObject({
+      total: 2,
+    });
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 

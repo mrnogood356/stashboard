@@ -13,6 +13,7 @@ import {
 import {
   MANUAL_HANDOFF_SOURCE,
   type MatchedBy,
+  matchedByOf,
 } from './download-handoff.model';
 
 /** How often unmatched files you brought in are looked up again. */
@@ -197,6 +198,17 @@ export class DownloadRematchService {
       await this.save(entry, { placePending: false });
       return true;
     }
+    if (scene) {
+      // Linked: how is noted now, whether or not it can be placed. A note
+      // the look-up couldn't save is saved here; one still saying "not
+      // matched" (a look-up that stopped part way) says matched.
+      const matchedBy: MatchedBy | undefined = isUnresolved(entry.matchedBy)
+        ? 'stash'
+        : (matchedByOf(entry.matchedBy) ?? undefined);
+      if (matchedBy) {
+        await this.save(entry, { matchedBy });
+      }
+    }
     const file =
       scene?.files.find(
         (candidate) =>
@@ -214,13 +226,7 @@ export class DownloadRematchService {
       this.logger.warn(`${placed.reason} Tried again tomorrow.`);
       return false;
     }
-    await this.save(entry, {
-      placePending: false,
-      finalPath: placed.to,
-      // Linked by a look-up that stopped part way: say it's matched, without
-      // losing how, when that was noted.
-      ...(isUnresolved(entry.matchedBy) ? { matchedBy: 'stash' as const } : {}),
-    });
+    await this.save(entry, { placePending: false, finalPath: placed.to });
     await this.activity?.record({
       kind: 'download',
       title: `Matched “${entry.name}” on a later look`,

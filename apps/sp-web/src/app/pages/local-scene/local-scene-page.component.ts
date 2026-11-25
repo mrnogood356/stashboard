@@ -146,6 +146,9 @@ export class LocalScenePageComponent implements OnInit, OnDestroy {
         // Kept until that scene is in (dropping edit=1 doesn't cancel it).
         if (query.get('edit') === '1' && sceneId) {
           this.editFor = sceneId;
+        } else if (this.editFor !== sceneId) {
+          // Gone to another scene without asking for Edit: forget the old ask.
+          this.editFor = null;
         }
         if (!sceneId) {
           this.error.set('Scene id is missing from the link.');

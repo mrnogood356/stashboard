@@ -291,6 +291,34 @@ describe('DownloadRematchService', () => {
     });
   });
 
+  it('notes a link even when something is in the way of its folder', async () => {
+    dropIns.rows[0].placePending = true;
+    handoff.placeInFolder.mockResolvedValue({
+      to: '/lib/in/Studio.24.03.15.Jane.Doe.mp4',
+      reason: 'Something is already at /lib/Studio/x.mp4.',
+    });
+    await service.run();
+    expect(dropIns.rows[0]).toMatchObject({
+      placePending: true,
+      matchedBy: 'stash',
+    });
+  });
+
+  it('saves how it was matched when the look-up couldn’t, once it’s placed', async () => {
+    // The look-up's own note fails to save; placing saves it.
+    const update = dropIns.update.getMockImplementation()!;
+    dropIns.update.mockImplementation((args) =>
+      'rematchTriedAt' in args.data
+        ? Promise.reject(new Error('busy'))
+        : update(args),
+    );
+    await service.run();
+    expect(dropIns.rows[0]).toMatchObject({
+      placePending: false,
+      matchedBy: 'later',
+    });
+  });
+
   it('keeps it marked when something is in the way of its folder', async () => {
     handoff.placeInFolder.mockResolvedValue({
       to: '/lib/in/Studio.24.03.15.Jane.Doe.mp4',
