@@ -196,15 +196,27 @@
                     {{ isGrabbing(row.stashSceneId) ? 'Grabbing…' : 'Grab' }}
                   </button>
                 } @else if (row.outcome !== 'grabbed' && row.outcome !== 'replaced') {
-                  <button
-                    type="button"
-                    class="btn small"
-                    [attr.data-testid]="'recheck-' + row.stashSceneId"
-                    [disabled]="isRechecking(row.stashSceneId)"
-                    (click)="recheck(row.stashSceneId)"
-                  >
-                    {{ isRechecking(row.stashSceneId) ? 'Working…' : 'Check again' }}
-                  </button>
+                  <div class="attempt-actions">
+                    <button
+                      type="button"
+                      class="btn small"
+                      [attr.data-testid]="'recheck-' + row.stashSceneId"
+                      [disabled]="isRechecking(row.stashSceneId)"
+                      (click)="recheck(row.stashSceneId)"
+                    >
+                      {{ isRechecking(row.stashSceneId) ? 'Working…' : 'Check again' }}
+                    </button>
+                    @if (row.outcome !== 'no-catalog-id') {
+                      <button
+                        type="button"
+                        class="btn small"
+                        [attr.data-testid]="'choose-' + row.stashSceneId"
+                        (click)="chooseRelease(row.stashSceneId, row.title)"
+                      >
+                        Choose a release
+                      </button>
+                    }
+                  </div>
                 }
               </li>
             }
@@ -290,16 +302,28 @@
                     }
                   </div>
                 }
-                @if (row.outcome === 'failed' && latestTryIds().has(row.id)) {
-                  <button
-                    type="button"
-                    class="btn small"
-                    [attr.data-testid]="'try-again-' + row.id"
-                    [disabled]="isRechecking(row.stashSceneId)"
-                    (click)="recheck(row.stashSceneId, true)"
-                  >
-                    {{ isRechecking(row.stashSceneId) ? 'Working…' : 'Look for another' }}
-                  </button>
+                @if (canChoose(row)) {
+                  <div class="attempt-actions">
+                    @if (row.outcome === 'failed') {
+                      <button
+                        type="button"
+                        class="btn small"
+                        [attr.data-testid]="'try-again-' + row.id"
+                        [disabled]="isRechecking(row.stashSceneId)"
+                        (click)="recheck(row.stashSceneId, true)"
+                      >
+                        {{ isRechecking(row.stashSceneId) ? 'Working…' : 'Look for another' }}
+                      </button>
+                    }
+                    <button
+                      type="button"
+                      class="btn small"
+                      [attr.data-testid]="'choose-try-' + row.id"
+                      (click)="chooseRelease(row.stashSceneId, row.title)"
+                    >
+                      Choose a release
+                    </button>
+                  </div>
                 }
               </li>
             }

@@ -28,6 +28,23 @@ function table(rows: Row[]) {
             .map((row) => ({ ...row })),
         ),
     ),
+    updateMany: jest.fn(
+      ({
+        where,
+        data,
+      }: {
+        where: { id: { in: string[] }; matchedBy: { in: string[] } };
+        data: Partial<Row>;
+      }) => {
+        const hit = rows.filter(
+          (row) =>
+            where.id.in.includes(row.id) &&
+            where.matchedBy.in.includes(row['matchedBy'] as string),
+        );
+        hit.forEach((row) => Object.assign(row, data));
+        return Promise.resolve({ count: hit.length });
+      },
+    ),
     update: jest.fn(
       ({ where, data }: { where: { id: string }; data: Partial<Row> }) => {
         const row = rows.find((entry) => entry.id === where.id)!;
@@ -58,6 +75,7 @@ describe('DownloadRematchService', () => {
     finishedAt: new Date(at),
     rematchTriedAt: null,
     placePending: false,
+    matchedBy: 'none',
   });
   const linkedScene = (path: string) => ({
     files: [{ path }],
@@ -154,11 +172,13 @@ describe('DownloadRematchService', () => {
       placePending: false,
       rematchTriedAt: new Date(now),
       finalPath: '/lib/Studio/2024-03-15 - Title.mp4',
+      matchedBy: 'later',
     });
-    // Not matched: noted as tried, not to place.
+    // Not matched: noted as tried, not to place; a likely match to check.
     expect(downloads.rows[0]).toMatchObject({
       placePending: false,
       rematchTriedAt: new Date(now),
+      matchedBy: 'proposed',
     });
     expect(activity.record).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -244,6 +264,75 @@ describe('DownloadRematchService', () => {
     expect(dropIns.rows[0]).toMatchObject({
       placePending: false,
       finalPath: '/lib/Studio/2024-03-15 - Title.mp4',
+    });
+  });
+
+  it('says one linked since some other way is matched, keeping how one was matched', async () => {
+    dropIns.rows[1].matchedBy = 'proposed';
+    downloads.rows[0].matchedBy = 'name';
+    index.findMany.mockResolvedValue([
+      { stashSceneId: '11' },
+      { stashSceneId: '12' },
+      { stashSceneId: '13' },
+    ]);
+    await service.run();
+    expect(dropIns.rows[0].matchedBy).toBe('stash');
+    expect(dropIns.rows[1].matchedBy).toBe('stash');
+    expect(downloads.rows[0].matchedBy).toBe('name');
+  });
+
+  it('says one is matched when a look-up linked it but stopped before saying so', async () => {
+    // Linked, then stopped: the next run only places it.
+    dropIns.rows[0].placePending = true;
+    await service.run();
+    expect(dropIns.rows[0]).toMatchObject({
+      placePending: false,
+      matchedBy: 'stash',
+    });
+  });
+
+  it('notes a link even when something is in the way of its folder', async () => {
+    dropIns.rows[0].placePending = true;
+    handoff.placeInFolder.mockResolvedValue({
+      to: '/lib/in/Studio.24.03.15.Jane.Doe.mp4',
+      reason: 'Something is already at /lib/Studio/x.mp4.',
+    });
+    await service.run();
+    expect(dropIns.rows[0]).toMatchObject({
+      placePending: true,
+      matchedBy: 'stash',
+    });
+  });
+
+  it('saves how it was matched when the look-up couldn’t, once it’s placed', async () => {
+    // The look-up's own note fails to save; placing saves it.
+    const update = dropIns.update.getMockImplementation()!;
+    dropIns.update.mockImplementation((args) =>
+      'rematchTriedAt' in args.data
+        ? Promise.reject(new Error('busy'))
+        : update(args),
+    );
+    await service.run();
+    expect(dropIns.rows[0]).toMatchObject({
+      placePending: false,
+      matchedBy: 'later',
+    });
+  });
+
+  it('saves how it was matched with the placing, when every note before it failed', async () => {
+    // Only the save that places it gets through.
+    const update = dropIns.update.getMockImplementation()!;
+    dropIns.update.mockImplementation((args) =>
+      'finalPath' in args.data ||
+      ('placePending' in args.data && !('rematchTriedAt' in args.data))
+        ? update(args)
+        : Promise.reject(new Error('busy')),
+    );
+    await service.run();
+    expect(dropIns.rows[0]).toMatchObject({
+      placePending: false,
+      finalPath: '/lib/Studio/2024-03-15 - Title.mp4',
+      matchedBy: 'later',
     });
   });
 

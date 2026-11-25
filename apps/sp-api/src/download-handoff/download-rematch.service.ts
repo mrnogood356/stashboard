@@ -10,7 +10,11 @@ import {
   DownloadHandoffService,
   placedLines,
 } from './download-handoff.service';
-import { MANUAL_HANDOFF_SOURCE } from './download-handoff.model';
+import {
+  MANUAL_HANDOFF_SOURCE,
+  type MatchedBy,
+  matchedByOf,
+} from './download-handoff.model';
 
 /** How often unmatched files you brought in are looked up again. */
 const REMATCH_EVERY_MS = 24 * 3600_000;
@@ -22,6 +26,13 @@ const REMATCH_PER_RUN = 40;
 const TICK_MS = 15 * 60_000;
 /** Recent imports read per run, before leaving out those already matched. */
 const READ_LIMIT = 300;
+
+/** Not matched yet, or a likely match waiting for you. */
+const UNRESOLVED: readonly MatchedBy[] = ['none', 'proposed'];
+
+function isUnresolved(matchedBy: string | null): boolean {
+  return (UNRESOLVED as readonly string[]).includes(matchedBy ?? '');
+}
 
 /** A file you brought in yourself, unmatched when it came in. */
 interface Entry {
@@ -36,6 +47,7 @@ interface Entry {
   triedAt: number;
   /** Matched on a later look but not put in its folder yet. */
   placePending: boolean;
+  matchedBy: string | null;
 }
 
 /**
@@ -113,17 +125,31 @@ export class DownloadRematchService {
       matchedCount = matched.size;
       proposed = result.proposed.length;
       const unmatched = new Set(result.left);
+      const waiting = new Set(result.proposed);
       for (const entry of toLookUp) {
         // Only one the look-up says is still unmatched is unmarked. Matched
         // ones, and one linked meanwhile some other way (the look-up skips
         // those), stay marked and are placed below.
         const stillUnmatched = unmatched.has(entry.sceneId);
+        // Linked meanwhile some other way: by you, most likely.
+        const matchedBy: MatchedBy | undefined = !stillUnmatched
+          ? matched.has(entry.sceneId)
+            ? 'later'
+            : 'stash'
+          : waiting.has(entry.sceneId)
+            ? 'proposed'
+            : undefined;
         await this.save(entry, {
           rematchTriedAt: new Date(this.now()),
           placePending: !stillUnmatched,
+          matchedBy,
         });
         if (!stillUnmatched) {
-          toPlace.push({ ...entry, placePending: true });
+          toPlace.push({
+            ...entry,
+            placePending: true,
+            matchedBy: matchedBy ?? entry.matchedBy,
+          });
         }
         if (matched.has(entry.sceneId)) {
           this.logger.log(
@@ -172,6 +198,18 @@ export class DownloadRematchService {
       await this.save(entry, { placePending: false });
       return true;
     }
+    // Linked: how is noted now, whether or not it can be placed (and again
+    // with the placing, should this save fail). A note the look-up couldn't
+    // save is saved here; one still saying "not matched" (a look-up that
+    // stopped part way) says matched.
+    const matchedBy: MatchedBy | undefined = !scene
+      ? undefined
+      : isUnresolved(entry.matchedBy)
+        ? 'stash'
+        : (matchedByOf(entry.matchedBy) ?? undefined);
+    if (matchedBy) {
+      await this.save(entry, { matchedBy });
+    }
     const file =
       scene?.files.find(
         (candidate) =>
@@ -189,7 +227,11 @@ export class DownloadRematchService {
       this.logger.warn(`${placed.reason} Tried again tomorrow.`);
       return false;
     }
-    await this.save(entry, { placePending: false, finalPath: placed.to });
+    await this.save(entry, {
+      placePending: false,
+      finalPath: placed.to,
+      ...(matchedBy ? { matchedBy } : {}),
+    });
     await this.activity?.record({
       kind: 'download',
       title: `Matched “${entry.name}” on a later look`,
@@ -245,6 +287,7 @@ export class DownloadRematchService {
         at: row.finishedAt?.getTime() ?? 0,
         triedAt: row.rematchTriedAt?.getTime() ?? 0,
         placePending: row.placePending,
+        matchedBy: row.matchedBy,
       })),
       ...[...pendingDownloads, ...downloads].map((row) => ({
         kind: 'download' as const,
@@ -255,6 +298,7 @@ export class DownloadRematchService {
         at: row.finishedAt?.getTime() ?? 0,
         triedAt: row.rematchTriedAt?.getTime() ?? 0,
         placePending: row.placePending,
+        matchedBy: row.matchedBy,
       })),
     ];
     const toPlace = all.filter((entry) => entry.placePending);
@@ -274,6 +318,12 @@ export class DownloadRematchService {
         })
       ).map((row) => row.stashSceneId),
     );
+    // Linked since (by you, most likely): no longer "not matched yet".
+    await this.noteLinked(
+      rest.filter(
+        (entry) => linked.has(entry.sceneId) && isUnresolved(entry.matchedBy),
+      ),
+    );
     const seen = new Set(toPlace.map((entry) => entry.sceneId));
     const toLookUp = rest
       .filter((entry) => !linked.has(entry.sceneId))
@@ -289,12 +339,42 @@ export class DownloadRematchService {
     return { toLookUp, toPlace };
   }
 
+  /** Notes files linked some other way since as matched. */
+  private async noteLinked(entries: Entry[]): Promise<void> {
+    const ids = (kind: Entry['kind']) =>
+      entries.filter((entry) => entry.kind === kind).map((entry) => entry.id);
+    const data = { matchedBy: 'stash' };
+    const where = (list: string[]) => ({
+      id: { in: list },
+      matchedBy: { in: [...UNRESOLVED] },
+    });
+    await Promise.all([
+      ids('drop-in').length
+        ? this.prisma.downloadDropIn.updateMany({
+            where: where(ids('drop-in')),
+            data,
+          })
+        : null,
+      ids('download').length
+        ? this.prisma.downloadHandoff.updateMany({
+            where: where(ids('download')),
+            data,
+          })
+        : null,
+    ]).catch((error: unknown) =>
+      this.logger.warn(
+        `Couldn't note files linked since as matched: ${messageOf(error)}`,
+      ),
+    );
+  }
+
   private async save(
     entry: Entry,
     data: {
       rematchTriedAt?: Date;
       placePending?: boolean;
       finalPath?: string;
+      matchedBy?: MatchedBy;
     },
   ): Promise<boolean> {
     const update = { where: { id: entry.id }, data };

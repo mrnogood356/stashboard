@@ -1,5 +1,5 @@
 import { PageTabsComponent, REQUESTS_TABS } from '../../shared/page-tabs/page-tabs.component';
-import { DOCUMENT } from '@angular/common';
+import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Observable, Subscription } from 'rxjs';
@@ -13,7 +13,7 @@ import {
   WhisparrImports,
 } from '../../core/api/download-handoff.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
-import { fileSize, relativeTime, stageLabel } from './processing.format';
+import { fileSize, matchNote, relativeTime, stageLabel } from './processing.format';
 import {
   Stage,
   percentText,
@@ -39,7 +39,7 @@ const WATCH_LABELS: Record<DropInWatchStatus['state'], string> = {
  */
 @Component({
   selector: 'app-processing-page',
-  imports: [PageTabsComponent, RouterLink, StageTrackComponent],
+  imports: [NgTemplateOutlet, PageTabsComponent, RouterLink, StageTrackComponent],
   templateUrl: './processing-page.component.html',
   styleUrls: ['../tools/tools-shared.scss', './processing-page.component.scss'],
 })
@@ -225,6 +225,9 @@ export class ProcessingPageComponent implements OnInit, OnDestroy {
   }
 
   protected stageLabel = stageLabel;
+  protected matchNote = matchNote;
+  /** Where a file that isn't matched yet is matched by hand. */
+  protected readonly findMatchQuery = { edit: 1, returnTo: '/processing' };
   protected fileSize = fileSize;
 
   protected ago(iso: string | null): string | null {

@@ -59,6 +59,7 @@ describe('DownloadHandoffService', () => {
     replacesStashSceneId: null,
     rematchTriedAt: null,
     placePending: false,
+    matchedBy: null,
     error: null,
     attempts: 0,
     finishedAt: null,

@@ -112,10 +112,95 @@ describe('StashdbAdapter', () => {
     expect(queries[2]).toContain('sort: "DATE"');
     expect(queries[2]).toContain('direction: "DESC"');
 
-    // Next time it goes out right first time.
-    await adapter.getScenesSortedByDate(config);
+    // Next time (another page, not kept) it goes out right first time.
+    await adapter.getScenesSortedByDate({ ...config, page: 2 });
     expect(queries).toHaveLength(4);
     expect(runtimeHealthService.recordFailure).not.toHaveBeenCalled();
+  });
+
+  it('reuses an answer for a few minutes, and asks again after a change', async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ data: { queryScenes: { count: 0, scenes: [] } } }),
+          { headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    );
+    let now = 1_000_000;
+    Object.assign(adapter, { now: () => now });
+    const config = {
+      baseUrl: 'https://stashdb.org/graphql',
+      page: 1,
+      perPage: 24,
+    };
+
+    // Asked twice at once, or again soon: the catalog is asked once.
+    await Promise.all([
+      adapter.getScenesSortedByDate(config),
+      adapter.getScenesSortedByDate(config),
+    ]);
+    await adapter.getScenesSortedByDate(config);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // A kept answer isn't a sign the catalog is up: only live ones count.
+    expect(runtimeHealthService.recordSuccess).toHaveBeenCalledTimes(2);
+
+    // Three minutes on, it's asked again.
+    now += 3 * 60_000;
+    await adapter.getScenesSortedByDate(config);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // A change there (a favorite) drops what was kept.
+    await adapter
+      .favoritePerformer('p1', true, { baseUrl: config.baseUrl })
+      .catch(() => undefined);
+    await adapter.getScenesSortedByDate(config);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('doesn’t keep an answer that was on its way while a change was made', async () => {
+    let release: () => void = () => undefined;
+    let calls = 0;
+    // Told apart by their totals: 1 from before the change, 2 after.
+    const answer = (count: number) =>
+      new Response(
+        JSON.stringify({ data: { queryScenes: { count, scenes: [] } } }),
+        { headers: { 'content-type': 'application/json' } },
+      );
+    fetchMock.mockImplementation(() => {
+      calls += 1;
+      // The first look-up answers only after the change was made.
+      return calls === 1
+        ? new Promise<Response>((resolve) => {
+            release = () => resolve(answer(1));
+          })
+        : Promise.resolve(answer(2));
+    });
+    const config = {
+      baseUrl: 'https://stashdb.org/graphql',
+      page: 1,
+      perPage: 24,
+    };
+
+    const before = adapter.getScenesSortedByDate(config);
+    await adapter
+      .favoritePerformer('p1', true, { baseUrl: config.baseUrl })
+      .catch(() => undefined);
+    // Asked after the change: not joined to the one asked before it, and
+    // answered (and kept) before the older one comes back.
+    await expect(adapter.getScenesSortedByDate(config)).resolves.toMatchObject({
+      total: 2,
+    });
+    release();
+    await expect(before).resolves.toMatchObject({ total: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    // The answer from after the change is what's kept; the late older one
+    // didn't replace it.
+    await expect(adapter.getScenesSortedByDate(config)).resolves.toMatchObject({
+      total: 2,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('retries a query whose value another request learned meanwhile', async () => {

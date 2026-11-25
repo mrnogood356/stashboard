@@ -4,6 +4,7 @@ import { Subject, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { SmallerCopies, SmallerCopiesApiService } from '../../core/api/smaller-copies.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
+import { ReleaseSearchService } from '../../core/releases/release-search.service';
 import { SmallerCopiesPageComponent } from './smaller-copies-page.component';
 
 const DATA: SmallerCopies = {
@@ -237,7 +238,38 @@ describe('SmallerCopiesPageComponent', () => {
       tryCounts: { 'kept-both': 1 },
     });
     openTab('tried');
-    expect(root.querySelector('[data-testid="try-t3"] button')).toBeNull();
+    expect(root.querySelector('[data-testid="try-again-t3"]')).toBeNull();
+    // Choosing a release yourself is still offered.
+    expect(root.querySelector('[data-testid="choose-try-t3"]')).not.toBeNull();
+  });
+
+  it('opens "Choose a release" for the scene, and shows the grab once it’s sent', async () => {
+    const { root, openTab, fixture, api } = await render({
+      ...DATA,
+      tries: [
+        {
+          id: 't3',
+          stashSceneId: '6',
+          title: 'Hill',
+          releaseTitle: 'Jane.Hill.1080p',
+          outcome: 'kept-both',
+          detail: null,
+          oldSize: null,
+          newSize: null,
+          at: '2026-11-05T08:00:00.000Z',
+        },
+      ],
+      tryCounts: { 'kept-both': 1 },
+    });
+    const search = TestBed.inject(ReleaseSearchService);
+    openTab('tried');
+    (root.querySelector('[data-testid="choose-try-t3"]') as HTMLButtonElement).click();
+    expect(search.target()).toEqual({ stashId: '6', title: 'Hill', source: 'replacement' });
+
+    api.status.mockClear();
+    search.done();
+    fixture.detectChanges();
+    expect(api.status).toHaveBeenCalledTimes(1);
   });
 
   it('links to the scene a kept-both download landed on, and removes it on a second tap', async () => {

@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ReleasesApiService } from '../../core/api/releases.service';
+import { SmallerCopiesApiService } from '../../core/api/smaller-copies.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { ReleasePickerComponent } from './release-picker.component';
 
@@ -73,6 +74,76 @@ describe('ReleasePickerComponent', () => {
       'STASHDB',
       expect.objectContaining({ guid: 'p' }),
     );
+  });
+
+  it('chooses a replacement for a library file, showing why your rules would skip the rest', async () => {
+    const prowlarr = (guid: string, overrides: Record<string, unknown> = {}) => ({
+      guid,
+      indexerId: 1,
+      indexer: 'NZBgeek',
+      title: `Release ${guid}`,
+      size: 2 * 1024 ** 3,
+      protocol: 'usenet',
+      seeders: null,
+      leechers: null,
+      ageHours: 10,
+      publishDate: null,
+      infoUrl: null,
+      match: { strength: 'strong', matched: ['title'] },
+      ...overrides,
+    });
+    const releases = {
+      ownedCopies: vi.fn(),
+      prowlarrStatus: noProwlarr,
+      search: vi.fn(),
+      searchProwlarr: vi.fn(),
+    };
+    const smaller = {
+      releases: vi.fn().mockReturnValue(
+        of({
+          stashSceneId: '42',
+          title: 'Hill',
+          oldSize: 8 * 1024 ** 3,
+          queries: ['hill'],
+          releases: [
+            prowlarr('big', { problems: ['Saves less than 10%'] }),
+            prowlarr('ok', { problems: [] }),
+          ],
+        }),
+      ),
+      grabChosen: vi.fn().mockReturnValue(of({})),
+    };
+    await TestBed.configureTestingModule({
+      imports: [ReleasePickerComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ReleasesApiService, useValue: releases },
+        { provide: SmallerCopiesApiService, useValue: smaller },
+        { provide: AppNotificationsService, useValue: { success: vi.fn(), error: vi.fn() } },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ReleasePickerComponent);
+    fixture.componentRef.setInput('stashId', '42');
+    fixture.componentRef.setInput('source', 'replacement');
+    fixture.componentRef.setInput('open', true);
+    fixture.detectChanges();
+    const root = document.body;
+
+    // No "you already have it" check: it's your own file being replaced.
+    expect(releases.ownedCopies).not.toHaveBeenCalled();
+    expect(smaller.releases).toHaveBeenCalledWith('42', '');
+    expect(root.textContent).toContain('Choose a replacement');
+    // The one your rules would pick is listed; the other waits behind "Show".
+    expect(root.textContent).toContain('Release ok');
+    expect(root.textContent).not.toContain('Release big');
+    expect(root.textContent).toContain('Show 1 your rules would skip');
+
+    (root.querySelector('button.release') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const replace = root.querySelector('.foot .btn.primary') as HTMLButtonElement;
+    expect(replace.textContent).toContain('Replace with this');
+    replace.click();
+    expect(smaller.grabChosen).toHaveBeenCalledWith('42', expect.objectContaining({ guid: 'ok' }));
   });
 
   it('doesn’t offer Prowlarr when it isn’t set up', async () => {

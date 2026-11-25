@@ -558,6 +558,8 @@ model DownloadHandoff {
   rematchTriedAt       DateTime?
   /// Matched on a later look, but not yet put in its folder: tried again.
   placePending         Boolean   @default(false)
+  /// How it was matched once in Stash: fingerprint | name | whisparr | later | proposed | none (yours only).
+  matchedBy            String?
   /// Cleared from Downloads by you. Kept, so it's never brought in twice.
   clearedAt            DateTime?
   createdAt            DateTime  @default(now())
@@ -590,6 +592,8 @@ model DownloadDropIn {
   rematchTriedAt DateTime?
   /// Matched on a later look, but not yet put in its folder: tried again.
   placePending   Boolean   @default(false)
+  /// How it was matched once in Stash: fingerprint | name | whisparr | later | proposed | none (yours only).
+  matchedBy      String?
   /// Cleared from Downloads by you. Kept, so it's never brought in twice.
   clearedAt      DateTime?
   createdAt      DateTime  @default(now())

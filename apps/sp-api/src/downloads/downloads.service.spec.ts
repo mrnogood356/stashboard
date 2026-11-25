@@ -332,6 +332,32 @@ describe('DownloadsService', () => {
       expect(handoff.send).not.toHaveBeenCalled();
     });
 
+    it('sends nothing when the release found again has another name than the one checked', async () => {
+      // Another search replaced what's remembered for this indexer and guid.
+      search.mockResolvedValue([usenet]);
+      await service.searchReleases('scene-1', 'FANSDB');
+      await expect(
+        service.grabRelease('scene-1', { guid: 'u', indexerId: 7 }, 'FANSDB', {
+          replacesStashSceneId: '12',
+          expectedTitle: 'The.Name.Checked.Before',
+        }),
+      ).rejects.toThrow('That search result changed.');
+      expect(handoff.send).not.toHaveBeenCalled();
+    });
+
+    it('never sends a replacement through Prowlarr, even if Finished downloads turns off mid-way', async () => {
+      search.mockResolvedValue([usenet]);
+      await service.searchReleases('scene-1', 'FANSDB');
+      handoff.isActive.mockResolvedValueOnce(true).mockResolvedValue(false);
+      await service
+        .grabRelease('scene-1', { guid: 'u', indexerId: 7 }, 'FANSDB', {
+          replacesStashSceneId: '12',
+        })
+        .catch(() => undefined);
+      expect(grab).not.toHaveBeenCalled();
+      expect(handoff.isActive).toHaveBeenCalledTimes(1);
+    });
+
     it('asks for a new search when the result is gone', async () => {
       await expect(
         service.grabRelease('scene-1', { guid: 'u', indexerId: 7 }, 'FANSDB'),

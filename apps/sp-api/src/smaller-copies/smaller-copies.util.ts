@@ -184,25 +184,29 @@ export interface CandidateRelease {
 }
 
 /**
- * The release to grab, or null. It must be the same scene (as sure as the
- * rules ask), from usenet (so it comes back through Finished downloads), at
- * the target resolution, within the size cap, in an efficient codec when
- * the rules insist, and, unless it's an upgrade, smaller by at least the
- * saving asked for. Of those: efficient codecs first when preferred, then
- * the biggest or the smallest.
+ * Why a release won't do as this file's replacement, in plain words; empty
+ * when it fits. It must be the same scene (as sure as the rules ask), from
+ * usenet (so it comes back through Finished downloads), at the target
+ * resolution, within the size cap and above the floor, in an efficient
+ * codec when the rules insist, and, unless it's an upgrade, smaller by at
+ * least the saving asked for.
  */
-export function pickRelease(
-  releases: CandidateRelease[],
+export function releaseProblems(
+  release: CandidateRelease,
   file: { size: number; duration?: number | null },
   reason: ReplaceReason,
   rules: SmallerCopyRules,
-): CandidateRelease | null {
+): string[] {
+  const problems: string[] = [];
   const strengths =
     rules.matchStrength === 'partial' ? ['strong', 'partial'] : ['strong'];
-  const fits = releases.filter((release) => {
-    if (!release.match || !strengths.includes(release.match.strength)) {
-      return false;
-    }
+  if (!release.match || !strengths.includes(release.match.strength)) {
+    problems.push(
+      release.match?.strength === 'partial'
+        ? 'Only a partial match for this scene'
+        : 'Its name doesn’t match this scene',
+    );
+  } else {
     // It replaces a file you have: the name must say which scene, by its
     // title or by the studio and day. A studio and a performer isn't enough
     // ("ManyVids.2023.Performer…" fits every clip she put up there).
@@ -212,24 +216,31 @@ export function pickRelease(
       !matched.includes('title') &&
       !(matched.includes('studio') && matched.includes('date'))
     ) {
-      return false;
+      problems.push('Its name doesn’t give the title, or the studio and day');
     }
-    // A pack or site rip holds many scenes, not this one.
-    if (isBundle(release.title)) {
-      return false;
-    }
-    if (release.protocol !== 'usenet' || !release.size) {
-      return false;
-    }
-    if (releaseResolution(release.title) !== rules.target) {
-      return false;
-    }
-    if (
-      rules.codec === 'efficient-only' &&
-      !releaseIsEfficient(release.title)
-    ) {
-      return false;
-    }
+  }
+  // A pack or site rip holds many scenes, not this one.
+  if (isBundle(release.title)) {
+    problems.push('A pack or site rip, not one scene');
+  }
+  if (release.protocol !== 'usenet') {
+    problems.push('Not from usenet, so Finished downloads can’t bring it in');
+  }
+  if (!release.size) {
+    problems.push('Its size isn’t known');
+  }
+  const resolution = releaseResolution(release.title);
+  if (resolution !== rules.target) {
+    problems.push(
+      resolution
+        ? `${resolution}, not ${rules.target}`
+        : `Not marked ${rules.target}`,
+    );
+  }
+  if (rules.codec === 'efficient-only' && !releaseIsEfficient(release.title)) {
+    problems.push('Not HEVC or AV1');
+  }
+  if (release.size) {
     // The release's own size over the scene's length: its weight per hour.
     const density = gbPerHour(release.size, file.duration);
     if (
@@ -237,7 +248,9 @@ export function pickRelease(
       density !== null &&
       density > rules.maxNewGbPerHour
     ) {
-      return false;
+      problems.push(
+        `${gbText(density)} GB an hour, over your ${rules.maxNewGbPerHour} GB cap`,
+      );
     }
     // A release's size counts more than the video (other files, overhead),
     // so one right at the floor comes out under it: leave some room.
@@ -246,16 +259,34 @@ export function pickRelease(
       density !== null &&
       density < rules.minNewGbPerHour * FLOOR_HEADROOM
     ) {
-      return false;
+      problems.push(
+        `${gbText(density)} GB an hour, too near your ${rules.minNewGbPerHour} GB floor`,
+      );
     }
     if (
       reason !== 'below-target' &&
       release.size > file.size * (1 - rules.minSavingsPercent / 100)
     ) {
-      return false;
+      problems.push(`Saves less than ${rules.minSavingsPercent}%`);
     }
-    return true;
-  });
+  }
+  return problems;
+}
+
+/**
+ * The release to grab, or null: one with no problems (see releaseProblems).
+ * Of those: efficient codecs first when preferred, then strong matches, then
+ * the biggest or the smallest.
+ */
+export function pickRelease(
+  releases: CandidateRelease[],
+  file: { size: number; duration?: number | null },
+  reason: ReplaceReason,
+  rules: SmallerCopyRules,
+): CandidateRelease | null {
+  const fits = releases.filter(
+    (release) => releaseProblems(release, file, reason, rules).length === 0,
+  );
   const bySize = (a: CandidateRelease, b: CandidateRelease) =>
     rules.prefer === 'smallest'
       ? (a.size ?? 0) - (b.size ?? 0)

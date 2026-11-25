@@ -16,6 +16,8 @@ import {
   SmallerCopySettings,
 } from '../../core/api/smaller-copies.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
+import { ReleaseSearchService } from '../../core/releases/release-search.service';
+import { SmallerCopyTry } from '../../core/api/smaller-copies.service';
 
 const OUTCOMES: Record<string, string> = {
   grabbed: 'Grabbed',
@@ -110,6 +112,7 @@ export const PRESETS: Record<
 export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
   private readonly api = inject(SmallerCopiesApiService);
   private readonly notifications = inject(AppNotificationsService);
+  private readonly releaseSearch = inject(ReleaseSearchService);
 
   protected readonly data = signal<SmallerCopies | null>(null);
   protected readonly error = signal(false);
@@ -168,6 +171,7 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
     return filter === 'all' ? tries : tries.filter((row) => row.outcome === filter);
   });
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
+  private grabbedSubscription: import('rxjs').Subscription | null = null;
   /**
    * Bumped when a change made from the page starts and again when its answer
    * lands: a refresh read before or during it would put the old state (old
@@ -183,12 +187,36 @@ export class SmallerCopiesPageComponent implements OnInit, OnDestroy {
     // The total and the lists move while the page is open: read them again,
     // leaving the rules form as it is.
     this.refreshTimer = setInterval(() => this.refresh(), REFRESH_MS);
+    // A release you chose was sent: show it on its way.
+    this.grabbedSubscription = this.releaseSearch.grabbed.subscribe(() => {
+      this.changes += 1;
+      this.refresh();
+    });
   }
 
   ngOnDestroy(): void {
     if (this.refreshTimer) {
       clearInterval(this.refreshTimer);
     }
+    this.grabbedSubscription?.unsubscribe();
+  }
+
+  /**
+   * "Choose a release": everything the indexers found for the scene, each
+   * saying why your rules would pass it by, to grab the one you want.
+   */
+  protected chooseRelease(stashSceneId: string, title: string): void {
+    this.releaseSearch.open({ stashId: stashSceneId, title, source: 'replacement' });
+  }
+
+  /**
+   * Offered on a scene's latest try when it didn't end well (failed, both
+   * kept, or the new copy removed), and nothing's on its way for it.
+   */
+  protected canChoose(row: SmallerCopyTry): boolean {
+    return (
+      ['failed', 'kept-both', 'removed'].includes(row.outcome) && this.latestTryIds().has(row.id)
+    );
   }
 
   private refresh(): void {

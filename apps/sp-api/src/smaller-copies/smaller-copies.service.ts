@@ -13,7 +13,10 @@ import {
   releaseKeyOf,
 } from '../download-handoff/download-handoff.service';
 import { OPEN_HANDOFF_STATUSES } from '../download-handoff/download-handoff.model';
-import { DownloadsService } from '../downloads/downloads.service';
+import {
+  DownloadsService,
+  type MatchedProwlarrRelease,
+} from '../downloads/downloads.service';
 import type { StatsFile } from '../playback/library-stats.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CatalogProviderService } from '../providers/catalog/catalog-provider.service';
@@ -26,6 +29,8 @@ import {
   OLD_COPY,
   pickRelease,
   PREFER,
+  reasonFor,
+  releaseProblems,
   STUDIO_MODES,
   TARGETS,
   type ReplaceReason,
@@ -112,6 +117,22 @@ export interface SmallerCopiesDto {
   failed: number;
 }
 
+/** Releases found for a scene, to choose one yourself. */
+export interface ChooseReleasesDto {
+  stashSceneId: string;
+  title: string;
+  /** The file it would replace. */
+  oldSize: number | null;
+  releases: Array<
+    MatchedProwlarrRelease & {
+      /** Why the rules wouldn't pick it; empty when they would. */
+      problems: string[];
+    }
+  >;
+  queries: string[];
+  notice?: string;
+}
+
 interface Candidate {
   file: StatsFile;
   reason: ReplaceReason;
@@ -141,10 +162,20 @@ type Note = Pick<SmallerCopyAttempt, 'title' | 'outcome' | 'retryAfter'> &
 /** How long a new scene's file count is trusted for the Tried list (the page asks every 30s). */
 const FILE_COUNT_TTL = 60 * 1000;
 
+const ON_ITS_WAY = 'A replacement for this scene is already on its way.';
+
+function refuseBusy(): never {
+  throw new ConflictException(
+    'A replacement for this scene is already being sent.',
+  );
+}
+
 @Injectable()
 export class SmallerCopiesService {
   private readonly logger = new Logger(SmallerCopiesService.name);
   private running = false;
+  /** Scenes a release you chose is being sent for (see grabChosen). */
+  private readonly choosing = new Set<string>();
   /** Files on each kept-both download's scene, by scene, for the Tried list. */
   private readonly fileCounts = new Map<
     string,
@@ -642,8 +673,198 @@ export class SmallerCopiesService {
     return ids;
   }
 
+  /**
+   * Every release the indexers found for a library scene, for choosing one
+   * yourself: each says why the rules wouldn't pick it (empty when they
+   * would), including one tried or failed before. Searched with your own
+   * words when given.
+   */
+  async releasesFor(
+    stashSceneId: string,
+    typed?: string,
+  ): Promise<ChooseReleasesDto> {
+    const { file, catalogId, provider } = await this.chosenScene(stashSceneId);
+    const rules = rulesOf(await this.getSettings());
+    const found = await this.downloads.searchReleases(
+      catalogId,
+      provider,
+      typed,
+    );
+    const attempt = await this.prisma.smallerCopyAttempt
+      .findUnique({ where: { stashSceneId } })
+      .catch(() => null);
+    const grabbed = new Set(attempt?.grabbedGuids ?? []);
+    const tried = new Set(
+      (
+        await this.prisma.smallerCopyTry
+          .findMany({
+            where: { stashSceneId },
+            select: { releaseTitle: true },
+          })
+          .catch(() => [])
+      ).map((row) => releaseKeyOf(row.releaseTitle)),
+    );
+    const reason = reasonFor(file, rules.target);
+    return {
+      stashSceneId,
+      title: file.title ?? `Scene ${stashSceneId}`,
+      oldSize: file.size ?? null,
+      releases: found.releases.map((release) => ({
+        ...release,
+        problems: [
+          ...(release.failedBefore
+            ? [`SABnzbd couldn’t download it before: ${release.failedBefore}`]
+            : []),
+          ...(grabbed.has(release.guid) ||
+          tried.has(releaseKeyOf(release.title))
+            ? ['Grabbed before for this scene']
+            : []),
+          ...releaseProblems(
+            release,
+            { size: file.size ?? 0, duration: file.duration },
+            reason,
+            rules,
+          ),
+        ],
+      })),
+      queries: found.queries,
+      ...(found.notice ? { notice: found.notice } : {}),
+    };
+  }
+
+  /**
+   * Grabs the release you chose to replace a scene's file, whatever the
+   * rules say; the new file is still checked once it's in (same video,
+   * smaller or better) before the old one goes. Not one SABnzbd couldn't
+   * download before.
+   */
+  async grabChosen(
+    stashSceneId: string,
+    release: { guid: string; indexerId: number; title: string; size?: number },
+  ): Promise<SmallerCopiesDto> {
+    await this.holdScene(stashSceneId, refuseBusy, () =>
+      this.sendChosen(stashSceneId, release),
+    );
+    return this.status();
+  }
+
+  /**
+   * One replacement at a time per scene, from its checks until it's in
+   * Finished downloads: you choosing, you grabbing a listed match and the
+   * background search can't both send one. A scene already held gets
+   * busy() instead.
+   */
+  private async holdScene<T>(
+    stashSceneId: string,
+    busy: () => T,
+    work: () => Promise<T>,
+  ): Promise<T> {
+    if (this.choosing.has(stashSceneId)) {
+      return busy();
+    }
+    this.choosing.add(stashSceneId);
+    try {
+      return await work();
+    } finally {
+      this.choosing.delete(stashSceneId);
+    }
+  }
+
+  /** A replacement for this scene sent and not yet in the library. */
+  private async replacementOnTheWay(stashSceneId: string): Promise<boolean> {
+    const open = await this.prisma.downloadHandoff.count({
+      where: {
+        replacesStashSceneId: stashSceneId,
+        status: { in: OPEN_HANDOFF_STATUSES },
+      },
+    });
+    return open > 0;
+  }
+
+  private async sendChosen(
+    stashSceneId: string,
+    release: { guid: string; indexerId: number; title: string; size?: number },
+  ): Promise<void> {
+    const { file, catalogId, provider } = await this.chosenScene(stashSceneId);
+    // The release that's sent is the one the search found, by its id: its
+    // own name is checked and noted, whatever name came with the request.
+    const title = this.downloads.rememberedTitle(
+      release.indexerId,
+      release.guid,
+    );
+    // Not remembered: sending would refuse it too, and checking a name that
+    // came with the request could let a failed release through.
+    if (!title) {
+      throw new ConflictException(
+        'That search result has expired. Search again and pick it once more.',
+      );
+    }
+    const failed = (await this.handoff.failedReleases([title])).get(
+      releaseKeyOf(title),
+    );
+    if (failed) {
+      throw new BadRequestException(
+        `SABnzbd couldn’t download that release before (${failed}), so it wasn’t sent again. Pick another.`,
+      );
+    }
+    if (await this.replacementOnTheWay(stashSceneId)) {
+      throw new ConflictException(ON_ITS_WAY);
+    }
+    const sent = await this.downloads.grabRelease(
+      catalogId,
+      { guid: release.guid, indexerId: release.indexerId, title },
+      provider,
+      // Sent only if it's still the release checked above.
+      { replacesStashSceneId: stashSceneId, expectedTitle: title },
+    );
+    await this.markGrabbed(stashSceneId, {
+      title: file.title ?? `Scene ${stashSceneId}`,
+      releaseTitle: title,
+      releaseGuid: release.guid,
+      newSize: release.size ?? null,
+      oldSize: file.size ?? null,
+      handoffId: sent.handoffId ?? null,
+    });
+    this.logger.log(
+      `Better copies: you chose “${title}” to replace Stash scene ${stashSceneId}.`,
+    );
+  }
+
+  /** A library scene's biggest file and catalog link, for choosing a release. */
+  private async chosenScene(stashSceneId: string): Promise<{
+    file: StatsFile;
+    catalogId: string;
+    provider: Awaited<
+      ReturnType<CatalogProviderService['getInstanceCatalogProvider']>
+    >['providerKey'];
+  }> {
+    const file = (await this.libraryFiles())
+      .filter((entry) => entry.sceneId === stashSceneId)
+      .sort((a, b) => (b.size ?? 0) - (a.size ?? 0))[0];
+    if (!file) {
+      throw new NotFoundException('That scene isn’t in your library.');
+    }
+    const index = await this.prisma.librarySceneIndex.findUnique({
+      where: { stashSceneId },
+    });
+    if (!index?.linkedStashId) {
+      throw new BadRequestException(
+        'That scene isn’t linked to the catalog, so there’s nothing to search for. Match it first.',
+      );
+    }
+    const provider = (await this.catalog.getInstanceCatalogProvider())
+      .providerKey;
+    return { file, catalogId: index.linkedStashId, provider };
+  }
+
   /** Grabs a match that was listed for you (when grabbing by itself is off). */
   async grabListed(stashSceneId: string): Promise<SmallerCopiesDto> {
+    return this.holdScene(stashSceneId, refuseBusy, () =>
+      this.grabListedNow(stashSceneId),
+    );
+  }
+
+  private async grabListedNow(stashSceneId: string): Promise<SmallerCopiesDto> {
     const row = await this.prisma.smallerCopyAttempt.findUnique({
       where: { stashSceneId },
     });
@@ -697,6 +918,9 @@ export class SmallerCopiesService {
       throw new BadRequestException(
         `SABnzbd couldn’t download that release before (${failedBefore}), so it wasn’t sent again. It’ll look for another.`,
       );
+    }
+    if (await this.replacementOnTheWay(stashSceneId)) {
+      throw new ConflictException(ON_ITS_WAY);
     }
     const sent = await this.downloads.grabRelease(
       index.linkedStashId,
@@ -829,7 +1053,28 @@ export class SmallerCopiesService {
     candidate: Candidate,
     settings: SmallerCopySettings,
   ): Promise<boolean> {
+    // Being replaced by you right now: left for a later pass.
+    return this.holdScene(
+      candidate.file.sceneId,
+      () => false,
+      () => this.tryOneNow(candidate, settings),
+    );
+  }
+
+  private async tryOneNow(
+    candidate: Candidate,
+    settings: SmallerCopySettings,
+  ): Promise<boolean> {
     const { file, reason } = candidate;
+    // A replacement for this scene still on its way (sent by you while this
+    // pass waited) is left for a later pass, its record untouched: checked
+    // before anything is written, and one that can't be checked is skipped.
+    const onTheWay = await this.replacementOnTheWay(file.sceneId).catch(
+      () => true,
+    );
+    if (onTheWay) {
+      return false;
+    }
     const rules = rulesOf(settings);
     const index = await this.prisma.librarySceneIndex
       .findUnique({ where: { stashSceneId: file.sceneId } })
@@ -911,6 +1156,10 @@ export class SmallerCopiesService {
           retryAfter: new Date(this.now() + LONG_WAIT),
         });
         return true;
+      }
+      // Sent since this pass began (by you): not sent twice.
+      if (await this.replacementOnTheWay(file.sceneId)) {
+        return false;
       }
       const sent = await this.downloads.grabRelease(
         catalogId,
@@ -1044,26 +1293,30 @@ export class SmallerCopiesService {
     return null;
   }
 
-  /** Library scenes the rules say to look for, biggest files first. */
-  private async candidates(
-    settings: SmallerCopySettings,
-  ): Promise<Candidate[]> {
+  /** Every file in your library, kept for an hour. */
+  private async libraryFiles(): Promise<StatsFile[]> {
     const config = await this.handoff.stashConfig();
     if (!config || !this.stash) {
       return [];
     }
     const kept = this.files;
-    let files: StatsFile[];
     if (
       kept &&
       kept.baseUrl === config.baseUrl &&
       this.now() - kept.at < FILES_TTL
     ) {
-      files = kept.value;
-    } else {
-      files = await this.stash.listLibraryFiles(config);
-      this.files = { at: this.now(), baseUrl: config.baseUrl, value: files };
+      return kept.value;
     }
+    const files = await this.stash.listLibraryFiles(config);
+    this.files = { at: this.now(), baseUrl: config.baseUrl, value: files };
+    return files;
+  }
+
+  /** Library scenes the rules say to look for, biggest files first. */
+  private async candidates(
+    settings: SmallerCopySettings,
+  ): Promise<Candidate[]> {
+    const files = await this.libraryFiles();
     const rules = rulesOf(settings);
     // One entry per scene: its biggest file decides.
     const byScene = new Map<string, StatsFile>();

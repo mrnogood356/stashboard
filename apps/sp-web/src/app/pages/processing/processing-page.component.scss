@@ -647,3 +647,15 @@ app-stage-track {
 .card[data-stage] {
   padding: 0.9rem;
 }
+
+/* How a file you brought in was matched: quiet when it was, amber when it's yours to do. */
+.match-tag {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+
+  &[data-tone='check'] {
+    color: var(--warning-text);
+    font-weight: 600;
+  }
+}

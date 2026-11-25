@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import type { ProwlarrRelease } from './releases.service';
 
 export type SmallerCopyTarget = '2160p' | '1080p' | '720p';
 
@@ -88,6 +89,16 @@ export interface SmallerCopyTry {
   canRemoveNew?: boolean;
 }
 
+/** Releases found for a scene, to choose a replacement yourself. */
+export interface ChooseReleases {
+  stashSceneId: string;
+  title: string;
+  oldSize: number | null;
+  releases: Array<ProwlarrRelease & { problems: string[] }>;
+  queries: string[];
+  notice?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SmallerCopiesApiService {
   private readonly http = inject(HttpClient);
@@ -129,6 +140,30 @@ export class SmallerCopiesApiService {
     return this.http.post<SmallerCopies>(
       `/api/smaller-copies/tries/${encodeURIComponent(tryId)}/remove-new`,
       {},
+    );
+  }
+
+  /** Every release found for a scene, each with why the rules would pass it by. */
+  releases(stashSceneId: string, query?: string): Observable<ChooseReleases> {
+    return this.http.get<ChooseReleases>(
+      `/api/smaller-copies/scenes/${encodeURIComponent(stashSceneId)}/releases`,
+      query?.trim() ? { params: { q: query.trim() } } : {},
+    );
+  }
+
+  /** Grabs the release you chose to replace the scene's file. */
+  grabChosen(
+    stashSceneId: string,
+    release: { guid: string; indexerId: number; title: string; size: number | null },
+  ): Observable<SmallerCopies> {
+    return this.http.post<SmallerCopies>(
+      `/api/smaller-copies/scenes/${encodeURIComponent(stashSceneId)}/releases`,
+      {
+        guid: release.guid,
+        indexerId: release.indexerId,
+        title: release.title,
+        ...(release.size ? { size: release.size } : {}),
+      },
     );
   }
 

@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -57,7 +58,18 @@ describe('LocalScenePageComponent', () => {
   };
   const diagnosticsApi = { catalogScene: vi.fn(), localScene: vi.fn() };
 
-  async function render(getSceneDetails: ReturnType<typeof vi.fn>) {
+  let route: {
+    paramMap: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+    queryParamMap: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+    snapshot: { readonly paramMap: ReturnType<typeof convertToParamMap> };
+  };
+  /** A path the router has moved to before telling its subscribers. */
+  let ahead: ReturnType<typeof convertToParamMap> | null = null;
+
+  async function render(
+    getSceneDetails: ReturnType<typeof vi.fn>,
+    queryParams: Record<string, string> = { returnTo: '/home' },
+  ) {
     library = {
       related: vi.fn().mockReturnValue(of([])),
       updateScene: vi.fn((_id: string, update: Record<string, unknown>) =>
@@ -73,7 +85,17 @@ describe('LocalScenePageComponent', () => {
       searchTags: vi.fn().mockReturnValue(of([{ id: '50', name: 'Beach' }])),
     };
     const params = new BehaviorSubject(convertToParamMap({ sceneId: '12' }));
-    const query = new BehaviorSubject(convertToParamMap({ returnTo: '/home' }));
+    const query = new BehaviorSubject(convertToParamMap(queryParams));
+    // Like the router: the snapshot moves first, then query, then path.
+    route = {
+      paramMap: params,
+      queryParamMap: query,
+      snapshot: {
+        get paramMap() {
+          return ahead ?? params.value;
+        },
+      },
+    };
     await TestBed.configureTestingModule({
       imports: [LocalScenePageComponent],
       providers: [
@@ -89,14 +111,14 @@ describe('LocalScenePageComponent', () => {
           },
         },
         { provide: DiagnosticsApiService, useValue: diagnosticsApi },
-        { provide: ActivatedRoute, useValue: { paramMap: params, queryParamMap: query } },
+        { provide: ActivatedRoute, useValue: route },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(LocalScenePageComponent);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
-    return { fixture, root: fixture.nativeElement as HTMLElement, params };
+    return { fixture, root: fixture.nativeElement as HTMLElement, params, query };
   }
 
   it('shows the scene with a Play button that opens the built-in player', async () => {
@@ -126,6 +148,69 @@ describe('LocalScenePageComponent', () => {
       vi.fn().mockReturnValue(of(sceneDetails({ productionDate: '2026-01-02' }))),
     );
     expect(same.root.querySelector('.meta-row')?.textContent).not.toContain('Filmed');
+  });
+
+  it('opens Edit straight away from Downloads’ Find a match link', async () => {
+    await render(vi.fn().mockReturnValue(of(sceneDetails())), {
+      edit: '1',
+      returnTo: '/processing',
+    });
+    expect(document.querySelector('[data-testid="scene-edit-sheet"]')).not.toBeNull();
+  });
+
+  it('doesn’t open Edit, or go back to the scene, when it comes in after you left', async () => {
+    const answer = new Subject<ReturnType<typeof sceneDetails>>();
+    const { fixture } = await render(vi.fn().mockReturnValue(answer), { edit: '1' });
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate');
+    fixture.destroy();
+    answer.next(sceneDetails());
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('opens Edit for the scene the link is for, not the one you were on', async () => {
+    const next = new Subject<ReturnType<typeof sceneDetails>>();
+    const getSceneDetails = vi
+      .fn()
+      .mockImplementation((id: string) => (id === '12' ? of(sceneDetails()) : next));
+    const { fixture, params, query } = await render(getSceneDetails, {});
+    const page = fixture.componentInstance as unknown as {
+      editing: () => boolean;
+      openEditFromLink: () => void;
+    };
+    const opened = vi.spyOn(page, 'openEditFromLink');
+
+    // Scene 12 → scene 13 with edit=1, in the router's order.
+    const to = convertToParamMap({ sceneId: '13' });
+    ahead = to;
+    query.next(convertToParamMap({ edit: '1' }));
+    params.next(to);
+    ahead = null;
+    fixture.detectChanges();
+    expect(opened).not.toHaveBeenCalled();
+    expect(page.editing()).toBe(false);
+
+    next.next(sceneDetails({ id: '13' }));
+    fixture.detectChanges();
+    expect(opened).toHaveBeenCalledTimes(1);
+    expect(page.editing()).toBe(true);
+  });
+
+  it('forgets an Edit asked for a scene you left before it loaded', async () => {
+    const slow = new Subject<ReturnType<typeof sceneDetails>>();
+    const getSceneDetails = vi
+      .fn()
+      .mockImplementation((id: string) => (id === '12' ? slow : of(sceneDetails({ id }))));
+    const { fixture, params, query } = await render(getSceneDetails, { edit: '1' });
+    const page = fixture.componentInstance as unknown as { editing: () => boolean };
+
+    // Off to scene 13 (no Edit asked) before 12 loads, then back to 12.
+    query.next(convertToParamMap({}));
+    params.next(convertToParamMap({ sceneId: '13' }));
+    getSceneDetails.mockImplementation((id: string) => of(sceneDetails({ id })));
+    params.next(convertToParamMap({ sceneId: '12' }));
+    fixture.detectChanges();
+    expect(page.editing()).toBe(false);
   });
 
   it('opens Edit, and shows what Stash saved from it', async () => {
@@ -327,5 +412,59 @@ describe('LocalScenePageComponent', () => {
 
     expect(root.textContent).toContain('Fourteen');
     expect(root.textContent).not.toContain('Thirteen');
+  });
+});
+
+// With the real router: it reuses the page, moves its snapshot, then emits
+// the new query before the new path.
+describe('LocalScenePageComponent with the router', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('opens Edit for scene 13 once it loads, after coming from scene 12', async () => {
+    const thirteen = new Subject<LocalSceneDetails>();
+    const getSceneDetails = vi.fn((id: string) => (id === '12' ? of(sceneDetails()) : thirteen));
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([{ path: 'library/scene/:sceneId', component: LocalScenePageComponent }]),
+        { provide: PlaybackService, useValue: { getSceneDetails } },
+        {
+          provide: LocalLibraryService,
+          useValue: {
+            related: vi.fn().mockReturnValue(of([])),
+            searchTags: vi.fn().mockReturnValue(of([])),
+          },
+        },
+        {
+          provide: WatchLaterService,
+          useValue: { ensureLoaded: () => undefined, has: () => false, toggle: vi.fn() },
+        },
+        {
+          provide: DiagnosticsApiService,
+          useValue: { catalogScene: vi.fn(), localScene: vi.fn() },
+        },
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    const page = (await harness.navigateByUrl(
+      '/library/scene/12',
+      LocalScenePageComponent,
+    )) as unknown as { editing: () => boolean; openEditFromLink: () => void };
+    const router = TestBed.inject(Router);
+    const opened = vi.spyOn(page, 'openEditFromLink');
+
+    // The same page is reused for 13: nothing opens while 13 loads.
+    await harness.navigateByUrl('/library/scene/13?edit=1');
+    expect(harness.routeDebugElement?.componentInstance).toBe(page);
+    // Not opened for 12 when the new query came in ahead of the new path.
+    expect(opened).not.toHaveBeenCalled();
+    expect(page.editing()).toBe(false);
+
+    thirteen.next(sceneDetails({ id: '13' }));
+    harness.detectChanges();
+    await harness.fixture.whenStable();
+    expect(page.editing()).toBe(true);
+    expect(opened).toHaveBeenCalledTimes(1);
+    // edit=1 is dropped from the address, which stays on 13.
+    expect(router.url).toBe('/library/scene/13');
   });
 });

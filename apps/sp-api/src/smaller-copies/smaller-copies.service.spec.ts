@@ -21,7 +21,11 @@ describe('SmallerCopiesService', () => {
   let linked: Record<string, string | null>;
   let prisma: Record<string, Record<string, jest.Mock>>;
   let transaction: jest.Mock;
-  let downloads: { searchReleases: jest.Mock; grabRelease: jest.Mock };
+  let downloads: {
+    searchReleases: jest.Mock;
+    grabRelease: jest.Mock;
+    rememberedTitle: jest.Mock;
+  };
   let handoff: {
     stashConfig: jest.Mock;
     isActive: jest.Mock;
@@ -320,6 +324,12 @@ describe('SmallerCopiesService', () => {
         sentTo: 'sabnzbd',
         handoffId: 'h9',
       }),
+      rememberedTitle: jest.fn(
+        (_indexerId: number, guid: string) =>
+          ({ big: 'Studio.Scene.1080p', x: 'Studio.Scene.1080p', y: 'Other' })[
+            guid
+          ] ?? null,
+      ),
     };
     handoff = {
       stashConfig: jest
@@ -376,9 +386,72 @@ describe('SmallerCopiesService', () => {
     await service.tick();
     expect(downloads.searchReleases).not.toHaveBeenCalled();
 
-    prisma.downloadHandoff.count.mockResolvedValue(1);
+    // One coming in, for another scene than the one searched.
+    prisma.downloadHandoff.count.mockImplementation(
+      ({ where }: { where: { replacesStashSceneId?: unknown } }) =>
+        Promise.resolve(typeof where.replacesStashSceneId === 'string' ? 0 : 1),
+    );
     await service.tick();
     expect(downloads.searchReleases).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves a scene alone in the background while its replacement is on its way', async () => {
+    settings.autoGrab = false;
+    files = [file('2', { size: 9e9 })];
+    prisma.downloadHandoff.count.mockImplementation(
+      ({ where }: { where: { replacesStashSceneId?: unknown } }) =>
+        Promise.resolve(where.replacesStashSceneId === '2' ? 1 : 0),
+    );
+    await service.tick(true);
+    // Not searched, so nothing written over the replacement's record.
+    expect(downloads.searchReleases).not.toHaveBeenCalled();
+  });
+
+  it('writes nothing over a replacement on its way, even unlinked or when it can’t check', async () => {
+    files = [file('2', { size: 9e9 })];
+    linked = {};
+    prisma.downloadHandoff.count.mockImplementation(
+      ({ where }: { where: { replacesStashSceneId?: unknown } }) =>
+        Promise.resolve(where.replacesStashSceneId === '2' ? 1 : 0),
+    );
+    await service.tick(true);
+    expect(prisma.smallerCopyAttempt.upsert).not.toHaveBeenCalled();
+
+    prisma.downloadHandoff.count.mockImplementation(
+      ({ where }: { where: { replacesStashSceneId?: unknown } }) =>
+        where.replacesStashSceneId === '2'
+          ? Promise.reject(new Error('db down'))
+          : Promise.resolve(0),
+    );
+    await service.tick(true);
+    expect(prisma.smallerCopyAttempt.upsert).not.toHaveBeenCalled();
+  });
+
+  it('doesn’t send a replacement in the background for a scene you’re replacing', async () => {
+    // Scene 2 is the one the background search would pick.
+    files = [file('2', { size: 9e9 })];
+    // You chose a release for scene 2; it's still being sent.
+    let finish: () => void = () => undefined;
+    downloads.grabRelease.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () =>
+            resolve({ accepted: true, sentTo: 'sabnzbd', handoffId: 'h9' });
+        }),
+    );
+    const chosen = service.grabChosen('2', {
+      guid: 'big',
+      indexerId: 3,
+      title: 'Studio.Scene.1080p',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    await service.tick(true);
+    finish();
+    await chosen;
+    // Only yours was sent.
+    expect(downloads.grabRelease).toHaveBeenCalledTimes(1);
+    await expect(service.grabListed('2')).rejects.toThrow();
   });
 
   it('Search now still searches while Stash is busy, and says why when it can’t', async () => {
@@ -1116,6 +1189,141 @@ describe('SmallerCopiesService', () => {
       await expect(service.removeNewCopy('k1')).rejects.toThrow(
         /no separate new copy/,
       );
+    });
+  });
+
+  describe('choosing a release yourself', () => {
+    it('lists every release found, each saying why the rules would pass it by', async () => {
+      downloads.searchReleases.mockResolvedValue({
+        queries: ['studio scene'],
+        releases: [
+          release({ guid: 'ok', title: 'Studio.Scene.1080p.x265', size: 2e9 }),
+          release({
+            guid: 'big',
+            title: 'Studio.Scene.1080p',
+            size: 8.5e9,
+          }),
+          release({
+            guid: '4k',
+            title: 'Studio.Scene.2160p',
+            size: 2e9,
+            protocol: 'torrent',
+          }),
+          release({
+            guid: 'failed',
+            title: 'Studio.Scene.1080p.Failed',
+            size: 2e9,
+            failedBefore: 'Missing articles',
+          }),
+        ],
+      });
+
+      const result = await service.releasesFor('2');
+
+      expect(downloads.searchReleases).toHaveBeenCalledWith(
+        'cat-2',
+        'STASHDB',
+        undefined,
+      );
+      expect(result).toMatchObject({ stashSceneId: '2', oldSize: 9e9 });
+      const byGuid = new Map(
+        result.releases.map((entry) => [entry.guid, entry.problems]),
+      );
+      expect(byGuid.get('ok')).toEqual([]);
+      expect(byGuid.get('big')).toEqual(['Saves less than 10%']);
+      expect(byGuid.get('4k')).toEqual([
+        'Not from usenet, so Finished downloads can’t bring it in',
+        '2160p, not 1080p',
+      ]);
+      expect(byGuid.get('failed')?.[0]).toBe(
+        'SABnzbd couldn’t download it before: Missing articles',
+      );
+    });
+
+    it('says a scene not linked to the catalog has nothing to search for', async () => {
+      await expect(service.releasesFor('3')).rejects.toThrow(/Match it first/);
+    });
+
+    it('grabs the one you chose to replace the file, and keeps track of it', async () => {
+      const status = await service.grabChosen('2', {
+        guid: 'big',
+        indexerId: 3,
+        title: 'Studio.Scene.1080p',
+        size: 7.9e9,
+      });
+
+      expect(downloads.grabRelease).toHaveBeenCalledWith(
+        'cat-2',
+        { guid: 'big', indexerId: 3, title: 'Studio.Scene.1080p' },
+        'STASHDB',
+        { replacesStashSceneId: '2', expectedTitle: 'Studio.Scene.1080p' },
+      );
+      expect(status.tries[0]).toMatchObject({
+        stashSceneId: '2',
+        releaseTitle: 'Studio.Scene.1080p',
+        outcome: 'grabbed',
+        newSize: 7.9e9,
+        oldSize: 9e9,
+      });
+    });
+
+    it('won’t send one SABnzbd couldn’t download before, or a second one on the way', async () => {
+      handoff.failedReleases.mockResolvedValueOnce(
+        new Map([['studio.scene.1080p', 'Missing articles']]),
+      );
+      await expect(
+        service.grabChosen('2', {
+          guid: 'x',
+          indexerId: 3,
+          title: 'Studio.Scene.1080p',
+        }),
+      ).rejects.toThrow(/couldn’t download that release before/);
+
+      prisma.downloadHandoff.count.mockResolvedValueOnce(1);
+      await expect(
+        service.grabChosen('2', { guid: 'y', indexerId: 3, title: 'Other' }),
+      ).rejects.toThrow(/already on its way/);
+      expect(downloads.grabRelease).not.toHaveBeenCalled();
+    });
+
+    it('checks the release that would be sent, not the name that came with it', async () => {
+      handoff.failedReleases.mockResolvedValueOnce(
+        new Map([['studio.scene.1080p', 'Missing articles']]),
+      );
+      await expect(
+        service.grabChosen('2', { guid: 'x', indexerId: 3, title: 'Renamed' }),
+      ).rejects.toThrow(/couldn’t download that release before/);
+      expect(downloads.grabRelease).not.toHaveBeenCalled();
+    });
+
+    it('won’t send one whose search result has expired', async () => {
+      await expect(
+        service.grabChosen('2', { guid: 'gone', indexerId: 3, title: 'Any' }),
+      ).rejects.toThrow(/expired/);
+      expect(downloads.grabRelease).not.toHaveBeenCalled();
+    });
+
+    it('sends only one of two replacements chosen at once', async () => {
+      let finish: () => void = () => undefined;
+      downloads.grabRelease.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = () =>
+              resolve({ accepted: true, sentTo: 'sabnzbd', handoffId: 'h9' });
+          }),
+      );
+      const first = service.grabChosen('2', {
+        guid: 'big',
+        indexerId: 3,
+        title: 'Studio.Scene.1080p',
+      });
+      await new Promise((resolve) => setImmediate(resolve));
+      await expect(
+        service.grabChosen('2', { guid: 'y', indexerId: 3, title: 'Other' }),
+      ).rejects.toThrow(/already being sent/);
+      finish();
+      await first;
+      expect(downloads.grabRelease).toHaveBeenCalledTimes(1);
     });
   });
 });

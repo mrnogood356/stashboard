@@ -47,6 +47,7 @@ import {
   type DropInWatchReason,
   type DropInWatchState,
   type DropInWatchStatusDto,
+  matchedByOf,
 } from './download-handoff.model';
 import {
   trimTrailingSeparators,
@@ -988,7 +989,7 @@ export class DownloadDropInService {
       return;
     }
 
-    const { identified, outcome, error } =
+    const { identified, outcome, matchedBy, error } =
       await this.handoff.identifyScene(sceneId);
     if (error) {
       this.logger.warn(
@@ -1006,6 +1007,7 @@ export class DownloadDropInService {
         status: 'imported',
         stashSceneId: sceneId,
         finalPath: placed.to,
+        matchedBy,
         error: null,
         finishedAt: new Date(),
       },
@@ -1074,6 +1076,7 @@ export class DownloadDropInService {
       attempts: 0,
       stashSceneId: null,
       finalPath: null,
+      matchedBy: null,
       finishedAt: null,
       // A new file at an old path isn't hidden by the old one's Clear.
       clearedAt: null,
@@ -1159,6 +1162,7 @@ export function toDropInDto(row: DownloadDropIn): DownloadDropInDto {
     error: row.error,
     finalPath: row.finalPath,
     stashSceneId: row.stashSceneId,
+    matchedBy: matchedByOf(row.matchedBy),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

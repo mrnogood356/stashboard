@@ -163,6 +163,7 @@ describe('DownloadDropInService', () => {
               finishedAt: null,
               rematchTriedAt: null,
               placePending: false,
+              matchedBy: null,
               clearedAt: null,
               createdAt: new Date(),
               updatedAt: new Date(),
@@ -289,6 +290,7 @@ describe('DownloadDropInService', () => {
       status: 'imported',
       stashSceneId: '88',
       finalPath: inFolder,
+      matchedBy: 'fingerprint',
     });
     // Its own folder in SABnzbd's folder is tidied away; the category's stays.
     expect(await exists(path.join(sabFolder, 'My.Clip'))).toBe(false);
@@ -392,6 +394,7 @@ describe('DownloadDropInService', () => {
     expect(dropIns[0]).toMatchObject({
       status: 'imported',
       finalPath: path.join(destination, 'Maybe.mp4'),
+      matchedBy: 'proposed',
     });
     expect(activity.record).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -554,6 +557,7 @@ describe('DownloadDropInService', () => {
       finishedAt: new Date(),
       rematchTriedAt: null,
       placePending: false,
+      matchedBy: null,
       clearedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -580,6 +584,7 @@ describe('DownloadDropInService', () => {
       finishedAt: new Date(),
       rematchTriedAt: null,
       placePending: false,
+      matchedBy: null,
       clearedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -883,6 +888,7 @@ describe('DownloadDropInService', () => {
         finishedAt: new Date(),
         rematchTriedAt: null,
         placePending: false,
+        matchedBy: null,
         clearedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),

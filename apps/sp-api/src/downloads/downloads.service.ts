@@ -205,7 +205,15 @@ export class DownloadsService {
     },
     provider?: CatalogProviderKey,
     /** Smaller copies: the Stash scene whose file this replaces once imported. */
-    options: { replacesStashSceneId?: string } = {},
+    options: {
+      replacesStashSceneId?: string;
+      /**
+       * The name the caller checked: refused if the remembered release now
+       * has another (a search replaced it meanwhile), so what's sent is
+       * what was checked.
+       */
+      expectedTitle?: string;
+    } = {},
   ): Promise<{
     accepted: true;
     sentTo: 'prowlarr' | 'sabnzbd';
@@ -214,13 +222,16 @@ export class DownloadsService {
   }> {
     const config = await this.requireConfig();
     const replacing = !!options.replacesStashSceneId;
-    if (replacing && !(this.handoff && (await this.handoff.isActive()))) {
+    // Asked once: a replacement must never fall through to Prowlarr because
+    // the answer changed between two asks.
+    const handoffActive = !!this.handoff && (await this.handoff.isActive());
+    if (replacing && !handoffActive) {
       // Only Finished downloads can swap the file in; Prowlarr's client can't.
       throw new ConflictException(
         'Turn on Finished downloads (with SABnzbd) to replace a file with a smaller copy.',
       );
     }
-    if (this.handoff && (await this.handoff.isActive())) {
+    if (this.handoff && handoffActive) {
       const found = this.recall(release.indexerId, release.guid);
       if (!found) {
         this.logger.warn(
@@ -228,6 +239,14 @@ export class DownloadsService {
         );
         throw new ConflictException(
           'That search result has expired. Search again and pick it once more.',
+        );
+      }
+      if (
+        options.expectedTitle !== undefined &&
+        found.title !== options.expectedTitle
+      ) {
+        throw new ConflictException(
+          'That search result changed. Search again and pick it once more.',
         );
       }
       // Torrents still go through Prowlarr's own download client.
@@ -306,6 +325,11 @@ export class DownloadsService {
       release,
       expires: now + RELEASE_TTL_MS,
     });
+  }
+
+  /** The name of a release found by a recent search, as it would be sent. */
+  rememberedTitle(indexerId: number, guid: string): string | null {
+    return this.recall(indexerId, guid)?.title ?? null;
   }
 
   private recall(indexerId: number, guid: string): ProwlarrRelease | null {

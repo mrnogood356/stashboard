@@ -40,6 +40,14 @@ export interface DownloadHandoffSettingsUpdate {
 
 export type DropInStatus = 'placed' | 'imported' | 'failed';
 
+/**
+ * How a file you brought in yourself was matched to its catalog scene:
+ * fingerprint, name, from Whisparr, already matched in Stash, on a later
+ * look, a likely match to check, or not matched yet.
+ */
+export type MatchedBy =
+  'fingerprint' | 'name' | 'whisparr' | 'stash' | 'later' | 'proposed' | 'none';
+
 /** A video put straight into SABnzbd's category folder and brought in. */
 export interface DownloadDropIn {
   id: string;
@@ -49,6 +57,8 @@ export interface DownloadDropIn {
   error: string | null;
   finalPath: string | null;
   stashSceneId: string | null;
+  /** How it was matched once in Stash; null before, or when not known. */
+  matchedBy: MatchedBy | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -68,6 +78,8 @@ export interface DownloadHandoff {
   error: string | null;
   finalPath: string | null;
   stashSceneId: string | null;
+  /** How it was matched once in Stash; null before, or when not known. */
+  matchedBy: MatchedBy | null;
   createdAt: string;
   updatedAt: string;
 }
