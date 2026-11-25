@@ -2758,6 +2758,7 @@ describe('OrganizerService', () => {
       linked: ['7'],
       matched: ['9'],
       proposed: [],
+      byName: [],
       left: [],
     });
     expect(stashdb.getMatchScenesById).toHaveBeenCalledWith(
@@ -2812,7 +2813,75 @@ describe('OrganizerService', () => {
       linked: [],
       matched: ['7'],
       proposed: [],
+      byName: [],
       left: [],
+    });
+  });
+
+  it('saves a sure name match for files you brought in, and only proposes it otherwise', async () => {
+    handoff.filesAsStashSees = jest.fn().mockResolvedValue([]);
+    // No fingerprint match; the name, date and length agree.
+    stashdb.findScenesByFingerprints.mockResolvedValue([[]]);
+    stashdb.searchScenesByText.mockResolvedValue([remote]);
+
+    const asked = await service.identifyNewScenes(['7']);
+    expect(asked.matched).toEqual([]);
+    expect(asked.proposed).toEqual(['7']);
+
+    const trusted = await service.identifyNewScenes(['7'], {
+      trustNames: true,
+    });
+    expect(trusted).toMatchObject({
+      matched: ['7'],
+      byName: ['7'],
+      left: [],
+    });
+  });
+
+  it('won’t save a name match whose length is different', async () => {
+    handoff.filesAsStashSees = jest.fn().mockResolvedValue([]);
+    stashdb.findScenesByFingerprints.mockResolvedValue([[]]);
+    // A cut of it, or another scene from that day: 10 minutes shorter.
+    stashdb.searchScenesByText.mockResolvedValue([
+      { ...remote, duration: 1200 },
+    ]);
+
+    const result = await service.identifyNewScenes(['7'], {
+      trustNames: true,
+    });
+    expect(result.matched).toEqual([]);
+    expect(result.left).toEqual(['7']);
+  });
+
+  it('searches other ways of putting a long name until one finds it', async () => {
+    stashdb.findScenesByFingerprints.mockResolvedValue([[]]);
+    stash.getOrganizerScene.mockResolvedValue(
+      localScene({
+        files: [
+          {
+            ...localScene().files[0],
+            basename:
+              'BrightStudio.23.08.14.Jane.Doe.Summer.Afternoon.Extra.Words.XXX.1080p.mp4',
+          },
+        ],
+      }),
+    );
+    // The whole name finds nothing; the words after the date find it.
+    stashdb.searchScenesByText
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([remote]);
+
+    const [result] = await service.lookup(['7']);
+
+    expect(
+      stashdb.searchScenesByText.mock.calls.map((call) => call[1]),
+    ).toEqual([
+      'bright studio jane doe summer afternoon extra words',
+      'jane doe summer afternoon extra',
+    ]);
+    expect(result.candidates[0]).toMatchObject({
+      id: 's0-remote-1',
+      confidence: 'strong',
     });
   });
 

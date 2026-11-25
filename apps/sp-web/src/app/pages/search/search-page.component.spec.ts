@@ -120,7 +120,7 @@ describe('SearchPageComponent', () => {
     expect(library['getScenesFeed']).toHaveBeenCalledWith(1, 12, { query: 'ana' });
     expect(discover['searchScenes']).toHaveBeenCalledWith('ana', 1, 12, false);
     expect(root.textContent).toContain('Pier Scene');
-    expect(root.textContent).toContain('All 30 in your library');
+    expect(root.textContent).toContain('See all 30');
     expect(root.textContent).toContain('Ana Rivers');
     expect(root.textContent).toContain('Ana Catalog');
     // The catalog's scenes failed: said so, not just left out.
@@ -237,7 +237,7 @@ describe('SearchPageComponent', () => {
     fixture.detectChanges();
 
     // Everything from the catalog was hidden: say so instead of hiding the section.
-    expect(root.querySelector('#search-scenes-title')).not.toBeNull();
+    expect(root.querySelector('[data-testid="search-scenes"]')).not.toBeNull();
     expect(root.textContent).toContain('Hiding 3 scenes');
 
     (root.querySelector('[data-testid="hidden-count"] button') as HTMLButtonElement).click();
@@ -352,21 +352,31 @@ describe('SearchPageComponent', () => {
     const { root } = await search('ana lee');
     const link = (id: string) => root.querySelector<HTMLAnchorElement>(`[data-testid="${id}"]`);
 
-    expect(link('search-see-all-library')?.textContent).toContain('All 30 in your library');
+    expect(link('search-see-all-library')?.textContent).toContain('See all 30');
     expect(link('search-see-all-library')?.getAttribute('href')).toBe('/library?query=ana%20lee');
 
-    expect(link('search-see-all-catalog')?.textContent).toContain('All 1,234 catalog scenes');
+    expect(link('search-see-all-catalog')?.textContent).toContain('See all 1,234');
     expect(link('search-see-all-catalog')?.getAttribute('href')).toBe('/scenes?q=ana%20lee');
 
-    expect(link('search-see-all-performers')?.textContent).toContain('See all 40');
-    expect(link('search-see-all-performers')?.getAttribute('href')).toBe('/performers?q=ana%20lee');
-    // Every matching studio is already shown.
-    expect(link('search-see-all-studios')).toBeNull();
+    expect(link('search-see-all-performers-catalog')?.textContent).toContain('See all 40');
+    expect(link('search-see-all-performers-catalog')?.getAttribute('href')).toBe(
+      '/performers?q=ana%20lee',
+    );
+    // Your library's performers: the Performers page, In my library.
+    expect(link('search-see-all-performers-library')?.textContent?.trim()).toBe('See all');
+    expect(link('search-see-all-performers-library')?.getAttribute('href')).toBe(
+      '/performers?q=ana%20lee&lib=1',
+    );
+    // Shown even when every match is already here, so there's always a way on.
+    expect(link('search-see-all-studios-catalog')?.textContent).toContain('See all 1');
 
-    // The link sits in the section header, next to the title.
+    // Each list says where it's from, next to its link.
     expect(
-      link('search-see-all-catalog')?.closest('.block-head')?.querySelector('h2')?.textContent,
-    ).toBe('Scenes');
+      link('search-see-all-catalog')?.closest('.block-head')?.querySelector('h3')?.textContent,
+    ).toContain('On StashDB');
+    expect(
+      link('search-see-all-library')?.closest('.block-head')?.querySelector('h3')?.textContent,
+    ).toContain('In your library');
   });
 
   it('keeps hidden scenes showing when the catalog "See all" opens Scenes', async () => {
@@ -382,7 +392,7 @@ describe('SearchPageComponent', () => {
     );
   });
 
-  it('lists someone you have and the catalog has once, marked as in your library', async () => {
+  it('lists your library’s and the catalog’s entries apart, each opening its own page', async () => {
     local['search'] = vi.fn().mockReturnValue(
       of({
         performers: [
@@ -400,14 +410,64 @@ describe('SearchPageComponent', () => {
     );
     const { root } = await search('Ana Catalog');
 
-    const performers = root.querySelectorAll('[data-testid="search-performer"]');
-    expect(performers.length).toBe(1);
-    expect(performers[0].getAttribute('href')).toContain('/performer/c1');
-    expect(performers[0].textContent).toContain('9 in your library · 3 on the catalog');
-    // Named exactly: shown first, larger.
-    expect(root.querySelector('[data-testid="search-top-result"]')?.textContent).toContain(
-      'In library',
+    const lists = root.querySelectorAll('[data-testid="search-performers"] .source');
+    expect(lists[0].querySelector('h3')?.textContent).toContain('In your library');
+    expect(lists[0].querySelector('a.person')?.getAttribute('href')).toContain(
+      '/library/performer/p1',
     );
+    expect(lists[0].querySelector('a.person')?.textContent).toContain('9 scenes');
+    expect(lists[1].querySelector('h3')?.textContent).toContain('On StashDB');
+    expect(lists[1].querySelector('a.person')?.getAttribute('href')).toContain('/performer/c1');
+    expect(lists[1].querySelector('a.person')?.textContent).toContain(
+      '3 scenes · 9 in your library',
+    );
+    // Named exactly: shown first, larger, saying where it opens.
+    const top = root.querySelector('[data-testid="search-top-result"]');
+    expect(top?.textContent).toContain('Performer · StashDB');
+    expect(top?.textContent).toContain('In library');
+  });
+
+  it('looks only in your library or only on the catalog, and offers the other when empty', async () => {
+    const { fixture, root } = await search('ana');
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate');
+
+    (root.querySelector('[data-testid="search-scope-library"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Ana Rivers');
+    expect(root.textContent).not.toContain('Ana Catalog');
+    expect(root.querySelector('[data-testid="search-catalog-failed"]')).toBeNull();
+    expect(navigate).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({ queryParams: { in: 'library' } }),
+    );
+
+    (root.querySelector('[data-testid="search-scope-catalog"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Ana Catalog');
+    expect(root.textContent).not.toContain('Ana Rivers');
+    expect(root.textContent).not.toContain('Pier Scene');
+  });
+
+  it('says nothing is in your library and offers the catalog’s results', async () => {
+    library['getScenesFeed'] = vi
+      .fn()
+      .mockReturnValue(
+        of({ total: 0, page: 1, perPage: 12, hasMore: false, latestSyncAt: null, items: [] }),
+      );
+    local['search'] = vi.fn().mockReturnValue(of({ performers: [], studios: [] }));
+    const { fixture, root } = await search('ana');
+
+    (root.querySelector('[data-testid="search-scope-library"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="search-empty"]')?.textContent).toContain(
+      'Nothing in your library for “ana”',
+    );
+    const offer = root.querySelector<HTMLButtonElement>('[data-testid="search-elsewhere"]');
+    expect(offer?.textContent).toContain('1 found on StashDB');
+    offer!.click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Ana Catalog');
   });
 
   it('shows only scenes, performers or studios when you pick one', async () => {

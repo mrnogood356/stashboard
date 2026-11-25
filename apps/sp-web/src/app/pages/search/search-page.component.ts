@@ -8,6 +8,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   Subject,
@@ -37,9 +38,19 @@ import { HiddenCountComponent } from '../../shared/hidden-count/hidden-count.com
 import { SceneRequestModalComponent } from '../../shared/scene-request-modal/scene-request-modal.component';
 import { OverflowXDirective } from '../../shared/overflow-x/overflow-x.directive';
 import { SectionBackComponent } from '../../shared/section-back/section-back.component';
-import { addFound, mergePerformers, mergeScenes, mergeStudios, missedNames } from './search-merge';
+import { CatalogBrowseService } from '../../core/catalog/catalog-browse.service';
+import {
+  PersonResult,
+  addFound,
+  catalogPerformers,
+  catalogStudios,
+  libraryPeople,
+  missedNames,
+} from './search-merge';
 
 export type SearchFilter = 'all' | 'scenes' | 'performers' | 'studios';
+/** Where to look: both, only your library, or only the catalog. */
+export type SearchScope = 'all' | 'library' | 'catalog';
 
 interface SearchResults {
   library: LibrarySceneItem[];
@@ -89,6 +100,7 @@ let lastSearch: {
   query: string;
   results: SearchResults;
   filter: SearchFilter;
+  scope: SearchScope;
   showHidden: boolean;
 } | null = null;
 
@@ -102,6 +114,7 @@ let lastSearch: {
     SceneRequestModalComponent,
     HiddenCountComponent,
     OverflowXDirective,
+    NgTemplateOutlet,
   ],
   templateUrl: './search-page.component.html',
   styleUrl: './search-page.component.scss',
@@ -113,6 +126,7 @@ export class SearchPageComponent implements OnInit, OnDestroy {
   private readonly hideOwned = inject(HideOwnedService);
   private readonly library = inject(LibraryService);
   private readonly local = inject(LocalLibraryService);
+  private readonly browse = inject(CatalogBrowseService);
   private readonly queries = new Subject<string>();
   private subscription: Subscription | null = null;
   private showHiddenSubscription: Subscription | null = null;
@@ -130,32 +144,62 @@ export class SearchPageComponent implements OnInit, OnDestroy {
   protected readonly filter = signal<SearchFilter>('all');
   /** The words the results on the page are for. */
   private answered: string | null = null;
-  /** Each performer and studio once, whether in your library, the catalog or both. */
-  protected readonly performers = computed(() => {
-    const result = this.results();
-    return mergePerformers(result.local.performers, result.catalogPerformers, this.query());
-  });
-  protected readonly studios = computed(() => {
-    const result = this.results();
-    return mergeStudios(result.local.studios, result.catalogStudios, this.query());
-  });
-  /** Catalog scenes (owned ones marked), then your library's the catalog didn't find. */
-  protected readonly scenes = computed(() => {
-    const result = this.results();
-    return mergeScenes(this.hideOwned.filter(result.catalogScenes), result.library);
-  });
-  /** A performer or studio named exactly what you typed: shown first, larger. */
-  protected readonly topResult = computed(
-    () =>
-      this.performers().find((entry) => entry.exact) ??
-      this.studios().find((entry) => entry.exact) ??
-      null,
+  /** Everywhere, only your library, or only the catalog: from the URL's `in`. */
+  protected readonly scope = signal<SearchScope>('all');
+  protected readonly showsLibrary = computed(() => this.scope() !== 'catalog');
+  protected readonly showsCatalog = computed(() => this.scope() !== 'library');
+  /** What the catalog is called here: the one searches go to. */
+  protected readonly catalogName = this.browse.instanceLabel;
+  /** Your library's performers and studios, each opening its library page. */
+  protected readonly libraryPerformers = computed(() =>
+    libraryPeople(this.results().local.performers, 'performer', this.query()),
   );
-  protected readonly counts = computed(() => ({
-    scenes: this.scenes().length,
-    performers: this.performers().length,
-    studios: this.studios().length,
-  }));
+  protected readonly libraryStudios = computed(() =>
+    libraryPeople(this.results().local.studios, 'studio', this.query()),
+  );
+  /** The catalog's, each marked with how many scenes of them you have. */
+  protected readonly catalogPerformers = computed(() => {
+    const result = this.results();
+    return catalogPerformers(result.local.performers, result.catalogPerformers, this.query());
+  });
+  protected readonly catalogStudios = computed(() => {
+    const result = this.results();
+    return catalogStudios(result.local.studios, result.catalogStudios, this.query());
+  });
+  /** Catalog scenes to show: all, or only the ones you don't have. */
+  protected readonly catalogScenes = computed(() =>
+    this.hideOwned.filter(this.results().catalogScenes),
+  );
+  /**
+   * A performer or studio named exactly what you typed, shown first and
+   * larger: the catalog's when it's searched (it says if you have them),
+   * else your library's.
+   */
+  protected readonly topResult = computed((): PersonResult | null => {
+    const lists = [
+      ...(this.showsCatalog() ? [this.catalogPerformers(), this.catalogStudios()] : []),
+      ...(this.showsLibrary() ? [this.libraryPerformers(), this.libraryStudios()] : []),
+    ];
+    for (const list of lists) {
+      const exact = list.find((entry) => entry.exact);
+      if (exact) {
+        return exact;
+      }
+    }
+    return null;
+  });
+  /** How many of each kind there are where you're looking. */
+  protected readonly counts = computed(() => this.countsIn(this.scope()));
+  protected readonly libraryPeopleParams = computed(() => ({ q: this.query().trim(), lib: '1' }));
+  /** The sources to list, in order: your library first. */
+  protected readonly sources = computed((): Array<'library' | 'catalog'> => [
+    ...(this.showsLibrary() ? (['library'] as const) : []),
+    ...(this.showsCatalog() ? (['catalog'] as const) : []),
+  ]);
+  protected readonly peopleKinds = [
+    { id: 'performers', label: 'Performers', page: '/performers' },
+    { id: 'studios', label: 'Studios', page: '/studios' },
+  ] as const;
   /** Query params for the full results pages "See all" opens. */
   protected readonly libraryParams = computed(() => ({ query: this.query().trim() }));
   protected readonly catalogParams = computed(() => ({
@@ -167,19 +211,26 @@ export class SearchPageComponent implements OnInit, OnDestroy {
   protected readonly catalogFailed = catalogFailed;
   protected readonly nothingFound = computed(() => {
     const result = this.results();
+    const counts = this.counts();
     return (
       this.searched() &&
       !this.searching() &&
-      result.library.length === 0 &&
-      result.local.performers.length === 0 &&
-      result.local.studios.length === 0 &&
-      result.catalogScenes.length === 0 &&
-      result.catalogHidden === 0 &&
-      result.catalogPerformers.length === 0 &&
-      result.catalogStudios.length === 0 &&
+      counts.scenes + counts.performers + counts.studios === 0 &&
+      !(this.showsCatalog() && result.catalogHidden > 0) &&
       // A search that failed didn't find nothing: the page says it failed.
-      !catalogFailed(result)
+      !(this.showsCatalog() && catalogFailed(result))
     );
+  });
+  /** Nothing where you're looking, but something in the other place: offered instead. */
+  protected readonly elsewhere = computed((): { scope: SearchScope; count: number } | null => {
+    const scope = this.scope();
+    if (scope === 'all') {
+      return null;
+    }
+    const other: SearchScope = scope === 'library' ? 'catalog' : 'library';
+    const counts = this.countsIn(other);
+    const count = counts.scenes + counts.performers + counts.studios;
+    return count > 0 ? { scope: other, count } : null;
   });
 
   ngOnInit(): void {
@@ -210,6 +261,8 @@ export class SearchPageComponent implements OnInit, OnDestroy {
         this.keepForBack();
       });
 
+    this.browse.ensureLoaded();
+    this.scope.set(scopeOf(this.route.snapshot.queryParamMap.get('in')));
     const initial = this.route.snapshot.queryParamMap.get('q') ?? '';
     if (initial) {
       // Back from a result: the same results, at once, so Back can put you
@@ -219,6 +272,7 @@ export class SearchPageComponent implements OnInit, OnDestroy {
         this.answered = lastSearch.query;
         this.results.set(lastSearch.results);
         this.filter.set(lastSearch.filter);
+        this.scope.set(lastSearch.scope);
         this.showHidden.set(lastSearch.showHidden);
       } else {
         this.setQuery(initial);
@@ -272,8 +326,25 @@ export class SearchPageComponent implements OnInit, OnDestroy {
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { q: value.trim() || null },
+      queryParamsHandling: 'merge',
       replaceUrl: true,
     });
+  }
+
+  /** Looks everywhere, only in your library, or only on the catalog; kept in the URL. */
+  protected setScope(scope: SearchScope): void {
+    this.scope.set(scope);
+    const selected = this.filter();
+    if (selected !== 'all' && this.counts()[selected] === 0) {
+      this.filter.set('all');
+    }
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { in: scope === 'all' ? null : scope },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+    this.keepForBack();
   }
 
   protected clear(): void {
@@ -320,33 +391,62 @@ export class SearchPageComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * "See all 57", or "All 40 performers" for a kind. The total is what the
-   * source reported, never fewer than are already shown.
+   * "See all 57": the total is what the source reported, never fewer than
+   * are already shown. Just "See all" when the source doesn't say.
    */
-  protected seeAll(total: number, shown: number, kind?: string): string {
-    const count = Math.max(total, shown);
-    const formatted = count.toLocaleString('en-US');
-    return kind ? `All ${formatted} ${kind}${count === 1 ? '' : 's'}` : `See all ${formatted}`;
+  protected seeAll(total: number | null, shown: number): string {
+    if (total === null) {
+      return 'See all';
+    }
+    return `See all ${Math.max(total, shown).toLocaleString('en-US')}`;
   }
 
   protected showing(kind: Exclude<SearchFilter, 'all'>): boolean {
     return this.filter() === 'all' || this.filter() === kind;
   }
 
-  /** "12 scenes in your library · 340 on the catalog", as far as it's known. */
-  protected personMeta(person: {
-    kind: 'performer' | 'studio';
-    libraryScenes: number | null;
-    catalogScenes: number | null;
-  }): string {
+  /**
+   * Under a name: a library entry's scene count; a catalog entry's count
+   * there, and whether you have them.
+   */
+  protected personMeta(person: PersonResult): string {
+    const scenes = (count: number) => `${count} scene${count === 1 ? '' : 's'}`;
+    if (person.key.startsWith('library:')) {
+      return person.libraryScenes !== null ? scenes(person.libraryScenes) : '';
+    }
     const parts: string[] = [];
+    if (person.catalogScenes !== null) {
+      parts.push(scenes(person.catalogScenes));
+    }
     if (person.libraryScenes !== null) {
       parts.push(`${person.libraryScenes} in your library`);
     }
-    if (person.catalogScenes !== null) {
-      parts.push(`${person.catalogScenes} on the catalog`);
+    return parts.join(' · ');
+  }
+
+  /** Performers or studios from one source. */
+  protected people(kind: 'performers' | 'studios', source: 'library' | 'catalog'): PersonResult[] {
+    if (kind === 'performers') {
+      return source === 'library' ? this.libraryPerformers() : this.catalogPerformers();
     }
-    return parts.join(' · ') || (person.kind === 'studio' ? 'Studio' : 'Performer');
+    return source === 'library' ? this.libraryStudios() : this.catalogStudios();
+  }
+
+  /** How many a source reported in all: unknown (null) for your library's. */
+  protected peopleTotal(
+    kind: 'performers' | 'studios',
+    source: 'library' | 'catalog',
+  ): number | null {
+    if (source === 'library') {
+      return null;
+    }
+    const result = this.results();
+    return kind === 'performers' ? result.catalogPerformersTotal : result.catalogStudiosTotal;
+  }
+
+  /** Where a result opens: "Your library" or "StashDB". */
+  protected sourceOf(person: PersonResult): string {
+    return person.key.startsWith('library:') ? 'Your library' : this.catalogName();
   }
 
   protected initial(name: string): string {
@@ -385,6 +485,24 @@ export class SearchPageComponent implements OnInit, OnDestroy {
     this.keepForBack();
   }
 
+  /** How many of each kind a scope has, by what the sources reported. */
+  private countsIn(scope: SearchScope): { scenes: number; performers: number; studios: number } {
+    const result = this.results();
+    const library = scope !== 'catalog';
+    const catalog = scope !== 'library';
+    return {
+      scenes:
+        (library ? Math.max(result.libraryTotal, result.library.length) : 0) +
+        (catalog ? Math.max(result.catalogScenesTotal, this.catalogScenes().length) : 0),
+      performers:
+        (library ? result.local.performers.length : 0) +
+        (catalog ? Math.max(result.catalogPerformersTotal, result.catalogPerformers.length) : 0),
+      studios:
+        (library ? result.local.studios.length : 0) +
+        (catalog ? Math.max(result.catalogStudiosTotal, result.catalogStudios.length) : 0),
+    };
+  }
+
   /**
    * Keeps what's on the page for the search it answers, for coming back to
    * it. Results with a failed source aren't kept, so they're asked again.
@@ -397,7 +515,13 @@ export class SearchPageComponent implements OnInit, OnDestroy {
     const results = this.results();
     lastSearch = catalogFailed(results)
       ? null
-      : { query, results, filter: this.filter(), showHidden: this.showHidden() };
+      : {
+          query,
+          results,
+          filter: this.filter(),
+          scope: this.scope(),
+          showHidden: this.showHidden(),
+        };
   }
 
   private runSearch(value: string) {
@@ -496,6 +620,11 @@ export class SearchPageComponent implements OnInit, OnDestroy {
       }),
     );
   }
+}
+
+/** The scope a URL's `in` names; anything else is everywhere. */
+export function scopeOf(value: string | null): SearchScope {
+  return value === 'library' || value === 'catalog' ? value : 'all';
 }
 
 /** The catalog couldn't be searched (scenes, performers or studios). */

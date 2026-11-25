@@ -1561,6 +1561,7 @@ describe('DownloadHandoffService', () => {
         linked: [],
         matched: ['77'],
         proposed: [],
+        byName: [],
         left: [],
       });
       organizer.placeInSceneFolder.mockResolvedValue({
@@ -1594,7 +1595,9 @@ describe('DownloadHandoffService', () => {
       expect(await exists(manualFolder())).toBe(false);
       // No catalog scene was asked for, so it's identified, not linked.
       expect(organizer.linkDownloadedScene).not.toHaveBeenCalled();
-      expect(organizer.identifyNewScenes).toHaveBeenCalledWith(['77']);
+      expect(organizer.identifyNewScenes).toHaveBeenCalledWith(['77'], {
+        trustNames: true,
+      });
       expect(organizer.placeInSceneFolder).toHaveBeenCalledWith(
         '77',
         placed,
@@ -1768,6 +1771,7 @@ describe('DownloadHandoffService', () => {
         linked: [],
         matched: ['77'],
         proposed: [],
+        byName: [],
         left: [],
       });
       await service.checkOpen();
@@ -1821,6 +1825,7 @@ describe('DownloadHandoffService', () => {
         linked: [],
         matched: [],
         proposed: ['77'],
+        byName: [],
         left: ['77'],
       });
       await write(manualVideo(), 5_000);

@@ -208,6 +208,7 @@ describe('DownloadDropInService', () => {
         linked: [],
         matched: ['88'],
         proposed: [],
+        byName: [],
         left: [],
       }),
       placeInSceneFolder: jest.fn((_sceneId: string, file: string) =>
@@ -268,7 +269,9 @@ describe('DownloadDropInService', () => {
     expect(stash.sceneIdsForPaths).toHaveBeenCalledWith(expect.anything(), [
       placed,
     ]);
-    expect(organizer.identifyNewScenes).toHaveBeenCalledWith(['88']);
+    expect(organizer.identifyNewScenes).toHaveBeenCalledWith(['88'], {
+      trustNames: true,
+    });
     expect(organizer.placeInSceneFolder).toHaveBeenCalledWith(
       '88',
       placed,
@@ -376,6 +379,7 @@ describe('DownloadDropInService', () => {
       linked: [],
       matched: [],
       proposed: ['88'],
+      byName: [],
       left: ['88'],
     });
     await write(path.join(sabFolder, 'Maybe.mp4'));

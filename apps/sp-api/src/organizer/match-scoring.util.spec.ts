@@ -109,4 +109,21 @@ describe('dropBracketed', () => {
     expect(dropBracketed(tricky)).toBe(tricky);
     expect(Date.now() - started).toBeLessThan(200);
   });
+
+  it('offers other ways to search a long name: after the date, then its first and last words', () => {
+    expect(
+      parseFileName('Brazzers.24.05.02.Jane.Doe.Hot.Day.Pool.XXX.1080p.mp4')
+        .alternatives,
+    ).toEqual([
+      'jane doe hot day pool',
+      'brazzers jane doe hot',
+      'doe hot day pool',
+    ]);
+    // Short names: the whole name is all there is to search.
+    expect(parseFileName('Jane.Doe.Pool.mp4').alternatives).toEqual([]);
+    // A date at the start leaves nothing before it: no "after the date" search.
+    expect(
+      parseFileName('2024.05.02.Jane.Doe.Hot.Day.Pool.mp4').alternatives,
+    ).toEqual(['jane doe hot day', 'doe hot day pool']);
+  });
 });

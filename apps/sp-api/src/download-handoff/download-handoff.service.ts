@@ -1456,12 +1456,18 @@ export class DownloadHandoffService {
     error: string | null;
   }> {
     try {
-      const result = await this.organizer.identifyNewScenes([sceneId]);
+      // Files you brought in yourself: their names usually say which scene
+      // they are, so a sure name match is saved too (see trustNames).
+      const result = await this.organizer.identifyNewScenes([sceneId], {
+        trustNames: true,
+      });
       const identified = !result.left.includes(sceneId);
       return {
         identified,
         outcome: identified
-          ? 'Identified and linked to its catalog scene.'
+          ? result.matched.includes(sceneId) && result.byName.includes(sceneId)
+            ? 'Matched to its catalog scene by its name, date and length.'
+            : 'Identified and linked to its catalog scene.'
           : result.proposed.includes(sceneId)
             ? 'Found a likely match: check it in Library Tools → Check these matches.'
             : 'No match found yet; it’s with the unmatched scenes in Library Tools.',

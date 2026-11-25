@@ -7,6 +7,8 @@ import type { MatchConfidence } from './match-scoring.util';
 export const KEY = 'GLOBAL';
 export const PAGE_SIZE = 20;
 export const LOOKUP_LIMIT = 20;
+/** Searches by name per scene and catalog: the whole name, then up to two other ways of putting it. */
+export const MAX_NAME_SEARCHES = 3;
 export const CANDIDATE_TTL_MS = 60 * 60_000;
 export const MAX_CACHED_CANDIDATES = 3000;
 export const MAX_BACKLOG = 5000;

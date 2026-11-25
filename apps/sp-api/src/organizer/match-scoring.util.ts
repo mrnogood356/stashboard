@@ -101,7 +101,17 @@ export interface ParsedFileName {
   date: string | null;
   /** Lower-case letters (any script) and digits only, for "is this name in the file name" checks. */
   compact: string;
+  /**
+   * Other ways to search for it, best first, beyond `text`: the words after
+   * the date ("Studio.24.03.15.Jane.Doe.Title" → "jane doe title", the
+   * performer and title without the studio), then the first and the last
+   * few words. Empty when the name is short enough that `text` is all of it.
+   */
+  alternatives: string[];
 }
+
+/** Words per alternative search: StashDB's text search wants few, specific words. */
+const ALTERNATIVE_WORDS = 4;
 
 export function parseFileName(
   basename: string,
@@ -118,15 +128,34 @@ export function parseFileName(
     words = [...tokenize(fromFolder.rest), ...words];
   }
   const text = words.join(' ');
+  const afterDate = extracted.date ? tokenize(extracted.after) : [];
+  const alternatives = [
+    // Only when something came before the date (a studio): else it's `text`.
+    afterDate.length >= 2 && afterDate.length < words.length
+      ? afterDate.slice(0, ALTERNATIVE_WORDS + 1).join(' ')
+      : null,
+    words.length > ALTERNATIVE_WORDS
+      ? words.slice(0, ALTERNATIVE_WORDS).join(' ')
+      : null,
+    words.length > ALTERNATIVE_WORDS
+      ? words.slice(-ALTERNATIVE_WORDS).join(' ')
+      : null,
+  ].filter((entry): entry is string => !!entry && entry !== text);
   return {
     text,
     tokens: words,
     date,
     compact: compact(`${withoutExt} ${folder ?? ''}`),
+    alternatives: [...new Set(alternatives)],
   };
 }
 
-function extractDate(value: string): { date: string | null; rest: string } {
+function extractDate(value: string): {
+  date: string | null;
+  rest: string;
+  /** What follows the date, when there is one. */
+  after: string;
+} {
   const long =
     /(?:^|[^0-9])((?:19|20)\d{2})[.\-_ ](\d{2})[.\-_ ](\d{2})(?![0-9])/.exec(
       value,
@@ -135,6 +164,7 @@ function extractDate(value: string): { date: string | null; rest: string } {
     return {
       date: `${long[1]}-${long[2]}-${long[3]}`,
       rest: value.replace(long[0], ' '),
+      after: value.slice(long.index + long[0].length),
     };
   }
   const short = /(?:^|[^0-9])(\d{2})[.\-_ ](\d{2})[.\-_ ](\d{2})(?![0-9])/.exec(
@@ -144,9 +174,10 @@ function extractDate(value: string): { date: string | null; rest: string } {
     return {
       date: `20${short[1]}-${short[2]}-${short[3]}`,
       rest: value.replace(short[0], ' '),
+      after: value.slice(short.index + short[0].length),
     };
   }
-  return { date: null, rest: value };
+  return { date: null, rest: value, after: '' };
 }
 
 function isValidDate(year: number, month: number, day: number): boolean {
