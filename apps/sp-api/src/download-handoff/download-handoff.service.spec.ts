@@ -1397,6 +1397,15 @@ describe('DownloadHandoffService', () => {
         true,
       );
       expect(outcome().detail).toContain('permission denied');
+      // Said in Activity too, before any long list of what was deleted.
+      expect(activity.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'partial',
+          detail: expect.stringMatching(
+            /^Kept [^\n]+\nCouldn’t delete \/lib\/old\.mkv/,
+          ) as unknown,
+        }),
+      );
       // Still the scene that stays, with previews for it.
       expect(row().stashSceneId).toBe('12');
       expect(prisma.smallerCopySettings.upsert).not.toHaveBeenCalled();

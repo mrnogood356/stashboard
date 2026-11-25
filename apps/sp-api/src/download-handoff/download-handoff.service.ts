@@ -1436,8 +1436,9 @@ export class DownloadHandoffService {
         title: 'Replaced a scene with a smaller copy',
         detail: [
           `Kept ${keep.path}`,
-          ...removed.map((path) => `Deleted ${path}`),
+          // What's left first: Activity cuts long details short.
           ...left.map((path) => `Couldn’t delete ${path}`),
+          ...removed.map((path) => `Deleted ${path}`),
         ].join('\n'),
         ...(left.length > 0 ? { status: 'partial' as const } : {}),
       });
