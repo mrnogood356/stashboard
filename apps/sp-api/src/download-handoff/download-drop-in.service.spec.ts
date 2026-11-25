@@ -378,6 +378,69 @@ describe('DownloadDropInService', () => {
     expect(dropIns).toHaveLength(1);
   });
 
+  it('brings in a file dropped again where one was moved from before, even at the same size', async () => {
+    const source = path.join(sabFolder, 'Again.mp4');
+    await write(source);
+    await twoChecks();
+    expect(await exists(source)).toBe(false);
+    // Moved out an hour ago; since then removed from the library.
+    dropIns[0].updatedAt = new Date(Date.now() - 3600_000);
+    await fs.rm(path.join(destination, 'Again.mp4'));
+
+    await write(source);
+    await twoChecks();
+    expect(await exists(source)).toBe(false);
+    expect(await exists(path.join(destination, 'Again.mp4'))).toBe(true);
+    expect(prisma.downloadDropIn.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves a file that is still the one brought in, when its move left it behind', async () => {
+    const source = path.join(sabFolder, 'Stayed.mp4');
+    await write(source);
+    // Brought in after the file was last changed: it's that same file.
+    dropIns.push({
+      id: 'd9',
+      sourcePath: source,
+      size: BigInt((await fs.stat(source)).size),
+      status: 'imported',
+      finalPath: path.join(destination, 'Stayed.mp4'),
+      stashSceneId: '88',
+      error: null,
+      attempts: 0,
+      finishedAt: new Date(),
+      rematchTriedAt: null,
+      placePending: false,
+      matchedBy: 'fingerprint',
+      clearedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(Date.now() + 60_000),
+    });
+    await twoChecks();
+    expect(prisma.downloadDropIn.upsert).not.toHaveBeenCalled();
+  });
+
+  it('tries matching again later when the look-up fails, rather than counting it in', async () => {
+    organizer.identifyNewScenes.mockRejectedValueOnce(
+      new Error('StashDB is down'),
+    );
+    await write(path.join(sabFolder, 'Later.mp4'));
+
+    await twoChecks();
+    // Moved, but not counted in: waiting to be matched on the next check.
+    expect(dropIns[0]).toMatchObject({
+      status: 'placed',
+      attempts: 1,
+      matchedBy: null,
+    });
+    expect(dropIns[0].error).toContain('StashDB is down');
+
+    await service.check(later());
+    expect(dropIns[0]).toMatchObject({
+      status: 'imported',
+      matchedBy: 'fingerprint',
+    });
+  });
+
   it('leaves a likely match for you to check, without moving it into a folder', async () => {
     organizer.identifyNewScenes.mockResolvedValue({
       linked: [],

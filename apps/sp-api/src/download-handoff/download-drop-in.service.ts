@@ -644,6 +644,7 @@ export class DownloadDropInService {
                 size: true,
                 status: true,
                 error: true,
+                updatedAt: true,
               },
             })
           ).map((row) => [row.sourcePath, row]),
@@ -658,7 +659,17 @@ export class DownloadDropInService {
       // Brought in before (a copy, or one that couldn't be moved): only a
       // different file at the same path counts as new.
       const stat = await fs.stat(file).catch(() => null);
-      if (stat && BigInt(stat.size) !== row.size) {
+      // Moved out before, so whatever is at that path now was put there
+      // since (dropped in again, say), even at the same size. A copy, or
+      // one that couldn't be moved, is still the same file.
+      const movedOut =
+        settings.importMode !== 'copy' &&
+        (row.status === 'placed' || row.status === 'imported');
+      if (
+        stat &&
+        (BigInt(stat.size) !== row.size ||
+          (movedOut && stat.ctimeMs > row.updatedAt.getTime()))
+      ) {
         fresh.push(file);
       } else if (row.status === 'failed') {
         skipped.push(
@@ -992,9 +1003,13 @@ export class DownloadDropInService {
     const { identified, outcome, matchedBy, error } =
       await this.handoff.identifyScene(sceneId);
     if (error) {
-      this.logger.warn(
-        `Couldn't identify drop-in ${row.sourcePath} (Stash scene ${sceneId}): ${error}`,
+      // Tried again on the next checks (the catalog may be back by then),
+      // rather than counted in with nothing said about how it matched.
+      await this.retryLater(
+        row,
+        `Moved to ${finalPath}, but identifying it failed: ${error}`,
       );
+      return;
     }
     const placed = identified
       ? await this.handoff.placeInFolder(sceneId, finalPath)

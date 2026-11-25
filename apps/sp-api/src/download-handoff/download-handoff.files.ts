@@ -220,10 +220,10 @@ export async function placeVideo(options: {
 /** True when inner is folder itself or inside it. */
 export function isInside(inner: string, folder: string): boolean {
   const relative = path.relative(folder, inner);
-  return (
-    relative === '' ||
-    (!relative.startsWith('..') && !path.isAbsolute(relative))
-  );
+  // Only a step up ("..", "../x") leaves the folder: a name that merely
+  // starts with two dots ("..Scene.mkv") is still inside.
+  const up = relative === '..' || /^\.\.[\\/]/.test(relative);
+  return relative === '' || (!up && !path.isAbsolute(relative));
 }
 
 /** What happened to a download's own folder once its video was moved out. */
@@ -482,16 +482,23 @@ function listNames(names: string[]): string {
  * network shares), the name is checked and the file renamed.
  */
 async function claimName(temp: string, target: string): Promise<void> {
+  let linked = false;
   try {
     await fs.link(temp, target);
-    await fs.unlink(temp);
-    return;
+    linked = true;
   } catch (error) {
     if (codeOf(error) === 'EEXIST') {
       throw new HandoffFileError(
         `Something appeared at ${target} meanwhile; left the download alone.`,
       );
     }
+  }
+  if (linked) {
+    // The file has its real name now: the temporary one is only a second
+    // name for it. Should it not go, it's left (hidden), never taken for a
+    // failure that would put the file back as well.
+    await fs.unlink(temp).catch(() => undefined);
+    return;
   }
   if (await exists(target)) {
     throw new HandoffFileError(

@@ -290,6 +290,23 @@ describe('DownloadHandoffService', () => {
   });
 
   describe('sending', () => {
+    it('keeps trying to remember one SABnzbd took through a database blip', async () => {
+      const create = prisma.downloadHandoff.create.getMockImplementation()!;
+      prisma.downloadHandoff.create
+        .mockRejectedValueOnce(new Error('connection reset'))
+        .mockImplementationOnce(create);
+      await service.send({
+        nzb: { content: new Uint8Array([1]), fileName: null },
+        releaseTitle: 'Jane.Doe.Beach.Day',
+        scene: { id: 'fdb-scene-1', provider: 'FANSDB', title: null },
+        replacesStashSceneId: '12',
+      });
+      expect(rows[0]).toMatchObject({
+        nzoId: 'SABnzbd_nzo_new',
+        replacesStashSceneId: '12',
+      });
+    });
+
     it('adds the NZB to Stashboard’s category and remembers it', async () => {
       const result = await service.send({
         nzb: { content: new Uint8Array([1, 2]), fileName: 'x/y.nzb' },
@@ -368,6 +385,7 @@ describe('DownloadHandoffService', () => {
       expect(sabnzbd.history).toHaveBeenCalledWith(
         { baseUrl: 'http://sab:8080', apiKey: 'sab-key' },
         'stashboard',
+        0,
       );
       expect(await exists(theirs)).toBe(true);
       expect(await exists(whisparrs)).toBe(true);
@@ -407,6 +425,24 @@ describe('DownloadHandoffService', () => {
       await service.checkOpen();
       expect(row()).toMatchObject({ status: 'imported', error: null });
       expect(stash.requestFolderScan).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives up on one Stash has been too busy to scan for a week', async () => {
+      rows.push(
+        handoff({
+          id: 'h1',
+          status: 'completed',
+          finalPath: path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'),
+          createdAt: new Date(Date.now() - 8 * 24 * 3600_000),
+        }),
+      );
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      stash.requestFolderScan.mockResolvedValue('waiting');
+
+      await service.checkOpen();
+
+      expect(row().status).toBe('failed');
+      expect(row().error).toContain('too busy to scan it for a week');
     });
 
     it('says Stash is busy while its folder scan waits its turn, without waiting on it', async () => {
@@ -989,6 +1025,34 @@ describe('DownloadHandoffService', () => {
       expect(row().status).toBe('ignored');
     });
 
+    it('finds a download past the first page of SABnzbd’s history, not taking it for forgotten', async () => {
+      rows.push(
+        handoff({
+          id: 'h1',
+          createdAt: new Date(Date.now() - 4 * 24 * 3600_000),
+        }),
+      );
+      // A full first page of other downloads; ours is on the second.
+      const others = Array.from({ length: 200 }, (_, index) =>
+        historyEntry({ nzoId: `other-${index}` }),
+      );
+      sabnzbd.history.mockImplementation(
+        (_config: unknown, _category: string, start = 0) =>
+          Promise.resolve(
+            start === 0 ? others : [historyEntry({ status: 'Failed' })],
+          ),
+      );
+
+      await service.checkOpen();
+
+      expect(sabnzbd.history).toHaveBeenCalledWith(
+        expect.anything(),
+        'stashboard',
+        200,
+      );
+      expect(row().status).toBe('failed');
+    });
+
     it('keeps watching when SABnzbd’s queue can’t be read', async () => {
       sabnzbd.queue.mockRejectedValue(new Error('timeout'));
       rows.push(
@@ -1275,6 +1339,20 @@ describe('DownloadHandoffService', () => {
       await replace();
 
       expect(outcome().outcome).toBe('replaced');
+    });
+
+    it('says which old file is left when it can’t be deleted, not that both are kept', async () => {
+      stash.removeExtraFile = jest
+        .fn()
+        .mockRejectedValue(new Error('permission denied'));
+      await replace();
+
+      expect(outcome().outcome).toBe('kept-both');
+      expect(outcome().detail).toContain('Couldn’t delete /lib/old.mkv');
+      expect(outcome().detail).toContain('permission denied');
+      // Still the scene that stays, with previews for it.
+      expect(row().stashSceneId).toBe('12');
+      expect(prisma.smallerCopySettings.upsert).not.toHaveBeenCalled();
     });
 
     it('merges the new scene into the old one and deletes the old file', async () => {
