@@ -112,10 +112,48 @@ describe('StashdbAdapter', () => {
     expect(queries[2]).toContain('sort: "DATE"');
     expect(queries[2]).toContain('direction: "DESC"');
 
-    // Next time it goes out right first time.
-    await adapter.getScenesSortedByDate(config);
+    // Next time (another page, not kept) it goes out right first time.
+    await adapter.getScenesSortedByDate({ ...config, page: 2 });
     expect(queries).toHaveLength(4);
     expect(runtimeHealthService.recordFailure).not.toHaveBeenCalled();
+  });
+
+  it('reuses an answer for a few minutes, and asks again after a change', async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ data: { queryScenes: { count: 0, scenes: [] } } }),
+          { headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    );
+    let now = 1_000_000;
+    Object.assign(adapter, { now: () => now });
+    const config = {
+      baseUrl: 'https://stashdb.org/graphql',
+      page: 1,
+      perPage: 24,
+    };
+
+    // Asked twice at once, or again soon: the catalog is asked once.
+    await Promise.all([
+      adapter.getScenesSortedByDate(config),
+      adapter.getScenesSortedByDate(config),
+    ]);
+    await adapter.getScenesSortedByDate(config);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Three minutes on, it's asked again.
+    now += 3 * 60_000;
+    await adapter.getScenesSortedByDate(config);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // A change there (a favorite) drops what was kept.
+    await adapter
+      .favoritePerformer('p1', true, { baseUrl: config.baseUrl })
+      .catch(() => undefined);
+    await adapter.getScenesSortedByDate(config);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it('retries a query whose value another request learned meanwhile', async () => {

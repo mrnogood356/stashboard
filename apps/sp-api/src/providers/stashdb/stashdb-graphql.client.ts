@@ -15,6 +15,15 @@ import {
   type StashdbSceneImage,
 } from './stashdb.types';
 
+/**
+ * How long a catalog answer is reused: going back and forth between browse,
+ * studio and performer pages doesn't ask the catalog again. Short, so new
+ * scenes still show up soon.
+ */
+export const ANSWER_TTL_MS = 3 * 60_000;
+/** Answers kept at most; the oldest go first. */
+const MAX_ANSWERS = 200;
+
 /** After a 429, one more try only when the server asks to wait this long or less. */
 const RETRY_AFTER_429_MAX_MS = 30_000;
 /** The same refusal is logged as a warning at most this often. */
@@ -115,6 +124,18 @@ export abstract class StashdbGraphqlClient {
   private readonly refusalsLogged = new Map<string, number>();
   /** Per catalog host: enum values it wants sent as strings. */
   private readonly stringArguments = new Map<string, Set<string>>();
+  /** Recent answers by catalog, key and query (see ANSWER_TTL_MS). */
+  private readonly answers = new Map<
+    string,
+    { at: number; payload: StashdbGraphqlResponse }
+  >();
+  /** The same question asked while it's being answered waits for that answer. */
+  private readonly asking = new Map<string, Promise<StashdbGraphqlResponse>>();
+
+  /** Exposed for tests. */
+  protected now(): number {
+    return Date.now();
+  }
 
   constructor(protected readonly runtimeHealthService: RuntimeHealthService) {}
 
@@ -214,6 +235,60 @@ export abstract class StashdbGraphqlClient {
     query: string,
     variables?: Record<string, unknown>,
     trackRuntimeHealth = true,
+  ): Promise<StashdbGraphqlResponse> {
+    const host = hostOf(this.resolveGraphqlEndpoint(config.baseUrl));
+    // A change (a favorite) makes this catalog's kept answers out of date.
+    if (/^\s*mutation\b/.test(query)) {
+      this.forgetAnswers(host);
+      return this.askCatalog(config, query, variables, trackRuntimeHealth);
+    }
+    // Connection checks (not counted toward health) always ask afresh.
+    if (!trackRuntimeHealth) {
+      return this.askCatalog(config, query, variables, trackRuntimeHealth);
+    }
+    const key = [
+      host,
+      config.apiKey?.trim() ?? '',
+      query,
+      JSON.stringify(variables ?? {}),
+    ].join('\u0000');
+    const kept = this.answers.get(key);
+    if (kept && this.now() - kept.at < ANSWER_TTL_MS) {
+      // A copy: callers may change what they're given.
+      return structuredClone(kept.payload);
+    }
+    const asked =
+      this.asking.get(key) ??
+      this.askCatalog(config, query, variables, trackRuntimeHealth).finally(
+        () => this.asking.delete(key),
+      );
+    this.asking.set(key, asked);
+    const payload = await asked;
+    if (!payload.errors?.length) {
+      this.answers.delete(key);
+      this.answers.set(key, { at: this.now(), payload });
+      while (this.answers.size > MAX_ANSWERS) {
+        this.answers.delete(this.answers.keys().next().value as string);
+      }
+    }
+    return structuredClone(payload);
+  }
+
+  /** Drops every kept answer from a catalog. */
+  private forgetAnswers(host: string): void {
+    for (const key of [...this.answers.keys()]) {
+      if (key.startsWith(`${host}\u0000`)) {
+        this.answers.delete(key);
+      }
+    }
+  }
+
+  /** Asks the catalog, quoting enum values it wants as strings (see executeQueryRaw). */
+  private async askCatalog(
+    config: StashdbAdapterBaseConfig,
+    query: string,
+    variables: Record<string, unknown> | undefined,
+    trackRuntimeHealth: boolean,
   ): Promise<StashdbGraphqlResponse> {
     const host = hostOf(this.resolveGraphqlEndpoint(config.baseUrl));
     const known = () => this.stringArguments.get(host) ?? new Set<string>();
