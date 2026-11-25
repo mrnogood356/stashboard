@@ -1,6 +1,8 @@
 <app-sheet
   [open]="open"
-  [title]="viaProwlarr() ? 'Find downloads' : 'Pick a release'"
+  [title]="
+    replacing() ? 'Choose a replacement' : viaProwlarr() ? 'Find downloads' : 'Pick a release'
+  "
   [subtitle]="sceneTitle"
   [busy]="grabbing()"
   size="wide"
@@ -8,7 +10,7 @@
   testId="release-picker"
   (closed)="close()"
 >
-  @if (viaProwlarr()) {
+  @if (searchable()) {
     <form
       class="own-search"
       role="search"
@@ -74,7 +76,7 @@
           [attr.aria-pressed]="showSkipped()"
           (click)="showSkipped.set(!showSkipped())"
         >
-          {{ showSkipped() ? 'Hide' : 'Show' }} {{ skippedCount() }} Whisparr would skip
+          {{ showSkipped() ? 'Hide' : 'Show' }} {{ skippedCount() }} {{ skipper() }} skip
         </button>
       }
       @if (weakCount() > 0) {
@@ -225,9 +227,11 @@
         (click)="grab()"
       >
         @if (grabbing()) {
-          <span class="spinner light" aria-hidden="true"></span> Sending to Whisparr…
+          <span class="spinner light" aria-hidden="true"></span>
+          {{ replacing() ? 'Sending to SABnzbd…' : 'Sending to Whisparr…' }}
         } @else if (selectedRelease(); as chosen) {
-          <i class="pi pi-download" aria-hidden="true"></i> Download · {{ size(chosen.size) }}
+          <i class="pi pi-download" aria-hidden="true"></i>
+          {{ replacing() ? 'Replace with this' : 'Download' }} · {{ size(chosen.size) }}
         } @else {
           Choose a release
         }
@@ -288,7 +292,10 @@
       <span class="why">SABnzbd couldn’t download this before: {{ why }}</span>
     }
     @if (release.rejected && release.rejections.length) {
-      <span class="why">Whisparr would skip this: {{ release.rejections.join(' · ') }}</span>
+      <span class="why"
+        >{{ replacing() ? 'Your rules would skip this' : 'Whisparr would skip this' }}:
+        {{ release.rejections.join(' · ') }}</span
+      >
     }
   </span>
 </ng-template>

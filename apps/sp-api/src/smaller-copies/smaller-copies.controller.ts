@@ -24,6 +24,7 @@ import {
 } from 'class-validator';
 import {
   SmallerCopiesService,
+  type ChooseReleasesDto,
   type SmallerCopiesDto,
   type SmallerCopySettingsInput,
 } from './smaller-copies.service';
@@ -133,6 +134,34 @@ export class SmallerCopySettingsDto implements SmallerCopySettingsInput {
   activeToHour!: number | null;
 }
 
+export class ChooseReleasesQueryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string;
+}
+
+export class ChosenReleaseDto {
+  @IsString()
+  @MaxLength(500)
+  guid!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  indexerId!: number;
+
+  @IsString()
+  @MaxLength(500)
+  title!: string;
+
+  @Transform(toNumberOrNull)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  size?: number;
+}
+
 /** Library tools → Smaller copies. */
 @Controller('api/smaller-copies')
 export class SmallerCopiesController {
@@ -153,6 +182,25 @@ export class SmallerCopiesController {
   @HttpCode(200)
   grab(@Param('stashSceneId') stashSceneId: string): Promise<SmallerCopiesDto> {
     return this.smaller.grabListed(stashSceneId);
+  }
+
+  /** Every release found for a scene, to choose one yourself; `q` searches your own words. */
+  @Get('scenes/:stashSceneId/releases')
+  releases(
+    @Param('stashSceneId') stashSceneId: string,
+    @Query() query: ChooseReleasesQueryDto,
+  ): Promise<ChooseReleasesDto> {
+    return this.smaller.releasesFor(stashSceneId, query.q);
+  }
+
+  /** Grab the release you chose to replace the scene's file. */
+  @Post('scenes/:stashSceneId/releases')
+  @HttpCode(200)
+  grabChosen(
+    @Param('stashSceneId') stashSceneId: string,
+    @Body() body: ChosenReleaseDto,
+  ): Promise<SmallerCopiesDto> {
+    return this.smaller.grabChosen(stashSceneId, body);
   }
 
   /** Look at a scene again on the next search. */

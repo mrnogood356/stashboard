@@ -1118,4 +1118,99 @@ describe('SmallerCopiesService', () => {
       );
     });
   });
+
+  describe('choosing a release yourself', () => {
+    it('lists every release found, each saying why the rules would pass it by', async () => {
+      downloads.searchReleases.mockResolvedValue({
+        queries: ['studio scene'],
+        releases: [
+          release({ guid: 'ok', title: 'Studio.Scene.1080p.x265', size: 2e9 }),
+          release({
+            guid: 'big',
+            title: 'Studio.Scene.1080p',
+            size: 8.5e9,
+          }),
+          release({
+            guid: '4k',
+            title: 'Studio.Scene.2160p',
+            size: 2e9,
+            protocol: 'torrent',
+          }),
+          release({
+            guid: 'failed',
+            title: 'Studio.Scene.1080p.Failed',
+            size: 2e9,
+            failedBefore: 'Missing articles',
+          }),
+        ],
+      });
+
+      const result = await service.releasesFor('2');
+
+      expect(downloads.searchReleases).toHaveBeenCalledWith(
+        'cat-2',
+        'STASHDB',
+        undefined,
+      );
+      expect(result).toMatchObject({ stashSceneId: '2', oldSize: 9e9 });
+      const byGuid = new Map(
+        result.releases.map((entry) => [entry.guid, entry.problems]),
+      );
+      expect(byGuid.get('ok')).toEqual([]);
+      expect(byGuid.get('big')).toEqual(['Saves less than 10%']);
+      expect(byGuid.get('4k')).toEqual([
+        'Not from usenet, so Finished downloads can’t bring it in',
+        '2160p, not 1080p',
+      ]);
+      expect(byGuid.get('failed')?.[0]).toBe(
+        'SABnzbd couldn’t download it before: Missing articles',
+      );
+    });
+
+    it('says a scene not linked to the catalog has nothing to search for', async () => {
+      await expect(service.releasesFor('3')).rejects.toThrow(/Match it first/);
+    });
+
+    it('grabs the one you chose to replace the file, and keeps track of it', async () => {
+      const status = await service.grabChosen('2', {
+        guid: 'big',
+        indexerId: 3,
+        title: 'Studio.Scene.1080p',
+        size: 7.9e9,
+      });
+
+      expect(downloads.grabRelease).toHaveBeenCalledWith(
+        'cat-2',
+        { guid: 'big', indexerId: 3, title: 'Studio.Scene.1080p' },
+        'STASHDB',
+        { replacesStashSceneId: '2' },
+      );
+      expect(status.tries[0]).toMatchObject({
+        stashSceneId: '2',
+        releaseTitle: 'Studio.Scene.1080p',
+        outcome: 'grabbed',
+        newSize: 7.9e9,
+        oldSize: 9e9,
+      });
+    });
+
+    it('won’t send one SABnzbd couldn’t download before, or a second one on the way', async () => {
+      handoff.failedReleases.mockResolvedValueOnce(
+        new Map([['studio.scene.1080p', 'Missing articles']]),
+      );
+      await expect(
+        service.grabChosen('2', {
+          guid: 'x',
+          indexerId: 3,
+          title: 'Studio.Scene.1080p',
+        }),
+      ).rejects.toThrow(/couldn’t download that release before/);
+
+      prisma.downloadHandoff.count.mockResolvedValueOnce(1);
+      await expect(
+        service.grabChosen('2', { guid: 'y', indexerId: 3, title: 'Other' }),
+      ).rejects.toThrow(/already on its way/);
+      expect(downloads.grabRelease).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -11,14 +11,16 @@ import {
   signal,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
-import { Observable, Subscription } from 'rxjs';
+import { Observable, Subscription, map } from 'rxjs';
 import { OwnedCopy } from '../../core/api/discover.types';
 import { CatalogProviderType } from '../../core/api/integrations.types';
 import {
   ReleaseSearchResult,
   ReleasesApiService,
   WhisparrRelease,
+  fromProwlarr,
 } from '../../core/api/releases.service';
+import { SmallerCopiesApiService } from '../../core/api/smaller-copies.service';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
 import { ReleaseSearchService } from '../../core/releases/release-search.service';
 import { SheetComponent } from '../sheet/sheet.component';
@@ -26,8 +28,13 @@ import { OwnedCopiesWarningComponent } from '../owned-copies-warning/owned-copie
 
 export type ReleaseSort = 'best' | 'size-desc' | 'size-asc' | 'seeders';
 
-/** Where releases come from: Whisparr for its own scenes, Prowlarr for any scene. */
-export type ReleaseSource = 'whisparr' | 'prowlarr';
+/**
+ * Where releases come from: Whisparr for its own scenes, Prowlarr for any
+ * scene, or "replacement": Prowlarr's releases for a library scene, to
+ * replace its file (Better copies), each saying why your rules would pass
+ * it by. Its stashId is then the Stash scene's id.
+ */
+export type ReleaseSource = 'whisparr' | 'prowlarr' | 'replacement';
 
 const SORTS: Array<{ id: ReleaseSort; label: string }> = [
   { id: 'best', label: 'Best' },
@@ -56,6 +63,7 @@ const SORTS: Array<{ id: ReleaseSort; label: string }> = [
 })
 export class ReleasePickerComponent implements OnChanges, OnDestroy {
   private readonly api = inject(ReleasesApiService);
+  private readonly smallerCopies = inject(SmallerCopiesApiService);
   private readonly notifications = inject(AppNotificationsService);
   private readonly releaseSearch = inject(ReleaseSearchService);
 
@@ -159,7 +167,12 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
       if (this.source === 'whisparr') {
         this.releaseSearch.checkProwlarr();
       }
-      this.checkOwnedCopies(this.stashId);
+      // Replacing a file you have: there's no copy to warn about.
+      if (this.source === 'replacement') {
+        this.ownedCopies.set([]);
+      } else {
+        this.checkOwnedCopies(this.stashId);
+      }
       this.search();
     }
     if (changes['open'] && !this.open) {
@@ -242,6 +255,21 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
     return this.activeSource() === 'prowlarr';
   }
 
+  /** Choosing a replacement for a file in your library (Better copies). */
+  protected replacing(): boolean {
+    return this.activeSource() === 'replacement';
+  }
+
+  /** Prowlarr is asked, so your own words can be searched too. */
+  protected searchable(): boolean {
+    return this.viaProwlarr() || this.replacing();
+  }
+
+  /** Who would skip a "skipped" release: Whisparr, or your Better copies rules. */
+  protected skipper(): string {
+    return this.replacing() ? 'your rules would' : 'Whisparr would';
+  }
+
   /** Whisparr found nothing usable: the same scene, searched through Prowlarr. */
   protected searchProwlarr(): void {
     this.activeSource.set('prowlarr');
@@ -271,11 +299,13 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
         this.grabbingKey.set(null);
         this.notifications.success(
           'Downloading',
-          result.sentTo === 'sabnzbd'
-            ? 'SABnzbd is downloading it. Stashboard moves it into your library when it’s done.'
-            : this.viaProwlarr()
-              ? 'Prowlarr sent it to its download client.'
-              : 'Whisparr sent it to your download client.',
+          this.replacing()
+            ? 'SABnzbd is downloading it. Once it’s in, it’s checked like any better copy before the old file goes.'
+            : result.sentTo === 'sabnzbd'
+              ? 'SABnzbd is downloading it. Stashboard moves it into your library when it’s done.'
+              : this.viaProwlarr()
+                ? 'Prowlarr sent it to its download client.'
+                : 'Whisparr sent it to your download client.',
         );
         this.grabbed.emit(release);
         this.close();
@@ -292,10 +322,26 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
   }
 
   private serviceName(): string {
-    return this.viaProwlarr() ? 'Prowlarr' : 'Whisparr';
+    return this.searchable() ? 'Prowlarr' : 'Whisparr';
   }
 
   private runSearch(stashId: string): Observable<ReleaseSearchResult> {
+    if (this.replacing()) {
+      return this.smallerCopies.releases(stashId, this.typedQuery()).pipe(
+        map((result) => ({
+          // Ones your rules would pick first; the rest are "skipped", with why.
+          releases: [...result.releases]
+            .sort((left, right) => left.problems.length - right.problems.length)
+            .map((release) => ({
+              ...fromProwlarr({ ...release, failedBefore: undefined }),
+              rejected: release.problems.length > 0,
+              rejections: release.problems,
+            })),
+          queries: result.queries,
+          ...(result.notice ? { notice: result.notice } : {}),
+        })),
+      );
+    }
     return this.viaProwlarr()
       ? this.api.searchProwlarr(stashId, this.provider ?? 'STASHDB', this.typedQuery())
       : this.api.search(stashId);
@@ -305,6 +351,11 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
     stashId: string,
     release: WhisparrRelease,
   ): Observable<{ accepted: true; sentTo?: 'prowlarr' | 'sabnzbd' }> {
+    if (this.replacing()) {
+      return this.smallerCopies
+        .grabChosen(stashId, release)
+        .pipe(map(() => ({ accepted: true as const, sentTo: 'sabnzbd' as const })));
+    }
     return this.viaProwlarr()
       ? this.api.grabProwlarr(stashId, this.provider ?? 'STASHDB', release)
       : this.api.grab(stashId, release);
