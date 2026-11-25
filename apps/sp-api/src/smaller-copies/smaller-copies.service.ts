@@ -1088,6 +1088,11 @@ export class SmallerCopiesService {
     const provider = (await this.catalog.getInstanceCatalogProvider())
       .providerKey;
     try {
+      // A replacement for this scene is still on its way (sent by you
+      // while this pass waited): left for a later pass, its record kept.
+      if (await this.replacementOnTheWay(file.sceneId)) {
+        return false;
+      }
       const found = await this.downloads.searchReleases(catalogId, provider);
       // A release already grabbed for this scene isn't grabbed again (with
       // both files kept, the old one still fits the rules).

@@ -395,6 +395,18 @@ describe('SmallerCopiesService', () => {
     expect(downloads.searchReleases).toHaveBeenCalledTimes(1);
   });
 
+  it('leaves a scene alone in the background while its replacement is on its way', async () => {
+    settings.autoGrab = false;
+    files = [file('2', { size: 9e9 })];
+    prisma.downloadHandoff.count.mockImplementation(
+      ({ where }: { where: { replacesStashSceneId?: unknown } }) =>
+        Promise.resolve(where.replacesStashSceneId === '2' ? 1 : 0),
+    );
+    await service.tick(true);
+    // Not searched, so nothing written over the replacement's record.
+    expect(downloads.searchReleases).not.toHaveBeenCalled();
+  });
+
   it('doesn’t send a replacement in the background for a scene you’re replacing', async () => {
     // Scene 2 is the one the background search would pick.
     files = [file('2', { size: 9e9 })];
