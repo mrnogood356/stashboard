@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.7.4](https://github.com/mrnogood356/stashboard/compare/v1.7.3...v1.7.4) (2026-11-25)
+
+
+### Features
+
+* **better-copies:** choose a replacement release yourself ([5ba3c7c](https://github.com/mrnogood356/stashboard/commit/5ba3c7c912ea4a7c0bc02f8ed3522319e0bbc1b9))
+* choose a replacement release, cache StashDB pages, show how drop-ins matched ([996466d](https://github.com/mrnogood356/stashboard/commit/996466de20345e7f3f4952c16782f46d6bb5dd0d))
+* clearer search by source; drop-ins matched by name and again later ([1e43397](https://github.com/mrnogood356/stashboard/commit/1e433975824d94fd35f1a8407c030e57df945779))
+* clearer search by source; drop-ins matched by name and again later ([ba93777](https://github.com/mrnogood356/stashboard/commit/ba937778662e4b011bf99329c128ad55ec7f24f2))
+* **downloads:** show how each file you brought in was matched ([ee80328](https://github.com/mrnogood356/stashboard/commit/ee8032836aaefe5f2c97b0b2261fc1aaa3762e5a))
+
+
+### Bug Fixes
+
+* address review of replacements, the StashDB cache and match notes ([0b220ff](https://github.com/mrnogood356/stashboard/commit/0b220ff6b79f4e43fa0739b481dd27b584a64072))
+* **better-copies:** "Check only the failed" works from the Failed list ([e09cf70](https://github.com/mrnogood356/stashboard/commit/e09cf70872df4bd77cf2d19e34348fe869e70c10))
+* **better-copies:** "Check only the failed" works from the Failed list ([efcdef9](https://github.com/mrnogood356/stashboard/commit/efcdef95b1b81dd3cc23eb4fbcb5646220caef8d))
+* **better-copies:** background search skips a scene whose replacement is on its way ([990c074](https://github.com/mrnogood356/stashboard/commit/990c0745cf2a6447bcfa4bc3b533e6acc95c295c))
+* **better-copies:** check for a replacement on its way before the background pass writes anything ([f0b9ff4](https://github.com/mrnogood356/stashboard/commit/f0b9ff4146610a0b0e7ca1f46b73d2f76e8b3cf4))
+* **better-copies:** leave a match found meanwhile alone; test failed-first order ([4dcdb56](https://github.com/mrnogood356/stashboard/commit/4dcdb5643df4962d2adb50a1dae9edef7f2e4329))
+* **better-copies:** refuse a chosen release whose search result expired ([9ad90c2](https://github.com/mrnogood356/stashboard/commit/9ad90c2e07e4e917bf25ca1212be184f311cd78e))
+* CodeRabbit review of [#119](https://github.com/mrnogood356/stashboard/issues/119) ([7f3471e](https://github.com/mrnogood356/stashboard/commit/7f3471efea126ffe60c3483f60dc1a3061c2231a))
+* **downloads:** ask once whether Finished downloads is on when grabbing ([9ca48a1](https://github.com/mrnogood356/stashboard/commit/9ca48a1f41f31b590b657fe9e99ff65dd90bf076))
+* keep match notes through placing, and drop a stale Edit ask ([67e68fd](https://github.com/mrnogood356/stashboard/commit/67e68fdb9aaf9cb2c8a7fa0842df1d31f7c82623))
+* one replacement per scene across every path; edit link on a scene change ([1b47f7f](https://github.com/mrnogood356/stashboard/commit/1b47f7f53462f4ff5161bc8cd4b91123e7d18719))
+* **rematch:** keep one linked meanwhile marked, so it's placed ([22d9bce](https://github.com/mrnogood356/stashboard/commit/22d9bcef4672487ba1db35c71f24a722aa74b38d))
+* **rematch:** look up only the ones marked to place first ([12fc37f](https://github.com/mrnogood356/stashboard/commit/12fc37f848eac474c7bfabf33d3d11625503c38f))
+* **rematch:** mark before looking up; place waiting ones beyond the newest 300 ([01d4484](https://github.com/mrnogood356/stashboard/commit/01d4484a18c480fd3dac2cc371c3b0c034a2c647))
+* send only the release that was checked; save the match note with placing ([354e379](https://github.com/mrnogood356/stashboard/commit/354e37974d06c447daf9f5a9b7a4410be2508570))
+
+
+### Performance Improvements
+
+* **stashdb:** reuse answers to the same question for a few minutes ([fa738bf](https://github.com/mrnogood356/stashboard/commit/fa738bf20fe2bdc17c9ffe52ab6e342451a21a37))
+
 ## [1.7.3](https://github.com/mrnogood356/stashboard/compare/v1.7.2...v1.7.3) (2026-11-21)
 
 
