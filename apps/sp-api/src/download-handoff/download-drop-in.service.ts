@@ -659,14 +659,12 @@ export class DownloadDropInService {
       // Brought in before (a copy, or one that couldn't be moved): only a
       // different file at the same path counts as new.
       const stat = await fs.stat(file).catch(() => null);
-      // Moved out before (whatever became of it since: matching it may
-      // even have failed), so a file at that path changed after the move
-      // was put there since: dropped in again, say, even at the same size.
-      // A copy, or one that never moved, is still the same file.
-      const movedOutAt =
-        settings.importMode !== 'copy' && row.placedAt
-          ? row.placedAt.getTime()
-          : null;
+      // Moved out before (placedAt is only set by a move, whatever became
+      // of it since: matching it may even have failed), so a file at that
+      // path changed after the move was put there since: dropped in again,
+      // say, even at the same size. A copy, or one that never moved, is
+      // still the same file.
+      const movedOutAt = row.placedAt?.getTime() ?? null;
       if (
         stat &&
         (BigInt(stat.size) !== row.size ||
@@ -940,7 +938,8 @@ export class DownloadDropInService {
     const row = await this.save(file, stat.size, {
       status: 'placed',
       finalPath,
-      placedAt: new Date(),
+      // Only a move empties the source path; a copy leaves the same file.
+      placedAt: mode === 'move' ? new Date() : null,
       error: null,
     });
     this.logger.log(

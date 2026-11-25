@@ -377,6 +377,16 @@ describe('DownloadDropInService', () => {
     expect(prisma.downloadDropIn.upsert).toHaveBeenCalledTimes(1);
     expect(organizer.identifyNewScenes).toHaveBeenCalledTimes(1);
     expect(dropIns).toHaveLength(1);
+    expect(dropIns[0].placedAt).toBeNull();
+
+    // Switched to moving later, and the copy's source touched since: it's
+    // still the same file, not brought in again.
+    settings.importMode = 'move';
+    const now = new Date();
+    await fs.utimes(source, now, now);
+    await fs.chmod(source, 0o644);
+    await twoChecks();
+    expect(prisma.downloadDropIn.upsert).toHaveBeenCalledTimes(1);
   });
 
   it('brings in a file dropped again where one was moved from before, even at the same size', async () => {
