@@ -705,8 +705,20 @@ export class DownloadHandoffService {
     const wanted = new Set(rows.map((row) => row.nzoId));
     const ours = new Map<string, SabnzbdHistoryEntry>();
     let read = 0;
+    // Read to the end (or until all were found): only then is one missing
+    // from it really gone from SABnzbd's history.
+    let complete = false;
     for (let page = 0; page < MAX_HISTORY_PAGES; page += 1) {
-      const slots = await this.sabnzbd.history(config, settings.category, read);
+      let slots: SabnzbdHistoryEntry[];
+      try {
+        slots = await this.sabnzbd.history(config, settings.category, read);
+      } catch (error) {
+        // What was read still counts; the rest waits for the next check.
+        this.logger.warn(
+          `Couldn't read SABnzbd's history past ${read} entries: ${messageOf(error)}`,
+        );
+        break;
+      }
       read += slots.length;
       for (const entry of slots) {
         if (wanted.has(entry.nzoId)) {
@@ -714,6 +726,7 @@ export class DownloadHandoffService {
         }
       }
       if (slots.length < SABNZBD_LIST_LIMIT || ours.size === wanted.size) {
+        complete = true;
         break;
       }
     }
@@ -746,7 +759,10 @@ export class DownloadHandoffService {
             this.logger.log(`SABnzbd is downloading “${row.releaseTitle}”.`);
             await this.setStatus(row, 'downloading');
           }
-        } else if (Date.now() - row.createdAt.getTime() > FORGOTTEN_AFTER_MS) {
+        } else if (
+          complete &&
+          Date.now() - row.createdAt.getTime() > FORGOTTEN_AFTER_MS
+        ) {
           this.logger.warn(
             `SABnzbd no longer lists “${row.releaseTitle}” (job ${row.nzoId}); stopped watching it.`,
           );
@@ -1139,12 +1155,14 @@ export class DownloadHandoffService {
         await this.waitForStash(row, error.message);
         return;
       }
+      await this.stopWaitingForStash(row);
       await this.retryLater(
         row,
         `Moved to ${finalPath}, but Stash couldn’t scan it: ${messageOf(error)}`,
       );
       return;
     }
+    await this.stopWaitingForStash(row);
     if (!sceneId) {
       await this.retryLater(
         row,
@@ -1404,7 +1422,8 @@ export class DownloadHandoffService {
       await record(
         // None of the old files could go: both are still there.
         removed.length > 0 || left.length === 0 ? 'replaced' : 'kept-both',
-        `${removed.length > 0 ? `Deleted ${removed.join(', ')}.` : left.length > 0 ? '' : 'Deleted the old file.'}${leftNote}${whisparrNote}`
+        // What's left first, so it's still said when the paths run long.
+        `${leftNote.trim()} ${removed.length > 0 ? `Deleted ${removed.join(', ')}.` : left.length > 0 ? '' : 'Deleted the old file.'}${whisparrNote}`
           .trim()
           .slice(0, 300),
         newFile.size,
@@ -1418,7 +1437,9 @@ export class DownloadHandoffService {
         detail: [
           `Kept ${keep.path}`,
           ...removed.map((path) => `Deleted ${path}`),
+          ...left.map((path) => `Couldn’t delete ${path}`),
         ].join('\n'),
+        ...(left.length > 0 ? { status: 'partial' as const } : {}),
       });
     } catch (error) {
       this.logger.warn(
@@ -1801,7 +1822,8 @@ export class DownloadHandoffService {
     row: DownloadHandoff,
     reason: string,
   ): Promise<void> {
-    if (Date.now() - row.createdAt.getTime() > STASH_WAIT_MAX_MS) {
+    const since = row.stashWaitSince ?? new Date();
+    if (Date.now() - since.getTime() > STASH_WAIT_MAX_MS) {
       // Stash has been busy for days: said, rather than waited on forever.
       await this.fail(
         row,
@@ -1813,8 +1835,20 @@ export class DownloadHandoffService {
     this.logger.debug(`“${row.releaseTitle}”: ${reason}`);
     await this.prisma.downloadHandoff.update({
       where: { id: row.id },
-      data: { error: reason },
+      // Counted from the first time Stash was too busy, not from sending.
+      data: { error: reason, stashWaitSince: since },
     });
+  }
+
+  /** Stash has scanned (or answered) at last: a later wait starts afresh. */
+  private async stopWaitingForStash(row: DownloadHandoff): Promise<void> {
+    if (!row.stashWaitSince) {
+      return;
+    }
+    row.stashWaitSince = null;
+    await this.prisma.downloadHandoff
+      .update({ where: { id: row.id }, data: { stashWaitSince: null } })
+      .catch(() => undefined);
   }
 
   /** Waits for the next check; after a few misses, gives up with the reason. */

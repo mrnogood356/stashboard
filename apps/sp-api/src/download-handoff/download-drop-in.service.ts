@@ -644,7 +644,7 @@ export class DownloadDropInService {
                 size: true,
                 status: true,
                 error: true,
-                updatedAt: true,
+                placedAt: true,
               },
             })
           ).map((row) => [row.sourcePath, row]),
@@ -659,16 +659,18 @@ export class DownloadDropInService {
       // Brought in before (a copy, or one that couldn't be moved): only a
       // different file at the same path counts as new.
       const stat = await fs.stat(file).catch(() => null);
-      // Moved out before, so whatever is at that path now was put there
-      // since (dropped in again, say), even at the same size. A copy, or
-      // one that couldn't be moved, is still the same file.
-      const movedOut =
-        settings.importMode !== 'copy' &&
-        (row.status === 'placed' || row.status === 'imported');
+      // Moved out before (whatever became of it since: matching it may
+      // even have failed), so a file at that path changed after the move
+      // was put there since: dropped in again, say, even at the same size.
+      // A copy, or one that never moved, is still the same file.
+      const movedOutAt =
+        settings.importMode !== 'copy' && row.placedAt
+          ? row.placedAt.getTime()
+          : null;
       if (
         stat &&
         (BigInt(stat.size) !== row.size ||
-          (movedOut && stat.ctimeMs > row.updatedAt.getTime()))
+          (movedOutAt !== null && stat.ctimeMs > movedOutAt))
       ) {
         fresh.push(file);
       } else if (row.status === 'failed') {
@@ -938,6 +940,7 @@ export class DownloadDropInService {
     const row = await this.save(file, stat.size, {
       status: 'placed',
       finalPath,
+      placedAt: new Date(),
       error: null,
     });
     this.logger.log(
@@ -1083,7 +1086,10 @@ export class DownloadDropInService {
     sourcePath: string,
     size: number,
     data: Partial<
-      Pick<DownloadDropIn, 'status' | 'finalPath' | 'error' | 'finishedAt'>
+      Pick<
+        DownloadDropIn,
+        'status' | 'finalPath' | 'placedAt' | 'error' | 'finishedAt'
+      >
     >,
   ): Promise<DownloadDropIn> {
     const fields = {
@@ -1091,6 +1097,7 @@ export class DownloadDropInService {
       attempts: 0,
       stashSceneId: null,
       finalPath: null,
+      placedAt: null,
       matchedBy: null,
       finishedAt: null,
       // A new file at an old path isn't hidden by the old one's Clear.

@@ -560,6 +560,8 @@ model DownloadHandoff {
   placePending         Boolean   @default(false)
   /// How it was matched once in Stash: fingerprint | name | whisparr | later | proposed | none (yours only).
   matchedBy            String?
+  /// When Stash first said it was too busy to scan it; cleared once it does.
+  stashWaitSince       DateTime?
   /// Cleared from Downloads by you. Kept, so it's never brought in twice.
   clearedAt            DateTime?
   createdAt            DateTime  @default(now())
@@ -594,6 +596,8 @@ model DownloadDropIn {
   placePending   Boolean   @default(false)
   /// How it was matched once in Stash: fingerprint | name | whisparr | later | proposed | none (yours only).
   matchedBy      String?
+  /// When the file at sourcePath was moved or copied in: a file there changed later is a new one.
+  placedAt       DateTime?
   /// Cleared from Downloads by you. Kept, so it's never brought in twice.
   clearedAt      DateTime?
   createdAt      DateTime  @default(now())

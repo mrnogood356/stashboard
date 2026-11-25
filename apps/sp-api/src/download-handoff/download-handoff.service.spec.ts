@@ -60,6 +60,7 @@ describe('DownloadHandoffService', () => {
     rematchTriedAt: null,
     placePending: false,
     matchedBy: null,
+    stashWaitSince: null,
     error: null,
     attempts: 0,
     finishedAt: null,
@@ -427,22 +428,44 @@ describe('DownloadHandoffService', () => {
       expect(stash.requestFolderScan).toHaveBeenCalledTimes(1);
     });
 
-    it('gives up on one Stash has been too busy to scan for a week', async () => {
+    it('gives up on one Stash has been too busy to scan for a week, counted from the first wait', async () => {
+      // Sent long ago, but Stash only now too busy: it waits.
       rows.push(
         handoff({
           id: 'h1',
           status: 'completed',
           finalPath: path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'),
-          createdAt: new Date(Date.now() - 8 * 24 * 3600_000),
+          createdAt: new Date(Date.now() - 30 * 24 * 3600_000),
         }),
       );
       stash.sceneIdsForPaths.mockResolvedValue([]);
       stash.requestFolderScan.mockResolvedValue('waiting');
 
       await service.checkOpen();
+      expect(row().status).toBe('completed');
+      expect(row().stashWaitSince).toBeInstanceOf(Date);
 
+      // A week of waiting since then: given up on.
+      row().stashWaitSince = new Date(Date.now() - 8 * 24 * 3600_000);
+      await service.checkOpen();
       expect(row().status).toBe('failed');
       expect(row().error).toContain('too busy to scan it for a week');
+    });
+
+    it('starts the count again once Stash has scanned', async () => {
+      rows.push(
+        handoff({
+          id: 'h1',
+          status: 'completed',
+          finalPath: path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'),
+          stashWaitSince: new Date(Date.now() - 3 * 24 * 3600_000),
+        }),
+      );
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      stash.requestFolderScan.mockResolvedValue(null);
+
+      await service.checkOpen();
+      expect(row().stashWaitSince).toBeNull();
     });
 
     it('says Stash is busy while its folder scan waits its turn, without waiting on it', async () => {
@@ -1053,6 +1076,28 @@ describe('DownloadHandoffService', () => {
       expect(row().status).toBe('failed');
     });
 
+    it('takes none for forgotten when part of SABnzbd’s history can’t be read', async () => {
+      rows.push(
+        handoff({
+          id: 'h1',
+          createdAt: new Date(Date.now() - 4 * 24 * 3600_000),
+        }),
+      );
+      const others = Array.from({ length: 200 }, (_, index) =>
+        historyEntry({ nzoId: `other-${index}` }),
+      );
+      sabnzbd.history.mockImplementation(
+        (_config: unknown, _category: string, start = 0) =>
+          start === 0
+            ? Promise.resolve(others)
+            : Promise.reject(new Error('timeout')),
+      );
+
+      await service.checkOpen();
+
+      expect(row().status).toBe('sent');
+    });
+
     it('keeps watching when SABnzbd’s queue can’t be read', async () => {
       sabnzbd.queue.mockRejectedValue(new Error('timeout'));
       rows.push(
@@ -1348,7 +1393,9 @@ describe('DownloadHandoffService', () => {
       await replace();
 
       expect(outcome().outcome).toBe('kept-both');
-      expect(outcome().detail).toContain('Couldn’t delete /lib/old.mkv');
+      expect(outcome().detail.startsWith('Couldn’t delete /lib/old.mkv')).toBe(
+        true,
+      );
       expect(outcome().detail).toContain('permission denied');
       // Still the scene that stays, with previews for it.
       expect(row().stashSceneId).toBe('12');

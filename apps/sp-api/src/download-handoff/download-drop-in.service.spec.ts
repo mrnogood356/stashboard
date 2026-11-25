@@ -164,6 +164,7 @@ describe('DownloadDropInService', () => {
               rematchTriedAt: null,
               placePending: false,
               matchedBy: null,
+              placedAt: null,
               clearedAt: null,
               createdAt: new Date(),
               updatedAt: new Date(),
@@ -383,8 +384,11 @@ describe('DownloadDropInService', () => {
     await write(source);
     await twoChecks();
     expect(await exists(source)).toBe(false);
-    // Moved out an hour ago; since then removed from the library.
-    dropIns[0].updatedAt = new Date(Date.now() - 3600_000);
+    // Moved out an hour ago; since then removed from the library, and its
+    // row touched again since (matching it), which mustn't matter.
+    dropIns[0].placedAt = new Date(Date.now() - 3600_000);
+    dropIns[0].updatedAt = new Date(Date.now() + 3600_000);
+    dropIns[0].status = 'failed';
     await fs.rm(path.join(destination, 'Again.mp4'));
 
     await write(source);
@@ -413,7 +417,8 @@ describe('DownloadDropInService', () => {
       matchedBy: 'fingerprint',
       clearedAt: null,
       createdAt: new Date(),
-      updatedAt: new Date(Date.now() + 60_000),
+      updatedAt: new Date(),
+      placedAt: new Date(Date.now() + 60_000),
     });
     await twoChecks();
     expect(prisma.downloadDropIn.upsert).not.toHaveBeenCalled();
@@ -621,6 +626,7 @@ describe('DownloadDropInService', () => {
       rematchTriedAt: null,
       placePending: false,
       matchedBy: null,
+      placedAt: null,
       clearedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -648,6 +654,7 @@ describe('DownloadDropInService', () => {
       rematchTriedAt: null,
       placePending: false,
       matchedBy: null,
+      placedAt: null,
       clearedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -952,6 +959,7 @@ describe('DownloadDropInService', () => {
         rematchTriedAt: null,
         placePending: false,
         matchedBy: null,
+        placedAt: null,
         clearedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
