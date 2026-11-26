@@ -468,13 +468,14 @@ describe('DownloadHandoffService', () => {
       expect(row().stashWaitSince).toBeNull();
     });
 
-    it('clears the wait with the retry when noting that Stash answered fails', async () => {
+    it('counts nothing until noting that Stash answered is saved', async () => {
+      const since = new Date(Date.now() - 3 * 24 * 3600_000);
       rows.push(
         handoff({
           id: 'h1',
           status: 'completed',
           finalPath: path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'),
-          stashWaitSince: new Date(Date.now() - 3 * 24 * 3600_000),
+          stashWaitSince: since,
         }),
       );
       stash.sceneIdsForPaths.mockResolvedValue([]);
@@ -488,8 +489,31 @@ describe('DownloadHandoffService', () => {
       );
 
       await service.checkOpen();
-      expect(row().stashWaitSince).toBeNull();
-      expect(row().attempts).toBe(1);
+      // Stopped there: no try used, and the next check tries again.
+      expect(row()).toMatchObject({ attempts: 0, stashWaitSince: since });
+
+      update.mockImplementation(real);
+      await service.checkOpen();
+      expect(row()).toMatchObject({ attempts: 1, stashWaitSince: null });
+    });
+
+    it('clears the wait when it gives up after its last try', async () => {
+      rows.push(
+        handoff({
+          id: 'h1',
+          status: 'completed',
+          finalPath: path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'),
+          attempts: 4,
+          stashWaitSince: new Date(Date.now() - 3 * 24 * 3600_000),
+        }),
+      );
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      stash.requestFolderScan.mockResolvedValue('waiting');
+      // A week of waiting: given up on, and nothing left to count against a Retry.
+      row().stashWaitSince = new Date(Date.now() - 8 * 24 * 3600_000);
+
+      await service.checkOpen();
+      expect(row()).toMatchObject({ status: 'failed', stashWaitSince: null });
     });
 
     it('says Stash is busy while its folder scan waits its turn, without waiting on it', async () => {
@@ -1690,12 +1714,16 @@ describe('DownloadHandoffService', () => {
           status: 'failed',
           finalPath: path.join(destination, 'Jane.mkv'),
           attempts: 5,
+          // Given up on after a week of a busy Stash.
+          stashWaitSince: new Date(Date.now() - 8 * 24 * 3600_000),
         }),
       );
       await expect(service.retry('h1')).resolves.toMatchObject({
         status: 'completed',
       });
       expect(row().attempts).toBe(0);
+      // The week starts again, rather than failing it at once.
+      expect(row().stashWaitSince).toBeNull();
     });
 
     it('leaves anything that hasn’t failed as it is', async () => {

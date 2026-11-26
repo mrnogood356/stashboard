@@ -463,7 +463,14 @@ export class DownloadHandoffService {
     this.logger.log(`Trying download “${row.releaseTitle}” again.`);
     const updated = await this.prisma.downloadHandoff.update({
       where: { id },
-      data: { status, attempts: 0, error: null, finishedAt: null },
+      // A fresh start: an earlier wait on a busy Stash doesn't count.
+      data: {
+        status,
+        attempts: 0,
+        error: null,
+        finishedAt: null,
+        stashWaitSince: null,
+      },
     });
     // In the background: the answer doesn't wait for SABnzbd or Stash.
     void this.watch();
@@ -1841,24 +1848,21 @@ export class DownloadHandoffService {
     });
   }
 
-  /** Stash has scanned (or answered) at last: a later wait starts afresh. */
+  /**
+   * Stash has scanned (or answered) at last: a later wait starts afresh.
+   * Saved before anything else is done with the download: if the save
+   * fails, this pass stops here (nothing counted), and the next one tries
+   * again, so an old wait can't count against a later one.
+   */
   private async stopWaitingForStash(row: DownloadHandoff): Promise<void> {
     if (!row.stashWaitSince) {
       return;
     }
-    try {
-      await this.prisma.downloadHandoff.update({
-        where: { id: row.id },
-        data: { stashWaitSince: null },
-      });
-      row.stashWaitSince = null;
-    } catch (error) {
-      // Cleared again with the next retry's save (retryLater), so an old
-      // wait can't count against a later one.
-      this.logger.warn(
-        `“${row.releaseTitle}”: couldn't note that Stash answered: ${messageOf(error)}`,
-      );
-    }
+    await this.prisma.downloadHandoff.update({
+      where: { id: row.id },
+      data: { stashWaitSince: null },
+    });
+    row.stashWaitSince = null;
   }
 
   /** Waits for the next check; after a few misses, gives up with the reason. */
@@ -1911,6 +1915,8 @@ export class DownloadHandoffService {
       ...extra,
       error: reason,
       finishedAt: new Date(),
+      // Given up on: a Retry later starts any wait afresh.
+      stashWaitSince: null,
       // A Better copies download that failed is kept in Better copies'
       // history instead, so it doesn't wait on the Downloads list to be
       // cleared by hand. A file already in the library stays listed: that
