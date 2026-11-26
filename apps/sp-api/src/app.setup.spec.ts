@@ -233,5 +233,19 @@ describe('refuseCrossSiteWrites', () => {
       .set('X-Forwarded-Host', 'stash.example.com')
       .set('Origin', 'https://stash.example.com')
       .expect(200);
+    // A proxy that writes out the https default port.
+    await request(app)
+      .post('/api/thing')
+      .set('Host', 'stashboard:3000')
+      .set('X-Forwarded-Host', 'stash.example.com:443')
+      .set('Origin', 'https://stash.example.com')
+      .expect(200);
+    // ...but :443 isn't the default for an http page.
+    await request(app)
+      .post('/api/thing')
+      .set('Host', 'stashboard:3000')
+      .set('X-Forwarded-Host', 'stash.example.com:443')
+      .set('Origin', 'http://stash.example.com')
+      .expect(403);
   });
 });

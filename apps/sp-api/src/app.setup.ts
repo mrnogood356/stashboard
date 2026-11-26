@@ -87,8 +87,9 @@ function isOwnOrigin(req: Request): boolean {
   if (origin === undefined) {
     return true;
   }
-  const from = hostOf(origin);
-  if (!from) {
+  const parsed = parseUrl(origin);
+  const from = parsed && hostOf(parsed);
+  if (!parsed || !from) {
     // "null" (a sandboxed frame, a file) or something unreadable.
     return false;
   }
@@ -99,19 +100,25 @@ function isOwnOrigin(req: Request): boolean {
       (value) => value?.split(',') ?? [],
     ),
   ];
-  return targets.some(
-    (target) => !!target && hostOf(`http://${target.trim()}`) === from,
-  );
+  // Read under the Origin's scheme, so a proxy's "host:443" still matches
+  // https://host (and "host:80" matches http://host).
+  return targets.some((target) => {
+    const url = target && parseUrl(`${parsed.protocol}//${target.trim()}`);
+    return !!url && hostOf(url) === from;
+  });
 }
 
-/** "host:port", lower case, with the scheme's default port left out. */
-function hostOf(url: string): string | null {
+function parseUrl(url: string): URL | null {
   try {
-    const parsed = new URL(url);
-    return parsed.hostname ? parsed.host.toLowerCase() : null;
+    return new URL(url);
   } catch {
     return null;
   }
+}
+
+/** "host:port", lower case, with the scheme's default port left out. */
+function hostOf(url: URL): string | null {
+  return url.hostname ? url.host.toLowerCase() : null;
 }
 
 /**
