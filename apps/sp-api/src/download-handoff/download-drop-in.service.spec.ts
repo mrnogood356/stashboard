@@ -408,6 +408,46 @@ describe('DownloadDropInService', () => {
     expect(prisma.downloadDropIn.upsert).toHaveBeenCalledTimes(2);
   });
 
+  it('doesn’t count a move that left the original behind as moved', async () => {
+    const source = path.join(sabFolder, 'Across.mp4');
+    await write(source);
+    // Another disk: the rename fails, the copy works, deleting the original doesn't.
+    const realRename = fs.rename.bind(fs);
+    const realUnlink = fs.unlink.bind(fs);
+    const rename = jest
+      .spyOn(fs, 'rename')
+      .mockImplementation((from, to) =>
+        String(from) === source
+          ? Promise.reject(
+              Object.assign(new Error('cross-device'), { code: 'EXDEV' }),
+            )
+          : realRename(from, to),
+      );
+    const unlink = jest
+      .spyOn(fs, 'unlink')
+      .mockImplementation((target) =>
+        String(target) === source
+          ? Promise.reject(new Error('read-only'))
+          : realUnlink(target),
+      );
+    try {
+      await twoChecks();
+    } finally {
+      rename.mockRestore();
+      unlink.mockRestore();
+    }
+
+    expect(await exists(source)).toBe(true);
+    expect(await exists(path.join(destination, 'Across.mp4'))).toBe(true);
+    expect(dropIns[0]).toMatchObject({ placedAt: null });
+    // Touched later, it's still the file brought in: not again.
+    const later = new Date(Date.now() + 60_000);
+    await fs.utimes(source, later, later);
+    await fs.chmod(source, 0o644);
+    await twoChecks();
+    expect(prisma.downloadDropIn.upsert).toHaveBeenCalledTimes(1);
+  });
+
   it('leaves a file that is still the one brought in, when its move left it behind', async () => {
     const source = path.join(sabFolder, 'Stayed.mp4');
     await write(source);

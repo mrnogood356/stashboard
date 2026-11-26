@@ -1846,10 +1846,19 @@ export class DownloadHandoffService {
     if (!row.stashWaitSince) {
       return;
     }
-    row.stashWaitSince = null;
-    await this.prisma.downloadHandoff
-      .update({ where: { id: row.id }, data: { stashWaitSince: null } })
-      .catch(() => undefined);
+    try {
+      await this.prisma.downloadHandoff.update({
+        where: { id: row.id },
+        data: { stashWaitSince: null },
+      });
+      row.stashWaitSince = null;
+    } catch (error) {
+      // Cleared again with the next retry's save (retryLater), so an old
+      // wait can't count against a later one.
+      this.logger.warn(
+        `“${row.releaseTitle}”: couldn't note that Stash answered: ${messageOf(error)}`,
+      );
+    }
   }
 
   /** Waits for the next check; after a few misses, gives up with the reason. */
@@ -1876,6 +1885,8 @@ export class DownloadHandoffService {
       data: {
         attempts,
         error: `${reason} Trying again shortly.`,
+        // Not waiting on a busy Stash (any more): a later wait starts afresh.
+        stashWaitSince: null,
         ...(stashSceneId ? { stashSceneId } : {}),
       },
     });

@@ -240,6 +240,36 @@ describe('AcquisitionService', () => {
     );
   });
 
+  it('reads on through scenes that arrived at the same moment as the 200th', async () => {
+    const at = new Date('2026-10-27T10:00:00.000Z');
+    const arrival = (id: string) => ({
+      linkedStashId: id,
+      localCreatedAt: at,
+      viewUrl: `http://stash.local/scenes/${id}`,
+    });
+    // 500 requested scenes, then one more at the same moment that sorts first.
+    const first = Array.from({ length: 500 }, (_, index) =>
+      arrival(`z${String(index).padStart(3, '0')}`),
+    );
+    librarySceneIndexFindManyMock
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce([arrival('a000')]);
+    sceneIndexFindManyMock.mockImplementation(
+      ({ where }: { where: { stashId: { in: string[] } } }) =>
+        Promise.resolve(
+          where.stashId.in.map((stashId) =>
+            buildIndexedRow({ stashId, computedLifecycle: 'AVAILABLE' }),
+          ),
+        ),
+    );
+
+    const result = await service.getScenesFeed(1, 24, 'AVAILABLE');
+
+    expect(result.items[0].id).toBe('a000');
+    expect(result.total).toBe(200);
+    expect(librarySceneIndexFindManyMock).toHaveBeenCalledTimes(2);
+  });
+
   it('lists requests Stash got in the last two weeks, newest first', async () => {
     librarySceneIndexFindManyMock.mockResolvedValue([
       {

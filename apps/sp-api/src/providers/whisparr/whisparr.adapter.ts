@@ -681,16 +681,18 @@ export class WhisparrAdapter {
     const paused = (Array.isArray(statuses) ? statuses : []).flatMap(
       (status: Record<string, unknown>) => {
         const until = this.readString(status.disabledTill);
+        const at = until ? Date.parse(until) : NaN;
+        // One with no time it can be read as isn't counted as paused.
         if (
-          !until ||
-          Date.parse(until) <= now ||
+          !Number.isFinite(at) ||
+          at <= now ||
           !usableIds.has(this.readNumber(status.indexerId))
         ) {
           return [];
         }
         const name =
           names.get(this.readNumber(status.indexerId)) ?? 'An indexer';
-        return [{ name, until }];
+        return [{ name, until: until as string }];
       },
     );
     return { searchable: usable.length, paused };

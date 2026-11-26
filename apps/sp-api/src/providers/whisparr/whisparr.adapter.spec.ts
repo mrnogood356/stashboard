@@ -413,6 +413,8 @@ describe('WhisparrAdapter', () => {
             Promise.resolve([
               { indexerId: 1, disabledTill: later },
               { indexerId: 2, disabledTill: later },
+              // A time that can't be read isn't counted.
+              { indexerId: 1, disabledTill: 'soon' },
             ]),
         });
 

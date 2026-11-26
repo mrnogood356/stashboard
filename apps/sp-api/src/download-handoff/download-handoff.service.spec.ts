@@ -468,6 +468,30 @@ describe('DownloadHandoffService', () => {
       expect(row().stashWaitSince).toBeNull();
     });
 
+    it('clears the wait with the retry when noting that Stash answered fails', async () => {
+      rows.push(
+        handoff({
+          id: 'h1',
+          status: 'completed',
+          finalPath: path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'),
+          stashWaitSince: new Date(Date.now() - 3 * 24 * 3600_000),
+        }),
+      );
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      stash.requestFolderScan.mockResolvedValue(null);
+      const update = prisma.downloadHandoff.update;
+      const real = update.getMockImplementation()!;
+      update.mockImplementation((args: { data: Record<string, unknown> }) =>
+        Object.keys(args.data).length === 1 && 'stashWaitSince' in args.data
+          ? Promise.reject(new Error('database blip'))
+          : real(args),
+      );
+
+      await service.checkOpen();
+      expect(row().stashWaitSince).toBeNull();
+      expect(row().attempts).toBe(1);
+    });
+
     it('says Stash is busy while its folder scan waits its turn, without waiting on it', async () => {
       stash.sceneIdsForPaths.mockResolvedValue([]);
       stash.requestFolderScan.mockResolvedValue('waiting');

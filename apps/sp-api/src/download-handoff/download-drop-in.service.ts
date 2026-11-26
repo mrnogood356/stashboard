@@ -935,11 +935,19 @@ export class DownloadDropInService {
       });
       return;
     }
+    // Only a move that took the file away empties the source path. A copy
+    // leaves the same file, and so does a move across disks whose original
+    // couldn't be deleted: that one mustn't count as dropped in again.
+    const emptied =
+      mode === 'move' &&
+      !(await fs.lstat(file).then(
+        () => true,
+        () => false,
+      ));
     const row = await this.save(file, stat.size, {
       status: 'placed',
       finalPath,
-      // Only a move empties the source path; a copy leaves the same file.
-      placedAt: mode === 'move' ? new Date() : null,
+      placedAt: emptied ? new Date() : null,
       error: null,
     });
     this.logger.log(

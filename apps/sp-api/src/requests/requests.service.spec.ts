@@ -489,6 +489,18 @@ describe('indexerNotice', () => {
     });
   });
 
+  it('still says which are paused when the time they’re back can’t be read', () => {
+    expect(
+      indexerNotice({
+        searchable: 2,
+        paused: [{ name: 'NZBgeek', until: 'soon' }],
+      }),
+    ).toEqual({
+      notice:
+        'Whisparr paused 1 of 2 indexers after errors: NZBgeek. Its System → Status page says why.',
+    });
+  });
+
   it('says when no indexer can do an interactive search', () => {
     expect(indexerNotice({ searchable: 0, paused: [] }).notice).toContain(
       'enabled for interactive search',

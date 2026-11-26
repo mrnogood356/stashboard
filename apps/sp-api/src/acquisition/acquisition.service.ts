@@ -231,12 +231,28 @@ export class AcquisitionService {
       addedAt: Date;
       stashViewUrl: string;
     }> = [];
+    const limit = AcquisitionService.RECENTLY_ADDED_LIMIT;
+    const byArrival = (
+      a: { row: SceneIndex; addedAt: Date },
+      b: { row: SceneIndex; addedAt: Date },
+    ) =>
+      b.addedAt.getTime() - a.addedAt.getTime() ||
+      a.row.stashId.localeCompare(b.row.stashId);
+    /** When the last library scene read arrived. */
+    let lastReadAt: number | null = null;
     for (
       let read = 0;
-      found.length < AcquisitionService.RECENTLY_ADDED_LIMIT &&
       read < AcquisitionService.RECENTLY_ADDED_SCAN_LIMIT;
       read += batch
     ) {
+      if (found.length >= limit && lastReadAt !== null) {
+        // Enough already, unless more arrived at the same moment as the
+        // last one kept: those could sort before it.
+        const cutoff = [...found].sort(byArrival)[limit - 1].addedAt.getTime();
+        if (lastReadAt < cutoff) {
+          break;
+        }
+      }
       const library = await this.prisma.librarySceneIndex.findMany({
         where: { linkedStashId: { not: null }, localCreatedAt: { gte: since } },
         orderBy: [{ localCreatedAt: 'desc' }, { stashSceneId: 'asc' }],
@@ -277,17 +293,12 @@ export class AcquisitionService {
           }
         }
       }
+      lastReadAt = library.at(-1)?.localCreatedAt?.getTime() ?? lastReadAt;
       if (library.length < batch) {
         break;
       }
     }
-    return found
-      .sort(
-        (a, b) =>
-          b.addedAt.getTime() - a.addedAt.getTime() ||
-          a.row.stashId.localeCompare(b.row.stashId),
-      )
-      .slice(0, AcquisitionService.RECENTLY_ADDED_LIMIT);
+    return found.sort(byArrival).slice(0, limit);
   }
 
   /**

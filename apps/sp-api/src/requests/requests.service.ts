@@ -541,13 +541,17 @@ export function indexerNotice(
     return {};
   }
   const names = health.paused.map((entry) => entry.name).join(', ');
-  const last = health.paused
-    .map((entry) => entry.until)
-    .sort()
-    .pop() as string;
+  // The latest return, as a time; one that can't be read is left out.
+  const last = Math.max(
+    ...health.paused
+      .map((entry) => Date.parse(entry.until))
+      .filter(Number.isFinite),
+  );
   return {
     notice: `Whisparr paused ${health.paused.length} of ${health.searchable} indexers after errors: ${names}. Its System → Status page says why.`,
-    pausedUntil: new Date(last).toISOString(),
+    ...(Number.isFinite(last)
+      ? { pausedUntil: new Date(last).toISOString() }
+      : {}),
   };
 }
 
