@@ -92,9 +92,10 @@ export class LibraryService {
   ): Promise<LibraryTagOptionDto[]> {
     const normalizedQuery = query?.trim() ?? '';
     // The first test narrows by the indexed text before every tag is unnested.
+    // What you type is plain text: % and _ in it mean themselves.
     const nameFilter = normalizedQuery
-      ? Prisma.sql`AND library_scene_tag_names_search_text("tagNames") ILIKE ${`%${normalizedQuery}%`}
-          AND tag.tag_name ILIKE ${`%${normalizedQuery}%`}`
+      ? Prisma.sql`AND library_scene_tag_names_search_text("tagNames") ILIKE ${`%${likeLiteral(normalizedQuery)}%`} ESCAPE '\\'
+          AND tag.tag_name ILIKE ${`%${likeLiteral(normalizedQuery)}%`} ESCAPE '\\'`
       : Prisma.empty;
     return this.prisma.$queryRaw<LibraryTagOptionDto[]>(Prisma.sql`
       SELECT tag.tag_id AS id, MIN(tag.tag_name) AS name, COUNT(*)::int AS count
@@ -113,8 +114,9 @@ export class LibraryService {
     scope: LibraryOptionScope = {},
   ): Promise<LibraryStudioOptionDto[]> {
     const normalizedQuery = query?.trim() ?? '';
+    // Plain text, as in the tag search.
     const nameFilter = normalizedQuery
-      ? Prisma.sql`AND "studioName" ILIKE ${`%${normalizedQuery}%`}`
+      ? Prisma.sql`AND "studioName" ILIKE ${`%${likeLiteral(normalizedQuery)}%`} ESCAPE '\\'`
       : Prisma.empty;
     return this.prisma.$queryRaw<LibraryStudioOptionDto[]>(Prisma.sql`
       SELECT "studioId" AS id, MIN("studioName") AS name, COUNT(*)::int AS count

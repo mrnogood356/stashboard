@@ -809,6 +809,38 @@ describe('IndexingService', () => {
     );
   });
 
+  it('shows a paused download over a downloading one, and neither as failed', () => {
+    const { prisma } = createPrismaMock({});
+    const service = new IndexingService(
+      prisma,
+      integrationsService,
+      catalogProviderService,
+      whisparrAdapter,
+      stashAdapter,
+      stashdbAdapter,
+      syncStateService,
+    );
+    const summarize = (statuses: string[]) =>
+      (
+        service as unknown as {
+          summarizeQueueItems: (items: Array<Record<string, unknown>>) => {
+            status: string | null;
+          };
+        }
+      ).summarizeQueueItems(
+        statuses.map((status) => ({
+          movieId: 1,
+          status,
+          trackedDownloadState: 'downloading',
+          trackedDownloadStatus: 'ok',
+          errorMessage: null,
+        })),
+      );
+
+    expect(summarize(['downloading', 'paused']).status).toBe('paused');
+    expect(summarize(['paused', 'failed']).status).toBe('failed');
+  });
+
   it('bootstraps a fresh request row into the local scene index', async () => {
     const { prisma, sceneIndexStore } = createPrismaMock({
       requestRows: [

@@ -15,8 +15,12 @@ export interface WhisparrQueueSnapshotItem {
   errorMessage: string | null;
 }
 
-const FAILED_QUEUE_STATUSES = new Set(['failed', 'warning', 'paused']);
-const DOWNLOADING_QUEUE_STATUS = 'downloading';
+const FAILED_QUEUE_STATUSES = new Set(['failed', 'warning']);
+/**
+ * Still on its way: a download paused in the download client (by you, or by
+ * SABnzbd itself) hasn't failed, so it's no failure notification either.
+ */
+const DOWNLOADING_QUEUE_STATUSES = new Set(['downloading', 'paused']);
 const COMPLETED_QUEUE_STATUS = 'completed';
 const QUEUED_QUEUE_STATUS = 'queued';
 const IMPORT_PENDING_STATES = new Set(['importpending', 'importing']);
@@ -113,7 +117,7 @@ function resolveQueueLifecycleState(
       continue;
     }
 
-    if (normalizedStatus !== DOWNLOADING_QUEUE_STATUS) {
+    if (!DOWNLOADING_QUEUE_STATUSES.has(normalizedStatus)) {
       continue;
     }
 
