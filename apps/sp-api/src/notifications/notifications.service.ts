@@ -418,9 +418,20 @@ function clip(value: string, max: number): string {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
-/** HTTP headers must be ASCII; ntfy titles fall back to plain text. */
-function asciiHeader(value: string): string {
-  return value.replace(/[^\x20-\x7e]/g, '').trim() || 'Stashboard';
+/**
+ * HTTP headers must be ASCII. A title with other letters ("New from Zoë")
+ * goes as an RFC 2047 encoded word, which ntfy decodes, rather than losing
+ * them; line breaks and other control characters are dropped first.
+ */
+export function asciiHeader(value: string): string {
+  const text = value.replace(/[\x00-\x1f\x7f]/g, ' ').trim();
+  if (!text) {
+    return 'Stashboard';
+  }
+  if (/^[\x20-\x7e]*$/.test(text)) {
+    return text;
+  }
+  return `=?UTF-8?B?${Buffer.from(text, 'utf8').toString('base64')}?=`;
 }
 
 function errorMessage(error: unknown): string {

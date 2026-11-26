@@ -61,22 +61,49 @@ export const JOB_INFO: Record<
   },
 };
 
-/** Due at this minute, and not already run in it. */
+/**
+ * How long after its time a job still runs when it couldn't at that minute:
+ * the once-a-minute check slipped past it, another job was still running,
+ * or the server was restarting.
+ */
+export const CATCH_UP_MS = 60 * 60_000;
+
+/**
+ * Due when its latest time (today's, or yesterday's just after midnight)
+ * has passed within the last hour, on one of its days, and it hasn't run
+ * since. A time saved after that moment waits for its next one, so moving a
+ * job to a minute ago doesn't start it.
+ */
 export function isDue(
   schedule: ScheduleTime,
   now: Date,
   lastRunAt: Date | null,
+  savedAt: Date | null = null,
 ): boolean {
-  if (
-    now.getHours() !== schedule.hour ||
-    now.getMinutes() !== schedule.minute
-  ) {
+  const at = latestTime(schedule, now);
+  if (!at || now.getTime() - at.getTime() >= CATCH_UP_MS) {
     return false;
   }
-  if (schedule.days.length > 0 && !schedule.days.includes(now.getDay())) {
+  if (savedAt && savedAt.getTime() > at.getTime()) {
     return false;
   }
-  return !lastRunAt || now.getTime() - lastRunAt.getTime() > 60_000;
+  return !lastRunAt || lastRunAt.getTime() < at.getTime();
+}
+
+/** Its most recent time at or before now, today or yesterday. */
+function latestTime(schedule: ScheduleTime, now: Date): Date | null {
+  for (let offset = 0; offset <= 1; offset += 1) {
+    const day = new Date(now);
+    day.setDate(now.getDate() - offset);
+    day.setHours(schedule.hour, schedule.minute, 0, 0);
+    if (day.getTime() > now.getTime()) {
+      continue;
+    }
+    if (schedule.days.length === 0 || schedule.days.includes(day.getDay())) {
+      return day;
+    }
+  }
+  return null;
 }
 
 /** The next time it runs, from now; null when it never will. */
