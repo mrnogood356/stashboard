@@ -448,6 +448,40 @@ describe('DownloadDropInService', () => {
     expect(prisma.downloadDropIn.upsert).toHaveBeenCalledTimes(1);
   });
 
+  it('doesn’t count a move as having emptied the path when that can’t be told', async () => {
+    const source = path.join(sabFolder, 'Unsure.mp4');
+    await write(source);
+    // The move works, but looking at the path afterwards fails without
+    // saying it's gone.
+    const realLstat = fs.lstat.bind(fs);
+    let moved = false;
+    const realRename = fs.rename.bind(fs);
+    const rename = jest
+      .spyOn(fs, 'rename')
+      .mockImplementation(async (from, to) => {
+        await realRename(from, to);
+        if (String(from) === source) moved = true;
+      });
+    const lstat = jest
+      .spyOn(fs, 'lstat')
+      .mockImplementation((target) =>
+        moved && String(target) === source
+          ? Promise.reject(
+              Object.assign(new Error('I/O error'), { code: 'EIO' }),
+            )
+          : realLstat(target),
+      );
+    try {
+      await twoChecks();
+    } finally {
+      rename.mockRestore();
+      lstat.mockRestore();
+    }
+
+    expect(await exists(path.join(destination, 'Unsure.mp4'))).toBe(true);
+    expect(dropIns[0]).toMatchObject({ placedAt: null });
+  });
+
   it('leaves a file that is still the one brought in, when its move left it behind', async () => {
     const source = path.join(sabFolder, 'Stayed.mp4');
     await write(source);

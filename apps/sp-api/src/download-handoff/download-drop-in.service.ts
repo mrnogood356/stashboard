@@ -938,11 +938,12 @@ export class DownloadDropInService {
     // Only a move that took the file away empties the source path. A copy
     // leaves the same file, and so does a move across disks whose original
     // couldn't be deleted: that one mustn't count as dropped in again.
+    // Only "not found" says it's gone; any other error leaves it unknown.
     const emptied =
       mode === 'move' &&
-      !(await fs.lstat(file).then(
-        () => true,
+      (await fs.lstat(file).then(
         () => false,
+        (error: unknown) => (error as { code?: string })?.code === 'ENOENT',
       ));
     const row = await this.save(file, stat.size, {
       status: 'placed',
