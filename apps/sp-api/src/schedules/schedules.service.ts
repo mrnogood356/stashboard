@@ -154,7 +154,6 @@ export class SchedulesService {
     }
     this.ticking = true;
     try {
-      const now = this.now();
       const { schedules } = await this.list();
       // When each was last saved: a time moved to a minute ago waits a day.
       const savedAt = new Map(

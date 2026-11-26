@@ -424,7 +424,11 @@ function clip(value: string, max: number): string {
  * them; line breaks and other control characters are dropped first.
  */
 export function asciiHeader(value: string): string {
-  const text = value.replace(/[\x00-\x1f\x7f]/g, ' ').trim();
+  // Control characters (line breaks and the like) can't go in a header.
+  const text = [...value]
+    .map((char) => (char.charCodeAt(0) < 0x20 || char === '\x7f' ? ' ' : char))
+    .join('')
+    .trim();
   if (!text) {
     return 'Stashboard';
   }
