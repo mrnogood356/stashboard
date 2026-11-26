@@ -927,16 +927,21 @@ export abstract class IndexingSync extends IndexingCore {
       return 1;
     }
 
-    // Paused in the download client: still on its way, not failed.
-    if (normalizedStatus === 'downloading' || normalizedStatus === 'paused') {
+    // Paused in the download client: still on its way, not failed, but
+    // ahead of downloading so Requests still says it's paused.
+    if (normalizedStatus === 'paused') {
       return 2;
     }
 
-    if (normalizedStatus === 'queued') {
+    if (normalizedStatus === 'downloading') {
       return 3;
     }
 
-    return 4;
+    if (normalizedStatus === 'queued') {
+      return 4;
+    }
+
+    return 5;
   }
 
   protected async upsertLibrarySceneProjectionPage(
