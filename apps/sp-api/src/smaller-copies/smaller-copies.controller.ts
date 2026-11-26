@@ -132,6 +132,12 @@ export class SmallerCopySettingsDto implements SmallerCopySettingsInput {
   @Min(0)
   @Max(23)
   activeToHour!: number | null;
+
+  /** The browser's time zone (IANA name), which the hours are in. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  timeZone?: string | null;
 }
 
 export class ChooseReleasesQueryDto {

@@ -124,6 +124,21 @@ describe('WhisparrImportsService', () => {
     expect(whisparr.startManualImport).not.toHaveBeenCalled();
   });
 
+  it('doesn’t give the queue’s scene to an unidentified video beside an identified one', async () => {
+    const { service, whisparr } = setup(
+      [problem()],
+      [file({ path: '/x/a.mp4', movieId: 42 }), file({ path: '/x/b.mp4' })],
+    );
+
+    await service.import(7);
+
+    // Only the video Whisparr tied to a scene; the other is another scene's, maybe.
+    const [, picked] = whisparr.startManualImport.mock.calls[0];
+    expect(picked).toHaveLength(1);
+    expect(picked[0]).toMatchObject({ movieId: 42 });
+    expect(picked[0].item.path).toBe('/x/a.mp4');
+  });
+
   it('says when Whisparr’s import failed, and when it’s still going', async () => {
     const { service, whisparr } = setup([problem()], [file()]);
     whisparr.getCommandStatus.mockResolvedValueOnce({

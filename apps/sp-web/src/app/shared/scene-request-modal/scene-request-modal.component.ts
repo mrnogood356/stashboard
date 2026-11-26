@@ -275,8 +275,11 @@ export class SceneRequestModalComponent implements OnChanges, OnDestroy {
             tags: [],
           });
         },
-        error: () => {
-          this.requestOptionsError.set('Failed to load request options from the API.');
+        error: (error: unknown) => {
+          // Say why when the API can (Whisparr off, no folder it can reach…).
+          this.requestOptionsError.set(
+            describeMutationError(error, 'Couldn’t load the request options from Whisparr.'),
+          );
         },
       });
 

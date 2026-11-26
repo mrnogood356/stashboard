@@ -396,6 +396,36 @@ describe('WhisparrAdapter', () => {
       });
     });
 
+    it('leaves out paused indexers a search wouldn’t use anyway', async () => {
+      const later = new Date(Date.now() + 3_600_000).toISOString();
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve([
+              { id: 1, name: 'NZBgeek', enable: true },
+              { id: 2, name: 'Old', enable: false },
+            ]),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve([
+              { indexerId: 1, disabledTill: later },
+              { indexerId: 2, disabledTill: later },
+              // A time that can't be read isn't counted.
+              { indexerId: 1, disabledTill: 'soon' },
+            ]),
+        });
+
+      await expect(
+        adapter.getIndexerHealth({ baseUrl: 'http://w.local', apiKey: 'k' }),
+      ).resolves.toEqual({
+        searchable: 1,
+        paused: [{ name: 'NZBgeek', until: later }],
+      });
+    });
+
     it('copes with a Whisparr that has no indexer status, and stops asking for it', async () => {
       const indexers = {
         ok: true,

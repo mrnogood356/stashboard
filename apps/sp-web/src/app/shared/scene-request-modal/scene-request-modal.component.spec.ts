@@ -77,6 +77,29 @@ describe('SceneRequestModalComponent', () => {
     expect(notifications.success).toHaveBeenCalled();
   });
 
+  it('says why the options couldn’t load when the API knows', async () => {
+    const { component, fixture } = await create(vi.fn());
+    const discover = TestBed.inject(DiscoverService) as unknown as {
+      getSceneRequestOptions: ReturnType<typeof vi.fn>;
+    };
+    discover.getSceneRequestOptions.mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 409,
+            error: { message: 'No accessible Whisparr root folders are available.' },
+          }),
+      ),
+    );
+    component.sceneId = 'scene-2';
+    component.ngOnChanges();
+    fixture.detectChanges();
+
+    expect(component.requestOptionsError()).toBe(
+      'No accessible Whisparr root folders are available.',
+    );
+  });
+
   it('shows the reason the API gives when a request fails', async () => {
     const { component } = await create(
       vi.fn().mockReturnValue(

@@ -671,22 +671,31 @@ export class WhisparrAdapter {
         this.readString(row.name) ?? 'An indexer',
       ]),
     );
+    const usable = rows.filter(
+      (row) => row.enable !== false && row.enableInteractiveSearch !== false,
+    );
+    // Only those a search would use: a paused indexer you turned off
+    // anyway doesn't explain an empty search.
+    const usableIds = new Set(usable.map((row) => this.readNumber(row.id)));
     const now = Date.now();
     const paused = (Array.isArray(statuses) ? statuses : []).flatMap(
       (status: Record<string, unknown>) => {
         const until = this.readString(status.disabledTill);
-        if (!until || Date.parse(until) <= now) {
+        const at = until ? Date.parse(until) : NaN;
+        // One with no time it can be read as isn't counted as paused.
+        if (
+          !Number.isFinite(at) ||
+          at <= now ||
+          !usableIds.has(this.readNumber(status.indexerId))
+        ) {
           return [];
         }
         const name =
           names.get(this.readNumber(status.indexerId)) ?? 'An indexer';
-        return [{ name, until }];
+        return [{ name, until: until as string }];
       },
     );
-    const searchable = rows.filter(
-      (row) => row.enable !== false && row.enableInteractiveSearch !== false,
-    ).length;
-    return { searchable, paused };
+    return { searchable: usable.length, paused };
   }
 
   /**

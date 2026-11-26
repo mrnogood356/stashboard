@@ -323,6 +323,8 @@ export class RequestsService {
     releases: MatchedRelease[];
     /** When nothing came back, a likely reason on Whisparr's side. */
     notice?: string;
+    /** When Whisparr's paused indexers are back (ISO). */
+    pausedUntil?: string;
   }> {
     const { movieId, whisparrConfig } =
       await this.requireWhisparrMovie(stashId);
@@ -515,14 +517,17 @@ export class RequestsService {
   }
 }
 
-/** Releases Whisparr would accept first, then the higher custom-format score, then the most seeders. */
-/** Why an empty search may not mean no indexer has the scene. */
+/**
+ * Why an empty search may not mean no indexer has the scene. `pausedUntil`
+ * is when the last paused indexer comes back, for the page to show in your
+ * own time (the server's clock and language may not be yours).
+ */
 export function indexerNotice(
   health: {
     searchable: number;
     paused: Array<{ name: string; until: string }>;
   } | null,
-): { notice?: string } {
+): { notice?: string; pausedUntil?: string } {
   if (!health) {
     return {};
   }
@@ -536,16 +541,17 @@ export function indexerNotice(
     return {};
   }
   const names = health.paused.map((entry) => entry.name).join(', ');
-  const last = health.paused
-    .map((entry) => entry.until)
-    .sort()
-    .pop() as string;
-  const until = new Date(last).toLocaleTimeString(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  // The latest return, as a time; one that can't be read is left out.
+  const last = Math.max(
+    ...health.paused
+      .map((entry) => Date.parse(entry.until))
+      .filter(Number.isFinite),
+  );
   return {
-    notice: `Whisparr paused ${health.paused.length} of ${health.searchable} indexers after errors, until about ${until}: ${names}. Its System → Status page says why.`,
+    notice: `Whisparr paused ${health.paused.length} of ${health.searchable} indexers after errors: ${names}. Its System → Status page says why.`,
+    ...(Number.isFinite(last)
+      ? { pausedUntil: new Date(last).toISOString() }
+      : {}),
   };
 }
 

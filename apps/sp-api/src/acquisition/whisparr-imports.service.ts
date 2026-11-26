@@ -123,8 +123,7 @@ export class WhisparrImportsService {
     // The queue's scene stands in for a file Whisparr couldn't place only
     // when that's the one video there: with several, one could be another
     // scene, so those are left to Whisparr's Manual Import.
-    const unplaced = videos.filter((file) => file.movieId === null);
-    const fallback = unplaced.length === 1 ? problem.movieId : null;
+    const fallback = videos.length === 1 ? problem.movieId : null;
     const picked = videos.flatMap((file) => {
       const movieId = file.movieId ?? fallback;
       return movieId !== null ? [{ item: file, movieId }] : [];

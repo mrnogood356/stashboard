@@ -71,8 +71,21 @@ import { trimTrailingSeparators } from '../path-separators';
 
 /** How often SABnzbd is asked about open downloads. */
 const WATCH_INTERVAL_MS = 2 * 60_000;
-/** Open downloads looked at per check, oldest first. */
+/**
+ * Moved downloads looked at per check (each may wait on a Stash scan),
+ * the ones looked at longest ago first, so none is starved by others.
+ */
 const MAX_OPEN = 50;
+/**
+ * Downloads still with SABnzbd looked at per check: one look at its history
+ * and queue covers them all, so many more.
+ */
+const MAX_WAITING = 500;
+/** Tries at remembering a download SABnzbd has just taken, and the pause between. */
+const SAVE_TRIES = 3;
+const SAVE_RETRY_MS = 1_000;
+/** Waiting this long for Stash to scan a moved download, it's given up on. */
+const STASH_WAIT_MAX_MS = 7 * 24 * 3600_000;
 /**
  * How long one check waits for Stash's scan. Longer than that (Stash busy
  * with other jobs, say), the scan is remembered and looked at next check.
@@ -119,6 +132,11 @@ const MAX_HISTORY_PAGES = 10;
 @Injectable()
 export class DownloadHandoffService {
   private readonly logger = new Logger(DownloadHandoffService.name);
+  /**
+   * Downloads whose wait on a busy Stash ended (Stash answered) but whose
+   * saved wait couldn't be cleared yet.
+   */
+  private readonly stashWaitEnded = new Set<string>();
   private watching = false;
   /** The last problem picking up SABnzbd's own downloads, said once. */
   private manualProblem: string | null = null;
@@ -304,16 +322,31 @@ export class DownloadHandoffService {
       category: settings.category,
       name: releaseTitle,
     });
-    const row = await this.prisma.downloadHandoff.create({
-      data: {
-        nzoId,
-        sceneId: input.scene.id,
-        provider: input.scene.provider,
-        releaseTitle,
-        status: 'sent',
-        replacesStashSceneId: input.replacesStashSceneId ?? null,
-      },
-    });
+    // SABnzbd has it now: it must be remembered, or it would later be taken
+    // for one added by hand (losing its scene, and what it replaces). A
+    // database blip is waited out a few times before giving up.
+    const data = {
+      nzoId,
+      sceneId: input.scene.id,
+      provider: input.scene.provider,
+      releaseTitle,
+      status: 'sent',
+      replacesStashSceneId: input.replacesStashSceneId ?? null,
+    };
+    let row: DownloadHandoff | undefined;
+    for (let attempt = 1; !row; attempt += 1) {
+      try {
+        row = await this.prisma.downloadHandoff.create({ data });
+      } catch (error) {
+        if (attempt >= SAVE_TRIES) {
+          this.logger.error(
+            `SABnzbd took “${releaseTitle}” (job ${nzoId}), but Stashboard couldn’t remember it: ${messageOf(error)}. Remove it from SABnzbd, or it may be brought in as one added there by hand.`,
+          );
+          throw error;
+        }
+        await this.sleep(SAVE_RETRY_MS * attempt);
+      }
+    }
     const label = getCatalogProviderLabel(input.scene.provider);
     this.logger.log(
       `Sent “${releaseTitle}” to SABnzbd (job ${nzoId}, category “${settings.category}”) for ${label} scene ${input.scene.id}.`,
@@ -435,7 +468,14 @@ export class DownloadHandoffService {
     this.logger.log(`Trying download “${row.releaseTitle}” again.`);
     const updated = await this.prisma.downloadHandoff.update({
       where: { id },
-      data: { status, attempts: 0, error: null, finishedAt: null },
+      // A fresh start: an earlier wait on a busy Stash doesn't count.
+      data: {
+        status,
+        attempts: 0,
+        error: null,
+        finishedAt: null,
+        stashWaitSince: null,
+      },
     });
     // In the background: the answer doesn't wait for SABnzbd or Stash.
     void this.watch();
@@ -501,11 +541,27 @@ export class DownloadHandoffService {
         ),
       );
     }
-    const open = await this.prisma.downloadHandoff.findMany({
-      where: { status: { in: OPEN_HANDOFF_STATUSES } },
-      orderBy: { createdAt: 'asc' },
-      take: MAX_OPEN,
-    });
+    const [waiting, moved] = await Promise.all([
+      this.prisma.downloadHandoff.findMany({
+        where: {
+          status: {
+            in: OPEN_HANDOFF_STATUSES.filter(
+              (status) => status !== 'completed',
+            ),
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: MAX_WAITING,
+      }),
+      // Each one updated when looked at, so the least recently looked at
+      // come first and ones stuck waiting on Stash can't hold up the rest.
+      this.prisma.downloadHandoff.findMany({
+        where: { status: 'completed' },
+        orderBy: { updatedAt: 'asc' },
+        take: MAX_OPEN,
+      }),
+    ]);
+    const open = [...waiting, ...moved];
     if (open.length === 0) {
       return;
     }
@@ -518,10 +574,8 @@ export class DownloadHandoffService {
     }
     this.logger.debug(`Checking ${open.length} open download(s).`);
 
-    const waiting = open.filter((row) => row.status !== 'completed');
-    // Moved on an earlier check: Stash still has to find it, and it has to
-    // be linked. (Ones moved now are tried straight away.)
-    const moved = open.filter((row) => row.status === 'completed');
+    // Moved on an earlier check (moved): Stash still has to find it, and it
+    // has to be linked. (Ones moved now are tried straight away.)
     if (waiting.length > 0) {
       const config = await this.sabConfig();
       if (config) {
@@ -657,13 +711,37 @@ export class DownloadHandoffService {
     settings: DownloadHandoffSettings,
     rows: DownloadHandoff[],
   ): Promise<void> {
-    const history = await this.sabnzbd.history(config, settings.category);
-    // Only SABnzbd's ids Stashboard sent itself; everything else is ignored.
-    const ours = new Map(
-      history
-        .filter((entry) => rows.some((row) => row.nzoId === entry.nzoId))
-        .map((entry) => [entry.nzoId, entry]),
-    );
+    // Only SABnzbd's ids Stashboard follows; everything else is ignored.
+    // Read a page at a time until each is found (or the history ends), so
+    // one pushed past the first page isn't taken for one SABnzbd dropped.
+    const wanted = new Set(rows.map((row) => row.nzoId));
+    const ours = new Map<string, SabnzbdHistoryEntry>();
+    let read = 0;
+    // Read to the end (or until all were found): only then is one missing
+    // from it really gone from SABnzbd's history.
+    let complete = false;
+    for (let page = 0; page < MAX_HISTORY_PAGES; page += 1) {
+      let slots: SabnzbdHistoryEntry[];
+      try {
+        slots = await this.sabnzbd.history(config, settings.category, read);
+      } catch (error) {
+        // What was read still counts; the rest waits for the next check.
+        this.logger.warn(
+          `Couldn't read SABnzbd's history past ${read} entries: ${messageOf(error)}`,
+        );
+        break;
+      }
+      read += slots.length;
+      for (const entry of slots) {
+        if (wanted.has(entry.nzoId)) {
+          ours.set(entry.nzoId, entry);
+        }
+      }
+      if (slots.length < SABNZBD_LIST_LIMIT || ours.size === wanted.size) {
+        complete = true;
+        break;
+      }
+    }
     // Read once, when needed; null when SABnzbd's queue couldn't be read.
     let queued: Set<string> | null | undefined;
     for (const row of rows) {
@@ -693,7 +771,10 @@ export class DownloadHandoffService {
             this.logger.log(`SABnzbd is downloading “${row.releaseTitle}”.`);
             await this.setStatus(row, 'downloading');
           }
-        } else if (Date.now() - row.createdAt.getTime() > FORGOTTEN_AFTER_MS) {
+        } else if (
+          complete &&
+          Date.now() - row.createdAt.getTime() > FORGOTTEN_AFTER_MS
+        ) {
           this.logger.warn(
             `SABnzbd no longer lists “${row.releaseTitle}” (job ${row.nzoId}); stopped watching it.`,
           );
@@ -1086,12 +1167,14 @@ export class DownloadHandoffService {
         await this.waitForStash(row, error.message);
         return;
       }
+      await this.stopWaitingForStash(row);
       await this.retryLater(
         row,
         `Moved to ${finalPath}, but Stash couldn’t scan it: ${messageOf(error)}`,
       );
       return;
     }
+    await this.stopWaitingForStash(row);
     if (!sceneId) {
       await this.retryLater(
         row,
@@ -1295,9 +1378,15 @@ export class DownloadHandoffService {
         return;
       }
       const removed: string[] = [];
+      const left: string[] = [];
       let removedBytes = 0;
       for (const file of merged.files) {
-        if (file.id !== keep.id) {
+        if (file.id === keep.id) {
+          continue;
+        }
+        // One by one, so what did go is said (and counted) even when the
+        // next one can't be deleted.
+        try {
           await this.stash.removeExtraFile(
             config,
             oldSceneId,
@@ -1306,6 +1395,8 @@ export class DownloadHandoffService {
           );
           removed.push(file.path);
           removedBytes += file.size ?? 0;
+        } catch (error) {
+          left.push(`${file.path} (${messageOf(error)})`);
         }
       }
       await this.countSaved(removedBytes, keep.size ?? newFile.size ?? 0);
@@ -1336,21 +1427,32 @@ export class DownloadHandoffService {
           `Whisparr didn't take the new file for Stash scene ${oldSceneId}: ${whisparr.reason}`,
         );
       }
+      const leftNote =
+        left.length > 0
+          ? ` Couldn’t delete ${left.join(', ')}; it’s still on the scene with the new file.`
+          : '';
       await record(
-        'replaced',
-        `Deleted ${removed.join(', ') || 'the old file'}.${whisparrNote}`,
+        // None of the old files could go: both are still there.
+        removed.length > 0 || left.length === 0 ? 'replaced' : 'kept-both',
+        // What's left first, so it's still said when the paths run long.
+        `${leftNote.trim()} ${removed.length > 0 ? `Deleted ${removed.join(', ')}.` : left.length > 0 ? '' : 'Deleted the old file.'}${whisparrNote}`
+          .trim()
+          .slice(0, 300),
         newFile.size,
       );
       this.logger.log(
-        `Replaced Stash scene ${oldSceneId}'s file with ${keep.path}; deleted ${removed.join(', ')}.`,
+        `Replaced Stash scene ${oldSceneId}'s file with ${keep.path}; deleted ${removed.join(', ') || 'nothing'}${left.length > 0 ? `; couldn't delete ${left.join(', ')}` : ''}.`,
       );
       await this.activity?.record({
         kind: 'download',
         title: 'Replaced a scene with a smaller copy',
         detail: [
           `Kept ${keep.path}`,
+          // What's left first: Activity cuts long details short.
+          ...left.map((path) => `Couldn’t delete ${path}`),
           ...removed.map((path) => `Deleted ${path}`),
         ].join('\n'),
+        ...(left.length > 0 ? { status: 'partial' as const } : {}),
       });
     } catch (error) {
       this.logger.warn(
@@ -1733,11 +1835,53 @@ export class DownloadHandoffService {
     row: DownloadHandoff,
     reason: string,
   ): Promise<void> {
+    // A wait that ended (Stash answered) whose reset couldn't be saved yet
+    // doesn't count: this is a new wait.
+    const ended = this.stashWaitEnded.has(row.id);
+    const since = (ended ? null : row.stashWaitSince) ?? new Date();
+    if (Date.now() - since.getTime() > STASH_WAIT_MAX_MS) {
+      // Stash has been busy for days: said, rather than waited on forever.
+      await this.fail(
+        row,
+        `Moved to ${row.finalPath ?? 'the library'}, but Stash has been too busy to scan it for a week (${reason}). Scan it in Stash and link it in Library Tools.`,
+        { attempts: row.attempts },
+      );
+      return;
+    }
     this.logger.debug(`“${row.releaseTitle}”: ${reason}`);
     await this.prisma.downloadHandoff.update({
       where: { id: row.id },
-      data: { error: reason },
+      // Counted from the first time Stash was too busy, not from sending.
+      data: { error: reason, stashWaitSince: since },
     });
+    // The new start is saved: the old one is gone for good.
+    this.stashWaitEnded.delete(row.id);
+  }
+
+  /**
+   * Stash has scanned (or answered) at last: a later wait starts afresh.
+   * Saved before anything else is done with the download: if the save
+   * fails, this pass stops here (nothing counted) and the next one tries
+   * again; until then the end is remembered, so an old wait can't count
+   * against a later one.
+   */
+  private async stopWaitingForStash(row: DownloadHandoff): Promise<void> {
+    if (!row.stashWaitSince) {
+      return;
+    }
+    try {
+      await this.prisma.downloadHandoff.update({
+        where: { id: row.id },
+        data: { stashWaitSince: null },
+      });
+    } catch (error) {
+      // Remembered here until it's saved, so a busy Stash on the next
+      // check starts a new wait rather than continuing the old one.
+      this.stashWaitEnded.add(row.id);
+      throw error;
+    }
+    this.stashWaitEnded.delete(row.id);
+    row.stashWaitSince = null;
   }
 
   /** Waits for the next check; after a few misses, gives up with the reason. */
@@ -1764,6 +1908,8 @@ export class DownloadHandoffService {
       data: {
         attempts,
         error: `${reason} Trying again shortly.`,
+        // Not waiting on a busy Stash (any more): a later wait starts afresh.
+        stashWaitSince: null,
         ...(stashSceneId ? { stashSceneId } : {}),
       },
     });
@@ -1788,6 +1934,8 @@ export class DownloadHandoffService {
       ...extra,
       error: reason,
       finishedAt: new Date(),
+      // Given up on: a Retry later starts any wait afresh.
+      stashWaitSince: null,
       // A Better copies download that failed is kept in Better copies'
       // history instead, so it doesn't wait on the Downloads list to be
       // cleared by hand. A file already in the library stays listed: that
@@ -1818,20 +1966,27 @@ export class DownloadHandoffService {
     if (row.finalPath) {
       // The file is in the library already (only Stash's part failed):
       // grabbing the same release again would only make another copy, so
-      // the scene's row is left as it is. The tried list still says so.
-      await this.prisma.smallerCopyTry
-        .updateMany({
-          where: { handoffId: row.id },
-          data: {
-            outcome: 'failed',
-            detail:
-              `The file came in but couldn’t be put on the scene: ${failed} It’s still on the Downloads list to look at.`.slice(
-                0,
-                300,
-              ),
-          },
-        })
-        .catch(() => undefined);
+      // the scene isn't made due. Both lists say what happened, rather than
+      // the scene's row still saying it was sent.
+      const cameIn =
+        `The file came in but couldn’t be put on the scene: ${failed} It’s still on the Downloads list to look at.`.slice(
+          0,
+          300,
+        );
+      await Promise.all([
+        this.prisma.smallerCopyTry
+          .updateMany({
+            where: { handoffId: row.id },
+            data: { outcome: 'failed', detail: cameIn },
+          })
+          .catch(() => undefined),
+        this.prisma.smallerCopyAttempt
+          .updateMany({
+            where: { handoffId: row.id, outcome: 'grabbed' },
+            data: { outcome: 'failed', detail: cameIn },
+          })
+          .catch(() => undefined),
+      ]);
       return;
     }
     // The release stays on the scene's grabbed list: one that failed once

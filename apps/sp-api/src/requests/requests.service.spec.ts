@@ -471,18 +471,34 @@ describe('sortReleases', () => {
 
 describe('indexerNotice', () => {
   it('names the indexers Whisparr paused after errors', () => {
+    const soon = new Date(Date.now() + 1_800_000).toISOString();
     const until = new Date(Date.now() + 3_600_000).toISOString();
     expect(
       indexerNotice({
         searchable: 3,
         paused: [
           { name: 'NZBgeek', until },
-          { name: 'Torznab', until },
+          { name: 'Torznab', until: soon },
         ],
-      }).notice,
-    ).toMatch(
-      /^Whisparr paused 2 of 3 indexers after errors, until about .+: NZBgeek, Torznab\./,
-    );
+      }),
+    ).toEqual({
+      notice:
+        'Whisparr paused 2 of 3 indexers after errors: NZBgeek, Torznab. Its System → Status page says why.',
+      // The time is the page's to show, in your own time zone.
+      pausedUntil: until,
+    });
+  });
+
+  it('still says which are paused when the time they’re back can’t be read', () => {
+    expect(
+      indexerNotice({
+        searchable: 2,
+        paused: [{ name: 'NZBgeek', until: 'soon' }],
+      }),
+    ).toEqual({
+      notice:
+        'Whisparr paused 1 of 2 indexers after errors: NZBgeek. Its System → Status page says why.',
+    });
   });
 
   it('says when no indexer can do an interactive search', () => {
