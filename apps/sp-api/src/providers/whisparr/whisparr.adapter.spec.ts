@@ -319,6 +319,7 @@ describe('WhisparrAdapter', () => {
             {
               movieId: 7,
               title: 'Bright.Summer.Afternoon.1080p',
+              downloadId: 'SABnzbd_nzo_7',
               indexer: 'NZBgeek',
               size: 1000,
               sizeleft: 250,
@@ -342,6 +343,7 @@ describe('WhisparrAdapter', () => {
       );
       expect(item).toMatchObject({
         movieId: 7,
+        downloadId: 'SABnzbd_nzo_7',
         size: 1000,
         sizeLeft: 250,
         timeLeft: '00:05:00',

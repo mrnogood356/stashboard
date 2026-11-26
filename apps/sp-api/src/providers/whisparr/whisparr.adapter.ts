@@ -175,6 +175,8 @@ export interface WhisparrHistoryEvent {
 /** One download in Whisparr's queue, with how far along it is. */
 export interface WhisparrQueueDetail extends WhisparrQueueSnapshotItem {
   title: string | null;
+  /** The download client's id for it (SABnzbd's nzo id); null when not given. */
+  downloadId: string | null;
   indexer: string | null;
   /** Bytes in all, and still to download; null when unknown. */
   size: number | null;
@@ -1594,6 +1596,7 @@ export class WhisparrAdapter {
     return {
       ...base,
       title: this.readString(row.title),
+      downloadId: this.readString(row.downloadId),
       indexer: this.readString(row.indexer),
       size: this.readNumber(row.size),
       sizeLeft: this.readNumber(row.sizeleft),
