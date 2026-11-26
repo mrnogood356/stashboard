@@ -1,6 +1,7 @@
 import express from 'express';
 import request from 'supertest';
 import {
+  refuseCrossSiteWrites,
   resolveTrustProxy,
   responseCompression,
   securityHeaders,
@@ -159,5 +160,45 @@ describe('staticCacheControl', () => {
     expect(staticCacheControl('/app/browser/icons/icon-192.png')).toBe(
       'no-cache',
     );
+  });
+});
+
+describe('refuseCrossSiteWrites', () => {
+  const app = express();
+  app.use(refuseCrossSiteWrites());
+  app.all('/api/thing', (_req, res) => {
+    res.send('done');
+  });
+
+  it('refuses a change sent from another app on the same host or site', async () => {
+    for (const site of ['same-site', 'cross-site']) {
+      await request(app)
+        .post('/api/thing')
+        .set('Sec-Fetch-Site', site)
+        .expect(403);
+    }
+    await request(app)
+      .delete('/api/thing')
+      .set('Sec-Fetch-Site', 'same-site')
+      .expect(403);
+  });
+
+  it('lets through its own pages, reads, and callers that aren’t browsers', async () => {
+    await request(app)
+      .post('/api/thing')
+      .set('Sec-Fetch-Site', 'same-origin')
+      .expect(200);
+    // Typed into the address bar, or a bookmark.
+    await request(app)
+      .post('/api/thing')
+      .set('Sec-Fetch-Site', 'none')
+      .expect(200);
+    // Reading is fine from anywhere (cast receivers, other tabs).
+    await request(app)
+      .get('/api/thing')
+      .set('Sec-Fetch-Site', 'cross-site')
+      .expect(200);
+    // Whisparr's webhook, scripts and older browsers send no such header.
+    await request(app).post('/api/thing').expect(200);
   });
 });

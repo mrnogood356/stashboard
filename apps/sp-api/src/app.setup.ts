@@ -29,6 +29,7 @@ export function configureApp(app: NestExpressApplication): void {
   app.use(httpRequestLogger());
   app.use(responseCompression());
   app.use(securityHeaders());
+  app.use(refuseCrossSiteWrites());
 
   // Lets browse pages pick a secondary catalog provider per request.
   app.use((req: Request, _res: Response, next: () => void) => {
@@ -45,6 +46,37 @@ export function configureApp(app: NestExpressApplication): void {
       transform: true,
     }),
   );
+}
+
+/** Methods that only read; anything else changes something. */
+const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/**
+ * Refuses a change (POST, PATCH, DELETE…) a browser sent from another
+ * origin. The session cookie is SameSite=Lax, which keeps other websites
+ * out, but every app on the same host (another port, as on Unraid) or a
+ * sibling subdomain is the same "site" to a browser, so a page there could
+ * otherwise post a hidden form here with your login. Browsers say where a
+ * request came from in Sec-Fetch-Site, which pages can't set; requests
+ * without it (Whisparr's webhook, scripts, older browsers) aren't affected.
+ */
+export function refuseCrossSiteWrites(): RequestHandler {
+  return (req, res, next) => {
+    const site = req.headers['sec-fetch-site'];
+    if (
+      READ_METHODS.has(req.method.toUpperCase()) ||
+      site === undefined ||
+      site === 'same-origin' ||
+      site === 'none'
+    ) {
+      next();
+      return;
+    }
+    res.status(403).json({
+      statusCode: 403,
+      message: 'Refused a change sent from another site or app.',
+    });
+  };
 }
 
 /**
