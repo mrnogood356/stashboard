@@ -29,6 +29,8 @@ export interface SmallerCopySettings {
   scenesPerHour: number;
   activeFromHour: number | null;
   activeToHour: number | null;
+  /** The time zone the hours are in; set from this browser on save. */
+  timeZone?: string | null;
 }
 
 export type SmallerCopyOutcome =
@@ -108,7 +110,11 @@ export class SmallerCopiesApiService {
   }
 
   save(settings: SmallerCopySettings): Observable<SmallerCopies> {
-    return this.http.put<SmallerCopies>('/api/smaller-copies', settings);
+    // The active hours are in your own time zone, not the server's.
+    return this.http.put<SmallerCopies>('/api/smaller-copies', {
+      ...settings,
+      timeZone: localTimeZone(),
+    });
   }
 
   searchNow(): Observable<SmallerCopies> {
@@ -172,5 +178,14 @@ export class SmallerCopiesApiService {
       `/api/smaller-copies/scenes/${encodeURIComponent(stashSceneId)}/grab`,
       {},
     );
+  }
+}
+
+/** This browser's time zone (IANA name), or null when it can't say. */
+function localTimeZone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
   }
 }

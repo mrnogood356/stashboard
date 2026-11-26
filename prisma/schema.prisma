@@ -756,9 +756,11 @@ model SmallerCopySettings {
   oldCopy           String   @default("keep")
   /// At most this many scenes searched for an hour, spread evenly.
   scenesPerHour     Int      @default(10)
-  /// Search only between these hours (server time); both null: any time.
+  /// Search only between these hours (in timeZone); both null: any time.
   activeFromHour    Int?
   activeToHour      Int?
+  /// Your time zone (IANA, from the browser) the hours are in; null: the server's.
+  timeZone          String?
   /// Space given back so far: deleted files minus the copies that replaced them.
   savedBytes        Float    @default(0)
   /// Scenes whose file was replaced so far.

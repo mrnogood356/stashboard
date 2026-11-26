@@ -922,14 +922,21 @@ describe('DownloadHandoffService', () => {
       });
       rows.push(placed);
       const update = jest.fn();
-      prisma.smallerCopyAttempt = { findFirst: jest.fn(), update };
+      const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      prisma.smallerCopyAttempt = { findFirst: jest.fn(), update, updateMany };
       await (
         service as unknown as {
           fail: (row: DownloadHandoff, reason: string) => Promise<void>;
         }
       ).fail(placed, 'Stash never found it');
       expect(prisma.smallerCopyAttempt.findFirst).not.toHaveBeenCalled();
+      // Not made due again (that would grab another copy)...
       expect(update).not.toHaveBeenCalled();
+      // ...but the scene's row says what happened, not "Sent to SABnzbd".
+      expect(updateMany).toHaveBeenCalledWith({
+        where: { handoffId: 'h1', outcome: 'grabbed' },
+        data: expect.objectContaining({ outcome: 'failed' }) as unknown,
+      });
       // The tried list doesn't stay at "on its way".
       expect(prisma.smallerCopyTry.updateMany).toHaveBeenCalledWith({
         where: { handoffId: 'h1' },

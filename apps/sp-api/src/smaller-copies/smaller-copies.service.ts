@@ -23,7 +23,9 @@ import { CatalogProviderService } from '../providers/catalog/catalog-provider.se
 import { StashAdapter } from '../providers/stash/stash.adapter';
 import {
   CODEC_RULES,
+  hourIn,
   inActiveHours,
+  validTimeZone,
   MATCH,
   needsReplacing,
   OLD_COPY,
@@ -62,6 +64,8 @@ export interface SmallerCopySettingsInput extends SmallerCopyRules {
   scenesPerHour: number;
   activeFromHour: number | null;
   activeToHour: number | null;
+  /** The time zone the hours are in (your browser's); null: the server's. */
+  timeZone?: string | null;
 }
 
 export interface SmallerCopiesDto {
@@ -239,6 +243,10 @@ export class SmallerCopiesService {
       scenesPerHour: Math.min(60, Math.max(1, Math.round(input.scenesPerHour))),
       activeFromHour: hour(input.activeFromHour),
       activeToHour: hour(input.activeToHour),
+      // Kept as it was when not sent; a name the server can't use is dropped.
+      ...(input.timeZone !== undefined
+        ? { timeZone: validTimeZone(input.timeZone) }
+        : {}),
     };
     await this.prisma.smallerCopySettings.upsert({
       where: { key: KEY },
@@ -294,7 +302,11 @@ export class SmallerCopiesService {
         outcome: row.outcome,
         detail: row.detail,
         releaseTitle: row.releaseTitle,
-        canGrab: row.outcome === 'found' && !!row.releaseGuid,
+        // What Grab needs: without it, it would only say there's no match.
+        canGrab:
+          row.outcome === 'found' &&
+          !!row.releaseGuid &&
+          row.indexerId !== null,
         oldSize: row.oldSize,
         newSize: row.newSize,
         searchedAt: row.searchedAt.toISOString(),
@@ -640,8 +652,11 @@ export class SmallerCopiesService {
    */
   private async failedSceneIds(): Promise<Set<string>> {
     const [tries, attempts] = await Promise.all([
+      // Each scene's latest try only (not every try ever made, read on
+      // every refresh of the page).
       this.prisma.smallerCopyTry.findMany({
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ stashSceneId: 'asc' }, { createdAt: 'desc' }],
+        distinct: ['stashSceneId'],
         select: { stashSceneId: true, outcome: true },
       }),
       this.prisma.smallerCopyAttempt.findMany({
@@ -975,7 +990,7 @@ export class SmallerCopiesService {
       if (
         !force &&
         !inActiveHours(
-          new Date(this.now()).getHours(),
+          hourIn(this.now(), settings.timeZone),
           settings.activeFromHour,
           settings.activeToHour,
         )
@@ -1403,6 +1418,7 @@ function settingsOf(settings: SmallerCopySettings): SmallerCopySettingsInput {
     scenesPerHour: settings.scenesPerHour,
     activeFromHour: settings.activeFromHour,
     activeToHour: settings.activeToHour,
+    timeZone: settings.timeZone,
   };
 }
 

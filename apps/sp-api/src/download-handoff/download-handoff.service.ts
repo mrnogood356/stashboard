@@ -1930,20 +1930,27 @@ export class DownloadHandoffService {
     if (row.finalPath) {
       // The file is in the library already (only Stash's part failed):
       // grabbing the same release again would only make another copy, so
-      // the scene's row is left as it is. The tried list still says so.
-      await this.prisma.smallerCopyTry
-        .updateMany({
-          where: { handoffId: row.id },
-          data: {
-            outcome: 'failed',
-            detail:
-              `The file came in but couldn’t be put on the scene: ${failed} It’s still on the Downloads list to look at.`.slice(
-                0,
-                300,
-              ),
-          },
-        })
-        .catch(() => undefined);
+      // the scene isn't made due. Both lists say what happened, rather than
+      // the scene's row still saying it was sent.
+      const cameIn =
+        `The file came in but couldn’t be put on the scene: ${failed} It’s still on the Downloads list to look at.`.slice(
+          0,
+          300,
+        );
+      await Promise.all([
+        this.prisma.smallerCopyTry
+          .updateMany({
+            where: { handoffId: row.id },
+            data: { outcome: 'failed', detail: cameIn },
+          })
+          .catch(() => undefined),
+        this.prisma.smallerCopyAttempt
+          .updateMany({
+            where: { handoffId: row.id, outcome: 'grabbed' },
+            data: { outcome: 'failed', detail: cameIn },
+          })
+          .catch(() => undefined),
+      ]);
       return;
     }
     // The release stays on the scene's grabbed list: one that failed once
