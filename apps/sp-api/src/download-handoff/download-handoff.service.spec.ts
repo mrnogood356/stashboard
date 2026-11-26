@@ -497,6 +497,37 @@ describe('DownloadHandoffService', () => {
       expect(row()).toMatchObject({ attempts: 1, stashWaitSince: null });
     });
 
+    it('starts a new wait when Stash is busy again before the old one could be cleared', async () => {
+      // Waiting for over a week, then Stash answers, but that can't be saved.
+      rows.push(
+        handoff({
+          id: 'h1',
+          status: 'completed',
+          finalPath: path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'),
+          stashWaitSince: new Date(Date.now() - 8 * 24 * 3600_000),
+        }),
+      );
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      stash.requestFolderScan.mockResolvedValue(null);
+      const update = prisma.downloadHandoff.update;
+      const real = update.getMockImplementation()!;
+      update.mockImplementation((args: { data: Record<string, unknown> }) =>
+        Object.keys(args.data).length === 1 && 'stashWaitSince' in args.data
+          ? Promise.reject(new Error('database blip'))
+          : real(args),
+      );
+      await service.checkOpen();
+      update.mockImplementation(real);
+
+      // Busy again on the next check: a new wait, not the old week.
+      stash.requestFolderScan.mockResolvedValue('waiting');
+      await service.checkOpen();
+      expect(row().status).toBe('completed');
+      expect(row().stashWaitSince!.getTime()).toBeGreaterThan(
+        Date.now() - 60_000,
+      );
+    });
+
     it('clears the wait when it gives up after its last try', async () => {
       rows.push(
         handoff({

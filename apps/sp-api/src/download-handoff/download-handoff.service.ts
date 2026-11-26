@@ -132,6 +132,11 @@ const MAX_HISTORY_PAGES = 10;
 @Injectable()
 export class DownloadHandoffService {
   private readonly logger = new Logger(DownloadHandoffService.name);
+  /**
+   * Downloads whose wait on a busy Stash ended (Stash answered) but whose
+   * saved wait couldn't be cleared yet.
+   */
+  private readonly stashWaitEnded = new Set<string>();
   private watching = false;
   /** The last problem picking up SABnzbd's own downloads, said once. */
   private manualProblem: string | null = null;
@@ -1830,7 +1835,10 @@ export class DownloadHandoffService {
     row: DownloadHandoff,
     reason: string,
   ): Promise<void> {
-    const since = row.stashWaitSince ?? new Date();
+    // A wait that ended (Stash answered) whose reset couldn't be saved yet
+    // doesn't count: this is a new wait.
+    const ended = this.stashWaitEnded.delete(row.id);
+    const since = (ended ? null : row.stashWaitSince) ?? new Date();
     if (Date.now() - since.getTime() > STASH_WAIT_MAX_MS) {
       // Stash has been busy for days: said, rather than waited on forever.
       await this.fail(
@@ -1851,17 +1859,26 @@ export class DownloadHandoffService {
   /**
    * Stash has scanned (or answered) at last: a later wait starts afresh.
    * Saved before anything else is done with the download: if the save
-   * fails, this pass stops here (nothing counted), and the next one tries
-   * again, so an old wait can't count against a later one.
+   * fails, this pass stops here (nothing counted) and the next one tries
+   * again; until then the end is remembered, so an old wait can't count
+   * against a later one.
    */
   private async stopWaitingForStash(row: DownloadHandoff): Promise<void> {
     if (!row.stashWaitSince) {
       return;
     }
-    await this.prisma.downloadHandoff.update({
-      where: { id: row.id },
-      data: { stashWaitSince: null },
-    });
+    try {
+      await this.prisma.downloadHandoff.update({
+        where: { id: row.id },
+        data: { stashWaitSince: null },
+      });
+    } catch (error) {
+      // Remembered here until it's saved, so a busy Stash on the next
+      // check starts a new wait rather than continuing the old one.
+      this.stashWaitEnded.add(row.id);
+      throw error;
+    }
+    this.stashWaitEnded.delete(row.id);
     row.stashWaitSince = null;
   }
 
