@@ -914,7 +914,6 @@ export abstract class IndexingSync extends IndexingCore {
     if (
       normalizedStatus === 'failed' ||
       normalizedStatus === 'warning' ||
-      normalizedStatus === 'paused' ||
       STUCK_DOWNLOAD_STATES.has(normalizedState)
     ) {
       return 0;
@@ -928,7 +927,8 @@ export abstract class IndexingSync extends IndexingCore {
       return 1;
     }
 
-    if (normalizedStatus === 'downloading') {
+    // Paused in the download client: still on its way, not failed.
+    if (normalizedStatus === 'downloading' || normalizedStatus === 'paused') {
       return 2;
     }
 
