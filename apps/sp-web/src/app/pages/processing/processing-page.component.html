@@ -177,7 +177,7 @@
                   @if (entry.source === 'sabnzbd-manual') {
                     <span class="source-tag" data-testid="added-in-sab">Added in SABnzbd</span>
                   }
-                  {{ ago(entry.updatedAt) }}
+                  {{ ago(entry.finishedAt ?? entry.updatedAt) }}
                 </p>
                 @if (entry.stage === 'done' && matchNote(entry.matchedBy); as note) {
                   <p class="match-tag" [attr.data-tone]="note.tone" data-testid="matched-by">
@@ -453,7 +453,7 @@
                   @if (entry.error) {
                     <p class="detail bad">{{ entry.error }}</p>
                   }
-                  <p class="row-meta">{{ ago(entry.updatedAt) }}</p>
+                  <p class="row-meta">{{ ago(entry.finishedAt ?? entry.updatedAt) }}</p>
                 </div>
                 <div class="row-end">
                   <span class="pill" data-stage="failed">Failed</span>
@@ -497,7 +497,7 @@
                     @if (entry.finalPath) {
                       <span class="path">{{ entry.finalPath }}</span> ·
                     }
-                    {{ ago(entry.updatedAt) }}
+                    {{ ago(entry.finishedAt ?? entry.updatedAt) }}
                   </p>
                   @if (matchNote(entry.matchedBy); as note) {
                     <p class="match-tag" [attr.data-tone]="note.tone" data-testid="matched-by">

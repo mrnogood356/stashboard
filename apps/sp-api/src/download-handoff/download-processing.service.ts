@@ -80,7 +80,7 @@ export class DownloadProcessingService {
         }),
         this.prisma.downloadHandoff.findMany({
           where: { status: { notIn: OPEN_HANDOFF_STATUSES }, clearedAt: null },
-          orderBy: { updatedAt: 'desc' },
+          orderBy: FINISHED_FIRST,
           take: RECENT_LIMIT,
         }),
         this.prisma.downloadDropIn.findMany({
@@ -90,7 +90,7 @@ export class DownloadProcessingService {
         }),
         this.prisma.downloadDropIn.findMany({
           where: { status: { in: ['imported', 'failed'] }, clearedAt: null },
-          orderBy: { updatedAt: 'desc' },
+          orderBy: FINISHED_FIRST,
           take: RECENT_LIMIT,
         }),
       ]);
@@ -329,6 +329,15 @@ export class DownloadProcessingService {
     }
   }
 }
+
+/**
+ * Latest brought in first. Not by last change: a later look (a re-match, a
+ * file linked since) touches old rows, which would bring them to the top.
+ */
+const FINISHED_FIRST = [
+  { finishedAt: { sort: 'desc' as const, nulls: 'last' as const } },
+  { updatedAt: 'desc' as const },
+];
 
 /** Where one download is, with SABnzbd's progress while it has it. */
 export function handoffItem(
