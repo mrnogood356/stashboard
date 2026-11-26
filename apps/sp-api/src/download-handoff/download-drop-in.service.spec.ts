@@ -434,6 +434,39 @@ describe('DownloadDropInService', () => {
     expect(prisma.downloadDropIn.upsert).not.toHaveBeenCalled();
   });
 
+  it('never brings in again a file from before the update, even if it was a copy and moving is on now', async () => {
+    settings.importMode = 'move';
+    const source = path.join(sabFolder, 'Old.Copy.mp4');
+    await write(source);
+    // Brought in (as a copy) before the update: no placed time recorded.
+    dropIns.push({
+      id: 'd8',
+      sourcePath: source,
+      size: BigInt((await fs.stat(source)).size),
+      status: 'imported',
+      finalPath: path.join(destination, 'Old.Copy.mp4'),
+      stashSceneId: '88',
+      error: null,
+      attempts: 0,
+      finishedAt: new Date(),
+      rematchTriedAt: null,
+      placePending: false,
+      matchedBy: 'fingerprint',
+      placedAt: null,
+      clearedAt: null,
+      createdAt: new Date(Date.now() - 86_400_000),
+      updatedAt: new Date(Date.now() - 86_400_000),
+    });
+    // Its source touched since.
+    const now = new Date();
+    await fs.utimes(source, now, now);
+    await fs.chmod(source, 0o644);
+
+    await twoChecks();
+    expect(prisma.downloadDropIn.upsert).not.toHaveBeenCalled();
+    expect(await exists(source)).toBe(true);
+  });
+
   it('tries matching again later when the look-up fails, rather than counting it in', async () => {
     organizer.identifyNewScenes.mockRejectedValueOnce(
       new Error('StashDB is down'),
