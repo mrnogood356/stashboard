@@ -519,8 +519,16 @@ describe('DownloadHandoffService', () => {
       await service.checkOpen();
       update.mockImplementation(real);
 
-      // Busy again on the next check: a new wait, not the old week.
+      // Busy again on the next check, and saving the new start fails too.
       stash.requestFolderScan.mockResolvedValue('waiting');
+      update.mockImplementation((args: { data: Record<string, unknown> }) =>
+        'error' in args.data && 'stashWaitSince' in args.data
+          ? Promise.reject(new Error('database blip'))
+          : real(args),
+      );
+      await service.checkOpen();
+      update.mockImplementation(real);
+      // Still busy: a new wait, not the old week.
       await service.checkOpen();
       expect(row().status).toBe('completed');
       expect(row().stashWaitSince!.getTime()).toBeGreaterThan(

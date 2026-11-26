@@ -1837,7 +1837,7 @@ export class DownloadHandoffService {
   ): Promise<void> {
     // A wait that ended (Stash answered) whose reset couldn't be saved yet
     // doesn't count: this is a new wait.
-    const ended = this.stashWaitEnded.delete(row.id);
+    const ended = this.stashWaitEnded.has(row.id);
     const since = (ended ? null : row.stashWaitSince) ?? new Date();
     if (Date.now() - since.getTime() > STASH_WAIT_MAX_MS) {
       // Stash has been busy for days: said, rather than waited on forever.
@@ -1854,6 +1854,8 @@ export class DownloadHandoffService {
       // Counted from the first time Stash was too busy, not from sending.
       data: { error: reason, stashWaitSince: since },
     });
+    // The new start is saved: the old one is gone for good.
+    this.stashWaitEnded.delete(row.id);
   }
 
   /**
