@@ -111,14 +111,26 @@ async function recreateFolder(folder: string): Promise<void> {
  * Returns the new path, written with the destination as given (Stash's
  * view of it), not as the real path resolved on this machine.
  */
-export async function placeVideo(options: {
+export async function placeVideo(options: PlaceVideoOptions): Promise<string> {
+  return (await placeVideoAndSay(options)).path;
+}
+
+export interface PlaceVideoOptions {
   source: string;
   destination: string;
   mode: 'move' | 'copy';
   /** Unique per download, for the temporary name. */
   tag: string;
   within?: string | null;
-}): Promise<string> {
+}
+
+/**
+ * placeVideo, also saying whether the original is gone: true only after a
+ * rename, or a copy across disks whose original was then deleted.
+ */
+export async function placeVideoAndSay(
+  options: PlaceVideoOptions,
+): Promise<{ path: string; sourceRemoved: boolean }> {
   const source = await realPath(
     options.source,
     'The finished file isn’t there any more.',
@@ -211,10 +223,14 @@ export async function placeVideo(options: {
   }
 
   // A move across disks: the copy is in place, so the original can go.
+  let sourceRemoved = renamed;
   if (options.mode === 'move' && !renamed) {
-    await fs.unlink(source).catch(() => undefined);
+    sourceRemoved = await fs.unlink(source).then(
+      () => true,
+      () => false,
+    );
   }
-  return path.join(options.destination, name);
+  return { path: path.join(options.destination, name), sourceRemoved };
 }
 
 /** True when inner is folder itself or inside it. */

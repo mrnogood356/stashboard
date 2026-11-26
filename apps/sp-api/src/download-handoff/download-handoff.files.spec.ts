@@ -7,6 +7,7 @@ import {
   HandoffFileError,
   isInside,
   placeVideo,
+  placeVideoAndSay,
   removeFailedFolder,
   removeJobFolder,
 } from './download-handoff.files';
@@ -130,6 +131,67 @@ describe('finished download files', () => {
       expect(await exists(placed)).toBe(true);
       expect(await exists(source)).toBe(true);
       expect((await fs.stat(placed)).size).toBe(1_000);
+    });
+
+    it('says whether the original is gone', async () => {
+      const moved = path.join(job, 'Moved.mkv');
+      const copied = path.join(job, 'Copied.mkv');
+      await write(moved, 1_000);
+      await write(copied, 1_000);
+
+      await expect(
+        placeVideoAndSay({
+          source: moved,
+          destination: library,
+          mode: 'move',
+          tag: 'a',
+        }),
+      ).resolves.toMatchObject({ sourceRemoved: true });
+      await expect(
+        placeVideoAndSay({
+          source: copied,
+          destination: library,
+          mode: 'copy',
+          tag: 'b',
+        }),
+      ).resolves.toMatchObject({ sourceRemoved: false });
+    });
+
+    it('says the original stayed when a move across disks couldn’t delete it', async () => {
+      const source = path.join(job, 'Across.mkv');
+      await write(source, 1_000);
+      const realRename = fs.rename.bind(fs);
+      const realUnlink = fs.unlink.bind(fs);
+      const rename = jest
+        .spyOn(fs, 'rename')
+        .mockImplementation((from, to) =>
+          String(from) === source
+            ? Promise.reject(
+                Object.assign(new Error('cross-device'), { code: 'EXDEV' }),
+              )
+            : realRename(from, to),
+        );
+      const unlink = jest
+        .spyOn(fs, 'unlink')
+        .mockImplementation((target) =>
+          String(target) === source
+            ? Promise.reject(new Error('read-only'))
+            : realUnlink(target),
+        );
+      try {
+        await expect(
+          placeVideoAndSay({
+            source,
+            destination: library,
+            mode: 'move',
+            tag: 'c',
+          }),
+        ).resolves.toMatchObject({ sourceRemoved: false });
+      } finally {
+        rename.mockRestore();
+        unlink.mockRestore();
+      }
+      expect(await exists(source)).toBe(true);
     });
 
     it('leaves everything alone when something is already at the target', async () => {

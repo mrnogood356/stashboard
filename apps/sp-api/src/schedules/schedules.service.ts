@@ -154,25 +154,24 @@ export class SchedulesService {
     }
     this.ticking = true;
     try {
-      const { schedules } = await this.list();
-      // When each was last saved: a time moved to a minute ago waits a day.
-      const savedAt = new Map(
-        (await this.prisma.jobSchedule.findMany()).map((row) => [
-          row.job,
-          row.updatedAt ?? null,
-        ]),
-      );
-      for (const schedule of schedules) {
+      for (const job of SCHEDULED_JOBS) {
+        // Read afresh for each job: one before it in this pass may have run
+        // a while, and a time saved meanwhile is what counts.
+        const { schedules } = await this.list();
+        const schedule = schedules.find((entry) => entry.job === job)!;
+        const savedAt =
+          (
+            await this.prisma.jobSchedule.findUnique({
+              where: { job },
+              select: { updatedAt: true },
+            })
+          )?.updatedAt ?? null;
         // The organizer's jobs run at their time either way and say why they
         // did nothing; Stash's only when switched on.
         const runs = schedule.switchIn !== null || schedule.enabled;
         const last = schedule.lastRunAt ? new Date(schedule.lastRunAt) : null;
-        // Read again: a job before it in this pass took time.
-        if (
-          runs &&
-          isDue(schedule, this.now(), last, savedAt.get(schedule.job))
-        ) {
-          await this.run(schedule.job, this.now());
+        if (runs && isDue(schedule, this.now(), last, savedAt)) {
+          await this.run(job, this.now());
         }
       }
     } catch (error) {

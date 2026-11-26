@@ -26,7 +26,7 @@ import { manualCutoff, manualSkipReason } from './download-handoff.adopt';
 import {
   type DropInSkipReason,
   isInside,
-  placeVideo,
+  placeVideoAndSay,
   removeJobFolder,
   scanDropInFolder,
 } from './download-handoff.files';
@@ -904,19 +904,23 @@ export class DownloadDropInService {
     this.logger.log(`Picked up drop-in ${file}.`);
     const mode = settings.importMode === 'copy' ? 'copy' : 'move';
     let finalPath: string;
+    let sourceRemoved = false;
+    // Timed before the move, so a file put at the source after it counts
+    // as newer.
+    const movedAt = new Date();
     try {
       if (!insideLibrary(destination, roots)) {
         throw new Error(
           `The destination ${destination} isn’t inside one of Stash’s library folders any more; left it where it is.`,
         );
       }
-      finalPath = await placeVideo({
+      ({ path: finalPath, sourceRemoved } = await placeVideoAndSay({
         source: file,
         destination,
         mode,
         tag: `dropin-${createHash('sha1').update(file).digest('hex').slice(0, 16)}`,
         within: folder,
-      });
+      }));
     } catch (error) {
       this.logger.error(
         `Couldn't bring in drop-in ${file}: ${messageOf(error)}`,
@@ -938,15 +942,7 @@ export class DownloadDropInService {
     // Only a move that took the file away empties the source path. A copy
     // leaves the same file, and so does a move across disks whose original
     // couldn't be deleted: that one mustn't count as dropped in again.
-    // Only "not found" says it's gone; any other error leaves it unknown.
-    // Timed before looking, so a file put there after counts as newer.
-    const movedAt = new Date();
-    const emptied =
-      mode === 'move' &&
-      (await fs.lstat(file).then(
-        () => false,
-        (error: unknown) => (error as { code?: string })?.code === 'ENOENT',
-      ));
+    const emptied = mode === 'move' && sourceRemoved;
     const row = await this.save(file, stat.size, {
       status: 'placed',
       finalPath,

@@ -52,7 +52,13 @@ describe('schedules', () => {
   function setup(rows: Array<Record<string, unknown>> = []) {
     const upsert = jest.fn().mockResolvedValue({});
     const prisma = {
-      jobSchedule: { findMany: jest.fn().mockResolvedValue(rows), upsert },
+      jobSchedule: {
+        findMany: jest.fn(() => Promise.resolve(rows)),
+        findUnique: jest.fn(({ where }: { where: { job: string } }) =>
+          Promise.resolve(rows.find((row) => row.job === where.job) ?? null),
+        ),
+        upsert,
+      },
     };
     const organizer = {
       getSettings: jest
@@ -67,7 +73,7 @@ describe('schedules', () => {
       organizer as never,
       library as never,
     );
-    return { service, upsert, organizer, library };
+    return { service, upsert, organizer, library, rows };
   }
 
   it('runs the organizer’s jobs at their usual times, and Stash jobs only when switched on', async () => {
@@ -124,6 +130,33 @@ describe('schedules', () => {
     service.now = () => at(2026, 11, 8, 4, 12);
     await service.tick();
     expect(organizer.sendMissingDaily).toHaveBeenCalled();
+  });
+
+  it('reads a time saved while an earlier job ran, not the one it started with', async () => {
+    const { service, organizer, rows } = setup([
+      {
+        job: 'send-missing',
+        enabled: true,
+        hour: 4,
+        minute: 5,
+        days: [],
+        lastRunAt: null,
+        lastStatus: null,
+      },
+    ]);
+    // While the 4:00 match runs, Send missing is moved from 4:05 to 5:00.
+    organizer.nightly.mockImplementation(() => {
+      Object.assign(rows[0], {
+        hour: 5,
+        minute: 0,
+        updatedAt: at(2026, 11, 8, 4, 6),
+      });
+      return Promise.resolve('Started');
+    });
+    service.now = () => at(2026, 11, 8, 4, 12);
+    await service.tick();
+    expect(organizer.nightly).toHaveBeenCalled();
+    expect(organizer.sendMissingDaily).not.toHaveBeenCalled();
   });
 
   it('records a failure and carries on', async () => {
