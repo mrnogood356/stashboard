@@ -939,6 +939,8 @@ export class DownloadDropInService {
     // leaves the same file, and so does a move across disks whose original
     // couldn't be deleted: that one mustn't count as dropped in again.
     // Only "not found" says it's gone; any other error leaves it unknown.
+    // Timed before looking, so a file put there after counts as newer.
+    const movedAt = new Date();
     const emptied =
       mode === 'move' &&
       (await fs.lstat(file).then(
@@ -948,7 +950,7 @@ export class DownloadDropInService {
     const row = await this.save(file, stat.size, {
       status: 'placed',
       finalPath,
-      placedAt: emptied ? new Date() : null,
+      placedAt: emptied ? movedAt : null,
       error: null,
     });
     this.logger.log(
