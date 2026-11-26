@@ -198,7 +198,40 @@ describe('refuseCrossSiteWrites', () => {
       .get('/api/thing')
       .set('Sec-Fetch-Site', 'cross-site')
       .expect(200);
-    // Whisparr's webhook, scripts and older browsers send no such header.
+    // Whisparr's webhook and scripts send neither header.
     await request(app).post('/api/thing').expect(200);
+  });
+
+  it('compares the Origin with its own address over plain HTTP', async () => {
+    // No Sec-Fetch-Site over plain HTTP: another port on the same host.
+    await request(app)
+      .post('/api/thing')
+      .set('Host', '192.168.1.10:3000')
+      .set('Origin', 'http://192.168.1.10:8080')
+      .expect(403);
+    await request(app)
+      .post('/api/thing')
+      .set('Host', '192.168.1.10:3000')
+      .set('Origin', 'null')
+      .expect(403);
+    // Its own pages.
+    await request(app)
+      .post('/api/thing')
+      .set('Host', '192.168.1.10:3000')
+      .set('Origin', 'http://192.168.1.10:3000')
+      .expect(200);
+    // The default port written out or not.
+    await request(app)
+      .post('/api/thing')
+      .set('Host', 'stash.example.com:80')
+      .set('Origin', 'http://stash.example.com')
+      .expect(200);
+    // Behind a proxy that rewrites Host to the container's name.
+    await request(app)
+      .post('/api/thing')
+      .set('Host', 'stashboard:3000')
+      .set('X-Forwarded-Host', 'stash.example.com')
+      .set('Origin', 'https://stash.example.com')
+      .expect(200);
   });
 });

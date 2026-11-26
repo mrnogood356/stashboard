@@ -56,19 +56,18 @@ const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
  * origin. The session cookie is SameSite=Lax, which keeps other websites
  * out, but every app on the same host (another port, as on Unraid) or a
  * sibling subdomain is the same "site" to a browser, so a page there could
- * otherwise post a hidden form here with your login. Browsers say where a
- * request came from in Sec-Fetch-Site, which pages can't set; requests
- * without it (Whisparr's webhook, scripts, older browsers) aren't affected.
+ * otherwise post a hidden form here with your login.
+ *
+ * Browsers say where a request came from in Sec-Fetch-Site, but only over
+ * HTTPS (or localhost). Over plain HTTP, the Origin they send with every
+ * cross-origin POST is compared with the address the request was sent to;
+ * X-Forwarded-Host counts too, for a reverse proxy that rewrites Host (a
+ * form can't set that header). Requests with neither (Whisparr's webhook,
+ * scripts) aren't affected.
  */
 export function refuseCrossSiteWrites(): RequestHandler {
   return (req, res, next) => {
-    const site = req.headers['sec-fetch-site'];
-    if (
-      READ_METHODS.has(req.method.toUpperCase()) ||
-      site === undefined ||
-      site === 'same-origin' ||
-      site === 'none'
-    ) {
+    if (READ_METHODS.has(req.method.toUpperCase()) || isOwnOrigin(req)) {
       next();
       return;
     }
@@ -77,6 +76,42 @@ export function refuseCrossSiteWrites(): RequestHandler {
       message: 'Refused a change sent from another site or app.',
     });
   };
+}
+
+function isOwnOrigin(req: Request): boolean {
+  const site = req.headers['sec-fetch-site'];
+  if (site !== undefined) {
+    return site === 'same-origin' || site === 'none';
+  }
+  const origin = req.headers.origin;
+  if (origin === undefined) {
+    return true;
+  }
+  const from = hostOf(origin);
+  if (!from) {
+    // "null" (a sandboxed frame, a file) or something unreadable.
+    return false;
+  }
+  const forwarded = req.headers['x-forwarded-host'];
+  const targets = [
+    req.headers.host,
+    ...(Array.isArray(forwarded) ? forwarded : [forwarded]).flatMap(
+      (value) => value?.split(',') ?? [],
+    ),
+  ];
+  return targets.some(
+    (target) => !!target && hostOf(`http://${target.trim()}`) === from,
+  );
+}
+
+/** "host:port", lower case, with the scheme's default port left out. */
+function hostOf(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname ? parsed.host.toLowerCase() : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
