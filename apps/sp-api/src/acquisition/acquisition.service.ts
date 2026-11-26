@@ -64,6 +64,10 @@ export class AcquisitionService {
   /** "Recently added": requests Stash got in this many days. */
   private static readonly RECENTLY_ADDED_DAYS = 14;
   private static readonly RECENTLY_ADDED_LIMIT = 200;
+  /** Library scenes read per look for requested ones among them. */
+  private static readonly RECENTLY_ADDED_BATCH = 500;
+  /** At most this many recent library scenes are looked through. */
+  private static readonly RECENTLY_ADDED_SCAN_LIMIT = 10_000;
   /** A slow Whisparr leaves the bars off rather than holding up the list. */
   private static readonly PROGRESS_TIMEOUT_MS = 4_000;
   private readonly logger = new Logger(AcquisitionService.name);
@@ -216,51 +220,74 @@ export class AcquisitionService {
     const since = new Date(
       Date.now() - AcquisitionService.RECENTLY_ADDED_DAYS * 24 * 60 * 60_000,
     );
-    const library = await this.prisma.librarySceneIndex.findMany({
-      where: { linkedStashId: { not: null }, localCreatedAt: { gte: since } },
-      orderBy: { localCreatedAt: 'desc' },
-      take: AcquisitionService.RECENTLY_ADDED_LIMIT,
-      select: { linkedStashId: true, localCreatedAt: true, viewUrl: true },
-    });
-    // Newest copy first, so a scene Stash has twice shows its latest arrival.
-    const newest = new Map<string, { addedAt: Date; stashViewUrl: string }>();
-    for (const entry of library) {
-      if (
-        entry.linkedStashId &&
-        entry.localCreatedAt &&
-        !newest.has(entry.linkedStashId)
-      ) {
-        newest.set(entry.linkedStashId, {
-          addedAt: entry.localCreatedAt,
-          stashViewUrl: entry.viewUrl,
+    // Library scenes are read newest first, a batch at a time, until enough
+    // requested ones turn up: a big import of other scenes mustn't push the
+    // requested ones out of a fixed window.
+    const batch = AcquisitionService.RECENTLY_ADDED_BATCH;
+    /** Each scene's newest arrival; later (older) copies are skipped. */
+    const seen = new Set<string>();
+    const found: Array<{
+      row: SceneIndex;
+      addedAt: Date;
+      stashViewUrl: string;
+    }> = [];
+    for (
+      let read = 0;
+      found.length < AcquisitionService.RECENTLY_ADDED_LIMIT &&
+      read < AcquisitionService.RECENTLY_ADDED_SCAN_LIMIT;
+      read += batch
+    ) {
+      const library = await this.prisma.librarySceneIndex.findMany({
+        where: { linkedStashId: { not: null }, localCreatedAt: { gte: since } },
+        orderBy: [{ localCreatedAt: 'desc' }, { stashSceneId: 'asc' }],
+        skip: read,
+        take: batch,
+        select: { linkedStashId: true, localCreatedAt: true, viewUrl: true },
+      });
+      const newest = new Map<string, { addedAt: Date; stashViewUrl: string }>();
+      for (const entry of library) {
+        if (
+          entry.linkedStashId &&
+          entry.localCreatedAt &&
+          !seen.has(entry.linkedStashId)
+        ) {
+          seen.add(entry.linkedStashId);
+          newest.set(entry.linkedStashId, {
+            addedAt: entry.localCreatedAt,
+            stashViewUrl: entry.viewUrl,
+          });
+        }
+      }
+      if (newest.size > 0) {
+        const requested: Prisma.SceneIndexWhereInput = {
+          stashId: { in: [...newest.keys()] },
+          computedLifecycle: SceneLifecycle.AVAILABLE,
+          OR: [
+            { requestStatus: { not: null } },
+            { whisparrMovieId: { not: null } },
+          ],
+        };
+        const rows = await this.prisma.sceneIndex.findMany({
+          where: searchWhere ? { AND: [requested, searchWhere] } : requested,
         });
+        for (const row of rows) {
+          const arrival = newest.get(row.stashId);
+          if (arrival) {
+            found.push({ row, ...arrival });
+          }
+        }
+      }
+      if (library.length < batch) {
+        break;
       }
     }
-    if (newest.size === 0) {
-      return [];
-    }
-
-    const requested: Prisma.SceneIndexWhereInput = {
-      stashId: { in: [...newest.keys()] },
-      computedLifecycle: SceneLifecycle.AVAILABLE,
-      OR: [
-        { requestStatus: { not: null } },
-        { whisparrMovieId: { not: null } },
-      ],
-    };
-    const rows = await this.prisma.sceneIndex.findMany({
-      where: searchWhere ? { AND: [requested, searchWhere] } : requested,
-    });
-    return rows
-      .flatMap((row) => {
-        const found = newest.get(row.stashId);
-        return found ? [{ row, ...found }] : [];
-      })
+    return found
       .sort(
         (a, b) =>
           b.addedAt.getTime() - a.addedAt.getTime() ||
           a.row.stashId.localeCompare(b.row.stashId),
-      );
+      )
+      .slice(0, AcquisitionService.RECENTLY_ADDED_LIMIT);
   }
 
   /**

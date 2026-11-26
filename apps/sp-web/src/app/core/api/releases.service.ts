@@ -67,6 +67,8 @@ export interface ReleaseSearchResult {
   releases: WhisparrRelease[];
   /** Why the search may have come back empty. */
   notice?: string;
+  /** When the indexers Whisparr paused are back (ISO), shown in your own time. */
+  pausedUntil?: string;
   /** What was searched for (Prowlarr). */
   queries?: string[];
 }
@@ -81,10 +83,8 @@ export class ReleasesApiService {
     return this.discover.getOwnedCopies(sceneId, provider);
   }
 
-  search(
-    stashId: string,
-  ): Observable<{ movieId: number; releases: WhisparrRelease[]; notice?: string }> {
-    return this.http.get<{ movieId: number; releases: WhisparrRelease[]; notice?: string }>(
+  search(stashId: string): Observable<ReleaseSearchResult & { movieId: number }> {
+    return this.http.get<ReleaseSearchResult & { movieId: number }>(
       `/api/requests/${encodeURIComponent(stashId)}/releases`,
     );
   }

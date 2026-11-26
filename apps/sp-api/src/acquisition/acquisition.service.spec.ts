@@ -201,6 +201,45 @@ describe('AcquisitionService', () => {
     expect(result.items.every((item) => item.download === null)).toBe(true);
   });
 
+  it('finds requests behind a big import of other scenes', async () => {
+    // 500 other scenes Stash got since, then the requested one.
+    const others = Array.from({ length: 500 }, (_, index) => ({
+      linkedStashId: `other-${index}`,
+      localCreatedAt: new Date('2026-10-27T10:00:00.000Z'),
+      viewUrl: `http://stash.local/scenes/o${index}`,
+    }));
+    librarySceneIndexFindManyMock
+      .mockResolvedValueOnce(others)
+      .mockResolvedValueOnce([
+        {
+          linkedStashId: 'scene-asked',
+          localCreatedAt: new Date('2026-10-20T10:00:00.000Z'),
+          viewUrl: 'http://stash.local/scenes/1',
+        },
+      ]);
+    sceneIndexFindManyMock.mockImplementation(
+      ({ where }: { where: { stashId?: { in: string[] } } }) =>
+        Promise.resolve(
+          where.stashId?.in.includes('scene-asked')
+            ? [
+                buildIndexedRow({
+                  stashId: 'scene-asked',
+                  computedLifecycle: 'AVAILABLE',
+                }),
+              ]
+            : [],
+        ),
+    );
+
+    const result = await service.getScenesFeed(1, 24, 'AVAILABLE');
+
+    expect(result.items.map((item) => item.id)).toEqual(['scene-asked']);
+    expect(librarySceneIndexFindManyMock).toHaveBeenCalledTimes(2);
+    expect(librarySceneIndexFindManyMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ skip: 500, take: 500 }),
+    );
+  });
+
   it('lists requests Stash got in the last two weeks, newest first', async () => {
     librarySceneIndexFindManyMock.mockResolvedValue([
       {
@@ -230,7 +269,7 @@ describe('AcquisitionService', () => {
     expect(librarySceneIndexFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ linkedStashId: { not: null } }),
-        orderBy: { localCreatedAt: 'desc' },
+        orderBy: [{ localCreatedAt: 'desc' }, { stashSceneId: 'asc' }],
       }),
     );
     expect(sceneIndexFindManyMock).toHaveBeenCalledWith({
