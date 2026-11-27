@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.6](https://github.com/mrnogood356/stashboard/compare/v1.7.5...v1.7.6) (2026-11-27)
+
+
+### Bug Fixes
+
+* **about:** show tidied release notes in What's new ([092141e](https://github.com/mrnogood356/stashboard/commit/092141e4a423f04646dbb40ccdc93913cdfae69c))
+* **about:** show tidied release notes in What's new ([d68866f](https://github.com/mrnogood356/stashboard/commit/d68866fd33794da60ca447e92a95cb2b332b2ea5))
+
 ## [1.7.5](https://github.com/mrnogood356/stashboard/compare/v1.7.4...v1.7.5) (2026-11-27)
 
 
