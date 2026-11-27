@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.7.5](https://github.com/mrnogood356/stashboard/compare/v1.7.4...v1.7.5) (2026-11-27)
+
+
+### Bug Fixes
+
+* **backup:** keep Better copies' time zone in the settings backup ([1422e58](https://github.com/mrnogood356/stashboard/commit/1422e581e9e2e007d03abe7a534a8ccfb8a7d082))
+* **better-copies:** four bugs found in a review of Better copies ([1f3566f](https://github.com/mrnogood356/stashboard/commit/1f3566f473384b430122e5fb60aae8107dc81613))
+* bugs found in a review of downloads, Better copies, Requests, Following and Schedules ([fea8db4](https://github.com/mrnogood356/stashboard/commit/fea8db4f97cbab72ae7a291f3e3e415b2d3e361e))
+* **downloads:** a busy Stash after an unsaved wait end starts afresh ([d01d796](https://github.com/mrnogood356/stashboard/commit/d01d796b60db6f8937bb289ae2b0ede41bdee1ca))
+* **downloads:** Activity lists old files that couldn't be deleted first ([8b2e774](https://github.com/mrnogood356/stashboard/commit/8b2e7746cb8bffebaf9830895455a842e22a6284))
+* **downloads:** address review of the Finished downloads fixes ([388887f](https://github.com/mrnogood356/stashboard/commit/388887f35041c7c412cd84fc56ee64e91d2f8613))
+* **downloads:** an old wait on a busy Stash never carries over ([d275f56](https://github.com/mrnogood356/stashboard/commit/d275f567a8fc2c651239e8853422bcc5e2189bd8))
+* **downloads:** date finished downloads by when they came in ([2519bf6](https://github.com/mrnogood356/stashboard/commit/2519bf65916c4ed1d03c398847e64783889ca6f3))
+* **downloads:** don't guess placed times for drop-ins from before the update ([00f4bb4](https://github.com/mrnogood356/stashboard/commit/00f4bb4b7e7feb102727c3f4cab5825e9cfaeacc))
+* **downloads:** eight bugs found in a review of Finished downloads ([cecddc6](https://github.com/mrnogood356/stashboard/commit/cecddc6355a32cdf48d7b198614a8514040b7f78))
+* **downloads:** give drop-ins moved in before the update their placed time ([ac1fb2c](https://github.com/mrnogood356/stashboard/commit/ac1fb2cb64eda3d1283d68aa04b7bd7841f35935))
+* **downloads:** keep an unsaved wait end until the new wait is saved ([025c347](https://github.com/mrnogood356/stashboard/commit/025c347dc679ba40ab5b63db2927273b3d4118a3))
+* **downloads:** only a missing source counts as moved out ([7c9f92a](https://github.com/mrnogood356/stashboard/commit/7c9f92aedcf532579810bd33450467812c8e71e0))
+* **downloads:** only a moved drop-in gets a placed time ([cae5031](https://github.com/mrnogood356/stashboard/commit/cae5031180f65f85c5a351abc63a13c1a390af0d))
+* **downloads:** time a drop-in's move before checking the path ([19c6e0b](https://github.com/mrnogood356/stashboard/commit/19c6e0b23eb1e23dab38e1fa1210ace89afa1021))
+* four CodeRabbit findings on the bug-hunt fixes ([d44b89e](https://github.com/mrnogood356/stashboard/commit/d44b89e2f1342144339aaebb014d07f31d69f46b))
+* Library searches take % and _ as typed; paused downloads aren't failed ([b2f2c06](https://github.com/mrnogood356/stashboard/commit/b2f2c06462b1a9b6189721f7199244500f9bfb5c))
+* **library:** search tags and studios for % and _ as typed ([d6e1071](https://github.com/mrnogood356/stashboard/commit/d6e1071bbc5b3796adc631592e510eb4ad285ca9))
+* read each schedule afresh, and take a drop-in's move from the move ([62c04b1](https://github.com/mrnogood356/stashboard/commit/62c04b1a1a56ff2b86f4538fa007a9e8963bc952))
+* **requests:** a paused download is downloading, not failed ([ba1b3d1](https://github.com/mrnogood356/stashboard/commit/ba1b3d1c8ffad252d5654b87a0030b66f17f8e59))
+* **requests:** five bugs found in a review of Requests ([e7e611e](https://github.com/mrnogood356/stashboard/commit/e7e611e66a1a5ec838e56b59d631094e6ffde4ee))
+* **requests:** show a paused download over a downloading one ([1a440cd](https://github.com/mrnogood356/stashboard/commit/1a440cdc3cc75ca5e236ec42dfba5e82760c9ecb))
+* **requests:** take a wanted scene's download progress from SABnzbd ([ad9e430](https://github.com/mrnogood356/stashboard/commit/ad9e430fd5276bf704e2f90b4962117a9108b8b4))
+* **security:** check the Origin over plain HTTP too ([182c944](https://github.com/mrnogood356/stashboard/commit/182c9448cb62db842f6327523a1ba25a762d90b8))
+* **security:** match a proxy's default port and keep the dev host ([33179fa](https://github.com/mrnogood356/stashboard/commit/33179faa648c9714792c14a1e51d295cbb8a7219))
+* **security:** refuse changes sent from another app on the same host ([3024ff6](https://github.com/mrnogood356/stashboard/commit/3024ff621ee701992419016fd50ae3e2f562d4a5))
+* **security:** refuse changes sent from another app on the same host ([83cc1a8](https://github.com/mrnogood356/stashboard/commit/83cc1a818cac5dab20a5d7b559ab330185eff9f6))
+* two bugs found in a review of Following and Schedules ([c23c04c](https://github.com/mrnogood356/stashboard/commit/c23c04cd7271d11eae67e08b83040c54ed5c2dcc))
+
 ## [1.7.4](https://github.com/mrnogood356/stashboard/compare/v1.7.3...v1.7.4) (2026-11-25)
 
 
