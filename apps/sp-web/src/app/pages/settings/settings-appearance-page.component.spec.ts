@@ -164,6 +164,35 @@ describe('SettingsAppearancePageComponent', () => {
     expect(theme.revertPreview).toHaveBeenCalled();
   });
 
+  it('leaves the hex box empty when discarding back to the artwork accent', async () => {
+    const { fixture, el } = await render({ accentColor: 'artwork' });
+    const hex = el.querySelector('[data-testid="accent-hex"]') as HTMLInputElement;
+    hex.value = '#ff0000';
+    hex.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    const discard = Array.from(el.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Discard'),
+    ) as HTMLButtonElement;
+    discard.click();
+    fixture.detectChanges();
+    expect(hex.value).toBe('');
+  });
+
+  it('follows the header’s light/dark button while open, so Save keeps it', async () => {
+    const { fixture, theme, el, click } = await render({ mode: 'light' });
+    // The header button: saved and shown flip together.
+    theme.saved.update((current) => ({ ...current, mode: 'dark' }));
+    theme.settings.update((current) => ({ ...current, mode: 'dark' }));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="mode-dark"]')?.getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    click('theme-dracula');
+    expect(theme.preview).toHaveBeenLastCalledWith(expect.objectContaining({ mode: 'dark' }));
+  });
+
   it('resets to the defaults', async () => {
     const { theme, click, el, fixture } = await render({ darkTheme: 'plex', radius: 'round' });
     click('appearance-reset');

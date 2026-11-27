@@ -1,5 +1,14 @@
 import { HasUnsavedChanges } from '../../core/navigation/unsaved-changes.guard';
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  OnDestroy,
+  OnInit,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import {
   AppearanceSettings,
   CUSTOM_CSS_MAX_LENGTH,
@@ -84,6 +93,19 @@ export class SettingsAppearancePageComponent implements OnInit, OnDestroy, HasUn
       minimum: UI_CONTRAST,
     };
   });
+
+  constructor() {
+    // The header's light/dark button changes the mode while this page is
+    // open: follow it, so the page shows what's on screen and Save keeps it.
+    effect(() => {
+      const shownMode = this.theme.settings().mode;
+      untracked(() => {
+        if (!this.loading() && this.draft().mode !== shownMode) {
+          this.draft.update((current) => ({ ...current, mode: shownMode }));
+        }
+      });
+    });
+  }
 
   async ngOnInit(): Promise<void> {
     await this.theme.syncFromServer();
@@ -173,7 +195,8 @@ export class SettingsAppearancePageComponent implements OnInit, OnDestroy, HasUn
   protected discard(): void {
     this.theme.revertPreview();
     this.draft.set(this.theme.saved());
-    this.hexInput.set(this.draft().accentColor ?? '');
+    const accent = this.draft().accentColor;
+    this.hexInput.set(accent && accent !== ARTWORK_ACCENT ? accent : '');
     this.message.set(null);
   }
 
