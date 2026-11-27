@@ -136,6 +136,8 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
   private routeSubscription: Subscription | null = null;
   /** The performer's details on their way; a newer page cancels it. */
   private detailsRequest: Subscription | null = null;
+  /** Closed: a catalog switch still finishing does nothing more. */
+  private destroyed = false;
   private studioSearchSubscription: Subscription | null = null;
   private tagSearchSubscription: Subscription | null = null;
   private observer: IntersectionObserver | null = null;
@@ -305,6 +307,7 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.routeSubscription?.unsubscribe();
     this.detailsRequest?.unsubscribe();
     this.studioSearchSubscription?.unsubscribe();
@@ -757,7 +760,7 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
             // a scene from Home): carry on in the one the performer is in,
             // so their scenes come from there too.
             void this.adoptCatalog(details.provider).then(() => {
-              if (this.performerId() !== currentPerformerId) {
+              if (this.destroyed || this.performerId() !== currentPerformerId) {
                 return;
               }
               this.performer.set(details);

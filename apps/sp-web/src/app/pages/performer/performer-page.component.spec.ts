@@ -244,6 +244,30 @@ describe('PerformerPageComponent', () => {
     navigate.mockRestore();
   });
 
+  it('does nothing more once closed while the catalog switch finishes', async () => {
+    let finishSwitch: (done: boolean) => void = () => {};
+    const navigate = vi
+      .spyOn(Router.prototype, 'navigate')
+      .mockReturnValue(new Promise<boolean>((resolve) => (finishSwitch = resolve)));
+    const { fixture, discoverService } = await renderPage(buildScene(), {
+      ...buildPerformer(),
+      provider: 'FANSDB',
+      fromOtherCatalog: true,
+    });
+    expect(navigate).toHaveBeenCalled();
+    const scenesAsked = discoverService.getPerformerScenesFeed.mock.calls.length;
+    const facetsAsked = discoverService.getPerformerFacets.mock.calls.length;
+
+    fixture.destroy();
+    finishSwitch(true);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(discoverService.getPerformerScenesFeed).toHaveBeenCalledTimes(scenesAsked);
+    expect(discoverService.getPerformerFacets).toHaveBeenCalledTimes(facetsAsked);
+    navigate.mockRestore();
+  });
+
   it('stays in the catalog it asked when the performer is there', async () => {
     const navigate = vi.spyOn(Router.prototype, 'navigate');
     const { discoverService } = await renderPage();

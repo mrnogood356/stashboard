@@ -140,6 +140,8 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
   private routeSubscription: Subscription | null = null;
   /** The studio's details on their way; a newer page cancels it. */
   private detailsRequest: Subscription | null = null;
+  /** Closed: a catalog switch still finishing does nothing more. */
+  private destroyed = false;
   private tagSearchSubscription: Subscription | null = null;
   private observer: IntersectionObserver | null = null;
   private sentinelElement: HTMLDivElement | null = null;
@@ -309,6 +311,7 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.routeSubscription?.unsubscribe();
     this.detailsRequest?.unsubscribe();
     this.tagSearchSubscription?.unsubscribe();
@@ -680,7 +683,7 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
             // Opened from a link that didn't say which catalog: carry on in
             // the one the studio is in, so its scenes come from there too.
             void this.adoptCatalog(details.provider).then(() => {
-              if (this.studioId() !== currentStudioId) {
+              if (this.destroyed || this.studioId() !== currentStudioId) {
                 return;
               }
               this.studio.set(details);
