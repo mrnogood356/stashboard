@@ -29,6 +29,7 @@ export function configureApp(app: NestExpressApplication): void {
   app.use(httpRequestLogger());
   app.use(responseCompression());
   app.use(securityHeaders());
+  app.use(refuseCrossSiteWrites());
 
   // Lets browse pages pick a secondary catalog provider per request.
   app.use((req: Request, _res: Response, next: () => void) => {
@@ -45,6 +46,79 @@ export function configureApp(app: NestExpressApplication): void {
       transform: true,
     }),
   );
+}
+
+/** Methods that only read; anything else changes something. */
+const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/**
+ * Refuses a change (POST, PATCH, DELETE…) a browser sent from another
+ * origin. The session cookie is SameSite=Lax, which keeps other websites
+ * out, but every app on the same host (another port, as on Unraid) or a
+ * sibling subdomain is the same "site" to a browser, so a page there could
+ * otherwise post a hidden form here with your login.
+ *
+ * Browsers say where a request came from in Sec-Fetch-Site, but only over
+ * HTTPS (or localhost). Over plain HTTP, the Origin they send with every
+ * cross-origin POST is compared with the address the request was sent to;
+ * X-Forwarded-Host counts too, for a reverse proxy that rewrites Host (a
+ * form can't set that header). Requests with neither (Whisparr's webhook,
+ * scripts) aren't affected.
+ */
+export function refuseCrossSiteWrites(): RequestHandler {
+  return (req, res, next) => {
+    if (READ_METHODS.has(req.method.toUpperCase()) || isOwnOrigin(req)) {
+      next();
+      return;
+    }
+    res.status(403).json({
+      statusCode: 403,
+      message: 'Refused a change sent from another site or app.',
+    });
+  };
+}
+
+function isOwnOrigin(req: Request): boolean {
+  const site = req.headers['sec-fetch-site'];
+  if (site !== undefined) {
+    return site === 'same-origin' || site === 'none';
+  }
+  const origin = req.headers.origin;
+  if (origin === undefined) {
+    return true;
+  }
+  const parsed = parseUrl(origin);
+  const from = parsed && hostOf(parsed);
+  if (!parsed || !from) {
+    // "null" (a sandboxed frame, a file) or something unreadable.
+    return false;
+  }
+  const forwarded = req.headers['x-forwarded-host'];
+  const targets = [
+    req.headers.host,
+    ...(Array.isArray(forwarded) ? forwarded : [forwarded]).flatMap(
+      (value) => value?.split(',') ?? [],
+    ),
+  ];
+  // Read under the Origin's scheme, so a proxy's "host:443" still matches
+  // https://host (and "host:80" matches http://host).
+  return targets.some((target) => {
+    const url = target && parseUrl(`${parsed.protocol}//${target.trim()}`);
+    return !!url && hostOf(url) === from;
+  });
+}
+
+function parseUrl(url: string): URL | null {
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}
+
+/** "host:port", lower case, with the scheme's default port left out. */
+function hostOf(url: URL): string | null {
+  return url.hostname ? url.host.toLowerCase() : null;
 }
 
 /**

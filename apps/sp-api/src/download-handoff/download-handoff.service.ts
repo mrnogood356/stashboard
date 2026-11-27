@@ -2182,6 +2182,7 @@ export function toDto(row: DownloadHandoff): DownloadHandoffDto {
     finalPath: row.finalPath,
     stashSceneId: row.stashSceneId,
     matchedBy: matchedByOf(row.matchedBy),
+    finishedAt: row.finishedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

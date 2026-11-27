@@ -27,6 +27,7 @@ function queueItem(
   return {
     movieId: 7,
     title: 'Bright.Summer.Afternoon.1080p',
+    downloadId: null,
     indexer: 'NZBgeek',
     size: 1000,
     sizeLeft: 580,

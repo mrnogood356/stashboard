@@ -18,6 +18,10 @@ import { IntegrationsService } from '../integrations/integrations.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CatalogProviderService } from '../providers/catalog/catalog-provider.service';
 import { withStashImageSize } from '../providers/stashdb/stashdb-image-url.util';
+import {
+  SabnzbdAdapter,
+  type SabnzbdAdapterBaseConfig,
+} from '../providers/sabnzbd/sabnzbd.adapter';
 import { WhisparrAdapter } from '../providers/whisparr/whisparr.adapter';
 import {
   ACQUISITION_BULK_LIMIT,
@@ -78,6 +82,7 @@ export class AcquisitionService {
     private readonly catalogProviderService: CatalogProviderService,
     private readonly whisparrAdapter: WhisparrAdapter,
     private readonly prisma: PrismaService,
+    private readonly sabnzbd: SabnzbdAdapter,
   ) {}
 
   async getScenesFeed(
@@ -360,8 +365,17 @@ export class AcquisitionService {
           );
         }),
       ]);
-      for (const entry of queue) {
-        if (!movieIds.has(entry.movieId)) {
+      const ours = queue.filter((entry) => movieIds.has(entry.movieId));
+      const sab = await this.sabJobs(
+        ours.flatMap((entry) => (entry.downloadId ? [entry.downloadId] : [])),
+      );
+      for (const entry of ours) {
+        const live = entry.downloadId ? sab.get(entry.downloadId) : undefined;
+        if (live) {
+          const current = progress.get(entry.movieId);
+          if (!current || (live.progress ?? -1) > (current.progress ?? -1)) {
+            progress.set(entry.movieId, live);
+          }
           continue;
         }
         const percent =
@@ -393,6 +407,73 @@ export class AcquisitionService {
       clearTimeout(timer);
     }
     return progress;
+  }
+
+  /**
+   * Where Whisparr's downloads are in SABnzbd right now, by SABnzbd's id
+   * for each (Whisparr's download id). Empty when SABnzbd isn't connected or
+   * can't be asked: Whisparr's own numbers are used then.
+   */
+  private async sabJobs(
+    nzoIds: string[],
+  ): Promise<Map<string, AcquisitionDownloadDto>> {
+    const found = new Map<string, AcquisitionDownloadDto>();
+    const config = nzoIds.length ? await this.sabConfig() : null;
+    if (!config) {
+      return found;
+    }
+    try {
+      const ids = new Set(nzoIds);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const { queue, history } = await Promise.race([
+        this.sabnzbd.jobs(config, [...ids]),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('SABnzbd took too long')),
+            AcquisitionService.PROGRESS_TIMEOUT_MS,
+          );
+        }),
+      ]).finally(() => clearTimeout(timer));
+      for (const job of history) {
+        const status = job.status.toLowerCase();
+        // Failed: Whisparr says so, and why.
+        if (ids.has(job.nzoId) && status !== 'failed') {
+          found.set(job.nzoId, {
+            progress: 100,
+            timeLeft: null,
+            after: status === 'completed' ? 'downloaded' : 'unpacking',
+          });
+        }
+      }
+      for (const job of queue) {
+        if (ids.has(job.nzoId) && !found.has(job.nzoId)) {
+          found.set(job.nzoId, {
+            progress:
+              typeof job.percentage === 'number'
+                ? Math.round(Math.min(100, Math.max(0, job.percentage)))
+                : null,
+            timeLeft: job.timeLeft ?? null,
+          });
+        }
+      }
+    } catch (error) {
+      this.logger.debug(
+        `SABnzbd's own progress left off: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    return found;
+  }
+
+  private async sabConfig(): Promise<SabnzbdAdapterBaseConfig | null> {
+    const integration = await this.prisma.integrationConfig
+      .findUnique({ where: { type: 'SABNZBD' } })
+      .catch(() => null);
+    const baseUrl = integration?.baseUrl?.trim();
+    return integration?.enabled &&
+      integration.status === IntegrationStatus.CONFIGURED &&
+      baseUrl
+      ? { baseUrl, apiKey: integration.apiKey }
+      : null;
   }
 
   /**

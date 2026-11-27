@@ -10,12 +10,20 @@ export class AcquisitionCountsByLifecycleDto {
   AVAILABLE!: number;
 }
 
-/** How far along a download is, from Whisparr's queue. */
+/**
+ * How far along a download is: from SABnzbd itself when it's connected
+ * (Whisparr only asks it about once a minute), else from Whisparr's queue.
+ */
 export class AcquisitionDownloadDto {
   /** 0–100, or null when the download client doesn't say. */
   progress!: number | null;
   /** "hh:mm:ss" (or "d.hh:mm:ss") left, when known. */
   timeLeft!: string | null;
+  /**
+   * SABnzbd is done downloading it: "unpacking" while it still checks and
+   * unpacks, "downloaded" once Whisparr can bring it in. Left out before.
+   */
+  after?: 'unpacking' | 'downloaded';
 }
 
 export class AcquisitionSceneItemDto {

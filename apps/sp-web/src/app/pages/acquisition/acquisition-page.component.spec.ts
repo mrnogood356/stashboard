@@ -423,6 +423,32 @@ describe('AcquisitionPageComponent', () => {
     expect(root.querySelector('[data-testid="download-scene-failed"]')).toBeNull();
   });
 
+  it('says a download is done once SABnzbd has it, before Whisparr catches up', async () => {
+    const items = [
+      buildItem({
+        id: 'scene-done',
+        status: { state: 'DOWNLOADING' },
+        queueState: null,
+        download: { progress: 100, timeLeft: null, after: 'downloaded' },
+      }),
+      buildItem({
+        id: 'scene-unpacking',
+        status: { state: 'DOWNLOADING' },
+        queueState: null,
+        download: { progress: 100, timeLeft: null, after: 'unpacking' },
+      }),
+    ];
+    const { fixture } = await renderPage({ responses: { ANY: buildResponse(items) } });
+    const root = fixture.nativeElement as HTMLElement;
+
+    const done = root.querySelector('[data-testid="download-scene-done"]');
+    expect(done?.textContent).toContain('Downloaded · Whisparr brings it in next');
+    expect(done?.textContent).not.toContain('100%');
+    expect(root.querySelector('[data-testid="download-scene-unpacking"]')?.textContent).toContain(
+      'Downloaded · unpacking in SABnzbd',
+    );
+  });
+
   it('lists requests that reached the library under Added, with a link to Stash', async () => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
