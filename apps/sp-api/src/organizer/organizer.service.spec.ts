@@ -2791,7 +2791,18 @@ describe('OrganizerService', () => {
         ],
       }),
     );
-    proposalRows.set('7', { stale: true });
+    proposalRows.set('7', {
+      dto: {
+        scene: { id: '7', fileName: 'clip.mp4' },
+        match: { id: 'fans-1', confidence: 'likely' },
+        alternatives: [],
+        others: 0,
+        foundAt: '2026-11-26T00:00:00.000Z',
+      },
+      choices: {},
+    });
+    // It's in the list to check, before the look.
+    await expect(service.proposalCount()).resolves.toBe(1);
     handoff.filesAsStashSees = jest.fn().mockResolvedValue([]);
     stashdb.searchScenesByText.mockResolvedValue([remote]);
 
