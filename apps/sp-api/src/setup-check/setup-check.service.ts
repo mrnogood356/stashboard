@@ -705,7 +705,7 @@ export class SetupCheckService {
             ? 'One of Whisparr’s indexers is paused after errors.'
             : `${health.paused.length} of Whisparr’s indexers are paused after errors.`,
         detail: `${health.paused
-          .map((entry) => `${entry.name} until ${formatTime(entry.until)}`)
+          .map((entry) => `${entry.name} ${pausedFor(entry.until)}`)
           .join(
             ', ',
           )}. Whisparr tries them again then. Check them in Whisparr: System → Status.`,
@@ -1006,9 +1006,25 @@ function webhookAddress(
     : `${base}${HOOK_PATH}… (shown in Settings → Automation)`;
 }
 
-function formatTime(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? iso
-    : date.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+/**
+ * How long an indexer stays paused, as time left ("for another 2 h"): the
+ * page is read in your own time zone, which the server doesn't know, so a
+ * clock time would be in the server's.
+ */
+export function pausedFor(iso: string, now = Date.now()): string {
+  const until = Date.parse(iso);
+  if (Number.isNaN(until)) {
+    return 'for a while';
+  }
+  const minutes = Math.ceil((until - now) / 60_000);
+  if (minutes <= 1) {
+    return 'until any moment now';
+  }
+  if (minutes < 60) {
+    return `for another ${minutes} min`;
+  }
+  const hours = Math.round(minutes / 60);
+  return hours < 48
+    ? `for another ${hours} h`
+    : `for another ${Math.round(hours / 24)} days`;
 }

@@ -18,7 +18,11 @@ describe('RuntimeHealthService', () => {
     }
   >();
 
+  let catalogRows: Array<Record<string, unknown>> = [];
   const prisma = {
+    integrationConfig: {
+      findMany: jest.fn(() => Promise.resolve(catalogRows)),
+    },
     runtimeIntegrationHealth: {
       findUnique: jest.fn(
         async ({ where }: { where: { service: RuntimeHealthServiceKey } }) => {
@@ -114,8 +118,81 @@ describe('RuntimeHealthService', () => {
 
   beforeEach(() => {
     records.clear();
+    catalogRows = [];
     jest.clearAllMocks();
     service = new RuntimeHealthService(prisma);
+  });
+
+  it('counts only the main catalog for the catalog’s health', async () => {
+    // Nothing set up yet: every catalog counts, as before.
+    await expect(
+      service.isMainCatalog('https://fansdb.cc/graphql'),
+    ).resolves.toBe(true);
+
+    catalogRows = [
+      {
+        type: 'STASHDB',
+        enabled: true,
+        status: 'CONFIGURED',
+        baseUrl: 'https://stashdb.org',
+        lastHealthyAt: new Date('2026-11-01T00:00:00Z'),
+        config: { selectedForInstanceCatalogProvider: true },
+      },
+      {
+        type: 'FANSDB',
+        enabled: true,
+        status: 'CONFIGURED',
+        baseUrl: 'https://fansdb.cc',
+        lastHealthyAt: new Date('2026-11-01T00:00:00Z'),
+      },
+    ];
+    // Read afresh once the catalog's settings change.
+    await service.clearService(RuntimeHealthServiceKey.CATALOG);
+
+    await expect(
+      service.isMainCatalog('https://stashdb.org/graphql'),
+    ).resolves.toBe(true);
+    await expect(
+      service.isMainCatalog('https://fansdb.cc/graphql'),
+    ).resolves.toBe(false);
+  });
+
+  it('doesn’t keep a catalog read that the settings changed under', async () => {
+    let answer: (rows: Array<Record<string, unknown>>) => void = () => {};
+    (
+      prisma.integrationConfig.findMany as unknown as jest.Mock
+    ).mockImplementationOnce(
+      () => new Promise((resolve) => (answer = resolve)),
+    );
+    const stale = service.isMainCatalog('https://fansdb.cc/graphql');
+    // The catalog changes to FansDB while StashDB's settings are being read.
+    await service.clearService(RuntimeHealthServiceKey.CATALOG);
+    catalogRows = [
+      {
+        type: 'FANSDB',
+        enabled: true,
+        status: 'CONFIGURED',
+        baseUrl: 'https://fansdb.cc',
+        lastHealthyAt: new Date('2026-11-01T00:00:00Z'),
+        config: { selectedForInstanceCatalogProvider: true },
+      },
+    ];
+    answer([
+      {
+        type: 'STASHDB',
+        enabled: true,
+        status: 'CONFIGURED',
+        baseUrl: 'https://stashdb.org',
+        lastHealthyAt: new Date('2026-11-01T00:00:00Z'),
+        config: { selectedForInstanceCatalogProvider: true },
+      },
+    ]);
+    // That call answers from what it read...
+    await expect(stale).resolves.toBe(false);
+    // ...but the next reads the new settings rather than keep the old.
+    await expect(
+      service.isMainCatalog('https://fansdb.cc/graphql'),
+    ).resolves.toBe(true);
   });
 
   it('requires two consecutive failures before marking a service degraded', async () => {

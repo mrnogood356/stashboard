@@ -22,6 +22,7 @@ describe('StashdbAdapter.getSceneFacets', () => {
     adapter = new StashdbAdapter({
       recordSuccess: jest.fn().mockResolvedValue(undefined),
       recordFailure: jest.fn().mockResolvedValue(undefined),
+      isMainCatalog: jest.fn().mockResolvedValue(true),
     } as unknown as RuntimeHealthService);
   });
 

@@ -6,6 +6,11 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  CATALOG_PROVIDER_KEYS,
+  configuredCatalogProviderTypeFromIntegrations,
+  instanceCatalogProviderTypeFromIntegrations,
+} from '../providers/catalog/catalog-provider.util';
+import {
   RuntimeHealthResponse,
   RuntimeHealthServiceSummary,
 } from './runtime-health.types';
@@ -24,6 +29,8 @@ export class RuntimeHealthService {
     RuntimeHealthServiceKey.WHISPARR,
   ] as const;
   private static readonly DEGRADED_FAILURE_THROTTLE_MS = 30_000;
+  /** How long the main catalog's address is trusted before it's read again. */
+  private static readonly MAIN_CATALOG_TTL_MS = 30_000;
 
   private readonly logger = new Logger(RuntimeHealthService.name);
   private readonly cache = new Map<
@@ -31,8 +38,39 @@ export class RuntimeHealthService {
     RuntimeIntegrationHealth
   >();
   private loadedAll = false;
+  private mainCatalog: { host: string | null; at: number } | null = null;
+  /** Bumped when the catalog's settings change: a read begun before is stale. */
+  private catalogGeneration = 0;
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Whether a catalog address is this instance's catalog (StashDB, or
+   * FansDB when that's the one chosen). Only that one counts for the
+   * catalog's health: browsing the other catalog, or matching against it,
+   * says nothing about whether the main one is up. When the main one isn't
+   * known, every catalog counts, as before.
+   */
+  async isMainCatalog(endpoint: string): Promise<boolean> {
+    const now = Date.now();
+    let main = this.mainCatalog;
+    if (!main || now - main.at > RuntimeHealthService.MAIN_CATALOG_TTL_MS) {
+      const generation = this.catalogGeneration;
+      const rows = await this.prisma.integrationConfig.findMany({
+        where: { type: { in: [...CATALOG_PROVIDER_KEYS] } },
+      });
+      const type =
+        instanceCatalogProviderTypeFromIntegrations(rows) ??
+        configuredCatalogProviderTypeFromIntegrations(rows);
+      const baseUrl = rows.find((row) => row.type === type)?.baseUrl;
+      main = { host: baseUrl ? hostOf(baseUrl) : null, at: now };
+      // Kept only if the settings didn't change while they were read.
+      if (generation === this.catalogGeneration) {
+        this.mainCatalog = main;
+      }
+    }
+    return main.host === null || main.host === hostOf(endpoint);
+  }
 
   async getSummary(): Promise<RuntimeHealthResponse> {
     await this.ensureAllLoaded();
@@ -166,6 +204,10 @@ export class RuntimeHealthService {
       where: { service },
     });
     this.cache.delete(service);
+    if (service === RuntimeHealthServiceKey.CATALOG) {
+      // Cleared when the catalog's settings change: read them again.
+      this.forgetMainCatalog();
+    }
   }
 
   async clearAllServices(): Promise<void> {
@@ -180,6 +222,12 @@ export class RuntimeHealthService {
     for (const service of RuntimeHealthService.SERVICES) {
       this.cache.delete(service);
     }
+    this.forgetMainCatalog();
+  }
+
+  private forgetMainCatalog(): void {
+    this.mainCatalog = null;
+    this.catalogGeneration += 1;
   }
 
   private async getSnapshot(
@@ -281,6 +329,14 @@ export class RuntimeHealthService {
       'Runtime health recorded a failure without an error message.',
     );
     return 'Runtime provider request failed.';
+  }
+}
+
+function hostOf(url: string): string | null {
+  try {
+    return new URL(url).host.toLowerCase();
+  } catch {
+    return null;
   }
 }
 

@@ -8,6 +8,7 @@ import { StashAdapter } from '../providers/stash/stash.adapter';
 import { WhisparrAdapter } from '../providers/whisparr/whisparr.adapter';
 import {
   insideAny,
+  pausedFor,
   SetupCheckService,
   usableOrigin,
 } from './setup-check.service';
@@ -429,13 +430,31 @@ describe('SetupCheckService', () => {
 
     whisparr.getIndexerHealth.mockResolvedValue({
       searchable: 2,
-      paused: [{ name: 'Tracker', until: '2026-10-20T10:00:00Z' }],
+      paused: [
+        {
+          name: 'Tracker',
+          until: new Date(Date.now() + 2 * 3600_000 + 60_000).toISOString(),
+        },
+      ],
     });
     ({ checks } = await service.run());
     expect(byId(checks, 'indexers')).toMatchObject({
       status: 'warn',
       summary: 'One of Whisparr’s indexers is paused after errors.',
     });
+    // Time left, not a clock time in the server's zone.
+    expect(byId(checks, 'indexers').detail).toContain(
+      'Tracker for another 2 h.',
+    );
+  });
+
+  it('says how long an indexer stays paused', () => {
+    const now = Date.parse('2026-11-27T12:00:00Z');
+    expect(pausedFor('2026-11-27T12:20:00Z', now)).toBe('for another 20 min');
+    expect(pausedFor('2026-11-27T15:00:00Z', now)).toBe('for another 3 h');
+    expect(pausedFor('2026-11-30T12:00:00Z', now)).toBe('for another 3 days');
+    expect(pausedFor('2026-11-27T11:00:00Z', now)).toBe('until any moment now');
+    expect(pausedFor('not a date', now)).toBe('for a while');
   });
 
   describe('Prowlarr', () => {

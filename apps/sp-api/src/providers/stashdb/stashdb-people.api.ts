@@ -558,10 +558,10 @@ export abstract class StashdbPeopleApi extends StashdbGraphqlClient {
         'performer_favorites_unique_idx',
         favorite,
       );
-      await this.reportRuntimeSuccess();
+      await this.reportRuntimeSuccess(config);
       return result;
     } catch (error) {
-      await this.reportRuntimeFailure(error);
+      await this.reportRuntimeFailure(config, error);
       throw error;
     }
   }
@@ -585,10 +585,10 @@ export abstract class StashdbPeopleApi extends StashdbGraphqlClient {
         'studio_favorites_unique_idx',
         favorite,
       );
-      await this.reportRuntimeSuccess();
+      await this.reportRuntimeSuccess(config);
       return result;
     } catch (error) {
-      await this.reportRuntimeFailure(error);
+      await this.reportRuntimeFailure(config, error);
       throw error;
     }
   }
