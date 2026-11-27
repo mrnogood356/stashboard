@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.7.5](https://github.com/mrnogood356/stashboard/compare/v1.7.4...v1.7.5) (2026-11-27)
+
+
+### Security
+
+* **Changes sent from another app on the same host are refused.** Your login keeps other websites out, but a browser counts every app on the same host (another port, as on Unraid) as the same site. A page in one of those could have quietly sent a change to Stashboard with your login. Such changes are now refused, over HTTPS and plain HTTP alike, behind a reverse proxy too. Stashboard's own pages, the phone app, Whisparr's webhook and scripts aren't affected. ([#126](https://github.com/mrnogood356/stashboard/pull/126))
+
+### Fixed
+
+* **Finished downloads:** a file you drop in again where one was moved from before is brought in, even at the same size. A file left behind by a move across disks isn't brought in twice. ([#121](https://github.com/mrnogood356/stashboard/pull/121))
+* **Finished downloads:** a drop-in whose match look-up fails is tried again, rather than counted in with no match note. ([#121](https://github.com/mrnogood356/stashboard/pull/121))
+* **Finished downloads:** a file isn't put back after it reached the library when only clearing its temporary name fails (some network shares), so there's no second copy. ([#121](https://github.com/mrnogood356/stashboard/pull/121))
+* **Finished downloads:** SABnzbd's history is read past its first 200 entries before a download is given up on. A download SABnzbd just took is remembered through a brief database blip. A name starting with two dots (`..Scene.mkv`) is no longer refused. ([#121](https://github.com/mrnogood356/stashboard/pull/121))
+* **Finished downloads:** downloads waiting on a busy Stash take turns, so 50 of them can't hold up newer ones. After a week of waiting one is given up on, with a note to link it in Library Tools. Retry gives it a fresh week. ([#121](https://github.com/mrnogood356/stashboard/pull/121))
+* **Requests:** a scene you want shows SABnzbd's own download progress, then "Downloaded", rather than Whisparr's percentage, which can be a minute or more behind. ([#126](https://github.com/mrnogood356/stashboard/pull/126))
+* **Finished downloads:** finished downloads and files show, and are listed by, when they came in. A later look that matched an old one no longer makes it read "5 min ago" and jump to the top. ([#126](https://github.com/mrnogood356/stashboard/pull/126))
+* **Better copies:** active hours are in your own time zone, not the server's, and the settings backup keeps it. ([#121](https://github.com/mrnogood356/stashboard/pull/121))
+* **Better copies:** says which old file couldn't be deleted, instead of "both kept" when some were already gone. A grab that turns out to be already in Stash no longer sits on "Sent to SABnzbd". Grab is only offered when it can work. ([#121](https://github.com/mrnogood356/stashboard/pull/121))
+* **Requests:** a download paused in SABnzbd or Whisparr is shown as downloading, not failed, and no longer sends a "Download failed" notification. The Requests page still says it's paused. ([#125](https://github.com/mrnogood356/stashboard/pull/125))
+* **Requests:** the Added tab finds requests behind a big import of other scenes. Importing a stuck Whisparr download no longer files a second video under the same scene. ([#121](https://github.com/mrnogood356/stashboard/pull/121))
+* **Requests:** when Whisparr has paused indexers, the time they're back is in your own time, and turned-off ones aren't counted. The request sheet says why its options couldn't load. ([#121](https://github.com/mrnogood356/stashboard/pull/121))
+* **Library:** the tag and studio pickers search for `%` and `_` as typed, instead of taking them as wildcards. ([#125](https://github.com/mrnogood356/stashboard/pull/125))
+* **Schedules:** a job no longer misses a day when the once-a-minute check slipped past its minute, or another job was still running then. It runs up to an hour late, once. ([#121](https://github.com/mrnogood356/stashboard/pull/121))
+* **ntfy notifications** keep names with accents ("New from Zoë"). ([#121](https://github.com/mrnogood356/stashboard/pull/121))
+
 ## [1.7.4](https://github.com/mrnogood356/stashboard/compare/v1.7.3...v1.7.4) (2026-11-25)
 
 
