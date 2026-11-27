@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.7](https://github.com/mrnogood356/stashboard/compare/v1.7.6...v1.7.7) (2026-11-27)
+
+
+### Fixed
+
+* **A video keeps its place when App Lock locks as you leave.** With App Lock set to lock immediately, the lock went out before the player saved where you'd got to, so the save was refused and the video started over next time. ([#133](https://github.com/mrnogood356/stashboard/pull/133))
+* **Settings → Appearance:** the page follows the header's light/dark button, so Save no longer flips it back, and Discard no longer puts "artwork" in the colour box. ([#133](https://github.com/mrnogood356/stashboard/pull/133))
+* **Activity:** Show more doesn't list entries twice when new activity came in meanwhile. ([#133](https://github.com/mrnogood356/stashboard/pull/133))
+* **FansDB performers and studios:** their pages show their own scenes. Opening a performer from a FansDB scene, or reloading a performer or studio page, found their details on FansDB but then asked StashDB for their scenes and filters, so the list came back empty and favouriting failed. The page now carries on in the catalog they're in. ([#132](https://github.com/mrnogood356/stashboard/pull/132))
+* **Matches to check:** a match you saved from FansDB or ThePornDB stays saved. Files that came in unmatched are looked up again each day for two weeks, and that look skipped only scenes linked to StashDB, so a scene you'd matched on FansDB (as most OnlyFans ones are) came back to check the next day. Ones already back in the list clear on the next daily look. ([#129](https://github.com/mrnogood356/stashboard/pull/129))
+* **"Can't reach the catalog" warning:** only your main catalog decides it now. If you browsed FansDB while it was down, Stashboard warned that the catalog was down though StashDB was fine, and FansDB answering could clear a real StashDB outage. ([#131](https://github.com/mrnogood356/stashboard/pull/131))
+* **Setup check:** a paused Whisparr indexer says how long it stays paused ("for another 2 h"), not a time in UTC. ([#131](https://github.com/mrnogood356/stashboard/pull/131))
+
 ## [1.7.6](https://github.com/mrnogood356/stashboard/compare/v1.7.5...v1.7.6) (2026-11-27)
 
 
