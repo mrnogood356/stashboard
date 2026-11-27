@@ -122,6 +122,8 @@ export class CatalogProviderService {
     value: T;
     provider: ConfiguredCatalogProvider;
     browseOnly: boolean;
+    /** Found in the other catalog, not the one asked. */
+    fellBack: boolean;
   }> {
     const instanceType = await this.getInstanceCatalogProviderType();
     const primary = await this.getConfiguredCatalogProvider();
@@ -131,6 +133,7 @@ export class CatalogProviderService {
         value: await load(primary),
         provider: primary,
         browseOnly: primary.integrationType !== instanceType,
+        fellBack: false,
       };
     } catch (error) {
       if (!(error instanceof NotFoundException)) {
@@ -158,6 +161,7 @@ export class CatalogProviderService {
             value: await load(fallback),
             provider: fallback,
             browseOnly: fallback.integrationType !== instanceType,
+            fellBack: true,
           };
         } catch (fallbackError) {
           if (!(fallbackError instanceof NotFoundException)) {

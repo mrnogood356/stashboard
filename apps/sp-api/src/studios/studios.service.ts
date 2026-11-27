@@ -67,13 +67,16 @@ export class StudiosService {
       throw new BadRequestException('Studio id is required.');
     }
 
-    const { value: studio } =
-      await this.catalogProviderService.withDetailFallback((provider) =>
-        this.stashdbAdapter.getStudioById(normalizedStudioId, {
-          baseUrl: provider.baseUrl,
-          apiKey: provider.apiKey,
-        }),
-      );
+    const {
+      value: studio,
+      provider,
+      fellBack,
+    } = await this.catalogProviderService.withDetailFallback((provider) =>
+      this.stashdbAdapter.getStudioById(normalizedStudioId, {
+        baseUrl: provider.baseUrl,
+        apiKey: provider.apiKey,
+      }),
+    );
 
     return {
       id: studio.id,
@@ -88,6 +91,8 @@ export class StudiosService {
       urls: studio.urls,
       parentStudio: studio.parentStudio,
       childStudios: studio.childStudios,
+      provider: provider.providerKey,
+      fromOtherCatalog: fellBack === true,
     };
   }
 

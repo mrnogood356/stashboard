@@ -321,7 +321,7 @@
                 <a
                   class="performer-link-stretch"
                   [routerLink]="['/performer', performer.id]"
-                  [queryParams]="{ returnTo: currentRouteUrl() }"
+                  [queryParams]="{ returnTo: currentRouteUrl(), provider: scene.source }"
                   [attr.aria-label]="'View performer ' + performer.name"
                 ></a>
 

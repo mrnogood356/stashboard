@@ -1,7 +1,7 @@
 import { HiddenContentService } from '../../core/api/hidden-content.service';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { BehaviorSubject, of } from 'rxjs';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
+import { BehaviorSubject, Observable, Subject, of } from 'rxjs';
 import { DiscoverService } from '../../core/api/discover.service';
 import { DiscoverItem, PerformerDetails, SceneFacets } from '../../core/api/discover.types';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
@@ -81,14 +81,16 @@ describe('PerformerPageComponent', () => {
   async function renderPage(
     scene: DiscoverItem = buildScene(),
     performer: PerformerDetails = buildPerformer(),
+    details?: (id: string) => Observable<PerformerDetails>,
+    facets?: () => Observable<SceneFacets>,
   ) {
     const paramMap$ = new BehaviorSubject(convertToParamMap({ performerId: 'performer-1' }));
     const queryParamMap$ = new BehaviorSubject(convertToParamMap({}));
     const discoverService = {
-      getPerformerFacets: vi.fn(() =>
-        of<SceneFacets>({ total: 0, scanned: 0, tags: [], studios: [] }),
+      getPerformerFacets: vi.fn(
+        facets ?? (() => of<SceneFacets>({ total: 0, scanned: 0, tags: [], studios: [] })),
       ),
-      getPerformerDetails: vi.fn().mockReturnValue(of(performer)),
+      getPerformerDetails: details ? vi.fn(details) : vi.fn().mockReturnValue(of(performer)),
       getPerformerScenesFeed: vi.fn().mockReturnValue(
         of({
           total: 1,
@@ -145,7 +147,7 @@ describe('PerformerPageComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    return { fixture, discoverService };
+    return { fixture, discoverService, paramMap$ };
   }
 
   it('shows one photo at a time, with arrows and a swipe to the others', async () => {
@@ -191,6 +193,126 @@ describe('PerformerPageComponent', () => {
     // A small move is a tap, not a swipe.
     swipe(200, 190);
     expect(photo()).toContain('/a.jpg');
+  });
+
+  it('carries on in the catalog the performer is in, when the link didn’t say', async () => {
+    const navigate = vi.spyOn(Router.prototype, 'navigate').mockResolvedValue(true);
+    const { fixture, discoverService } = await renderPage(buildScene(), {
+      ...buildPerformer(),
+      provider: 'FANSDB',
+      fromOtherCatalog: true,
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(navigate).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({
+        queryParams: { provider: 'FANSDB' },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      }),
+    );
+    // The scenes and their filters are asked again, now of FansDB.
+    expect(discoverService.getPerformerScenesFeed).toHaveBeenCalledTimes(2);
+    expect(discoverService.getPerformerFacets).toHaveBeenCalledTimes(2);
+    expect(fixture.nativeElement.textContent).toContain(buildPerformer().name);
+    navigate.mockRestore();
+  });
+
+  it('keeps the categories of the catalog it switched to when the first answer is late', async () => {
+    const navigate = vi.spyOn(Router.prototype, 'navigate').mockResolvedValue(true);
+    const facetAnswers: Subject<SceneFacets>[] = [];
+    const { fixture } = await renderPage(
+      buildScene(),
+      { ...buildPerformer(), provider: 'FANSDB', fromOtherCatalog: true },
+      undefined,
+      () => {
+        const answer = new Subject<SceneFacets>();
+        facetAnswers.push(answer);
+        return answer;
+      },
+    );
+    await fixture.whenStable();
+    expect(facetAnswers).toHaveLength(2);
+    const page = fixture.componentInstance as unknown as {
+      facets: () => SceneFacets | null;
+      facetsLoading: () => boolean;
+    };
+    // The first catalog's answer, arriving late, is no longer listened to.
+    facetAnswers[0].next({ total: 1, scanned: 1, tags: [], studios: [] });
+    facetAnswers[0].complete();
+    expect(page.facets()).toBeNull();
+    expect(page.facetsLoading()).toBe(true);
+    facetAnswers[1].next({ total: 2, scanned: 2, tags: [], studios: [] });
+    facetAnswers[1].complete();
+    expect(page.facets()?.total).toBe(2);
+    expect(page.facetsLoading()).toBe(false);
+    navigate.mockRestore();
+  });
+
+  it('ignores a late answer for the performer it has moved on from', async () => {
+    const navigate = vi.spyOn(Router.prototype, 'navigate').mockResolvedValue(true);
+    const answers = new Map<string, Subject<PerformerDetails>>();
+    const { fixture, paramMap$ } = await renderPage(buildScene(), buildPerformer(), (id) => {
+      const answer = new Subject<PerformerDetails>();
+      answers.set(id, answer);
+      return answer;
+    });
+    // On to performer 2 before performer 1's details arrive.
+    paramMap$.next(convertToParamMap({ performerId: 'performer-2' }));
+    fixture.detectChanges();
+    // Performer 2 is still on its way: cancelling 1 doesn't end the loading.
+    expect(
+      (
+        fixture.componentInstance as unknown as { loadingPerformer: () => boolean }
+      ).loadingPerformer(),
+    ).toBe(true);
+    answers.get('performer-1')?.next({
+      ...buildPerformer(),
+      name: 'Old Performer',
+      provider: 'FANSDB',
+      fromOtherCatalog: true,
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(navigate).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).not.toContain('Old Performer');
+    navigate.mockRestore();
+  });
+
+  it('does nothing more once closed while the catalog switch finishes', async () => {
+    let finishSwitch: (done: boolean) => void = () => {};
+    const navigate = vi
+      .spyOn(Router.prototype, 'navigate')
+      .mockReturnValue(new Promise<boolean>((resolve) => (finishSwitch = resolve)));
+    const { fixture, discoverService } = await renderPage(buildScene(), {
+      ...buildPerformer(),
+      provider: 'FANSDB',
+      fromOtherCatalog: true,
+    });
+    expect(navigate).toHaveBeenCalled();
+    const scenesAsked = discoverService.getPerformerScenesFeed.mock.calls.length;
+    const facetsAsked = discoverService.getPerformerFacets.mock.calls.length;
+
+    fixture.destroy();
+    finishSwitch(true);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(discoverService.getPerformerScenesFeed).toHaveBeenCalledTimes(scenesAsked);
+    expect(discoverService.getPerformerFacets).toHaveBeenCalledTimes(facetsAsked);
+    navigate.mockRestore();
+  });
+
+  it('stays in the catalog it asked when the performer is there', async () => {
+    const navigate = vi.spyOn(Router.prototype, 'navigate');
+    const { discoverService } = await renderPage();
+
+    expect(navigate).not.toHaveBeenCalled();
+    expect(discoverService.getPerformerScenesFeed).toHaveBeenCalledTimes(1);
+    navigate.mockRestore();
   });
 
   it('shows no arrows for a performer with a single photo', async () => {

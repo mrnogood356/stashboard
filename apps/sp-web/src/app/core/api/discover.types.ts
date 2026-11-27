@@ -139,6 +139,8 @@ export interface SceneDetails {
   status: SceneStatus;
   /** False for scenes from a browse-only catalog provider (they cannot be requested). */
   requestable?: boolean;
+  /** Found in the other catalog than the page asked; the page notes which. */
+  fromOtherCatalog?: boolean;
   stash: SceneStashAvailability | null;
   whisparr: SceneWhisparrAvailability | null;
 }
@@ -299,6 +301,8 @@ export interface PerformerDetails {
   images: PerformerDetailsImage[];
   /** The catalog it came from (the other one when the page's didn't have it). */
   provider?: CatalogProviderType;
+  /** Found in the other catalog than the page asked; the page switches to it. */
+  fromOtherCatalog?: boolean;
 }
 
 export interface PerformerStudioOption {
@@ -382,6 +386,10 @@ export interface StudioDetails {
   urls: StudioDetailsUrl[];
   parentStudio: StudioDetailsParent | null;
   childStudios: StudioDetailsChild[];
+  /** The catalog it came from (the other one when the page's didn't have it). */
+  provider?: CatalogProviderType;
+  /** Found in the other catalog than the page asked; the page switches to it. */
+  fromOtherCatalog?: boolean;
 }
 
 /** Calendar: releases between two days (YYYY-MM-DD), oldest first. */

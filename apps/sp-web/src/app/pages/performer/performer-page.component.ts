@@ -134,6 +134,12 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
   private readonly studioSearchTerms = new Subject<string>();
   private readonly tagSearchTerms = new Subject<string>();
   private routeSubscription: Subscription | null = null;
+  /** The performer's details on their way; a newer page cancels it. */
+  private detailsRequest: Subscription | null = null;
+  /** The performer's facets on their way; a newer load cancels it. */
+  private facetsRequest: Subscription | null = null;
+  /** Closed: a catalog switch still finishing does nothing more. */
+  private destroyed = false;
   private studioSearchSubscription: Subscription | null = null;
   private tagSearchSubscription: Subscription | null = null;
   private observer: IntersectionObserver | null = null;
@@ -303,7 +309,10 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.routeSubscription?.unsubscribe();
+    this.detailsRequest?.unsubscribe();
+    this.facetsRequest?.unsubscribe();
     this.studioSearchSubscription?.unsubscribe();
     this.tagSearchSubscription?.unsubscribe();
     if (this.observer && this.sentinelElement) {
@@ -707,9 +716,11 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   private loadFacets(performerId: string): void {
+    // Cancelled first, so its finishing doesn't end this load's spinner.
+    this.facetsRequest?.unsubscribe();
     this.facets.set(null);
     this.facetsLoading.set(true);
-    this.discoverService
+    this.facetsRequest = this.discoverService
       .getPerformerFacets(performerId)
       .pipe(finalize(() => this.facetsLoading.set(false)))
       .subscribe({
@@ -733,11 +744,15 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
       return;
     }
 
+    // Only the performer on the page counts: an earlier one's answer, late,
+    // mustn't show them or move this page to their catalog.
+    // Cancelled first, so its finishing doesn't end this load's spinner.
+    this.detailsRequest?.unsubscribe();
     this.loadingPerformer.set(true);
     this.performerError.set(null);
     this.loadFacets(currentPerformerId);
 
-    this.discoverService
+    this.detailsRequest = this.discoverService
       .getPerformerDetails(currentPerformerId)
       .pipe(
         finalize(() => {
@@ -746,6 +761,21 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
       )
       .subscribe({
         next: (details) => {
+          if (details.fromOtherCatalog && details.provider) {
+            // Opened from a link that didn't say which catalog (Following,
+            // a scene from Home): carry on in the one the performer is in,
+            // so their scenes come from there too.
+            void this.adoptCatalog(details.provider).then(() => {
+              if (this.destroyed || this.performerId() !== currentPerformerId) {
+                return;
+              }
+              this.performer.set(details);
+              this.activeImageIndex.set(0);
+              this.loadFacets(currentPerformerId);
+              this.resetScenesAndReload();
+            });
+            return;
+          }
           this.performer.set(details);
           this.activeImageIndex.set(0);
         },
@@ -753,6 +783,16 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
           this.performerError.set('Failed to load performer details.');
         },
       });
+  }
+
+  /** Puts the catalog in the address, so this page's requests go there. */
+  private adoptCatalog(provider: string): Promise<boolean> {
+    return this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { provider },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
   protected onShowHiddenChanged(showHidden: boolean): void {

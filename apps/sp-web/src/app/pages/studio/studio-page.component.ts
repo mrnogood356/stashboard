@@ -138,6 +138,12 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly notifications = inject(AppNotificationsService);
   private readonly tagSearchTerms = new Subject<string>();
   private routeSubscription: Subscription | null = null;
+  /** The studio's details on their way; a newer page cancels it. */
+  private detailsRequest: Subscription | null = null;
+  /** The studio's facets on their way; a newer load cancels it. */
+  private facetsRequest: Subscription | null = null;
+  /** Closed: a catalog switch still finishing does nothing more. */
+  private destroyed = false;
   private tagSearchSubscription: Subscription | null = null;
   private observer: IntersectionObserver | null = null;
   private sentinelElement: HTMLDivElement | null = null;
@@ -307,7 +313,10 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.routeSubscription?.unsubscribe();
+    this.detailsRequest?.unsubscribe();
+    this.facetsRequest?.unsubscribe();
     this.tagSearchSubscription?.unsubscribe();
     if (this.observer && this.sentinelElement) {
       this.observer.unobserve(this.sentinelElement);
@@ -634,9 +643,11 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private loadFacets(studioId: string): void {
+    // Cancelled first, so its finishing doesn't end this load's spinner.
+    this.facetsRequest?.unsubscribe();
     this.facets.set(null);
     this.facetsLoading.set(true);
-    this.discoverService
+    this.facetsRequest = this.discoverService
       .getStudioFacets(studioId)
       .pipe(finalize(() => this.facetsLoading.set(false)))
       .subscribe({
@@ -656,12 +667,16 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    // Only the studio on the page counts: an earlier one's answer, late,
+    // mustn't show it or move this page to its catalog.
+    // Cancelled first, so its finishing doesn't end this load's spinner.
+    this.detailsRequest?.unsubscribe();
     this.loadingStudio.set(true);
     this.studioError.set(null);
     this.activeImageIndex.set(0);
     this.loadFacets(currentStudioId);
 
-    this.discoverService
+    this.detailsRequest = this.discoverService
       .getStudioDetails(currentStudioId)
       .pipe(
         finalize(() => {
@@ -670,6 +685,20 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
       )
       .subscribe({
         next: (details) => {
+          if (details.fromOtherCatalog && details.provider) {
+            // Opened from a link that didn't say which catalog: carry on in
+            // the one the studio is in, so its scenes come from there too.
+            void this.adoptCatalog(details.provider).then(() => {
+              if (this.destroyed || this.studioId() !== currentStudioId) {
+                return;
+              }
+              this.studio.set(details);
+              this.activeImageIndex.set(0);
+              this.loadFacets(currentStudioId);
+              this.resetScenesAndReload();
+            });
+            return;
+          }
           this.studio.set(details);
           this.activeImageIndex.set(0);
         },
@@ -677,6 +706,16 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
           this.studioError.set('Failed to load studio details.');
         },
       });
+  }
+
+  /** Puts the catalog in the address, so this page's requests go there. */
+  private adoptCatalog(provider: string): Promise<boolean> {
+    return this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { provider },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
   protected onShowHiddenChanged(showHidden: boolean): void {
