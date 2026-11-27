@@ -151,6 +151,32 @@ describe('ActivityPageComponent', () => {
     expect(root.querySelectorAll('.moves li').length).toBe(2);
   });
 
+  it('shows an entry once when new activity pushed it onto the next page', async () => {
+    const list = vi
+      .fn()
+      .mockReturnValueOnce(
+        of({
+          items: [entry({ id: 'a', title: 'First' }), entry({ id: 'b', title: 'Second' })],
+          page: 1,
+          hasMore: true,
+        }),
+      )
+      .mockReturnValueOnce(
+        of({
+          items: [entry({ id: 'b', title: 'Second' }), entry({ id: 'c', title: 'Third' })],
+          page: 2,
+          hasMore: false,
+        }),
+      );
+    const { fixture, root } = await render({ list, files: vi.fn() });
+    fixture.detectChanges();
+    (fixture.componentInstance as unknown as { loadMore: () => void }).loadMore();
+    fixture.detectChanges();
+    const text = root.textContent ?? '';
+    expect(text.split('Second').length - 1).toBe(1);
+    expect(text).toContain('Third');
+  });
+
   it('filters by kind', async () => {
     const api = {
       list: vi.fn().mockReturnValue(of({ items: [], page: 1, hasMore: false })),

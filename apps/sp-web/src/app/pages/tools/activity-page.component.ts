@@ -252,7 +252,15 @@ export class ActivityPageComponent implements OnInit, OnDestroy {
           return;
         }
         this.page = page;
-        this.items.update((items) => (page === 1 ? result.items : [...items, ...result.items]));
+        // New activity since the first page pushes older entries down a
+        // page, so the next page can start with ones already shown.
+        this.items.update((items) => {
+          if (page === 1) {
+            return result.items;
+          }
+          const shown = new Set(items.map((entry) => entry.id));
+          return [...items, ...result.items.filter((entry) => !shown.has(entry.id))];
+        });
         this.hasMore.set(result.hasMore);
         this.loading.set(false);
       },
