@@ -739,13 +739,14 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
       return;
     }
 
+    // Only the performer on the page counts: an earlier one's answer, late,
+    // mustn't show them or move this page to their catalog.
+    // Cancelled first, so its finishing doesn't end this load's spinner.
+    this.detailsRequest?.unsubscribe();
     this.loadingPerformer.set(true);
     this.performerError.set(null);
     this.loadFacets(currentPerformerId);
 
-    // Only the performer on the page counts: an earlier one's answer, late,
-    // mustn't show them or move this page to their catalog.
-    this.detailsRequest?.unsubscribe();
     this.detailsRequest = this.discoverService
       .getPerformerDetails(currentPerformerId)
       .pipe(

@@ -662,14 +662,15 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    // Only the studio on the page counts: an earlier one's answer, late,
+    // mustn't show it or move this page to its catalog.
+    // Cancelled first, so its finishing doesn't end this load's spinner.
+    this.detailsRequest?.unsubscribe();
     this.loadingStudio.set(true);
     this.studioError.set(null);
     this.activeImageIndex.set(0);
     this.loadFacets(currentStudioId);
 
-    // Only the studio on the page counts: an earlier one's answer, late,
-    // mustn't show it or move this page to its catalog.
-    this.detailsRequest?.unsubscribe();
     this.detailsRequest = this.discoverService
       .getStudioDetails(currentStudioId)
       .pipe(

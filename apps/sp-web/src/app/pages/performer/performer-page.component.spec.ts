@@ -230,6 +230,12 @@ describe('PerformerPageComponent', () => {
     // On to performer 2 before performer 1's details arrive.
     paramMap$.next(convertToParamMap({ performerId: 'performer-2' }));
     fixture.detectChanges();
+    // Performer 2 is still on its way: cancelling 1 doesn't end the loading.
+    expect(
+      (
+        fixture.componentInstance as unknown as { loadingPerformer: () => boolean }
+      ).loadingPerformer(),
+    ).toBe(true);
     answers.get('performer-1')?.next({
       ...buildPerformer(),
       name: 'Old Performer',
