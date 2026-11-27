@@ -225,7 +225,7 @@ export class ReleasePickerComponent implements OnChanges, OnDestroy {
         this.loading.set(false);
         this.releases.set(result.releases);
         this.queries.set(result.queries ?? []);
-        this.notice.set(result.notice ?? null);
+        this.notice.set(withPausedUntil(result.notice, result.pausedUntil));
         this.showSkipped.set(
           result.releases.length > 0 && result.releases.every((release) => release.rejected),
         );
@@ -449,4 +449,17 @@ function words(value: string): string[] {
     .toLowerCase()
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean);
+}
+
+/** The notice, and when Whisparr's paused indexers are back, in your own time. */
+function withPausedUntil(notice: string | undefined, until: string | undefined): string | null {
+  if (!notice) {
+    return null;
+  }
+  const at = until ? new Date(until) : null;
+  if (!at || Number.isNaN(at.getTime())) {
+    return notice;
+  }
+  const time = at.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return `${notice} They should be back at about ${time}.`;
 }

@@ -319,6 +319,7 @@ describe('WhisparrAdapter', () => {
             {
               movieId: 7,
               title: 'Bright.Summer.Afternoon.1080p',
+              downloadId: 'SABnzbd_nzo_7',
               indexer: 'NZBgeek',
               size: 1000,
               sizeleft: 250,
@@ -342,6 +343,7 @@ describe('WhisparrAdapter', () => {
       );
       expect(item).toMatchObject({
         movieId: 7,
+        downloadId: 'SABnzbd_nzo_7',
         size: 1000,
         sizeLeft: 250,
         timeLeft: '00:05:00',
@@ -392,6 +394,36 @@ describe('WhisparrAdapter', () => {
         adapter.getIndexerHealth({ baseUrl: 'http://w.local', apiKey: 'k' }),
       ).resolves.toEqual({
         searchable: 2,
+        paused: [{ name: 'NZBgeek', until: later }],
+      });
+    });
+
+    it('leaves out paused indexers a search wouldn’t use anyway', async () => {
+      const later = new Date(Date.now() + 3_600_000).toISOString();
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve([
+              { id: 1, name: 'NZBgeek', enable: true },
+              { id: 2, name: 'Old', enable: false },
+            ]),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve([
+              { indexerId: 1, disabledTill: later },
+              { indexerId: 2, disabledTill: later },
+              // A time that can't be read isn't counted.
+              { indexerId: 1, disabledTill: 'soon' },
+            ]),
+        });
+
+      await expect(
+        adapter.getIndexerHealth({ baseUrl: 'http://w.local', apiKey: 'k' }),
+      ).resolves.toEqual({
+        searchable: 1,
         paused: [{ name: 'NZBgeek', until: later }],
       });
     });

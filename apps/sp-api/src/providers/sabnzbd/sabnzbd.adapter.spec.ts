@@ -189,6 +189,55 @@ describe('SabnzbdAdapter', () => {
     ).rejects.toThrow('SABnzbd didn’t take the download: Unknown category');
   });
 
+  it('asks where some downloads are by their ids, whatever their category', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        reply({
+          queue: {
+            slots: [
+              {
+                nzo_id: 'SABnzbd_nzo_b',
+                percentage: '64',
+                timeleft: '0:02:00',
+              },
+            ],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        reply({
+          history: {
+            slots: [{ nzo_id: 'SABnzbd_nzo_a', status: 'Completed' }],
+          },
+        }),
+      );
+
+    const found = await adapter.jobs(config, [
+      'SABnzbd_nzo_a',
+      'SABnzbd_nzo_b',
+    ]);
+
+    expect(found.queue).toEqual([
+      expect.objectContaining({ nzoId: 'SABnzbd_nzo_b', percentage: 64 }),
+    ]);
+    expect(found.history).toEqual([
+      expect.objectContaining({ nzoId: 'SABnzbd_nzo_a', status: 'Completed' }),
+    ]);
+    for (const index of [0, 1]) {
+      expect(calledUrl(index).searchParams.get('nzo_ids')).toBe(
+        'SABnzbd_nzo_a,SABnzbd_nzo_b',
+      );
+      expect(calledUrl(index).searchParams.has('category')).toBe(false);
+    }
+    // Nothing to ask about: SABnzbd isn't called.
+    fetchMock.mockClear();
+    await expect(adapter.jobs(config, [])).resolves.toEqual({
+      queue: [],
+      history: [],
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('reads one category’s history and queue', async () => {
     fetchMock.mockImplementation((url: string) =>
       Promise.resolve(

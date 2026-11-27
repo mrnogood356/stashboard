@@ -225,7 +225,8 @@ describe('ReleasePickerComponent', () => {
         of({
           movieId: 1,
           releases: [],
-          notice: 'Whisparr paused 1 of 2 indexers after errors, until about 3:40 PM: NZBgeek.',
+          notice: 'Whisparr paused 1 of 2 indexers after errors: NZBgeek.',
+          pausedUntil: '2026-11-26T15:40:00.000Z',
         }),
       ),
       grab: vi.fn(),
@@ -252,6 +253,12 @@ describe('ReleasePickerComponent', () => {
     const text = document.body.textContent;
     expect(text).toContain('Nothing found');
     expect(text).toContain('Whisparr paused 1 of 2 indexers');
+    // Back at the time in your own clock, not the server's.
+    const local = new Date('2026-11-26T15:40:00.000Z').toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+    expect(text).toContain(`They should be back at about ${local}.`);
   });
 
   it('hides weak matches until asked and filters by name with a count', async () => {

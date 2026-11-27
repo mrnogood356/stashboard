@@ -60,6 +60,7 @@ describe('DownloadHandoffService', () => {
     rematchTriedAt: null,
     placePending: false,
     matchedBy: null,
+    stashWaitSince: null,
     error: null,
     attempts: 0,
     finishedAt: null,
@@ -290,6 +291,23 @@ describe('DownloadHandoffService', () => {
   });
 
   describe('sending', () => {
+    it('keeps trying to remember one SABnzbd took through a database blip', async () => {
+      const create = prisma.downloadHandoff.create.getMockImplementation()!;
+      prisma.downloadHandoff.create
+        .mockRejectedValueOnce(new Error('connection reset'))
+        .mockImplementationOnce(create);
+      await service.send({
+        nzb: { content: new Uint8Array([1]), fileName: null },
+        releaseTitle: 'Jane.Doe.Beach.Day',
+        scene: { id: 'fdb-scene-1', provider: 'FANSDB', title: null },
+        replacesStashSceneId: '12',
+      });
+      expect(rows[0]).toMatchObject({
+        nzoId: 'SABnzbd_nzo_new',
+        replacesStashSceneId: '12',
+      });
+    });
+
     it('adds the NZB to Stashboard’s category and remembers it', async () => {
       const result = await service.send({
         nzb: { content: new Uint8Array([1, 2]), fileName: 'x/y.nzb' },
@@ -368,6 +386,7 @@ describe('DownloadHandoffService', () => {
       expect(sabnzbd.history).toHaveBeenCalledWith(
         { baseUrl: 'http://sab:8080', apiKey: 'sab-key' },
         'stashboard',
+        0,
       );
       expect(await exists(theirs)).toBe(true);
       expect(await exists(whisparrs)).toBe(true);
@@ -407,6 +426,133 @@ describe('DownloadHandoffService', () => {
       await service.checkOpen();
       expect(row()).toMatchObject({ status: 'imported', error: null });
       expect(stash.requestFolderScan).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives up on one Stash has been too busy to scan for a week, counted from the first wait', async () => {
+      // Sent long ago, but Stash only now too busy: it waits.
+      rows.push(
+        handoff({
+          id: 'h1',
+          status: 'completed',
+          finalPath: path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'),
+          createdAt: new Date(Date.now() - 30 * 24 * 3600_000),
+        }),
+      );
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      stash.requestFolderScan.mockResolvedValue('waiting');
+
+      await service.checkOpen();
+      expect(row().status).toBe('completed');
+      expect(row().stashWaitSince).toBeInstanceOf(Date);
+
+      // A week of waiting since then: given up on.
+      row().stashWaitSince = new Date(Date.now() - 8 * 24 * 3600_000);
+      await service.checkOpen();
+      expect(row().status).toBe('failed');
+      expect(row().error).toContain('too busy to scan it for a week');
+    });
+
+    it('starts the count again once Stash has scanned', async () => {
+      rows.push(
+        handoff({
+          id: 'h1',
+          status: 'completed',
+          finalPath: path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'),
+          stashWaitSince: new Date(Date.now() - 3 * 24 * 3600_000),
+        }),
+      );
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      stash.requestFolderScan.mockResolvedValue(null);
+
+      await service.checkOpen();
+      expect(row().stashWaitSince).toBeNull();
+    });
+
+    it('counts nothing until noting that Stash answered is saved', async () => {
+      const since = new Date(Date.now() - 3 * 24 * 3600_000);
+      rows.push(
+        handoff({
+          id: 'h1',
+          status: 'completed',
+          finalPath: path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'),
+          stashWaitSince: since,
+        }),
+      );
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      stash.requestFolderScan.mockResolvedValue(null);
+      const update = prisma.downloadHandoff.update;
+      const real = update.getMockImplementation()!;
+      update.mockImplementation((args: { data: Record<string, unknown> }) =>
+        Object.keys(args.data).length === 1 && 'stashWaitSince' in args.data
+          ? Promise.reject(new Error('database blip'))
+          : real(args),
+      );
+
+      await service.checkOpen();
+      // Stopped there: no try used, and the next check tries again.
+      expect(row()).toMatchObject({ attempts: 0, stashWaitSince: since });
+
+      update.mockImplementation(real);
+      await service.checkOpen();
+      expect(row()).toMatchObject({ attempts: 1, stashWaitSince: null });
+    });
+
+    it('starts a new wait when Stash is busy again before the old one could be cleared', async () => {
+      // Waiting for over a week, then Stash answers, but that can't be saved.
+      rows.push(
+        handoff({
+          id: 'h1',
+          status: 'completed',
+          finalPath: path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'),
+          stashWaitSince: new Date(Date.now() - 8 * 24 * 3600_000),
+        }),
+      );
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      stash.requestFolderScan.mockResolvedValue(null);
+      const update = prisma.downloadHandoff.update;
+      const real = update.getMockImplementation()!;
+      update.mockImplementation((args: { data: Record<string, unknown> }) =>
+        Object.keys(args.data).length === 1 && 'stashWaitSince' in args.data
+          ? Promise.reject(new Error('database blip'))
+          : real(args),
+      );
+      await service.checkOpen();
+      update.mockImplementation(real);
+
+      // Busy again on the next check, and saving the new start fails too.
+      stash.requestFolderScan.mockResolvedValue('waiting');
+      update.mockImplementation((args: { data: Record<string, unknown> }) =>
+        'error' in args.data && 'stashWaitSince' in args.data
+          ? Promise.reject(new Error('database blip'))
+          : real(args),
+      );
+      await service.checkOpen();
+      update.mockImplementation(real);
+      // Still busy: a new wait, not the old week.
+      await service.checkOpen();
+      expect(row().status).toBe('completed');
+      expect(row().stashWaitSince!.getTime()).toBeGreaterThan(
+        Date.now() - 60_000,
+      );
+    });
+
+    it('clears the wait when it gives up after its last try', async () => {
+      rows.push(
+        handoff({
+          id: 'h1',
+          status: 'completed',
+          finalPath: path.join(destination, 'Jane.Doe.Beach.Day.1080p.mkv'),
+          attempts: 4,
+          stashWaitSince: new Date(Date.now() - 3 * 24 * 3600_000),
+        }),
+      );
+      stash.sceneIdsForPaths.mockResolvedValue([]);
+      stash.requestFolderScan.mockResolvedValue('waiting');
+      // A week of waiting: given up on, and nothing left to count against a Retry.
+      row().stashWaitSince = new Date(Date.now() - 8 * 24 * 3600_000);
+
+      await service.checkOpen();
+      expect(row()).toMatchObject({ status: 'failed', stashWaitSince: null });
     });
 
     it('says Stash is busy while its folder scan waits its turn, without waiting on it', async () => {
@@ -863,14 +1009,21 @@ describe('DownloadHandoffService', () => {
       });
       rows.push(placed);
       const update = jest.fn();
-      prisma.smallerCopyAttempt = { findFirst: jest.fn(), update };
+      const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      prisma.smallerCopyAttempt = { findFirst: jest.fn(), update, updateMany };
       await (
         service as unknown as {
           fail: (row: DownloadHandoff, reason: string) => Promise<void>;
         }
       ).fail(placed, 'Stash never found it');
       expect(prisma.smallerCopyAttempt.findFirst).not.toHaveBeenCalled();
+      // Not made due again (that would grab another copy)...
       expect(update).not.toHaveBeenCalled();
+      // ...but the scene's row says what happened, not "Sent to SABnzbd".
+      expect(updateMany).toHaveBeenCalledWith({
+        where: { handoffId: 'h1', outcome: 'grabbed' },
+        data: expect.objectContaining({ outcome: 'failed' }) as unknown,
+      });
       // The tried list doesn't stay at "on its way".
       expect(prisma.smallerCopyTry.updateMany).toHaveBeenCalledWith({
         where: { handoffId: 'h1' },
@@ -987,6 +1140,56 @@ describe('DownloadHandoffService', () => {
       await service.checkOpen();
 
       expect(row().status).toBe('ignored');
+    });
+
+    it('finds a download past the first page of SABnzbd’s history, not taking it for forgotten', async () => {
+      rows.push(
+        handoff({
+          id: 'h1',
+          createdAt: new Date(Date.now() - 4 * 24 * 3600_000),
+        }),
+      );
+      // A full first page of other downloads; ours is on the second.
+      const others = Array.from({ length: 200 }, (_, index) =>
+        historyEntry({ nzoId: `other-${index}` }),
+      );
+      sabnzbd.history.mockImplementation(
+        (_config: unknown, _category: string, start = 0) =>
+          Promise.resolve(
+            start === 0 ? others : [historyEntry({ status: 'Failed' })],
+          ),
+      );
+
+      await service.checkOpen();
+
+      expect(sabnzbd.history).toHaveBeenCalledWith(
+        expect.anything(),
+        'stashboard',
+        200,
+      );
+      expect(row().status).toBe('failed');
+    });
+
+    it('takes none for forgotten when part of SABnzbd’s history can’t be read', async () => {
+      rows.push(
+        handoff({
+          id: 'h1',
+          createdAt: new Date(Date.now() - 4 * 24 * 3600_000),
+        }),
+      );
+      const others = Array.from({ length: 200 }, (_, index) =>
+        historyEntry({ nzoId: `other-${index}` }),
+      );
+      sabnzbd.history.mockImplementation(
+        (_config: unknown, _category: string, start = 0) =>
+          start === 0
+            ? Promise.resolve(others)
+            : Promise.reject(new Error('timeout')),
+      );
+
+      await service.checkOpen();
+
+      expect(row().status).toBe('sent');
     });
 
     it('keeps watching when SABnzbd’s queue can’t be read', async () => {
@@ -1277,6 +1480,31 @@ describe('DownloadHandoffService', () => {
       expect(outcome().outcome).toBe('replaced');
     });
 
+    it('says which old file is left when it can’t be deleted, not that both are kept', async () => {
+      stash.removeExtraFile = jest
+        .fn()
+        .mockRejectedValue(new Error('permission denied'));
+      await replace();
+
+      expect(outcome().outcome).toBe('kept-both');
+      expect(outcome().detail.startsWith('Couldn’t delete /lib/old.mkv')).toBe(
+        true,
+      );
+      expect(outcome().detail).toContain('permission denied');
+      // Said in Activity too, before any long list of what was deleted.
+      expect(activity.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'partial',
+          detail: expect.stringMatching(
+            /^Kept [^\n]+\nCouldn’t delete \/lib\/old\.mkv/,
+          ) as unknown,
+        }),
+      );
+      // Still the scene that stays, with previews for it.
+      expect(row().stashSceneId).toBe('12');
+      expect(prisma.smallerCopySettings.upsert).not.toHaveBeenCalled();
+    });
+
     it('merges the new scene into the old one and deletes the old file', async () => {
       await replace();
 
@@ -1525,12 +1753,16 @@ describe('DownloadHandoffService', () => {
           status: 'failed',
           finalPath: path.join(destination, 'Jane.mkv'),
           attempts: 5,
+          // Given up on after a week of a busy Stash.
+          stashWaitSince: new Date(Date.now() - 8 * 24 * 3600_000),
         }),
       );
       await expect(service.retry('h1')).resolves.toMatchObject({
         status: 'completed',
       });
       expect(row().attempts).toBe(0);
+      // The week starts again, rather than failing it at once.
+      expect(row().stashWaitSince).toBeNull();
     });
 
     it('leaves anything that hasn’t failed as it is', async () => {

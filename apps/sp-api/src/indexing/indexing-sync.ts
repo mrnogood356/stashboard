@@ -914,7 +914,6 @@ export abstract class IndexingSync extends IndexingCore {
     if (
       normalizedStatus === 'failed' ||
       normalizedStatus === 'warning' ||
-      normalizedStatus === 'paused' ||
       STUCK_DOWNLOAD_STATES.has(normalizedState)
     ) {
       return 0;
@@ -928,15 +927,21 @@ export abstract class IndexingSync extends IndexingCore {
       return 1;
     }
 
-    if (normalizedStatus === 'downloading') {
+    // Paused in the download client: still on its way, not failed, but
+    // ahead of downloading so Requests still says it's paused.
+    if (normalizedStatus === 'paused') {
       return 2;
     }
 
-    if (normalizedStatus === 'queued') {
+    if (normalizedStatus === 'downloading') {
       return 3;
     }
 
-    return 4;
+    if (normalizedStatus === 'queued') {
+      return 4;
+    }
+
+    return 5;
   }
 
   protected async upsertLibrarySceneProjectionPage(

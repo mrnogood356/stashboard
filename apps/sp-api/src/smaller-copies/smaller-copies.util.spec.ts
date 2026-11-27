@@ -1,6 +1,7 @@
 import {
   DEFAULT_RULES,
   fileResolution,
+  hourIn,
   inActiveHours,
   needsReplacing,
   pickRelease,
@@ -434,5 +435,21 @@ describe('smaller copies', () => {
           ?.title,
       ).toBe('A.1080p');
     });
+  });
+});
+
+describe('hourIn', () => {
+  // 2026-01-15 06:30 UTC.
+  const at = Date.UTC(2026, 0, 15, 6, 30);
+
+  it('gives the hour in your own time zone, not the server’s', () => {
+    expect(hourIn(at, 'America/New_York')).toBe(1);
+    expect(hourIn(at, 'Asia/Tokyo')).toBe(15);
+    expect(hourIn(at, 'UTC')).toBe(6);
+  });
+
+  it('falls back to the server’s clock without one, or with one it doesn’t know', () => {
+    expect(hourIn(at, null)).toBe(new Date(at).getHours());
+    expect(hourIn(at, 'Not/AZone')).toBe(new Date(at).getHours());
   });
 });

@@ -96,7 +96,7 @@ describe('resolveSceneStatus', () => {
     ).toEqual({ state: 'IMPORT_PENDING' });
   });
 
-  it('returns FAILED for warning, failed, and paused queue statuses', () => {
+  it('returns FAILED for warning and failed queue statuses, DOWNLOADING for paused', () => {
     expect(
       resolveSceneStatus({
         stashId: 'scene-1',
@@ -151,7 +151,7 @@ describe('resolveSceneStatus', () => {
         stashAvailable: false,
         fallbackRequestStatus: RequestStatus.REQUESTED,
       }),
-    ).toEqual({ state: 'FAILED' });
+    ).toEqual({ state: 'DOWNLOADING' });
   });
 
   it('returns REQUESTED for queued queue items', () => {

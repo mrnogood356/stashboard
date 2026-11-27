@@ -11,13 +11,29 @@ describe('schedules', () => {
   it('is due at its minute, on its days, once', () => {
     const fourAm = at(2026, 11, 8, 4, 0); // a Sunday
     expect(isDue(daily, fourAm, null)).toBe(true);
-    expect(isDue(daily, at(2026, 11, 8, 4, 1), null)).toBe(false);
+    expect(isDue(daily, at(2026, 11, 8, 3, 59), null)).toBe(false);
     expect(isDue({ ...daily, days: [1, 2] }, fourAm, null)).toBe(false);
     expect(isDue({ ...daily, days: [0] }, fourAm, null)).toBe(true);
-    // Already run this minute.
+    // Already run since 4:00.
     expect(isDue(daily, fourAm, new Date(fourAm.getTime() - 3_000))).toBe(
       false,
     );
+    // Yesterday's run doesn't count for today.
+    expect(isDue(daily, fourAm, at(2026, 11, 7, 4, 0))).toBe(true);
+  });
+
+  it('catches up on a time it missed, for an hour', () => {
+    // The check slipped past 4:00, or another job was still running.
+    expect(isDue(daily, at(2026, 11, 8, 4, 1), null)).toBe(true);
+    expect(isDue(daily, at(2026, 11, 8, 4, 59), null)).toBe(true);
+    expect(isDue(daily, at(2026, 11, 8, 5, 0), null)).toBe(false);
+    // Just after midnight, a 23:30 job from yesterday.
+    const late = { ...daily, hour: 23, minute: 30 };
+    expect(isDue(late, at(2026, 11, 9, 0, 10), null)).toBe(true);
+    // Its time set to a minute ago: waits for tomorrow's.
+    expect(
+      isDue(daily, at(2026, 11, 8, 4, 2), null, at(2026, 11, 8, 4, 1)),
+    ).toBe(false);
   });
 
   it('finds the next run, today or on a later listed day', () => {
@@ -36,7 +52,13 @@ describe('schedules', () => {
   function setup(rows: Array<Record<string, unknown>> = []) {
     const upsert = jest.fn().mockResolvedValue({});
     const prisma = {
-      jobSchedule: { findMany: jest.fn().mockResolvedValue(rows), upsert },
+      jobSchedule: {
+        findMany: jest.fn(() => Promise.resolve(rows)),
+        findUnique: jest.fn(({ where }: { where: { job: string } }) =>
+          Promise.resolve(rows.find((row) => row.job === where.job) ?? null),
+        ),
+        upsert,
+      },
     };
     const organizer = {
       getSettings: jest
@@ -51,7 +73,7 @@ describe('schedules', () => {
       organizer as never,
       library as never,
     );
-    return { service, upsert, organizer, library };
+    return { service, upsert, organizer, library, rows };
   }
 
   it('runs the organizer’s jobs at their usual times, and Stash jobs only when switched on', async () => {
@@ -90,6 +112,51 @@ describe('schedules', () => {
     on.service.now = () => at(2026, 11, 8, 3, 0);
     await on.service.tick();
     expect(on.library.startJob).toHaveBeenCalledWith('scan', { now: false });
+  });
+
+  it('still runs a job whose minute went by while another ran', async () => {
+    const { service, organizer } = setup([
+      {
+        job: 'send-missing',
+        enabled: true,
+        hour: 4,
+        minute: 5,
+        days: [],
+        lastRunAt: null,
+        lastStatus: null,
+      },
+    ]);
+    // The check after 4:05 came at 4:12: the 4:00 match ran long.
+    service.now = () => at(2026, 11, 8, 4, 12);
+    await service.tick();
+    expect(organizer.sendMissingDaily).toHaveBeenCalled();
+  });
+
+  it('reads a time saved while an earlier job ran, not the one it started with', async () => {
+    const { service, organizer, rows } = setup([
+      {
+        job: 'send-missing',
+        enabled: true,
+        hour: 4,
+        minute: 5,
+        days: [],
+        lastRunAt: null,
+        lastStatus: null,
+      },
+    ]);
+    // While the 4:00 match runs, Send missing is moved from 4:05 to 5:00.
+    organizer.nightly.mockImplementation(() => {
+      Object.assign(rows[0], {
+        hour: 5,
+        minute: 0,
+        updatedAt: at(2026, 11, 8, 4, 6),
+      });
+      return Promise.resolve('Started');
+    });
+    service.now = () => at(2026, 11, 8, 4, 12);
+    await service.tick();
+    expect(organizer.nightly).toHaveBeenCalled();
+    expect(organizer.sendMissingDaily).not.toHaveBeenCalled();
   });
 
   it('records a failure and carries on', async () => {

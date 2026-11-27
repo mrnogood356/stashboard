@@ -119,6 +119,8 @@ export interface DownloadDropInDto {
   stashSceneId: string | null;
   /** How it was matched once in Stash; null before, or when not known. */
   matchedBy: MatchedBy | null;
+  /** When it was brought in (or gave up); null while still on its way. */
+  finishedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -285,6 +287,8 @@ export interface DownloadHandoffDto {
   stashSceneId: string | null;
   /** How it was matched once in Stash; null before, or when not known. */
   matchedBy: MatchedBy | null;
+  /** When it was brought in (or gave up); null while still on its way. */
+  finishedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

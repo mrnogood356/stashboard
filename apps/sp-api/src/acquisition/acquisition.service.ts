@@ -18,6 +18,10 @@ import { IntegrationsService } from '../integrations/integrations.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CatalogProviderService } from '../providers/catalog/catalog-provider.service';
 import { withStashImageSize } from '../providers/stashdb/stashdb-image-url.util';
+import {
+  SabnzbdAdapter,
+  type SabnzbdAdapterBaseConfig,
+} from '../providers/sabnzbd/sabnzbd.adapter';
 import { WhisparrAdapter } from '../providers/whisparr/whisparr.adapter';
 import {
   ACQUISITION_BULK_LIMIT,
@@ -64,6 +68,10 @@ export class AcquisitionService {
   /** "Recently added": requests Stash got in this many days. */
   private static readonly RECENTLY_ADDED_DAYS = 14;
   private static readonly RECENTLY_ADDED_LIMIT = 200;
+  /** Library scenes read per look for requested ones among them. */
+  private static readonly RECENTLY_ADDED_BATCH = 500;
+  /** At most this many recent library scenes are looked through. */
+  private static readonly RECENTLY_ADDED_SCAN_LIMIT = 10_000;
   /** A slow Whisparr leaves the bars off rather than holding up the list. */
   private static readonly PROGRESS_TIMEOUT_MS = 4_000;
   private readonly logger = new Logger(AcquisitionService.name);
@@ -74,6 +82,7 @@ export class AcquisitionService {
     private readonly catalogProviderService: CatalogProviderService,
     private readonly whisparrAdapter: WhisparrAdapter,
     private readonly prisma: PrismaService,
+    private readonly sabnzbd: SabnzbdAdapter,
   ) {}
 
   async getScenesFeed(
@@ -216,51 +225,85 @@ export class AcquisitionService {
     const since = new Date(
       Date.now() - AcquisitionService.RECENTLY_ADDED_DAYS * 24 * 60 * 60_000,
     );
-    const library = await this.prisma.librarySceneIndex.findMany({
-      where: { linkedStashId: { not: null }, localCreatedAt: { gte: since } },
-      orderBy: { localCreatedAt: 'desc' },
-      take: AcquisitionService.RECENTLY_ADDED_LIMIT,
-      select: { linkedStashId: true, localCreatedAt: true, viewUrl: true },
-    });
-    // Newest copy first, so a scene Stash has twice shows its latest arrival.
-    const newest = new Map<string, { addedAt: Date; stashViewUrl: string }>();
-    for (const entry of library) {
-      if (
-        entry.linkedStashId &&
-        entry.localCreatedAt &&
-        !newest.has(entry.linkedStashId)
-      ) {
-        newest.set(entry.linkedStashId, {
-          addedAt: entry.localCreatedAt,
-          stashViewUrl: entry.viewUrl,
+    // Library scenes are read newest first, a batch at a time, until enough
+    // requested ones turn up: a big import of other scenes mustn't push the
+    // requested ones out of a fixed window.
+    const batch = AcquisitionService.RECENTLY_ADDED_BATCH;
+    /** Each scene's newest arrival; later (older) copies are skipped. */
+    const seen = new Set<string>();
+    const found: Array<{
+      row: SceneIndex;
+      addedAt: Date;
+      stashViewUrl: string;
+    }> = [];
+    const limit = AcquisitionService.RECENTLY_ADDED_LIMIT;
+    const byArrival = (
+      a: { row: SceneIndex; addedAt: Date },
+      b: { row: SceneIndex; addedAt: Date },
+    ) =>
+      b.addedAt.getTime() - a.addedAt.getTime() ||
+      a.row.stashId.localeCompare(b.row.stashId);
+    /** When the last library scene read arrived. */
+    let lastReadAt: number | null = null;
+    for (
+      let read = 0;
+      read < AcquisitionService.RECENTLY_ADDED_SCAN_LIMIT;
+      read += batch
+    ) {
+      if (found.length >= limit && lastReadAt !== null) {
+        // Enough already, unless more arrived at the same moment as the
+        // last one kept: those could sort before it.
+        const cutoff = [...found].sort(byArrival)[limit - 1].addedAt.getTime();
+        if (lastReadAt < cutoff) {
+          break;
+        }
+      }
+      const library = await this.prisma.librarySceneIndex.findMany({
+        where: { linkedStashId: { not: null }, localCreatedAt: { gte: since } },
+        orderBy: [{ localCreatedAt: 'desc' }, { stashSceneId: 'asc' }],
+        skip: read,
+        take: batch,
+        select: { linkedStashId: true, localCreatedAt: true, viewUrl: true },
+      });
+      const newest = new Map<string, { addedAt: Date; stashViewUrl: string }>();
+      for (const entry of library) {
+        if (
+          entry.linkedStashId &&
+          entry.localCreatedAt &&
+          !seen.has(entry.linkedStashId)
+        ) {
+          seen.add(entry.linkedStashId);
+          newest.set(entry.linkedStashId, {
+            addedAt: entry.localCreatedAt,
+            stashViewUrl: entry.viewUrl,
+          });
+        }
+      }
+      if (newest.size > 0) {
+        const requested: Prisma.SceneIndexWhereInput = {
+          stashId: { in: [...newest.keys()] },
+          computedLifecycle: SceneLifecycle.AVAILABLE,
+          OR: [
+            { requestStatus: { not: null } },
+            { whisparrMovieId: { not: null } },
+          ],
+        };
+        const rows = await this.prisma.sceneIndex.findMany({
+          where: searchWhere ? { AND: [requested, searchWhere] } : requested,
         });
+        for (const row of rows) {
+          const arrival = newest.get(row.stashId);
+          if (arrival) {
+            found.push({ row, ...arrival });
+          }
+        }
+      }
+      lastReadAt = library.at(-1)?.localCreatedAt?.getTime() ?? lastReadAt;
+      if (library.length < batch) {
+        break;
       }
     }
-    if (newest.size === 0) {
-      return [];
-    }
-
-    const requested: Prisma.SceneIndexWhereInput = {
-      stashId: { in: [...newest.keys()] },
-      computedLifecycle: SceneLifecycle.AVAILABLE,
-      OR: [
-        { requestStatus: { not: null } },
-        { whisparrMovieId: { not: null } },
-      ],
-    };
-    const rows = await this.prisma.sceneIndex.findMany({
-      where: searchWhere ? { AND: [requested, searchWhere] } : requested,
-    });
-    return rows
-      .flatMap((row) => {
-        const found = newest.get(row.stashId);
-        return found ? [{ row, ...found }] : [];
-      })
-      .sort(
-        (a, b) =>
-          b.addedAt.getTime() - a.addedAt.getTime() ||
-          a.row.stashId.localeCompare(b.row.stashId),
-      );
+    return found.sort(byArrival).slice(0, limit);
   }
 
   /**
@@ -322,8 +365,17 @@ export class AcquisitionService {
           );
         }),
       ]);
-      for (const entry of queue) {
-        if (!movieIds.has(entry.movieId)) {
+      const ours = queue.filter((entry) => movieIds.has(entry.movieId));
+      const sab = await this.sabJobs(
+        ours.flatMap((entry) => (entry.downloadId ? [entry.downloadId] : [])),
+      );
+      for (const entry of ours) {
+        const live = entry.downloadId ? sab.get(entry.downloadId) : undefined;
+        if (live) {
+          const current = progress.get(entry.movieId);
+          if (!current || (live.progress ?? -1) > (current.progress ?? -1)) {
+            progress.set(entry.movieId, live);
+          }
           continue;
         }
         const percent =
@@ -355,6 +407,73 @@ export class AcquisitionService {
       clearTimeout(timer);
     }
     return progress;
+  }
+
+  /**
+   * Where Whisparr's downloads are in SABnzbd right now, by SABnzbd's id
+   * for each (Whisparr's download id). Empty when SABnzbd isn't connected or
+   * can't be asked: Whisparr's own numbers are used then.
+   */
+  private async sabJobs(
+    nzoIds: string[],
+  ): Promise<Map<string, AcquisitionDownloadDto>> {
+    const found = new Map<string, AcquisitionDownloadDto>();
+    const config = nzoIds.length ? await this.sabConfig() : null;
+    if (!config) {
+      return found;
+    }
+    try {
+      const ids = new Set(nzoIds);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const { queue, history } = await Promise.race([
+        this.sabnzbd.jobs(config, [...ids]),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('SABnzbd took too long')),
+            AcquisitionService.PROGRESS_TIMEOUT_MS,
+          );
+        }),
+      ]).finally(() => clearTimeout(timer));
+      for (const job of history) {
+        const status = job.status.toLowerCase();
+        // Failed: Whisparr says so, and why.
+        if (ids.has(job.nzoId) && status !== 'failed') {
+          found.set(job.nzoId, {
+            progress: 100,
+            timeLeft: null,
+            after: status === 'completed' ? 'downloaded' : 'unpacking',
+          });
+        }
+      }
+      for (const job of queue) {
+        if (ids.has(job.nzoId) && !found.has(job.nzoId)) {
+          found.set(job.nzoId, {
+            progress:
+              typeof job.percentage === 'number'
+                ? Math.round(Math.min(100, Math.max(0, job.percentage)))
+                : null,
+            timeLeft: job.timeLeft ?? null,
+          });
+        }
+      }
+    } catch (error) {
+      this.logger.debug(
+        `SABnzbd's own progress left off: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    return found;
+  }
+
+  private async sabConfig(): Promise<SabnzbdAdapterBaseConfig | null> {
+    const integration = await this.prisma.integrationConfig
+      .findUnique({ where: { type: 'SABNZBD' } })
+      .catch(() => null);
+    const baseUrl = integration?.baseUrl?.trim();
+    return integration?.enabled &&
+      integration.status === IntegrationStatus.CONFIGURED &&
+      baseUrl
+      ? { baseUrl, apiKey: integration.apiKey }
+      : null;
   }
 
   /**

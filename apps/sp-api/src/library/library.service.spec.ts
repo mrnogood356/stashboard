@@ -430,6 +430,19 @@ describe('LibraryService', () => {
     expect(list.values[0]).toBe('%A\\_B 50\\%%');
   });
 
+  it('searches tags and studios for what you typed, % and _ included', async () => {
+    queryRawMock.mockResolvedValue([]);
+    await service.searchTags('50%_off');
+    await service.searchStudios('A_B');
+    const [tags, studios] = queryRawMock.mock.calls.map(
+      ([sql]) => sql as { strings: string[]; values: unknown[] },
+    );
+    expect(tags.values).toEqual(expect.arrayContaining(['%50\\%\\_off%']));
+    expect(tags.strings.join(' ')).toContain("ESCAPE '\\'");
+    expect(studios.values).toEqual(expect.arrayContaining(['%A\\_B%']));
+    expect(studios.strings.join(' ')).toContain("ESCAPE '\\'");
+  });
+
   it('returns indexed studio options from the local-library projection', async () => {
     queryRawMock.mockResolvedValue([{ id: 'studio-1', name: 'Archive' }]);
 

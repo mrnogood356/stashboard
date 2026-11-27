@@ -7,6 +7,7 @@ import {
   HandoffFileError,
   isInside,
   placeVideo,
+  placeVideoAndSay,
   removeFailedFolder,
   removeJobFolder,
 } from './download-handoff.files';
@@ -86,6 +87,36 @@ describe('finished download files', () => {
       expect(await fs.readdir(library)).toEqual(['Release.Name.mkv']);
     });
 
+    it('counts it placed when only clearing the temporary name fails', async () => {
+      const source = path.join(job, 'Release.Name.mkv');
+      await write(source, 1_000);
+      const unlink = fs.unlink.bind(fs);
+      const spy = jest
+        .spyOn(fs, 'unlink')
+        .mockImplementation((file) =>
+          String(file).includes('.stashboard-')
+            ? Promise.reject(
+                Object.assign(new Error('busy'), { code: 'EBUSY' }),
+              )
+            : unlink(file),
+        );
+      try {
+        const placed = await placeVideo({
+          source,
+          destination: library,
+          mode: 'move',
+          tag: 'h1',
+          within: path.join(root, 'sab'),
+        });
+        // In the library, and not put back as a failure.
+        expect(placed).toBe(path.join(library, 'Release.Name.mkv'));
+        expect(await exists(placed)).toBe(true);
+        expect(await exists(source)).toBe(false);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
     it('copies and leaves the original when set to copy', async () => {
       const source = path.join(job, 'Release.Name.mkv');
       await write(source, 1_000);
@@ -100,6 +131,67 @@ describe('finished download files', () => {
       expect(await exists(placed)).toBe(true);
       expect(await exists(source)).toBe(true);
       expect((await fs.stat(placed)).size).toBe(1_000);
+    });
+
+    it('says whether the original is gone', async () => {
+      const moved = path.join(job, 'Moved.mkv');
+      const copied = path.join(job, 'Copied.mkv');
+      await write(moved, 1_000);
+      await write(copied, 1_000);
+
+      await expect(
+        placeVideoAndSay({
+          source: moved,
+          destination: library,
+          mode: 'move',
+          tag: 'a',
+        }),
+      ).resolves.toMatchObject({ sourceRemoved: true });
+      await expect(
+        placeVideoAndSay({
+          source: copied,
+          destination: library,
+          mode: 'copy',
+          tag: 'b',
+        }),
+      ).resolves.toMatchObject({ sourceRemoved: false });
+    });
+
+    it('says the original stayed when a move across disks couldn’t delete it', async () => {
+      const source = path.join(job, 'Across.mkv');
+      await write(source, 1_000);
+      const realRename = fs.rename.bind(fs);
+      const realUnlink = fs.unlink.bind(fs);
+      const rename = jest
+        .spyOn(fs, 'rename')
+        .mockImplementation((from, to) =>
+          String(from) === source
+            ? Promise.reject(
+                Object.assign(new Error('cross-device'), { code: 'EXDEV' }),
+              )
+            : realRename(from, to),
+        );
+      const unlink = jest
+        .spyOn(fs, 'unlink')
+        .mockImplementation((target) =>
+          String(target) === source
+            ? Promise.reject(new Error('read-only'))
+            : realUnlink(target),
+        );
+      try {
+        await expect(
+          placeVideoAndSay({
+            source,
+            destination: library,
+            mode: 'move',
+            tag: 'c',
+          }),
+        ).resolves.toMatchObject({ sourceRemoved: false });
+      } finally {
+        rename.mockRestore();
+        unlink.mockRestore();
+      }
+      expect(await exists(source)).toBe(true);
     });
 
     it('leaves everything alone when something is already at the target', async () => {
@@ -205,6 +297,9 @@ describe('finished download files', () => {
     expect(isInside('/a/b', '/a/b')).toBe(true);
     expect(isInside('/a/bc/d.mkv', '/a/b')).toBe(false);
     expect(isInside('/a/b/../c/d.mkv', '/a/b')).toBe(false);
+    expect(isInside('/a', '/a/b')).toBe(false);
+    // A name starting with two dots is still inside.
+    expect(isInside('/a/b/..Scene.mkv', '/a/b')).toBe(true);
   });
 
   describe('removeJobFolder', () => {

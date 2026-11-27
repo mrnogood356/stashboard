@@ -26,7 +26,7 @@ import { manualCutoff, manualSkipReason } from './download-handoff.adopt';
 import {
   type DropInSkipReason,
   isInside,
-  placeVideo,
+  placeVideoAndSay,
   removeJobFolder,
   scanDropInFolder,
 } from './download-handoff.files';
@@ -644,6 +644,7 @@ export class DownloadDropInService {
                 size: true,
                 status: true,
                 error: true,
+                placedAt: true,
               },
             })
           ).map((row) => [row.sourcePath, row]),
@@ -658,7 +659,17 @@ export class DownloadDropInService {
       // Brought in before (a copy, or one that couldn't be moved): only a
       // different file at the same path counts as new.
       const stat = await fs.stat(file).catch(() => null);
-      if (stat && BigInt(stat.size) !== row.size) {
+      // Moved out before (placedAt is only set by a move, whatever became
+      // of it since: matching it may even have failed), so a file at that
+      // path changed after the move was put there since: dropped in again,
+      // say, even at the same size. A copy, or one that never moved, is
+      // still the same file.
+      const movedOutAt = row.placedAt?.getTime() ?? null;
+      if (
+        stat &&
+        (BigInt(stat.size) !== row.size ||
+          (movedOutAt !== null && stat.ctimeMs > movedOutAt))
+      ) {
         fresh.push(file);
       } else if (row.status === 'failed') {
         skipped.push(
@@ -893,19 +904,23 @@ export class DownloadDropInService {
     this.logger.log(`Picked up drop-in ${file}.`);
     const mode = settings.importMode === 'copy' ? 'copy' : 'move';
     let finalPath: string;
+    let sourceRemoved = false;
+    // Timed before the move, so a file put at the source after it counts
+    // as newer.
+    const movedAt = new Date();
     try {
       if (!insideLibrary(destination, roots)) {
         throw new Error(
           `The destination ${destination} isn’t inside one of Stash’s library folders any more; left it where it is.`,
         );
       }
-      finalPath = await placeVideo({
+      ({ path: finalPath, sourceRemoved } = await placeVideoAndSay({
         source: file,
         destination,
         mode,
         tag: `dropin-${createHash('sha1').update(file).digest('hex').slice(0, 16)}`,
         within: folder,
-      });
+      }));
     } catch (error) {
       this.logger.error(
         `Couldn't bring in drop-in ${file}: ${messageOf(error)}`,
@@ -924,9 +939,14 @@ export class DownloadDropInService {
       });
       return;
     }
+    // Only a move that took the file away empties the source path. A copy
+    // leaves the same file, and so does a move across disks whose original
+    // couldn't be deleted: that one mustn't count as dropped in again.
+    const emptied = mode === 'move' && sourceRemoved;
     const row = await this.save(file, stat.size, {
       status: 'placed',
       finalPath,
+      placedAt: emptied ? movedAt : null,
       error: null,
     });
     this.logger.log(
@@ -992,9 +1012,13 @@ export class DownloadDropInService {
     const { identified, outcome, matchedBy, error } =
       await this.handoff.identifyScene(sceneId);
     if (error) {
-      this.logger.warn(
-        `Couldn't identify drop-in ${row.sourcePath} (Stash scene ${sceneId}): ${error}`,
+      // Tried again on the next checks (the catalog may be back by then),
+      // rather than counted in with nothing said about how it matched.
+      await this.retryLater(
+        row,
+        `Moved to ${finalPath}, but identifying it failed: ${error}`,
       );
+      return;
     }
     const placed = identified
       ? await this.handoff.placeInFolder(sceneId, finalPath)
@@ -1068,7 +1092,10 @@ export class DownloadDropInService {
     sourcePath: string,
     size: number,
     data: Partial<
-      Pick<DownloadDropIn, 'status' | 'finalPath' | 'error' | 'finishedAt'>
+      Pick<
+        DownloadDropIn,
+        'status' | 'finalPath' | 'placedAt' | 'error' | 'finishedAt'
+      >
     >,
   ): Promise<DownloadDropIn> {
     const fields = {
@@ -1076,6 +1103,7 @@ export class DownloadDropInService {
       attempts: 0,
       stashSceneId: null,
       finalPath: null,
+      placedAt: null,
       matchedBy: null,
       finishedAt: null,
       // A new file at an old path isn't hidden by the old one's Clear.
@@ -1163,6 +1191,7 @@ export function toDropInDto(row: DownloadDropIn): DownloadDropInDto {
     finalPath: row.finalPath,
     stashSceneId: row.stashSceneId,
     matchedBy: matchedByOf(row.matchedBy),
+    finishedAt: row.finishedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

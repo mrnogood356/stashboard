@@ -1,6 +1,7 @@
 import express from 'express';
 import request from 'supertest';
 import {
+  refuseCrossSiteWrites,
   resolveTrustProxy,
   responseCompression,
   securityHeaders,
@@ -159,5 +160,92 @@ describe('staticCacheControl', () => {
     expect(staticCacheControl('/app/browser/icons/icon-192.png')).toBe(
       'no-cache',
     );
+  });
+});
+
+describe('refuseCrossSiteWrites', () => {
+  const app = express();
+  app.use(refuseCrossSiteWrites());
+  app.all('/api/thing', (_req, res) => {
+    res.send('done');
+  });
+
+  it('refuses a change sent from another app on the same host or site', async () => {
+    for (const site of ['same-site', 'cross-site']) {
+      await request(app)
+        .post('/api/thing')
+        .set('Sec-Fetch-Site', site)
+        .expect(403);
+    }
+    await request(app)
+      .delete('/api/thing')
+      .set('Sec-Fetch-Site', 'same-site')
+      .expect(403);
+  });
+
+  it('lets through its own pages, reads, and callers that aren’t browsers', async () => {
+    await request(app)
+      .post('/api/thing')
+      .set('Sec-Fetch-Site', 'same-origin')
+      .expect(200);
+    // Typed into the address bar, or a bookmark.
+    await request(app)
+      .post('/api/thing')
+      .set('Sec-Fetch-Site', 'none')
+      .expect(200);
+    // Reading is fine from anywhere (cast receivers, other tabs).
+    await request(app)
+      .get('/api/thing')
+      .set('Sec-Fetch-Site', 'cross-site')
+      .expect(200);
+    // Whisparr's webhook and scripts send neither header.
+    await request(app).post('/api/thing').expect(200);
+  });
+
+  it('compares the Origin with its own address over plain HTTP', async () => {
+    // No Sec-Fetch-Site over plain HTTP: another port on the same host.
+    await request(app)
+      .post('/api/thing')
+      .set('Host', '192.168.1.10:3000')
+      .set('Origin', 'http://192.168.1.10:8080')
+      .expect(403);
+    await request(app)
+      .post('/api/thing')
+      .set('Host', '192.168.1.10:3000')
+      .set('Origin', 'null')
+      .expect(403);
+    // Its own pages.
+    await request(app)
+      .post('/api/thing')
+      .set('Host', '192.168.1.10:3000')
+      .set('Origin', 'http://192.168.1.10:3000')
+      .expect(200);
+    // The default port written out or not.
+    await request(app)
+      .post('/api/thing')
+      .set('Host', 'stash.example.com:80')
+      .set('Origin', 'http://stash.example.com')
+      .expect(200);
+    // Behind a proxy that rewrites Host to the container's name.
+    await request(app)
+      .post('/api/thing')
+      .set('Host', 'stashboard:3000')
+      .set('X-Forwarded-Host', 'stash.example.com')
+      .set('Origin', 'https://stash.example.com')
+      .expect(200);
+    // A proxy that writes out the https default port.
+    await request(app)
+      .post('/api/thing')
+      .set('Host', 'stashboard:3000')
+      .set('X-Forwarded-Host', 'stash.example.com:443')
+      .set('Origin', 'https://stash.example.com')
+      .expect(200);
+    // ...but :443 isn't the default for an http page.
+    await request(app)
+      .post('/api/thing')
+      .set('Host', 'stashboard:3000')
+      .set('X-Forwarded-Host', 'stash.example.com:443')
+      .set('Origin', 'http://stash.example.com')
+      .expect(403);
   });
 });

@@ -818,6 +818,12 @@ export class AcquisitionPageComponent implements OnInit, AfterViewInit, OnDestro
   /** "45% · 6 min left", or null when Whisparr hasn't said. */
   protected downloadText(item: AcquisitionSceneItem): string | null {
     const download = item.download;
+    if (download?.after === 'downloaded') {
+      return 'Downloaded · Whisparr brings it in next';
+    }
+    if (download?.after === 'unpacking') {
+      return 'Downloaded · unpacking in SABnzbd';
+    }
     if (!download || (download.progress === null && !download.timeLeft)) {
       return null;
     }

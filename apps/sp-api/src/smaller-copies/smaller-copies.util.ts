@@ -485,3 +485,33 @@ function oneOf<T extends string>(
 ): T {
   return (list as readonly string[]).includes(value) ? (value as T) : fallback;
 }
+
+/** A time zone name the server knows, or null. */
+export function validTimeZone(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+/** The hour (0–23) at that moment in that time zone; the server's own without one. */
+export function hourIn(at: number, timeZone: string | null): number {
+  if (timeZone) {
+    try {
+      const hour = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        hour: 'numeric',
+        hourCycle: 'h23',
+      }).format(new Date(at));
+      return Number(hour) % 24;
+    } catch {
+      // Unknown here: the server's clock below.
+    }
+  }
+  return new Date(at).getHours();
+}
