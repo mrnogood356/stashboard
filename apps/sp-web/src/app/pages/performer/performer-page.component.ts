@@ -134,6 +134,8 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
   private readonly studioSearchTerms = new Subject<string>();
   private readonly tagSearchTerms = new Subject<string>();
   private routeSubscription: Subscription | null = null;
+  /** The performer's details on their way; a newer page cancels it. */
+  private detailsRequest: Subscription | null = null;
   private studioSearchSubscription: Subscription | null = null;
   private tagSearchSubscription: Subscription | null = null;
   private observer: IntersectionObserver | null = null;
@@ -304,6 +306,7 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
 
   ngOnDestroy(): void {
     this.routeSubscription?.unsubscribe();
+    this.detailsRequest?.unsubscribe();
     this.studioSearchSubscription?.unsubscribe();
     this.tagSearchSubscription?.unsubscribe();
     if (this.observer && this.sentinelElement) {
@@ -737,7 +740,10 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
     this.performerError.set(null);
     this.loadFacets(currentPerformerId);
 
-    this.discoverService
+    // Only the performer on the page counts: an earlier one's answer, late,
+    // mustn't show them or move this page to their catalog.
+    this.detailsRequest?.unsubscribe();
+    this.detailsRequest = this.discoverService
       .getPerformerDetails(currentPerformerId)
       .pipe(
         finalize(() => {
@@ -751,6 +757,9 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
             // a scene from Home): carry on in the one the performer is in,
             // so their scenes come from there too.
             void this.adoptCatalog(details.provider).then(() => {
+              if (this.performerId() !== currentPerformerId) {
+                return;
+              }
               this.performer.set(details);
               this.activeImageIndex.set(0);
               this.loadFacets(currentPerformerId);

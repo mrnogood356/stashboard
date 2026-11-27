@@ -1,7 +1,7 @@
 import { HiddenContentService } from '../../core/api/hidden-content.service';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, of } from 'rxjs';
 import { DiscoverService } from '../../core/api/discover.service';
 import { DiscoverItem, PerformerDetails, SceneFacets } from '../../core/api/discover.types';
 import { AppNotificationsService } from '../../core/notifications/app-notifications.service';
@@ -81,6 +81,7 @@ describe('PerformerPageComponent', () => {
   async function renderPage(
     scene: DiscoverItem = buildScene(),
     performer: PerformerDetails = buildPerformer(),
+    details?: (id: string) => Observable<PerformerDetails>,
   ) {
     const paramMap$ = new BehaviorSubject(convertToParamMap({ performerId: 'performer-1' }));
     const queryParamMap$ = new BehaviorSubject(convertToParamMap({}));
@@ -88,7 +89,7 @@ describe('PerformerPageComponent', () => {
       getPerformerFacets: vi.fn(() =>
         of<SceneFacets>({ total: 0, scanned: 0, tags: [], studios: [] }),
       ),
-      getPerformerDetails: vi.fn().mockReturnValue(of(performer)),
+      getPerformerDetails: details ? vi.fn(details) : vi.fn().mockReturnValue(of(performer)),
       getPerformerScenesFeed: vi.fn().mockReturnValue(
         of({
           total: 1,
@@ -145,7 +146,7 @@ describe('PerformerPageComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    return { fixture, discoverService };
+    return { fixture, discoverService, paramMap$ };
   }
 
   it('shows one photo at a time, with arrows and a swipe to the others', async () => {
@@ -215,6 +216,31 @@ describe('PerformerPageComponent', () => {
     expect(discoverService.getPerformerScenesFeed).toHaveBeenCalledTimes(2);
     expect(discoverService.getPerformerFacets).toHaveBeenCalledTimes(2);
     expect(fixture.nativeElement.textContent).toContain(buildPerformer().name);
+    navigate.mockRestore();
+  });
+
+  it('ignores a late answer for the performer it has moved on from', async () => {
+    const navigate = vi.spyOn(Router.prototype, 'navigate').mockResolvedValue(true);
+    const answers = new Map<string, Subject<PerformerDetails>>();
+    const { fixture, paramMap$ } = await renderPage(buildScene(), buildPerformer(), (id) => {
+      const answer = new Subject<PerformerDetails>();
+      answers.set(id, answer);
+      return answer;
+    });
+    // On to performer 2 before performer 1's details arrive.
+    paramMap$.next(convertToParamMap({ performerId: 'performer-2' }));
+    fixture.detectChanges();
+    answers.get('performer-1')?.next({
+      ...buildPerformer(),
+      name: 'Old Performer',
+      provider: 'FANSDB',
+      fromOtherCatalog: true,
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(navigate).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).not.toContain('Old Performer');
     navigate.mockRestore();
   });
 

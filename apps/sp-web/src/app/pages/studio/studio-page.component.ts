@@ -138,6 +138,8 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly notifications = inject(AppNotificationsService);
   private readonly tagSearchTerms = new Subject<string>();
   private routeSubscription: Subscription | null = null;
+  /** The studio's details on their way; a newer page cancels it. */
+  private detailsRequest: Subscription | null = null;
   private tagSearchSubscription: Subscription | null = null;
   private observer: IntersectionObserver | null = null;
   private sentinelElement: HTMLDivElement | null = null;
@@ -308,6 +310,7 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.routeSubscription?.unsubscribe();
+    this.detailsRequest?.unsubscribe();
     this.tagSearchSubscription?.unsubscribe();
     if (this.observer && this.sentinelElement) {
       this.observer.unobserve(this.sentinelElement);
@@ -661,7 +664,10 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.activeImageIndex.set(0);
     this.loadFacets(currentStudioId);
 
-    this.discoverService
+    // Only the studio on the page counts: an earlier one's answer, late,
+    // mustn't show it or move this page to its catalog.
+    this.detailsRequest?.unsubscribe();
+    this.detailsRequest = this.discoverService
       .getStudioDetails(currentStudioId)
       .pipe(
         finalize(() => {
@@ -674,6 +680,9 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
             // Opened from a link that didn't say which catalog: carry on in
             // the one the studio is in, so its scenes come from there too.
             void this.adoptCatalog(details.provider).then(() => {
+              if (this.studioId() !== currentStudioId) {
+                return;
+              }
               this.studio.set(details);
               this.activeImageIndex.set(0);
               this.loadFacets(currentStudioId);
