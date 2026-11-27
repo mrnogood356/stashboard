@@ -204,6 +204,31 @@ describe('ReleaseNotesService', () => {
     expect((await notes.since(undefined)).releases).toEqual([]);
   });
 
+  it('skips a release with nothing to show, rather than open an empty box', async () => {
+    const notes = new ReleaseNotesService(undefined);
+    notes.version = () => '1.4.0';
+    notes.changelog = () => `## [1.4.0](x) (2026-11-27)
+
+### Miscellaneous Chores
+
+* bump things
+
+## [1.3.0](x) (2026-10-29)
+
+### Features
+
+* a calendar
+`;
+
+    await expect(notes.since('1.3.0')).resolves.toEqual({
+      current: '1.4.0',
+      releases: [],
+    });
+    expect(notes.latest().releases.map((release) => release.version)).toEqual([
+      '1.3.0',
+    ]);
+  });
+
   it('gives the running release its own notes for About', () => {
     expect(
       service('1.3.0')
