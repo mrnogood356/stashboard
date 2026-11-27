@@ -8,6 +8,7 @@ describe('StashdbAdapter', () => {
   let runtimeHealthService: {
     recordSuccess: jest.Mock;
     recordFailure: jest.Mock;
+    isMainCatalog: jest.Mock;
   };
   let originalFetch: typeof fetch;
   const fetchMock = jest.fn();
@@ -27,6 +28,7 @@ describe('StashdbAdapter', () => {
     runtimeHealthService = {
       recordSuccess: jest.fn().mockResolvedValue(undefined),
       recordFailure: jest.fn().mockResolvedValue(undefined),
+      isMainCatalog: jest.fn().mockResolvedValue(true),
     };
     adapter = new StashdbAdapter(
       runtimeHealthService as unknown as RuntimeHealthService,
@@ -46,6 +48,30 @@ describe('StashdbAdapter', () => {
 
     expect(runtimeHealthService.recordFailure).not.toHaveBeenCalled();
     expect(runtimeHealthService.recordSuccess).not.toHaveBeenCalled();
+  });
+
+  it('leaves the catalog’s health alone when another catalog fails or answers', async () => {
+    runtimeHealthService.isMainCatalog.mockResolvedValue(false);
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    fetchMock.mockRejectedValue(new Error('network failure'));
+    const fansdb = { baseUrl: 'https://fansdb.cc/graphql' };
+
+    await expect(adapter.searchScenesByText(fansdb, 'a b c')).rejects.toThrow();
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ data: { searchScene: [] } }), {
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    await adapter.searchScenesByText(fansdb, 'd e f');
+
+    expect(runtimeHealthService.isMainCatalog).toHaveBeenCalledWith(
+      'https://fansdb.cc/graphql',
+    );
+    expect(runtimeHealthService.recordFailure).not.toHaveBeenCalled();
+    expect(runtimeHealthService.recordSuccess).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('treats a database error on the catalog’s server as that query failing, said once', async () => {

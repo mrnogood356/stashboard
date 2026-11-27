@@ -170,13 +170,13 @@ export abstract class StashdbGraphqlClient {
       // A database error on the catalog's side ("SQLSTATE …") came back from
       // a server that's up: that query failed, the catalog didn't.
       if (trackRuntimeHealth && !SERVER_SIDE_ERROR.test(message)) {
-        await this.reportRuntimeFailure(message);
+        await this.reportRuntimeFailure(config, message);
       }
       throw new BadGatewayException(message);
     }
 
     if (trackRuntimeHealth && !this.fromKept.has(payload)) {
-      await this.reportRuntimeSuccess();
+      await this.reportRuntimeSuccess(config);
     }
 
     return payload;
@@ -420,7 +420,7 @@ export abstract class StashdbGraphqlClient {
         `Couldn't reach the catalog at ${hostOf(endpoint)} (${operation}): ${this.errorMessage(error)}`,
       );
       if (trackRuntimeHealth) {
-        await this.reportRuntimeFailure(message);
+        await this.reportRuntimeFailure(config, message);
       }
       throw new BadGatewayException(message);
     }
@@ -441,7 +441,7 @@ export abstract class StashdbGraphqlClient {
         // Still too many: wait it out, without calling the catalog down.
         pauseCatalog(host, response.headers.get('retry-after'));
       } else if (trackRuntimeHealth) {
-        await this.reportRuntimeFailure(message);
+        await this.reportRuntimeFailure(config, message);
       }
       throw new BadGatewayException(message);
     }
@@ -461,14 +461,19 @@ export abstract class StashdbGraphqlClient {
         `The catalog's answer to ${operation} couldn't be read: ${error.message}`,
       );
       if (trackRuntimeHealth) {
-        await this.reportRuntimeFailure(error.message);
+        await this.reportRuntimeFailure(config, error.message);
       }
       throw new BadGatewayException(error.message);
     }
   }
 
-  protected async reportRuntimeSuccess(): Promise<void> {
+  protected async reportRuntimeSuccess(
+    config: StashdbAdapterBaseConfig,
+  ): Promise<void> {
     try {
+      if (!(await this.countsForCatalogHealth(config))) {
+        return;
+      }
       await this.runtimeHealthService.recordSuccess(
         RuntimeHealthServiceKey.CATALOG,
       );
@@ -479,8 +484,14 @@ export abstract class StashdbGraphqlClient {
     }
   }
 
-  protected async reportRuntimeFailure(error: unknown): Promise<void> {
+  protected async reportRuntimeFailure(
+    config: StashdbAdapterBaseConfig,
+    error: unknown,
+  ): Promise<void> {
     try {
+      if (!(await this.countsForCatalogHealth(config))) {
+        return;
+      }
       await this.runtimeHealthService.recordFailure(
         RuntimeHealthServiceKey.CATALOG,
         error,
@@ -490,6 +501,15 @@ export abstract class StashdbGraphqlClient {
         `Failed to record catalog runtime failure: ${this.errorMessage(reportingError)}`,
       );
     }
+  }
+
+  /** Only the main catalog's answers say whether "the catalog" is up. */
+  private countsForCatalogHealth(
+    config: StashdbAdapterBaseConfig,
+  ): Promise<boolean> {
+    return this.runtimeHealthService.isMainCatalog(
+      this.resolveGraphqlEndpoint(config.baseUrl),
+    );
   }
 
   protected errorMessage(error: unknown): string {

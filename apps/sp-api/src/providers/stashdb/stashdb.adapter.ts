@@ -941,7 +941,7 @@ export class StashdbAdapter extends StashdbPeopleApi {
         typeof firstError === 'string' && firstError.length > 0
           ? firstError
           : 'StashDB GraphQL request failed.';
-      await this.reportRuntimeFailure(message);
+      await this.reportRuntimeFailure(config, message);
       throw new BadGatewayException(message);
     }
 
@@ -957,7 +957,7 @@ export class StashdbAdapter extends StashdbPeopleApi {
           : null;
       })
       .filter((scene): scene is StashdbSceneMetadata => scene !== null);
-    await this.reportRuntimeSuccess();
+    await this.reportRuntimeSuccess(config);
     return metadata;
   }
 
