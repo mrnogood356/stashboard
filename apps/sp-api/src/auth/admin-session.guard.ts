@@ -8,8 +8,14 @@ import { Reflector } from '@nestjs/core';
 import type { Request, Response } from 'express';
 import { AppLockService, PHONE_APP_HEADER } from '../app-lock/app-lock.service';
 import { AuthService } from './auth.service';
-import { ALLOW_WHEN_LOCKED } from './decorators/allow-when-locked.decorator';
+import {
+  ALLOW_JUST_AFTER_LOCK,
+  ALLOW_WHEN_LOCKED,
+} from './decorators/allow-when-locked.decorator';
 import { IS_PUBLIC_ROUTE } from './decorators/public.decorator';
+
+/** How long after locking a phone's leaving-the-app saves still go through. */
+const JUST_LOCKED_GRACE_MS = 15_000;
 
 @Injectable()
 export class AdminSessionGuard implements CanActivate {
@@ -59,10 +65,20 @@ export class AdminSessionGuard implements CanActivate {
       authContext.user &&
       authContext.sessionId
     ) {
-      await this.appLock.assertUnlocked(
-        authContext.user.id,
-        authContext.sessionId,
+      const justAfterLock = this.reflector.getAllAndOverride<boolean>(
+        ALLOW_JUST_AFTER_LOCK,
+        [context.getHandler(), context.getClass()],
       );
+      await (justAfterLock
+        ? this.appLock.assertUnlocked(
+            authContext.user.id,
+            authContext.sessionId,
+            { justLockedGraceMs: JUST_LOCKED_GRACE_MS },
+          )
+        : this.appLock.assertUnlocked(
+            authContext.user.id,
+            authContext.sessionId,
+          ));
     }
 
     return true;

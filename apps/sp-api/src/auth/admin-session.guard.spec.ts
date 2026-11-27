@@ -3,6 +3,7 @@ import {
   HttpException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { PlaybackController } from '../playback/playback.controller';
 import { AppLockController } from '../app-lock/app-lock.controller';
 import { AppLockService } from '../app-lock/app-lock.service';
 import { Reflector } from '@nestjs/core';
@@ -85,6 +86,29 @@ describe('AdminSessionGuard', () => {
         ),
       ).rejects.toBeInstanceOf(HttpException);
       expect(appLock.assertUnlocked).toHaveBeenCalledWith('u1', 's1');
+    });
+
+    it('gives saving a video’s position a moment after the lock, as the app leaves', async () => {
+      const appLock = {
+        assertUnlocked: jest.fn().mockResolvedValue(undefined),
+      } as unknown as AppLockService;
+      const guard = new AdminSessionGuard(
+        new Reflector(),
+        authenticated,
+        appLock,
+      );
+
+      await expect(
+        guard.canActivate(
+          createExecutionContext(
+            PlaybackController,
+            PlaybackController.prototype.saveActivity,
+          ),
+        ),
+      ).resolves.toBe(true);
+      expect(appLock.assertUnlocked).toHaveBeenCalledWith('u1', 's1', {
+        justLockedGraceMs: 15_000,
+      });
     });
 
     it('lets unlock routes through while locked', async () => {
