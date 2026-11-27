@@ -1173,7 +1173,22 @@ export class OrganizerService
         await this.whisparrFiles(),
       )),
     );
-    const rest = scenes.filter((scene) => !done.linked.includes(scene.id));
+    // Linked to another source (FansDB, ThePornDB), by you most likely:
+    // matched, so not looked up again. Looking it up put it straight back in
+    // the found matches to check, every day, however often it was saved.
+    const linkedElsewhere = new Set(
+      scenes
+        .filter(
+          (scene) =>
+            !done.linked.includes(scene.id) && scene.stashIds.length > 0,
+        )
+        .map((scene) => scene.id),
+    );
+    await this.forgetProposals([...linkedElsewhere]);
+    const rest = scenes.filter(
+      (scene) =>
+        !done.linked.includes(scene.id) && !linkedElsewhere.has(scene.id),
+    );
 
     for (let index = 0; index < rest.length; index += LOOKUP_LIMIT) {
       const chunk = rest.slice(index, index + LOOKUP_LIMIT);
@@ -1224,14 +1239,17 @@ export class OrganizerService
       this.scheduleRefresh();
     }
     this.logger.log(
-      `Identified new scenes: ${sceneIds.length} checked, ${done.linked.length} linked from Whisparr, ${done.matched.length - done.byName.length} matched by fingerprint, ${done.byName.length} by name, ${done.proposed.length} waiting for you to check, ${alreadyLinked.size} already linked.`,
+      `Identified new scenes: ${sceneIds.length} checked, ${done.linked.length} linked from Whisparr, ${done.matched.length - done.byName.length} matched by fingerprint, ${done.byName.length} by name, ${done.proposed.length} waiting for you to check, ${alreadyLinked.size + linkedElsewhere.size} already linked.`,
     );
     const identified = new Set([...done.linked, ...done.matched]);
     return {
       ...done,
       // Including scenes Stash couldn't show us, so another step can try them.
       left: sceneIds.filter(
-        (id) => !identified.has(id) && !alreadyLinked.has(id),
+        (id) =>
+          !identified.has(id) &&
+          !alreadyLinked.has(id) &&
+          !linkedElsewhere.has(id),
       ),
     };
   }

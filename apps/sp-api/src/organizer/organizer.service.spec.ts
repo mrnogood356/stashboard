@@ -2782,6 +2782,48 @@ describe('OrganizerService', () => {
     );
   });
 
+  it('leaves a scene saved from another source matched, rather than finding it again to check', async () => {
+    // You saved a FansDB match for it; a stale found match was left over.
+    stash.getOrganizerScene.mockResolvedValue(
+      localScene({
+        stashIds: [
+          { endpoint: 'https://fansdb.cc/graphql', stashId: 'fans-1' },
+        ],
+      }),
+    );
+    proposalRows.set('7', {
+      dto: {
+        scene: { id: '7', fileName: 'clip.mp4' },
+        match: { id: 'fans-1', confidence: 'likely' },
+        alternatives: [],
+        others: 0,
+        foundAt: '2026-11-26T00:00:00.000Z',
+      },
+      choices: {},
+    });
+    // It's in the list to check, before the look.
+    await expect(service.proposalCount()).resolves.toBe(1);
+    handoff.filesAsStashSees = jest.fn().mockResolvedValue([]);
+    stashdb.searchScenesByText.mockResolvedValue([remote]);
+
+    const result = await service.identifyNewScenes(['7'], {
+      trustNames: true,
+    });
+
+    expect(result).toEqual({
+      linked: [],
+      matched: [],
+      proposed: [],
+      byName: [],
+      left: [],
+    });
+    expect(stashdb.findScenesByFingerprints).not.toHaveBeenCalled();
+    expect(stashdb.searchScenesByText).not.toHaveBeenCalled();
+    expect(stash.applySceneMatch).not.toHaveBeenCalled();
+    expect(proposalRows.has('7')).toBe(false);
+    await expect(service.proposalCount()).resolves.toBe(0);
+  });
+
   it('stops loading scenes once Stash stops answering, and says so once', async () => {
     const warn = jest
       .spyOn(Logger.prototype, 'warn')
