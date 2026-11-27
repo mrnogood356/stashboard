@@ -140,6 +140,8 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
   private routeSubscription: Subscription | null = null;
   /** The studio's details on their way; a newer page cancels it. */
   private detailsRequest: Subscription | null = null;
+  /** The studio's facets on their way; a newer load cancels it. */
+  private facetsRequest: Subscription | null = null;
   /** Closed: a catalog switch still finishing does nothing more. */
   private destroyed = false;
   private tagSearchSubscription: Subscription | null = null;
@@ -314,6 +316,7 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.destroyed = true;
     this.routeSubscription?.unsubscribe();
     this.detailsRequest?.unsubscribe();
+    this.facetsRequest?.unsubscribe();
     this.tagSearchSubscription?.unsubscribe();
     if (this.observer && this.sentinelElement) {
       this.observer.unobserve(this.sentinelElement);
@@ -640,9 +643,11 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private loadFacets(studioId: string): void {
+    // Cancelled first, so its finishing doesn't end this load's spinner.
+    this.facetsRequest?.unsubscribe();
     this.facets.set(null);
     this.facetsLoading.set(true);
-    this.discoverService
+    this.facetsRequest = this.discoverService
       .getStudioFacets(studioId)
       .pipe(finalize(() => this.facetsLoading.set(false)))
       .subscribe({

@@ -136,6 +136,8 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
   private routeSubscription: Subscription | null = null;
   /** The performer's details on their way; a newer page cancels it. */
   private detailsRequest: Subscription | null = null;
+  /** The performer's facets on their way; a newer load cancels it. */
+  private facetsRequest: Subscription | null = null;
   /** Closed: a catalog switch still finishing does nothing more. */
   private destroyed = false;
   private studioSearchSubscription: Subscription | null = null;
@@ -310,6 +312,7 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
     this.destroyed = true;
     this.routeSubscription?.unsubscribe();
     this.detailsRequest?.unsubscribe();
+    this.facetsRequest?.unsubscribe();
     this.studioSearchSubscription?.unsubscribe();
     this.tagSearchSubscription?.unsubscribe();
     if (this.observer && this.sentinelElement) {
@@ -713,9 +716,11 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   private loadFacets(performerId: string): void {
+    // Cancelled first, so its finishing doesn't end this load's spinner.
+    this.facetsRequest?.unsubscribe();
     this.facets.set(null);
     this.facetsLoading.set(true);
-    this.discoverService
+    this.facetsRequest = this.discoverService
       .getPerformerFacets(performerId)
       .pipe(finalize(() => this.facetsLoading.set(false)))
       .subscribe({

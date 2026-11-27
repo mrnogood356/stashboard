@@ -82,12 +82,13 @@ describe('PerformerPageComponent', () => {
     scene: DiscoverItem = buildScene(),
     performer: PerformerDetails = buildPerformer(),
     details?: (id: string) => Observable<PerformerDetails>,
+    facets?: () => Observable<SceneFacets>,
   ) {
     const paramMap$ = new BehaviorSubject(convertToParamMap({ performerId: 'performer-1' }));
     const queryParamMap$ = new BehaviorSubject(convertToParamMap({}));
     const discoverService = {
-      getPerformerFacets: vi.fn(() =>
-        of<SceneFacets>({ total: 0, scanned: 0, tags: [], studios: [] }),
+      getPerformerFacets: vi.fn(
+        facets ?? (() => of<SceneFacets>({ total: 0, scanned: 0, tags: [], studios: [] })),
       ),
       getPerformerDetails: details ? vi.fn(details) : vi.fn().mockReturnValue(of(performer)),
       getPerformerScenesFeed: vi.fn().mockReturnValue(
@@ -216,6 +217,37 @@ describe('PerformerPageComponent', () => {
     expect(discoverService.getPerformerScenesFeed).toHaveBeenCalledTimes(2);
     expect(discoverService.getPerformerFacets).toHaveBeenCalledTimes(2);
     expect(fixture.nativeElement.textContent).toContain(buildPerformer().name);
+    navigate.mockRestore();
+  });
+
+  it('keeps the categories of the catalog it switched to when the first answer is late', async () => {
+    const navigate = vi.spyOn(Router.prototype, 'navigate').mockResolvedValue(true);
+    const facetAnswers: Subject<SceneFacets>[] = [];
+    const { fixture } = await renderPage(
+      buildScene(),
+      { ...buildPerformer(), provider: 'FANSDB', fromOtherCatalog: true },
+      undefined,
+      () => {
+        const answer = new Subject<SceneFacets>();
+        facetAnswers.push(answer);
+        return answer;
+      },
+    );
+    await fixture.whenStable();
+    expect(facetAnswers).toHaveLength(2);
+    const page = fixture.componentInstance as unknown as {
+      facets: () => SceneFacets | null;
+      facetsLoading: () => boolean;
+    };
+    // The first catalog's answer, arriving late, is no longer listened to.
+    facetAnswers[0].next({ total: 1, scanned: 1, tags: [], studios: [] });
+    facetAnswers[0].complete();
+    expect(page.facets()).toBeNull();
+    expect(page.facetsLoading()).toBe(true);
+    facetAnswers[1].next({ total: 2, scanned: 2, tags: [], studios: [] });
+    facetAnswers[1].complete();
+    expect(page.facets()?.total).toBe(2);
+    expect(page.facetsLoading()).toBe(false);
     navigate.mockRestore();
   });
 
