@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.6](https://github.com/mrnogood356/stashboard/compare/v1.7.5...v1.7.6) (2026-11-27)
+
+
+### Fixed
+
+* **What's new** shows the notes for each update again. After 1.7.4 and 1.7.5 it opened as an empty box, and it now never opens without something to show. Missed the 1.7.5 notes? They're under About → What's new. ([#127](https://github.com/mrnogood356/stashboard/pull/127))
+
 ## [1.7.5](https://github.com/mrnogood356/stashboard/compare/v1.7.4...v1.7.5) (2026-11-27)
 
 
