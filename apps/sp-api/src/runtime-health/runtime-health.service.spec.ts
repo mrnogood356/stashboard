@@ -157,6 +157,44 @@ describe('RuntimeHealthService', () => {
     ).resolves.toBe(false);
   });
 
+  it('doesn’t keep a catalog read that the settings changed under', async () => {
+    let answer: (rows: Array<Record<string, unknown>>) => void = () => {};
+    (
+      prisma.integrationConfig.findMany as unknown as jest.Mock
+    ).mockImplementationOnce(
+      () => new Promise((resolve) => (answer = resolve)),
+    );
+    const stale = service.isMainCatalog('https://fansdb.cc/graphql');
+    // The catalog changes to FansDB while StashDB's settings are being read.
+    await service.clearService(RuntimeHealthServiceKey.CATALOG);
+    catalogRows = [
+      {
+        type: 'FANSDB',
+        enabled: true,
+        status: 'CONFIGURED',
+        baseUrl: 'https://fansdb.cc',
+        lastHealthyAt: new Date('2026-11-01T00:00:00Z'),
+        config: { selectedForInstanceCatalogProvider: true },
+      },
+    ];
+    answer([
+      {
+        type: 'STASHDB',
+        enabled: true,
+        status: 'CONFIGURED',
+        baseUrl: 'https://stashdb.org',
+        lastHealthyAt: new Date('2026-11-01T00:00:00Z'),
+        config: { selectedForInstanceCatalogProvider: true },
+      },
+    ]);
+    // That call answers from what it read...
+    await expect(stale).resolves.toBe(false);
+    // ...but the next reads the new settings rather than keep the old.
+    await expect(
+      service.isMainCatalog('https://fansdb.cc/graphql'),
+    ).resolves.toBe(true);
+  });
+
   it('requires two consecutive failures before marking a service degraded', async () => {
     await service.recordFailure(
       RuntimeHealthServiceKey.WHISPARR,

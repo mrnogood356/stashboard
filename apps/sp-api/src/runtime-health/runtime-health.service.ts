@@ -39,6 +39,8 @@ export class RuntimeHealthService {
   >();
   private loadedAll = false;
   private mainCatalog: { host: string | null; at: number } | null = null;
+  /** Bumped when the catalog's settings change: a read begun before is stale. */
+  private catalogGeneration = 0;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -51,10 +53,9 @@ export class RuntimeHealthService {
    */
   async isMainCatalog(endpoint: string): Promise<boolean> {
     const now = Date.now();
-    if (
-      !this.mainCatalog ||
-      now - this.mainCatalog.at > RuntimeHealthService.MAIN_CATALOG_TTL_MS
-    ) {
+    let main = this.mainCatalog;
+    if (!main || now - main.at > RuntimeHealthService.MAIN_CATALOG_TTL_MS) {
+      const generation = this.catalogGeneration;
       const rows = await this.prisma.integrationConfig.findMany({
         where: { type: { in: [...CATALOG_PROVIDER_KEYS] } },
       });
@@ -62,10 +63,13 @@ export class RuntimeHealthService {
         instanceCatalogProviderTypeFromIntegrations(rows) ??
         configuredCatalogProviderTypeFromIntegrations(rows);
       const baseUrl = rows.find((row) => row.type === type)?.baseUrl;
-      this.mainCatalog = { host: baseUrl ? hostOf(baseUrl) : null, at: now };
+      main = { host: baseUrl ? hostOf(baseUrl) : null, at: now };
+      // Kept only if the settings didn't change while they were read.
+      if (generation === this.catalogGeneration) {
+        this.mainCatalog = main;
+      }
     }
-    const main = this.mainCatalog.host;
-    return main === null || main === hostOf(endpoint);
+    return main.host === null || main.host === hostOf(endpoint);
   }
 
   async getSummary(): Promise<RuntimeHealthResponse> {
@@ -202,7 +206,7 @@ export class RuntimeHealthService {
     this.cache.delete(service);
     if (service === RuntimeHealthServiceKey.CATALOG) {
       // Cleared when the catalog's settings change: read them again.
-      this.mainCatalog = null;
+      this.forgetMainCatalog();
     }
   }
 
@@ -218,7 +222,12 @@ export class RuntimeHealthService {
     for (const service of RuntimeHealthService.SERVICES) {
       this.cache.delete(service);
     }
+    this.forgetMainCatalog();
+  }
+
+  private forgetMainCatalog(): void {
     this.mainCatalog = null;
+    this.catalogGeneration += 1;
   }
 
   private async getSnapshot(
