@@ -50,12 +50,68 @@ describe('parseChangelog', () => {
     ]);
   });
 
+  it('reads tidied notes: their own headings, areas kept, no PR links or bold', () => {
+    const tidied = `## [1.7.5](https://github.com/o/r/compare/v1.7.4...v1.7.5) (2026-11-27)
+
+
+### Security
+
+* **Changes sent from another app on the same host are refused.** Your login keeps other websites out. ([#126](https://github.com/o/r/pull/126))
+
+### Fixed
+
+* **Requests:** a scene you want shows SABnzbd's own progress. ([#126](https://github.com/o/r/pull/126))
+* **Library:** the pickers search for \`%\` as typed. ([#125](https://github.com/o/r/pull/125))
+* **Drop-ins:** a file matched later is still put in its folder. ([#119](https://github.com/o/r/pull/119), [#120](https://github.com/o/r/pull/120))
+
+## [1.7.4](https://github.com/o/r/compare/v1.7.3...v1.7.4) (2026-11-25)
+
+### New
+
+* **Requests:** pick a release yourself.
+
+### Faster
+
+* Home opens quicker on phones.
+
+### Changes Behind The Scenes
+
+* not for the dialog
+`;
+    expect(parseChangelog(tidied)).toEqual([
+      {
+        version: '1.7.5',
+        date: '2026-11-27',
+        features: [],
+        fixes: [
+          'Changes sent from another app on the same host are refused. Your login keeps other websites out.',
+          "Requests: a scene you want shows SABnzbd's own progress.",
+          'Library: the pickers search for % as typed.',
+          'Drop-ins: a file matched later is still put in its folder.',
+        ],
+      },
+      {
+        version: '1.7.4',
+        date: '2026-11-25',
+        features: [
+          'Requests: pick a release yourself.',
+          'Home opens quicker on phones.',
+        ],
+        fixes: [],
+      },
+    ]);
+  });
+
   it('reads the changelog that ships with Stashboard', () => {
     const text = readChangelog(join(__dirname, '..'));
     expect(text).not.toBeNull();
     const releases = parseChangelog(text ?? '');
     expect(releases.length).toBeGreaterThan(0);
     expect(releases[0].version).toMatch(/^\d+\.\d+\.\d+$/);
+    // The latest release has something to show in "What's new".
+    expect(
+      releases[0].features.length + releases[0].fixes.length,
+    ).toBeGreaterThan(0);
   });
 });
 

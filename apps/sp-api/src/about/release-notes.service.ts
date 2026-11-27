@@ -103,6 +103,7 @@ export class ReleaseNotesService implements OnModuleInit {
       releases: this.known()
         .filter(
           (release) =>
+            hasNotes(release) &&
             compareVersions(release.version, from) === 1 &&
             compareVersions(release.version, current) !== 1,
         )
@@ -168,7 +169,8 @@ export class ReleaseNotesService implements OnModuleInit {
   latest(): ReleaseNotesResponse {
     const current = this.version();
     const newest = this.known().find(
-      (release) => compareVersions(release.version, current) !== 1,
+      (release) =>
+        hasNotes(release) && compareVersions(release.version, current) !== 1,
     );
     return { current, releases: newest ? [newest] : [] };
   }
@@ -186,6 +188,11 @@ export class ReleaseNotesService implements OnModuleInit {
     this.releases ??= parseChangelog(this.changelog() ?? '');
     return this.releases;
   }
+}
+
+/** A release with something to say: one with nothing isn't shown at all. */
+function hasNotes(release: ReleaseNotes): boolean {
+  return release.features.length > 0 || release.fixes.length > 0;
 }
 
 /** The newest of these versions; anything that isn't x.y.z is skipped. */

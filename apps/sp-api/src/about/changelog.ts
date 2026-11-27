@@ -13,6 +13,19 @@ const HEADING =
   /^##\s+\[?(\d+\.\d+\.\d+)\]?(?:\([^)]*\))?\s*(?:\((\d{4}-\d{2}-\d{2})\))?/;
 /** Fix lines about review rounds say nothing to someone using the app. */
 const NOISE = /^(address(ed)? review|review fixes)/i;
+/**
+ * Section headings, as release-please writes them and as tidied notes do
+ * ("New", "Faster", "Fixed", "Security"). Any other section isn't shown.
+ */
+const FEATURE_SECTIONS = new Set([
+  'features',
+  'new',
+  'added',
+  'improved',
+  'faster',
+  'performance improvements',
+]);
+const FIX_SECTIONS = new Set(['bug fixes', 'fixed', 'fixes', 'security']);
 
 /**
  * The releases in release-please's CHANGELOG.md, newest first, as plain
@@ -42,12 +55,11 @@ export function parseChangelog(text: string): ReleaseNotes[] {
     }
     if (line.startsWith('### ')) {
       const title = line.slice(4).trim().toLowerCase();
-      list =
-        title === 'features'
-          ? current.features
-          : title === 'bug fixes'
-            ? current.fixes
-            : null;
+      list = FEATURE_SECTIONS.has(title)
+        ? current.features
+        : FIX_SECTIONS.has(title)
+          ? current.fixes
+          : null;
       continue;
     }
     if (list && /^\s*[*-]\s+/.test(line)) {
@@ -63,13 +75,20 @@ export function parseChangelog(text: string): ReleaseNotes[] {
 function cleanEntry(line: string): string {
   const text = line
     .replace(/^\s*[*-]\s+/, '')
-    // "**web:** " scope prefix.
-    .replace(/^\*\*[^*]+:\*\*\s*/, '')
-    // " ([abc1234](https://…/commit/…))" and ", closes [#12](…)" at the end.
+    // A commit's "**web:** " scope. A tidied line's "**Requests:** " area
+    // is kept, as "Requests: ".
+    .replace(/^\*\*[a-z0-9-]+:\*\*\s*/, '')
+    // " ([abc1234](https://…/commit/…))", " ([#12](…/pull/12))" and
+    // ", closes [#12](…)".
     .replace(/\s*\(\[[0-9a-f]{7,40}\]\([^)]*\)\)/g, '')
+    .replace(/\s*\(\[#\d+\]\([^)]*\)\)/g, '')
     .replace(/,?\s*closes\s+\[#\d+\]\([^)]*\)/gi, '')
     // Any other markdown link keeps just its text.
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    // What's left of a list of pull requests: " (#119, #120)".
+    .replace(/\s*\(#\d+(?:,\s*#\d+)*\)/g, '')
+    // Shown as plain text: no bold or code marks.
+    .replace(/\*\*|`/g, '')
     .trim();
   return text ? text[0].toUpperCase() + text.slice(1) : '';
 }
