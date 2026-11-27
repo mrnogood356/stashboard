@@ -135,6 +135,21 @@ describe('NotificationsService', () => {
     );
   });
 
+  it('keeps letters outside ASCII in an ntfy title, encoded', async () => {
+    findUniqueMock.mockResolvedValue(
+      enabledSettings({ channel: 'NTFY', url: 'https://ntfy.sh/my-topic' }),
+    );
+    await service.notifyFollowedReleases([
+      { title: 'Scene A', followName: 'Zoë', requested: false },
+    ]);
+    const title = fetchMock.mock.calls[0][1].headers.Title as string;
+    // ASCII only, as a header must be, and decodes back to the whole title.
+    expect(title).toMatch(/^=\?UTF-8\?B\?[A-Za-z0-9+/=]+\?=$/);
+    expect(Buffer.from(title.slice(10, -2), 'base64').toString('utf8')).toBe(
+      'New from Zoë',
+    );
+  });
+
   it('sends an ntfy access token when one is set', async () => {
     findUniqueMock.mockResolvedValue(
       enabledSettings({

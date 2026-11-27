@@ -164,6 +164,7 @@ describe('DownloadDropInService', () => {
               rematchTriedAt: null,
               placePending: false,
               matchedBy: null,
+              placedAt: null,
               clearedAt: null,
               createdAt: new Date(),
               updatedAt: new Date(),
@@ -376,6 +377,156 @@ describe('DownloadDropInService', () => {
     expect(prisma.downloadDropIn.upsert).toHaveBeenCalledTimes(1);
     expect(organizer.identifyNewScenes).toHaveBeenCalledTimes(1);
     expect(dropIns).toHaveLength(1);
+    expect(dropIns[0].placedAt).toBeNull();
+
+    // Switched to moving later, and the copy's source touched since: it's
+    // still the same file, not brought in again.
+    settings.importMode = 'move';
+    const now = new Date();
+    await fs.utimes(source, now, now);
+    await fs.chmod(source, 0o644);
+    await twoChecks();
+    expect(prisma.downloadDropIn.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('brings in a file dropped again where one was moved from before, even at the same size', async () => {
+    const source = path.join(sabFolder, 'Again.mp4');
+    await write(source);
+    await twoChecks();
+    expect(await exists(source)).toBe(false);
+    // Moved out an hour ago; since then removed from the library, and its
+    // row touched again since (matching it), which mustn't matter.
+    dropIns[0].placedAt = new Date(Date.now() - 3600_000);
+    dropIns[0].updatedAt = new Date(Date.now() + 3600_000);
+    dropIns[0].status = 'failed';
+    await fs.rm(path.join(destination, 'Again.mp4'));
+
+    await write(source);
+    await twoChecks();
+    expect(await exists(source)).toBe(false);
+    expect(await exists(path.join(destination, 'Again.mp4'))).toBe(true);
+    expect(prisma.downloadDropIn.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it('doesn’t count a move that left the original behind as moved', async () => {
+    const source = path.join(sabFolder, 'Across.mp4');
+    await write(source);
+    // Another disk: the rename fails, the copy works, deleting the original doesn't.
+    const realRename = fs.rename.bind(fs);
+    const realUnlink = fs.unlink.bind(fs);
+    const rename = jest
+      .spyOn(fs, 'rename')
+      .mockImplementation((from, to) =>
+        String(from) === source
+          ? Promise.reject(
+              Object.assign(new Error('cross-device'), { code: 'EXDEV' }),
+            )
+          : realRename(from, to),
+      );
+    const unlink = jest
+      .spyOn(fs, 'unlink')
+      .mockImplementation((target) =>
+        String(target) === source
+          ? Promise.reject(new Error('read-only'))
+          : realUnlink(target),
+      );
+    try {
+      await twoChecks();
+    } finally {
+      rename.mockRestore();
+      unlink.mockRestore();
+    }
+
+    expect(await exists(source)).toBe(true);
+    expect(await exists(path.join(destination, 'Across.mp4'))).toBe(true);
+    expect(dropIns[0]).toMatchObject({ placedAt: null });
+    // Touched later, it's still the file brought in: not again.
+    const later = new Date(Date.now() + 60_000);
+    await fs.utimes(source, later, later);
+    await fs.chmod(source, 0o644);
+    await twoChecks();
+    expect(prisma.downloadDropIn.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves a file that is still the one brought in, when its move left it behind', async () => {
+    const source = path.join(sabFolder, 'Stayed.mp4');
+    await write(source);
+    // Brought in after the file was last changed: it's that same file.
+    dropIns.push({
+      id: 'd9',
+      sourcePath: source,
+      size: BigInt((await fs.stat(source)).size),
+      status: 'imported',
+      finalPath: path.join(destination, 'Stayed.mp4'),
+      stashSceneId: '88',
+      error: null,
+      attempts: 0,
+      finishedAt: new Date(),
+      rematchTriedAt: null,
+      placePending: false,
+      matchedBy: 'fingerprint',
+      clearedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      placedAt: new Date(Date.now() + 60_000),
+    });
+    await twoChecks();
+    expect(prisma.downloadDropIn.upsert).not.toHaveBeenCalled();
+  });
+
+  it('never brings in again a file from before the update, even if it was a copy and moving is on now', async () => {
+    settings.importMode = 'move';
+    const source = path.join(sabFolder, 'Old.Copy.mp4');
+    await write(source);
+    // Brought in (as a copy) before the update: no placed time recorded.
+    dropIns.push({
+      id: 'd8',
+      sourcePath: source,
+      size: BigInt((await fs.stat(source)).size),
+      status: 'imported',
+      finalPath: path.join(destination, 'Old.Copy.mp4'),
+      stashSceneId: '88',
+      error: null,
+      attempts: 0,
+      finishedAt: new Date(),
+      rematchTriedAt: null,
+      placePending: false,
+      matchedBy: 'fingerprint',
+      placedAt: null,
+      clearedAt: null,
+      createdAt: new Date(Date.now() - 86_400_000),
+      updatedAt: new Date(Date.now() - 86_400_000),
+    });
+    // Its source touched since.
+    const now = new Date();
+    await fs.utimes(source, now, now);
+    await fs.chmod(source, 0o644);
+
+    await twoChecks();
+    expect(prisma.downloadDropIn.upsert).not.toHaveBeenCalled();
+    expect(await exists(source)).toBe(true);
+  });
+
+  it('tries matching again later when the look-up fails, rather than counting it in', async () => {
+    organizer.identifyNewScenes.mockRejectedValueOnce(
+      new Error('StashDB is down'),
+    );
+    await write(path.join(sabFolder, 'Later.mp4'));
+
+    await twoChecks();
+    // Moved, but not counted in: waiting to be matched on the next check.
+    expect(dropIns[0]).toMatchObject({
+      status: 'placed',
+      attempts: 1,
+      matchedBy: null,
+    });
+    expect(dropIns[0].error).toContain('StashDB is down');
+
+    await service.check(later());
+    expect(dropIns[0]).toMatchObject({
+      status: 'imported',
+      matchedBy: 'fingerprint',
+    });
   });
 
   it('leaves a likely match for you to check, without moving it into a folder', async () => {
@@ -558,6 +709,7 @@ describe('DownloadDropInService', () => {
       rematchTriedAt: null,
       placePending: false,
       matchedBy: null,
+      placedAt: null,
       clearedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -585,6 +737,7 @@ describe('DownloadDropInService', () => {
       rematchTriedAt: null,
       placePending: false,
       matchedBy: null,
+      placedAt: null,
       clearedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -889,6 +1042,7 @@ describe('DownloadDropInService', () => {
         rematchTriedAt: null,
         placePending: false,
         matchedBy: null,
+        placedAt: null,
         clearedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),

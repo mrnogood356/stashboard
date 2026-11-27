@@ -560,6 +560,8 @@ model DownloadHandoff {
   placePending         Boolean   @default(false)
   /// How it was matched once in Stash: fingerprint | name | whisparr | later | proposed | none (yours only).
   matchedBy            String?
+  /// When Stash first said it was too busy to scan it; cleared once it does.
+  stashWaitSince       DateTime?
   /// Cleared from Downloads by you. Kept, so it's never brought in twice.
   clearedAt            DateTime?
   createdAt            DateTime  @default(now())
@@ -594,6 +596,8 @@ model DownloadDropIn {
   placePending   Boolean   @default(false)
   /// How it was matched once in Stash: fingerprint | name | whisparr | later | proposed | none (yours only).
   matchedBy      String?
+  /// When the file at sourcePath was moved or copied in: a file there changed later is a new one.
+  placedAt       DateTime?
   /// Cleared from Downloads by you. Kept, so it's never brought in twice.
   clearedAt      DateTime?
   createdAt      DateTime  @default(now())
@@ -752,9 +756,11 @@ model SmallerCopySettings {
   oldCopy           String   @default("keep")
   /// At most this many scenes searched for an hour, spread evenly.
   scenesPerHour     Int      @default(10)
-  /// Search only between these hours (server time); both null: any time.
+  /// Search only between these hours (in timeZone); both null: any time.
   activeFromHour    Int?
   activeToHour      Int?
+  /// Your time zone (IANA, from the browser) the hours are in; null: the server's.
+  timeZone          String?
   /// Space given back so far: deleted files minus the copies that replaced them.
   savedBytes        Float    @default(0)
   /// Scenes whose file was replaced so far.

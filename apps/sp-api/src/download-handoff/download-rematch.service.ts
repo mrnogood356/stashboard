@@ -138,7 +138,11 @@ export class DownloadRematchService {
             : 'stash'
           : waiting.has(entry.sceneId)
             ? 'proposed'
-            : undefined;
+            : // Still not matched, with nothing noted yet: say so, so
+              // Downloads offers Find a match.
+              entry.matchedBy === null
+              ? 'none'
+              : undefined;
         await this.save(entry, {
           rematchTriedAt: new Date(this.now()),
           placePending: !stillUnmatched,

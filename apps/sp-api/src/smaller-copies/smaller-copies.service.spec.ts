@@ -574,6 +574,53 @@ describe('SmallerCopiesService', () => {
     expect(downloads.searchReleases).toHaveBeenCalledTimes(1);
   });
 
+  it('reads the hours in your time zone, not the server’s', async () => {
+    settings.activeFromHour = 1;
+    settings.activeToHour = 6;
+    // 03:00 UTC is noon in Tokyo: outside 1–6 there.
+    now = Date.UTC(2026, 10, 5, 3, 0);
+    settings.timeZone = 'Asia/Tokyo';
+    await service.tick();
+    expect(downloads.searchReleases).not.toHaveBeenCalled();
+
+    // The same moment is 3 am in UTC: inside.
+    settings.timeZone = 'UTC';
+    await service.tick();
+    expect(downloads.searchReleases).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the time zone the page sends, and drops one it doesn’t know', async () => {
+    await service.saveSettings({
+      ...(await service.status()).settings,
+      timeZone: 'Europe/Paris',
+    });
+    expect(settings.timeZone).toBe('Europe/Paris');
+    await service.saveSettings({
+      ...(await service.status()).settings,
+      timeZone: 'Not/AZone',
+    });
+    expect(settings.timeZone).toBeNull();
+  });
+
+  it('offers Grab only for a match it can grab', async () => {
+    attempts.set('2', {
+      stashSceneId: '2',
+      title: 'Scene',
+      outcome: 'found',
+      releaseGuid: 'g1',
+      indexerId: null,
+      grabbedGuids: [],
+      searchedAt: new Date(now),
+      retryAfter: new Date(now + 3600_000),
+    });
+    const status = await service.status();
+    expect(status.recent.find((row) => row.stashSceneId === '2')).toMatchObject(
+      {
+        canGrab: false,
+      },
+    );
+  });
+
   it('shows the space given back so far', async () => {
     settings.savedBytes = 12.5e9;
     settings.replacedCount = 3;

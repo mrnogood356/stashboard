@@ -28,6 +28,8 @@ export interface AcquisitionDownload {
   progress: number | null;
   /** "hh:mm:ss" (or "d.hh:mm:ss") left, when known. */
   timeLeft: string | null;
+  /** SABnzbd is done downloading it: still unpacking, or ready for Whisparr. */
+  after?: 'unpacking' | 'downloaded';
 }
 
 export interface AcquisitionSceneItem extends DiscoverItem {

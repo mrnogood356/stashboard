@@ -500,6 +500,39 @@ describe('ProcessingPageComponent', () => {
 });
 
 describe('processing format', () => {
+  it('dates finished downloads and files by when they came in, not their last change', async () => {
+    const now = Date.now();
+    const cameIn = new Date(now - 3 * 86_400_000).toISOString();
+    const touched = new Date(now - 5 * 60_000).toISOString();
+    const { root } = await render(
+      processing({
+        recentHandoffs: [
+          handoff({
+            source: 'sabnzbd-manual',
+            status: 'imported',
+            stage: 'done',
+            matchedBy: 'later',
+            finishedAt: cameIn,
+            updatedAt: touched,
+          }),
+        ],
+        dropIns: {
+          watch: watch(),
+          active: [],
+          recent: [dropIn({ finishedAt: cameIn, updatedAt: touched })],
+        },
+      }),
+    );
+
+    for (const row of [
+      root.querySelector('[data-testid="added-in-sab"]')?.closest('li'),
+      root.querySelector('[data-testid="drop-in-done"]'),
+    ]) {
+      expect(text(row)).toContain('3 d ago');
+      expect(text(row)).not.toContain('5 min ago');
+    }
+  });
+
   it('says how long ago or until', () => {
     const now = Date.parse(NOW);
     expect(relativeTime(NOW, now)).toBe('just now');

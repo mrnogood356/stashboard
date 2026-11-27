@@ -35,6 +35,7 @@ function handoff(overrides: Partial<DownloadHandoff> = {}): DownloadHandoff {
     rematchTriedAt: null,
     placePending: false,
     matchedBy: null,
+    stashWaitSince: null,
     clearedAt: null,
     createdAt: at,
     updatedAt: at,
@@ -56,6 +57,7 @@ function dropIn(overrides: Partial<DownloadDropIn> = {}): DownloadDropIn {
     rematchTriedAt: null,
     placePending: false,
     matchedBy: null,
+    placedAt: null,
     clearedAt: null,
     createdAt: at,
     updatedAt: at,
@@ -282,8 +284,48 @@ describe('DownloadProcessingService', () => {
       dropIns as unknown as DownloadDropInService,
       sabnzbd as unknown as SabnzbdAdapter,
     );
-    return { service, sabnzbd };
+    return { service, sabnzbd, prisma };
   }
+
+  it('lists finished ones by when they came in, not when a later look touched them', async () => {
+    const cameIn = new Date('2026-10-18T08:00:00Z');
+    const { service, prisma } = setup({
+      open: [],
+      done: [
+        handoff({
+          id: 'h-old',
+          status: 'imported',
+          matchedBy: 'later',
+          finishedAt: cameIn,
+          updatedAt: at,
+        }),
+      ],
+      placed: [],
+      recent: [
+        dropIn({
+          id: 'd-old',
+          status: 'imported',
+          finishedAt: cameIn,
+          updatedAt: at,
+        }),
+      ],
+    });
+
+    const snapshot = await service.snapshot(at.getTime());
+
+    expect(snapshot.recentHandoffs[0]?.finishedAt).toBe(cameIn.toISOString());
+    expect(snapshot.dropIns.recent[0]?.finishedAt).toBe(cameIn.toISOString());
+    const byFinish = [
+      { finishedAt: { sort: 'desc', nulls: 'last' } },
+      { updatedAt: 'desc' },
+    ];
+    expect(prisma.downloadHandoff.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: byFinish }),
+    );
+    expect(prisma.downloadDropIn.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: byFinish }),
+    );
+  });
 
   it('puts downloads and drop-ins in one place, with counts for Home', async () => {
     const { service } = setup({

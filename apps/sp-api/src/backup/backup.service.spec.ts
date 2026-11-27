@@ -190,6 +190,7 @@ function setup() {
       scenesPerHour: 10,
       activeFromHour: null,
       activeToHour: null,
+      timeZone: 'Europe/Paris',
       createdAt: new Date(),
       updatedAt: new Date(),
       replacedCount: 4,
@@ -285,6 +286,8 @@ describe('BackupService', () => {
         target: '1080p',
         maxGbPerHour: 6,
         oldCopy: 'keep',
+        // The zone its active hours are in.
+        timeZone: 'Europe/Paris',
       }),
     );
     expect(file.settings.betterCopies).not.toHaveProperty('savedBytes');
@@ -307,6 +310,7 @@ describe('BackupService', () => {
       minNewGbPerHour: null,
       activeFromHour: null,
       activeToHour: null,
+      timeZone: null,
     });
     const file = await service.export(false);
     // … and this server has all of them.
@@ -318,6 +322,7 @@ describe('BackupService', () => {
       minNewGbPerHour: 1,
       activeFromHour: 9,
       activeToHour: 17,
+      timeZone: 'Asia/Tokyo',
     });
 
     await service.restore(file);
@@ -330,6 +335,7 @@ describe('BackupService', () => {
         minNewGbPerHour: null,
         activeFromHour: null,
         activeToHour: null,
+        timeZone: null,
       }),
     );
   });

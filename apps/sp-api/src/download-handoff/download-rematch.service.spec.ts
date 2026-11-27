@@ -291,6 +291,19 @@ describe('DownloadRematchService', () => {
     });
   });
 
+  it('says one still not matched is not matched yet, so Downloads offers Find a match', async () => {
+    downloads.rows[0].matchedBy = null;
+    organizer.identifyNewScenes.mockResolvedValue({
+      linked: [],
+      matched: [],
+      proposed: [],
+      byName: [],
+      left: ['11', '13'],
+    });
+    await service.run();
+    expect(downloads.rows[0].matchedBy).toBe('none');
+  });
+
   it('notes a link even when something is in the way of its folder', async () => {
     dropIns.rows[0].placePending = true;
     handoff.placeInFolder.mockResolvedValue({

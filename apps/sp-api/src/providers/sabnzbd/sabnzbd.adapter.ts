@@ -217,34 +217,28 @@ export class SabnzbdAdapter {
       limit: String(LIST_LIMIT),
       ...(start > 0 ? { start: String(start) } : {}),
     });
-    const slots = (payload as { history?: { slots?: unknown } } | null)?.history
-      ?.slots;
-    if (!Array.isArray(slots)) {
-      return [];
+    return historySlots(payload);
+  }
+
+  /**
+   * Where these downloads are now, whatever their category (Whisparr's
+   * grabs, say): still in SABnzbd's queue, or done with (or failed) in its
+   * history. Whisparr only asks SABnzbd about once a minute, so its own
+   * queue can lag behind this.
+   */
+  async jobs(
+    config: SabnzbdAdapterBaseConfig,
+    nzoIds: string[],
+  ): Promise<{ queue: SabnzbdQueueEntry[]; history: SabnzbdHistoryEntry[] }> {
+    if (nzoIds.length === 0) {
+      return { queue: [], history: [] };
     }
-    return slots.flatMap((slot): SabnzbdHistoryEntry[] => {
-      const row = (slot ?? {}) as Record<string, unknown>;
-      const nzoId = readString(row.nzo_id);
-      const status = readString(row.status);
-      // Seconds since 1970, as a number (or, in some versions, a string).
-      const completed = Number(row.completed ?? NaN);
-      return nzoId && status
-        ? [
-            {
-              nzoId,
-              name: readString(row.name),
-              category: readString(row.category),
-              status,
-              storage: readString(row.storage),
-              failMessage: readString(row.fail_message),
-              completedAt:
-                Number.isFinite(completed) && completed > 0
-                  ? new Date(completed * 1000)
-                  : null,
-            },
-          ]
-        : [];
-    });
+    const ids = { nzo_ids: nzoIds.join(','), limit: String(LIST_LIMIT) };
+    const [queue, history] = await Promise.all([
+      this.call(config, 'queue', ids),
+      this.call(config, 'history', ids),
+    ]);
+    return { queue: queueSlots(queue), history: historySlots(history) };
   }
 
   /**
@@ -276,36 +270,12 @@ export class SabnzbdAdapter {
     config: SabnzbdAdapterBaseConfig,
     category: string,
   ): Promise<SabnzbdQueueEntry[]> {
-    const payload = await this.call(config, 'queue', {
-      category,
-      limit: String(LIST_LIMIT),
-    });
-    const slots = (payload as { queue?: { slots?: unknown } } | null)?.queue
-      ?.slots;
-    if (!Array.isArray(slots)) {
-      return [];
-    }
-    return slots.flatMap((slot): SabnzbdQueueEntry[] => {
-      const row = (slot ?? {}) as Record<string, unknown>;
-      const nzoId = readString(row.nzo_id);
-      // SABnzbd sends the percentage as a string.
-      const percentage =
-        typeof row.percentage === 'number'
-          ? row.percentage
-          : Number(readString(row.percentage) ?? NaN);
-      return nzoId
-        ? [
-            {
-              nzoId,
-              name: readString(row.filename),
-              category: readString(row.cat),
-              status: readString(row.status) ?? 'Queued',
-              percentage: Number.isFinite(percentage) ? percentage : null,
-              timeLeft: readString(row.timeleft),
-            },
-          ]
-        : [];
-    });
+    return queueSlots(
+      await this.call(config, 'queue', {
+        category,
+        limit: String(LIST_LIMIT),
+      }),
+    );
   }
 
   private async call(
@@ -389,4 +359,64 @@ function readString(value: unknown): string | null {
 function isAbort(error: unknown): boolean {
   const name = (error as { name?: unknown } | null)?.name;
   return name === 'AbortError' || name === 'TimeoutError';
+}
+
+function historySlots(payload: unknown): SabnzbdHistoryEntry[] {
+  const slots = (payload as { history?: { slots?: unknown } } | null)?.history
+    ?.slots;
+  if (!Array.isArray(slots)) {
+    return [];
+  }
+  return slots.flatMap((slot): SabnzbdHistoryEntry[] => {
+    const row = (slot ?? {}) as Record<string, unknown>;
+    const nzoId = readString(row.nzo_id);
+    const status = readString(row.status);
+    // Seconds since 1970, as a number (or, in some versions, a string).
+    const completed = Number(row.completed ?? NaN);
+    return nzoId && status
+      ? [
+          {
+            nzoId,
+            name: readString(row.name),
+            category: readString(row.category),
+            status,
+            storage: readString(row.storage),
+            failMessage: readString(row.fail_message),
+            completedAt:
+              Number.isFinite(completed) && completed > 0
+                ? new Date(completed * 1000)
+                : null,
+          },
+        ]
+      : [];
+  });
+}
+
+function queueSlots(payload: unknown): SabnzbdQueueEntry[] {
+  const slots = (payload as { queue?: { slots?: unknown } } | null)?.queue
+    ?.slots;
+  if (!Array.isArray(slots)) {
+    return [];
+  }
+  return slots.flatMap((slot): SabnzbdQueueEntry[] => {
+    const row = (slot ?? {}) as Record<string, unknown>;
+    const nzoId = readString(row.nzo_id);
+    // SABnzbd sends the percentage as a string.
+    const percentage =
+      typeof row.percentage === 'number'
+        ? row.percentage
+        : Number(readString(row.percentage) ?? NaN);
+    return nzoId
+      ? [
+          {
+            nzoId,
+            name: readString(row.filename),
+            category: readString(row.cat),
+            status: readString(row.status) ?? 'Queued',
+            percentage: Number.isFinite(percentage) ? percentage : null,
+            timeLeft: readString(row.timeleft),
+          },
+        ]
+      : [];
+  });
 }

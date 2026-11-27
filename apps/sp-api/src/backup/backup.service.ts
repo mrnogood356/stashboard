@@ -267,6 +267,8 @@ export class BackupService {
           'scenesPerHour',
           'activeFromHour',
           'activeToHour',
+          // The zone those hours are in; null is the server's clock.
+          'timeZone',
         ],
         nullableFields: [
           'maxGbPerHour',
@@ -275,6 +277,7 @@ export class BackupService {
           'minNewGbPerHour',
           'activeFromHour',
           'activeToHour',
+          'timeZone',
         ],
         read: async () => {
           const { targetResolution, ...saved } =

@@ -7,6 +7,7 @@ import { IndexingService } from '../indexing/indexing.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CatalogProviderService } from '../providers/catalog/catalog-provider.service';
+import { SabnzbdAdapter } from '../providers/sabnzbd/sabnzbd.adapter';
 import { WhisparrAdapter } from '../providers/whisparr/whisparr.adapter';
 import { AcquisitionService } from './acquisition.service';
 
@@ -62,6 +63,8 @@ describe('AcquisitionService', () => {
   const findMovieByStashIdMock = jest.fn();
   const searchMoviesMock = jest.fn();
   const deleteMovieMock = jest.fn();
+  const integrationConfigFindUniqueMock = jest.fn();
+  const sabJobsMock = jest.fn();
 
   const indexingService = {
     requestMetadataHydrationForStashIds:
@@ -98,7 +101,11 @@ describe('AcquisitionService', () => {
     downloadHandoff: {
       count: downloadHandoffCountMock,
     },
+    integrationConfig: {
+      findUnique: integrationConfigFindUniqueMock,
+    },
   } as unknown as PrismaService;
+  const sabnzbdAdapter = { jobs: sabJobsMock } as unknown as SabnzbdAdapter;
 
   const configuredWhisparrIntegration = {
     enabled: true,
@@ -118,7 +125,10 @@ describe('AcquisitionService', () => {
       catalogProviderService,
       whisparrAdapter,
       prismaService,
+      sabnzbdAdapter,
     );
+    // SABnzbd isn't connected unless a test says so.
+    integrationConfigFindUniqueMock.mockResolvedValue(null);
 
     buildSceneViewUrlMock.mockImplementation(
       (baseUrl: string, movieId: number) => `${baseUrl}/movie/${movieId}`,
@@ -190,6 +200,65 @@ describe('AcquisitionService', () => {
     expect(byId.get('scene-failed')?.download).toBeNull();
   });
 
+  it('asks SABnzbd itself how far along Whisparr’s download is, when it’s connected', async () => {
+    integrationConfigFindUniqueMock.mockResolvedValue({
+      enabled: true,
+      status: IntegrationStatus.CONFIGURED,
+      baseUrl: 'http://sab.local',
+      apiKey: 'sab-key',
+    });
+    // Whisparr last asked SABnzbd a while ago.
+    getQueueDetailsMock.mockResolvedValue([
+      {
+        movieId: 20,
+        downloadId: 'SABnzbd_nzo_a',
+        size: 1000,
+        sizeLeft: 700,
+        timeLeft: '00:20:00',
+      },
+    ]);
+    sabJobsMock.mockResolvedValue({
+      queue: [],
+      history: [{ nzoId: 'SABnzbd_nzo_a', status: 'Completed' }],
+    });
+
+    let result = await service.getScenesFeed(1, 2);
+
+    expect(sabJobsMock).toHaveBeenCalledWith(
+      { baseUrl: 'http://sab.local', apiKey: 'sab-key' },
+      ['SABnzbd_nzo_a'],
+    );
+    let byId = new Map(result.items.map((item) => [item.id, item]));
+    expect(byId.get('scene-downloading')?.download).toEqual({
+      progress: 100,
+      timeLeft: null,
+      after: 'downloaded',
+    });
+
+    // Still downloading: SABnzbd's own numbers.
+    sabJobsMock.mockResolvedValue({
+      queue: [
+        { nzoId: 'SABnzbd_nzo_a', percentage: 91.6, timeLeft: '0:00:40' },
+      ],
+      history: [],
+    });
+    result = await service.getScenesFeed(1, 2);
+    byId = new Map(result.items.map((item) => [item.id, item]));
+    expect(byId.get('scene-downloading')?.download).toEqual({
+      progress: 92,
+      timeLeft: '0:00:40',
+    });
+
+    // SABnzbd can't be asked: Whisparr's numbers, as before.
+    sabJobsMock.mockRejectedValue(new Error('SABnzbd is down'));
+    result = await service.getScenesFeed(1, 2);
+    byId = new Map(result.items.map((item) => [item.id, item]));
+    expect(byId.get('scene-downloading')?.download).toEqual({
+      progress: 30,
+      timeLeft: '00:20:00',
+    });
+  });
+
   it('still lists the scenes when Whisparr’s queue can’t be read', async () => {
     getQueueDetailsMock.mockRejectedValue(
       new Error('Failed to reach Whisparr'),
@@ -199,6 +268,75 @@ describe('AcquisitionService', () => {
 
     expect(result.items).toHaveLength(2);
     expect(result.items.every((item) => item.download === null)).toBe(true);
+  });
+
+  it('finds requests behind a big import of other scenes', async () => {
+    // 500 other scenes Stash got since, then the requested one.
+    const others = Array.from({ length: 500 }, (_, index) => ({
+      linkedStashId: `other-${index}`,
+      localCreatedAt: new Date('2026-10-27T10:00:00.000Z'),
+      viewUrl: `http://stash.local/scenes/o${index}`,
+    }));
+    librarySceneIndexFindManyMock
+      .mockResolvedValueOnce(others)
+      .mockResolvedValueOnce([
+        {
+          linkedStashId: 'scene-asked',
+          localCreatedAt: new Date('2026-10-20T10:00:00.000Z'),
+          viewUrl: 'http://stash.local/scenes/1',
+        },
+      ]);
+    sceneIndexFindManyMock.mockImplementation(
+      ({ where }: { where: { stashId?: { in: string[] } } }) =>
+        Promise.resolve(
+          where.stashId?.in.includes('scene-asked')
+            ? [
+                buildIndexedRow({
+                  stashId: 'scene-asked',
+                  computedLifecycle: 'AVAILABLE',
+                }),
+              ]
+            : [],
+        ),
+    );
+
+    const result = await service.getScenesFeed(1, 24, 'AVAILABLE');
+
+    expect(result.items.map((item) => item.id)).toEqual(['scene-asked']);
+    expect(librarySceneIndexFindManyMock).toHaveBeenCalledTimes(2);
+    expect(librarySceneIndexFindManyMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ skip: 500, take: 500 }),
+    );
+  });
+
+  it('reads on through scenes that arrived at the same moment as the 200th', async () => {
+    const at = new Date('2026-10-27T10:00:00.000Z');
+    const arrival = (id: string) => ({
+      linkedStashId: id,
+      localCreatedAt: at,
+      viewUrl: `http://stash.local/scenes/${id}`,
+    });
+    // 500 requested scenes, then one more at the same moment that sorts first.
+    const first = Array.from({ length: 500 }, (_, index) =>
+      arrival(`z${String(index).padStart(3, '0')}`),
+    );
+    librarySceneIndexFindManyMock
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce([arrival('a000')]);
+    sceneIndexFindManyMock.mockImplementation(
+      ({ where }: { where: { stashId: { in: string[] } } }) =>
+        Promise.resolve(
+          where.stashId.in.map((stashId) =>
+            buildIndexedRow({ stashId, computedLifecycle: 'AVAILABLE' }),
+          ),
+        ),
+    );
+
+    const result = await service.getScenesFeed(1, 24, 'AVAILABLE');
+
+    expect(result.items[0].id).toBe('a000');
+    expect(result.total).toBe(200);
+    expect(librarySceneIndexFindManyMock).toHaveBeenCalledTimes(2);
   });
 
   it('lists requests Stash got in the last two weeks, newest first', async () => {
@@ -230,7 +368,7 @@ describe('AcquisitionService', () => {
     expect(librarySceneIndexFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ linkedStashId: { not: null } }),
-        orderBy: { localCreatedAt: 'desc' },
+        orderBy: [{ localCreatedAt: 'desc' }, { stashSceneId: 'asc' }],
       }),
     );
     expect(sceneIndexFindManyMock).toHaveBeenCalledWith({
