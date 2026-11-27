@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.7.7](https://github.com/mrnogood356/stashboard/compare/v1.7.6...v1.7.7) (2026-11-27)
+
+
+### Bug Fixes
+
+* **activity:** Show more doesn't repeat entries ([c18f5d6](https://github.com/mrnogood356/stashboard/commit/c18f5d6e41f0742a45462193a7c69a33ba30b41f))
+* App Lock, Appearance and Activity bug-hunt fixes ([8bfda82](https://github.com/mrnogood356/stashboard/commit/8bfda8283ec357d42a5dc913547266fb67d380b8))
+* **app-lock:** keep where a video got to when the app locks as you leave ([c475326](https://github.com/mrnogood356/stashboard/commit/c475326e7b4a023e06940f2fe3fffbf2516a2620))
+* **appearance:** the page follows the header's light/dark button ([8a1cdab](https://github.com/mrnogood356/stashboard/commit/8a1cdabadceaef5a292ec1bcf8706dede6a9a612))
+* **catalog:** a FansDB performer or studio shows its own scenes ([2427a5a](https://github.com/mrnogood356/stashboard/commit/2427a5a74234bb8fa346f04a11a164e5226cdddc))
+* **catalog:** a FansDB performer or studio shows its own scenes ([5e1df2f](https://github.com/mrnogood356/stashboard/commit/5e1df2f18047f75e0a0f5144d1cb403fd1ed141d))
+* **catalog:** a late answer for an earlier page can't switch catalogs ([35efd4b](https://github.com/mrnogood356/stashboard/commit/35efd4b5c95ba6aa4ca8bf6911d1fa70250786d1))
+* **catalog:** a page closed during the catalog switch does nothing more ([4c59af1](https://github.com/mrnogood356/stashboard/commit/4c59af1e9bfaa7614cdbbd6499922dde92bce5dc))
+* **catalog:** keep showing the loading state while the next page loads ([38f634e](https://github.com/mrnogood356/stashboard/commit/38f634eefb268fc69ac8815abcc77996fa71e405))
+* **health:** don't keep a catalog read the settings changed under ([61f0904](https://github.com/mrnogood356/stashboard/commit/61f09049dc8236c2520a19e4e2433c341a81ac84))
+* **health:** FansDB no longer decides whether the catalog is down ([d61b039](https://github.com/mrnogood356/stashboard/commit/d61b039f9ed04ef23dea7e2ff6841f0ed1327a08))
+* **health:** only the main catalog counts for "the catalog is down" ([2267fae](https://github.com/mrnogood356/stashboard/commit/2267fae80df9ccae01f3b99eac7f1f61086f8bf2))
+* **match:** a match saved from FansDB stays saved ([9147c3a](https://github.com/mrnogood356/stashboard/commit/9147c3a1b7bf9873d7c5a1c4cd9881244246940f))
+* **match:** a match saved from FansDB stays saved ([1aa9b3d](https://github.com/mrnogood356/stashboard/commit/1aa9b3d0c3f5e171939a870b7e575e0a32e5f715))
+* **setup:** say how long a Whisparr indexer stays paused ([7e121f9](https://github.com/mrnogood356/stashboard/commit/7e121f910259fbb83f11877fca78f2b6dea5fb26))
+* **web:** a late categories answer doesn't replace the switched catalog's ([6411747](https://github.com/mrnogood356/stashboard/commit/64117473ea0887cb71f72b74796899ef7cd149fc))
+
 ## [1.7.6](https://github.com/mrnogood356/stashboard/compare/v1.7.5...v1.7.6) (2026-11-27)
 
 
