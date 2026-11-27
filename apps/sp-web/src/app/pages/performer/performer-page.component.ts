@@ -746,6 +746,18 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
       )
       .subscribe({
         next: (details) => {
+          if (details.fromOtherCatalog && details.provider) {
+            // Opened from a link that didn't say which catalog (Following,
+            // a scene from Home): carry on in the one the performer is in,
+            // so their scenes come from there too.
+            void this.adoptCatalog(details.provider).then(() => {
+              this.performer.set(details);
+              this.activeImageIndex.set(0);
+              this.loadFacets(currentPerformerId);
+              this.resetScenesAndReload();
+            });
+            return;
+          }
           this.performer.set(details);
           this.activeImageIndex.set(0);
         },
@@ -753,6 +765,16 @@ export class PerformerPageComponent implements OnInit, AfterViewInit, OnDestroy 
           this.performerError.set('Failed to load performer details.');
         },
       });
+  }
+
+  /** Puts the catalog in the address, so this page's requests go there. */
+  private adoptCatalog(provider: string): Promise<boolean> {
+    return this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { provider },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
   protected onShowHiddenChanged(showHidden: boolean): void {

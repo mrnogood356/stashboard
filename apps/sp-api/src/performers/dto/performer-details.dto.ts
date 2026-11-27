@@ -39,4 +39,10 @@ export interface PerformerDetailsDto {
   images: PerformerDetailsImageDto[];
   /** The catalog it came from: the one asked, or the other when it wasn't there. */
   provider: CatalogProviderKey;
+  /**
+   * Found in the other catalog, not the one the page asked (a link that
+   * didn't say which): the page switches to it, so its scenes come from
+   * the same catalog.
+   */
+  fromOtherCatalog: boolean;
 }

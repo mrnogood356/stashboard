@@ -343,6 +343,7 @@ describe('CatalogProviderService', () => {
         value: { id: 'fans-scene' },
         provider: expect.objectContaining({ providerKey: 'FANSDB' }),
         browseOnly: true,
+        fellBack: true,
       });
       expect(load).toHaveBeenCalledTimes(2);
     });

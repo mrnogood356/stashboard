@@ -67,6 +67,8 @@ export class SceneDetailsDto {
   status!: SceneStatusDto;
   /** False for scenes from a browse-only provider, which cannot be requested. */
   requestable!: boolean;
+  /** Found in the other catalog than the page asked; the page notes which. */
+  fromOtherCatalog?: boolean;
   stash!: SceneStashAvailabilityDto | null;
   whisparr!: SceneWhisparrAvailabilityDto | null;
 }

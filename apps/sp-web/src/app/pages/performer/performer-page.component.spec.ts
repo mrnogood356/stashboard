@@ -1,6 +1,6 @@
 import { HiddenContentService } from '../../core/api/hidden-content.service';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject, of } from 'rxjs';
 import { DiscoverService } from '../../core/api/discover.service';
 import { DiscoverItem, PerformerDetails, SceneFacets } from '../../core/api/discover.types';
@@ -191,6 +191,40 @@ describe('PerformerPageComponent', () => {
     // A small move is a tap, not a swipe.
     swipe(200, 190);
     expect(photo()).toContain('/a.jpg');
+  });
+
+  it('carries on in the catalog the performer is in, when the link didn’t say', async () => {
+    const navigate = vi.spyOn(Router.prototype, 'navigate').mockResolvedValue(true);
+    const { fixture, discoverService } = await renderPage(buildScene(), {
+      ...buildPerformer(),
+      provider: 'FANSDB',
+      fromOtherCatalog: true,
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(navigate).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({
+        queryParams: { provider: 'FANSDB' },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      }),
+    );
+    // The scenes and their filters are asked again, now of FansDB.
+    expect(discoverService.getPerformerScenesFeed).toHaveBeenCalledTimes(2);
+    expect(discoverService.getPerformerFacets).toHaveBeenCalledTimes(2);
+    expect(fixture.nativeElement.textContent).toContain(buildPerformer().name);
+    navigate.mockRestore();
+  });
+
+  it('stays in the catalog it asked when the performer is there', async () => {
+    const navigate = vi.spyOn(Router.prototype, 'navigate');
+    const { discoverService } = await renderPage();
+
+    expect(navigate).not.toHaveBeenCalled();
+    expect(discoverService.getPerformerScenesFeed).toHaveBeenCalledTimes(1);
+    navigate.mockRestore();
   });
 
   it('shows no arrows for a performer with a single photo', async () => {

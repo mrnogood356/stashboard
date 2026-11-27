@@ -566,6 +566,16 @@ export class ScenePageComponent implements OnInit, OnDestroy {
           if (this.openLibraryCopy(scene)) {
             return;
           }
+          if (scene.fromOtherCatalog) {
+            // Opened from a link that didn't say which catalog: note the one
+            // the scene is in, so favourites and the like go there too.
+            void this.router.navigate([], {
+              relativeTo: this.route,
+              queryParams: { provider: scene.source },
+              queryParamsHandling: 'merge',
+              replaceUrl: true,
+            });
+          }
           this.scene.set(scene);
           this.selectedStashCopyUrl.set(scene.stash?.copies[0]?.viewUrl ?? null);
           this.requestContext.set({

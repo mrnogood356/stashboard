@@ -237,6 +237,8 @@ describe('StudiosService', () => {
           imageUrl: null,
         },
       ],
+      provider: 'STASHDB',
+      fromOtherCatalog: false,
     });
 
     expect(stashdbAdapter.getStudioById).toHaveBeenCalledWith('studio-1', {

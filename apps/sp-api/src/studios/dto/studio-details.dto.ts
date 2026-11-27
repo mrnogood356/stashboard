@@ -1,3 +1,4 @@
+import type { CatalogProviderKey } from '../../providers/catalog/catalog-provider.util';
 export interface StudioDetailsImageDto {
   id: string;
   url: string;
@@ -45,4 +46,8 @@ export interface StudioDetailsDto {
   urls: StudioDetailsUrlDto[];
   parentStudio: StudioDetailsParentDto | null;
   childStudios: StudioDetailsChildDto[];
+  /** The catalog it came from: the one asked, or the other when it wasn't there. */
+  provider: CatalogProviderKey;
+  /** Found in the other catalog, not the one the page asked: see the performer's. */
+  fromOtherCatalog: boolean;
 }

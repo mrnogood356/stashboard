@@ -439,6 +439,7 @@ export class ScenesService {
       value: scene,
       provider: catalogProvider,
       browseOnly,
+      fellBack,
     } = await this.catalogProviderService.withDetailFallback((provider) =>
       this.stashdbAdapter.getSceneById(sceneId, {
         baseUrl: provider.baseUrl,
@@ -475,6 +476,7 @@ export class ScenesService {
       status,
       // Scenes from a browse-only provider can't be sent to Whisparr.
       requestable: !browseOnly && isSceneStatusRequestable(status),
+      ...(fellBack === true ? { fromOtherCatalog: true } : {}),
       stash,
       whisparr: browseOnly ? null : whisparr,
     };

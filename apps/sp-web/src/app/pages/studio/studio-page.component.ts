@@ -670,6 +670,17 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
       )
       .subscribe({
         next: (details) => {
+          if (details.fromOtherCatalog && details.provider) {
+            // Opened from a link that didn't say which catalog: carry on in
+            // the one the studio is in, so its scenes come from there too.
+            void this.adoptCatalog(details.provider).then(() => {
+              this.studio.set(details);
+              this.activeImageIndex.set(0);
+              this.loadFacets(currentStudioId);
+              this.resetScenesAndReload();
+            });
+            return;
+          }
           this.studio.set(details);
           this.activeImageIndex.set(0);
         },
@@ -677,6 +688,16 @@ export class StudioPageComponent implements OnInit, AfterViewInit, OnDestroy {
           this.studioError.set('Failed to load studio details.');
         },
       });
+  }
+
+  /** Puts the catalog in the address, so this page's requests go there. */
+  private adoptCatalog(provider: string): Promise<boolean> {
+    return this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { provider },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
   protected onShowHiddenChanged(showHidden: boolean): void {

@@ -219,6 +219,32 @@ describe('PerformersService', () => {
     });
   });
 
+  it('says when the performer came from the other catalog than the page asked', async () => {
+    await expect(service.getPerformerById('p-1')).resolves.toMatchObject({
+      provider: 'STASHDB',
+      fromOtherCatalog: false,
+    });
+
+    // A link to a FansDB performer opened without saying which catalog.
+    (
+      catalogProviderService as unknown as { withDetailFallback: jest.Mock }
+    ).withDetailFallback.mockImplementationOnce(
+      async (load: (provider: unknown) => Promise<unknown>) => {
+        const provider = { ...stashdbIntegration, providerKey: 'FANSDB' };
+        return {
+          value: await load(provider),
+          provider,
+          browseOnly: true,
+          fellBack: true,
+        };
+      },
+    );
+    await expect(service.getPerformerById('p-1')).resolves.toMatchObject({
+      provider: 'FANSDB',
+      fromOtherCatalog: true,
+    });
+  });
+
   it('returns performer-scoped scenes with DATE default sort', async () => {
     await expect(service.getPerformerScenes('p-1')).resolves.toEqual({
       total: 1,
