@@ -14,6 +14,7 @@ import {
 import type { Request, Response } from 'express';
 import { Readable } from 'node:stream';
 import { Public } from '../auth/decorators/public.decorator';
+import { AllowJustAfterLock } from '../auth/decorators/allow-when-locked.decorator';
 import { StashAdapter } from '../providers/stash/stash.adapter';
 import { PlaybackActivityDto } from './dto/playback-activity.dto';
 import { RequiresPlayback } from './playback-feature.guard';
@@ -61,6 +62,7 @@ export class PlaybackController {
   }
 
   @RequiresPlayback()
+  @AllowJustAfterLock()
   @Post('scenes/:sceneId/activity')
   @HttpCode(204)
   async saveActivity(

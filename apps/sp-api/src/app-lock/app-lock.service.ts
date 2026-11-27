@@ -75,8 +75,14 @@ export class AppLockService {
   }
 
   /** Throws 423 if this session is locked. Called by the guard for every request. */
-  async assertUnlocked(userId: string, sessionId: string): Promise<void> {
-    if (await this.isLocked(userId, sessionId, true)) {
+  async assertUnlocked(
+    userId: string,
+    sessionId: string,
+    options?: { justLockedGraceMs?: number },
+  ): Promise<void> {
+    if (
+      await this.isLocked(userId, sessionId, true, options?.justLockedGraceMs)
+    ) {
       throw new HttpException(
         {
           statusCode: HttpStatus.LOCKED,
@@ -92,6 +98,8 @@ export class AppLockService {
     userId: string,
     sessionId: string,
     recordActivity = false,
+    /** A lock newer than this doesn't count (a save sent as the app left). */
+    justLockedGraceMs = 0,
   ): Promise<boolean> {
     const settings = await this.getSettings(userId);
     if (!settings.enabled || !settings.pinHash) {
@@ -106,11 +114,14 @@ export class AppLockService {
     if (!session?.phoneApp) {
       return false;
     }
+    const now = Date.now();
     if (session.lockedAt) {
-      return true;
+      return (
+        justLockedGraceMs <= 0 ||
+        now - session.lockedAt.getTime() >= justLockedGraceMs
+      );
     }
 
-    const now = Date.now();
     const lastActive = session.lastActiveAt?.getTime() ?? null;
     // Server-side idle lock: covers the app being killed or backgrounded
     // without notice. While it's open the app says so every few seconds,

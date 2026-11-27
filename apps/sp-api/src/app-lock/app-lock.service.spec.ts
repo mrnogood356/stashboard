@@ -111,6 +111,31 @@ describe('AppLockService', () => {
     );
   });
 
+  it('lets a save sent as the app left through just after the lock, and no later', async () => {
+    enabled();
+    sessionFindUnique.mockResolvedValue({
+      lockedAt: new Date(Date.now() - 2_000),
+      lastActiveAt: new Date(),
+      phoneApp: true,
+    });
+    await expect(
+      service.assertUnlocked('u1', 's1', { justLockedGraceMs: 15_000 }),
+    ).resolves.toBeUndefined();
+    // Anything else is still refused straight away.
+    await expect(service.assertUnlocked('u1', 's1')).rejects.toBeInstanceOf(
+      HttpException,
+    );
+
+    sessionFindUnique.mockResolvedValue({
+      lockedAt: new Date(Date.now() - 60_000),
+      lastActiveAt: new Date(),
+      phoneApp: true,
+    });
+    await expect(
+      service.assertUnlocked('u1', 's1', { justLockedGraceMs: 15_000 }),
+    ).rejects.toBeInstanceOf(HttpException);
+  });
+
   it('locks on the server after the idle timeout, even without the app saying so', async () => {
     enabled({ timeoutSeconds: 60 });
     sessionFindUnique.mockResolvedValue({
