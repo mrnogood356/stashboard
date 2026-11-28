@@ -438,7 +438,11 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     // Newest first only came with the search: back to the usual order.
-    if (this.selectedSort() === ScenesPageComponent.defaultSortFor(this.textQuery())) {
+    // Oldest first is a choice of its own, and stays.
+    if (
+      this.selectedSort() === ScenesPageComponent.defaultSortFor(this.textQuery()) &&
+      this.selectedDirection() === ScenesPageComponent.DEFAULT_DIRECTION
+    ) {
       this.selectedSort.set(ScenesPageComponent.DEFAULT_SORT);
     }
     this.textQuery.set('');

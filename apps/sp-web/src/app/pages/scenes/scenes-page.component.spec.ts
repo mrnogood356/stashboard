@@ -589,6 +589,34 @@ describe('ScenesPageComponent', () => {
     );
   });
 
+  it('keeps Oldest first when the search is cleared', async () => {
+    const { fixture, discoverService } = await renderPage({
+      q: 'blue studio',
+      sort: 'DATE',
+      dir: 'ASC',
+    });
+    const chip = fixture.nativeElement.querySelector(
+      '[data-testid="scenes-text-query"]',
+    ) as HTMLElement;
+    (chip.querySelector('button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(discoverService.getScenesFeed).toHaveBeenLastCalledWith(
+      1,
+      24,
+      'DATE',
+      'ASC',
+      [],
+      'OR',
+      undefined,
+      [],
+      [],
+      [],
+      false,
+      '',
+    );
+  });
+
   it('adds up hidden scenes across the pages it loads', async () => {
     const { fixture } = await renderPage(
       { exclude: 'trans' },
