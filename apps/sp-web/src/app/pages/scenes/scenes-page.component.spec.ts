@@ -523,10 +523,11 @@ describe('ScenesPageComponent', () => {
   it('searches the text from q=… (Search’s "See all") and can drop it', async () => {
     const { fixture, discoverService, navigateSpy } = await renderPage({ q: 'blue studio' });
 
+    // Newest first: Trending would only list the matches with recent activity.
     expect(discoverService.getScenesFeed).toHaveBeenLastCalledWith(
       1,
       24,
-      'TRENDING',
+      'DATE',
       'DESC',
       [],
       'OR',
@@ -567,6 +568,53 @@ describe('ScenesPageComponent', () => {
       expect.objectContaining({ queryParams: expect.objectContaining({ q: null }) }),
     );
     expect(fixture.nativeElement.querySelector('[data-testid="scenes-text-query"]')).toBeNull();
+  });
+
+  it('keeps Trending for a search when it was picked', async () => {
+    const { discoverService } = await renderPage({ q: 'blue studio', sort: 'TRENDING' });
+
+    expect(discoverService.getScenesFeed).toHaveBeenLastCalledWith(
+      1,
+      24,
+      'TRENDING',
+      'DESC',
+      [],
+      'OR',
+      undefined,
+      [],
+      [],
+      [],
+      false,
+      'blue studio',
+    );
+  });
+
+  it('keeps Oldest first when the search is cleared', async () => {
+    const { fixture, discoverService } = await renderPage({
+      q: 'blue studio',
+      sort: 'DATE',
+      dir: 'ASC',
+    });
+    const chip = fixture.nativeElement.querySelector(
+      '[data-testid="scenes-text-query"]',
+    ) as HTMLElement;
+    (chip.querySelector('button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(discoverService.getScenesFeed).toHaveBeenLastCalledWith(
+      1,
+      24,
+      'DATE',
+      'ASC',
+      [],
+      'OR',
+      undefined,
+      [],
+      [],
+      [],
+      false,
+      '',
+    );
   });
 
   it('adds up hidden scenes across the pages it loads', async () => {
