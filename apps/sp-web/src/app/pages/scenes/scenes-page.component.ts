@@ -126,6 +126,16 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
    */
   private static readonly MAX_EMPTY_PAGES_IN_A_ROW = 5;
   private static readonly DEFAULT_SORT: SceneFeedSort = 'TRENDING';
+  /**
+   * With words to look for, the newest first. The catalog's Trending only
+   * has scenes with recent activity, so a search sorted that way leaves out
+   * most of what it finds.
+   */
+  private static readonly SEARCH_SORT: SceneFeedSort = 'DATE';
+
+  private static defaultSortFor(query: string): SceneFeedSort {
+    return query.trim() ? ScenesPageComponent.SEARCH_SORT : ScenesPageComponent.DEFAULT_SORT;
+  }
   private static readonly DEFAULT_DIRECTION: SortDirection = 'DESC';
   private static readonly DEFAULT_FAVORITES: FavoritesFilterOption = 'NONE';
   private static readonly DEFAULT_TAG_MODE: SceneTagMatchMode = 'OR';
@@ -427,6 +437,10 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    // Newest first only came with the search: back to the usual order.
+    if (this.selectedSort() === ScenesPageComponent.defaultSortFor(this.textQuery())) {
+      this.selectedSort.set(ScenesPageComponent.DEFAULT_SORT);
+    }
     this.textQuery.set('');
     this.syncUrlWithCurrentFilters(false);
     this.resetFeedAndReload();
@@ -562,7 +576,7 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   protected hasActiveFilters(): boolean {
     return (
-      this.selectedSort() !== ScenesPageComponent.DEFAULT_SORT ||
+      this.selectedSort() !== ScenesPageComponent.defaultSortFor(this.textQuery()) ||
       this.selectedDirection() !== ScenesPageComponent.DEFAULT_DIRECTION ||
       this.selectedFavorites() !== ScenesPageComponent.DEFAULT_FAVORITES ||
       this.selectedTagMode() !== ScenesPageComponent.DEFAULT_TAG_MODE ||
@@ -946,6 +960,7 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
     showHidden: boolean;
     query: string;
   } {
+    const query = (queryParamMap.get('q') ?? '').trim();
     const sortParam = queryParamMap.get('sort');
     const sort: SceneFeedSort =
       sortParam === 'DATE' ||
@@ -954,7 +969,7 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
       sortParam === 'CREATED_AT' ||
       sortParam === 'UPDATED_AT'
         ? sortParam
-        : ScenesPageComponent.DEFAULT_SORT;
+        : ScenesPageComponent.defaultSortFor(query);
 
     const favoritesParam = queryParamMap.get('fav');
     const favorites: FavoritesFilterOption =
@@ -1016,7 +1031,7 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
       studioNamesById,
       excludeTerms: this.parseExcludeTerms(queryParamMap.get('exclude') ?? ''),
       showHidden: queryParamMap.get('showHidden') === '1',
-      query: (queryParamMap.get('q') ?? '').trim(),
+      query,
     };
   }
 
@@ -1104,7 +1119,10 @@ export class ScenesPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private syncUrlWithCurrentFilters(replaceUrl: boolean): void {
     const next = {
-      sort: this.selectedSort() === ScenesPageComponent.DEFAULT_SORT ? null : this.selectedSort(),
+      sort:
+        this.selectedSort() === ScenesPageComponent.defaultSortFor(this.textQuery())
+          ? null
+          : this.selectedSort(),
       dir:
         this.selectedDirection() === ScenesPageComponent.DEFAULT_DIRECTION
           ? null
